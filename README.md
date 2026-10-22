@@ -457,6 +457,10 @@ than a 10% channel fall back to 10 and 45, and a step that would do so is grayed
 layout is frozen, Fill, Tidy, Undo and every window action are grayed out, and the shortcuts do
 nothing.
 
+Moorings checks the layout four times a second while windows are moving, opening or changing
+focus, and once every two seconds after ten quiet seconds, so an idle desk costs almost nothing.
+`pollSeconds`, `activeSeconds` and `idleSeconds` in `M.config` set those times.
+
 ### Screens
 
 Moorings acts on the widest display whose aspect ratio is at least `minAspect`. With no such

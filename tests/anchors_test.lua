@@ -368,11 +368,16 @@ local function install(...)
         windowFocused = "windowFocused",
         windowFullscreened = "windowFullscreened",
         windowUnfullscreened = "windowUnfullscreened",
+        windowMoved = "windowMoved",
         new = function(all)
           world.filterAll = all
           return {
             subscribe = function(self, events, fn)
-              world.events, world.onEvent = events, fn
+              if type(events) == "table" then
+                world.events, world.onEvent = events, fn
+              else
+                world.onMoved = fn
+              end
               return self
             end,
             getWindows = function()
@@ -3669,6 +3674,7 @@ tests[#tests + 1] = function()
     world.clock = world.clock + 3
     world.poll()
     slack.f = copy(moved)
+    world.onMoved()
     world.poll()
   end
   moveByHand()
@@ -3879,6 +3885,7 @@ tests[#tests + 1] = function()
   world.clock = world.clock + 3
   world.poll()
   slack.f = { x = 0, y = 25, w = 5120, h = 1415 }
+  world.onMoved()
   world.poll()
   check("t181 alert", world.alerted
     == "Click its green button to put it back,\nor press Control-Option-Delete (⌃⌥⌫).",
@@ -3895,6 +3902,7 @@ tests[#tests + 1] = function()
   world.clock = world.clock + 3
   world.poll()
   slack.f = { x = 900, y = 200, w = 700, h = 600 }
+  world.onMoved()
   world.poll()
   check("t181 old rect passes", send(1, { x = 60, y = 40 }) == false)
   send(2, { x = 60, y = 40 })
@@ -4386,6 +4394,58 @@ tests[#tests + 1] = function()
   world.windows[#world.windows + 1] = note
   check("t193 behind eaten", send(1, button) == true and send(2, button) == true)
   frameIs("t193 lifted over", slack, { x = 0, y = 25, w = 2816, h = 1415 })
+end
+
+-- Test 194: The poll runs a pass every tick while windows are changing and every idleSeconds
+-- once they have been still for activeSeconds. A move, a window event and a display change each
+-- wake it, a skipped tick reads no frame, and a stray window is still caught while idle.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local note = addWin("Notes", { x = 1000, y = 100, w = 800, h = 600 })
+  anchors.start()
+  check("t194 config", anchors.config.activeSeconds == 10 and anchors.config.idleSeconds == 2)
+  check("t194 moves subscribed", world.onMoved ~= nil)
+  -- passes reports whether a tick at the current clock read any frame.
+  local function passes()
+    local reads = world.frameReads or 0
+    world.poll()
+    return (world.frameReads or 0) > reads
+  end
+  local start = world.clock
+  check("t194 awake at start", passes() and passes())
+  world.clock = start + 9
+  check("t194 awake before the edge", passes())
+  world.clock = start + 10
+  check("t194 awake at the edge", passes())
+  world.clock = start + 10.25
+  check("t194 idle skips", not passes())
+  world.clock = start + 11.75
+  check("t194 idle skips until 2 s", not passes())
+  world.clock = start + 12
+  check("t194 idle every 2 s", passes())
+  world.clock = start + 13.75
+  check("t194 still skipping", not passes())
+  note.f = { x = 4800, y = 100, w = 800, h = 600 }
+  world.clock = start + 14
+  check("t194 stray caught", passes())
+  check("t194 stray back in channel", note.f.x + note.f.w <= 5120 - 2304, tostring(note.f.x))
+  world.clock = start + 30
+  passes()
+  world.clock = start + 30.25
+  world.onMoved()
+  check("t194 move wakes", passes() and passes())
+  world.clock = start + 50
+  passes()
+  world.clock = start + 50.25
+  world.onEvent()
+  check("t194 event wakes", passes())
+  world.clock = start + 70
+  passes()
+  world.clock = start + 70.25
+  world.onScreens()
+  check("t194 display wakes", passes())
+  frameIs("t194 pin held", slack, leftFull)
 end
 
 for i, t in ipairs(tests) do

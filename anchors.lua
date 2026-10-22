@@ -51,8 +51,12 @@ M.config = {
   -- row takes when two pins share the side, until one is chosen from Heights.
   leftTopPct = 50,
   rightTopPct = 50,
-  -- pollSeconds is how often the layout is re-checked between window events.
+  -- pollSeconds is how often the layout is re-checked while windows are changing.
   pollSeconds = 0.25,
+  -- activeSeconds is how long after the last window event the layout counts as changing.
+  activeSeconds = 10,
+  -- idleSeconds is how often the layout is re-checked once windows are still.
+  idleSeconds = 2,
   -- minAspect is the width-to-height ratio a screen needs to count as ultrawide.
   minAspect = 2.2,
   -- tolerance is how many points a frame may drift before it is corrected.
@@ -249,6 +253,10 @@ local state = {
   present = nil,
   -- opening maps a pinned bundle ID moorings opened to when it opened it.
   opening = {},
+  -- woke is when the last window event arrived.
+  woke = 0,
+  -- polled is when the poll last ran a pass.
+  polled = 0,
 }
 
 -- now returns the current time in seconds.
@@ -1541,6 +1549,22 @@ function M.moor()
   end
 end
 
+-- wake marks windows as changing, so the poll runs every pollSeconds again.
+local function wake()
+  state.woke = M.now()
+end
+
+-- tick runs a pass every pollSeconds while windows are changing and every idleSeconds once
+-- they have been still for activeSeconds.
+local function tick()
+  local t = M.now()
+  if t - state.woke > M.config.activeSeconds and t - state.polled < M.config.idleSeconds then
+    return
+  end
+  state.polled = t
+  M.moor()
+end
+
 -- fill stretches the focused free window across the whole channel.
 function M.fill()
   if paused() then
@@ -2540,10 +2564,16 @@ function M.start()
     wf.windowFocused,
     wf.windowFullscreened,
     wf.windowUnfullscreened,
-  }, safe(M.moor))
+  }, safe(function()
+    wake()
+    M.moor()
+  end))
+  -- Moves and resizes only wake the poll, so a burst of them costs one pass per tick at most.
+  M.filter:subscribe(wf.windowMoved, wake)
   workspaces.attach(M)
   settings.attach(M, actions, workspaces)
   M.screens = hs.screen.watcher.new(safe(function()
+    wake()
     workspaces.screensChanged()
     state.placed = {}
     M.moor()
@@ -2557,7 +2587,8 @@ function M.start()
       state.opening[pin.bundle] = M.now()
     end
   end
-  M.timer = hs.timer.doEvery(M.config.pollSeconds, safe(M.moor))
+  wake()
+  M.timer = hs.timer.doEvery(M.config.pollSeconds, safe(tick))
   safe(M.moor)()
   if fresh then
     safe(openAnchored)()
