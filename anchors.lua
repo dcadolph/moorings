@@ -14,10 +14,10 @@ local M = {}
 M.config = {
   -- pins lists the apps held at an edge, by bundle ID. A side holds at most two.
   -- row is "top" or "bottom" and only matters when two pins share a side.
-  -- expandPct widens a pin while it has focus, and mainOnly moves only the
-  -- app's main window.
+  -- expandPct widens a pin while it has focus. A pin holds one window of its app and
+  -- leaves the app's other windows free.
   pins = {
-    { bundle = "com.tinyspeck.slackmacgap", side = "left", mainOnly = true },
+    { bundle = "com.tinyspeck.slackmacgap", side = "left" },
     { bundle = "com.googlecode.iterm2", side = "right" },
   },
   -- ignoreBundles lists apps whose windows are never moved. Shortcuts are off
@@ -228,6 +228,8 @@ local state = {
   lifted = {},
   -- zoom maps a pinned window id to its frame and the green button rect at that frame.
   zoom = {},
+  -- holders maps a pinned bundle ID to the id of the one window the pin holds.
+  holders = {},
 }
 
 -- now returns the current time in seconds.
@@ -843,7 +845,7 @@ local function configPin(bundle)
 end
 
 -- pins returns the pins in effect. Switcher choices override the config, and a
--- chosen app keeps the expandPct and mainOnly the config gives it.
+-- chosen app keeps the expandPct the config gives it.
 function M.pins()
   local picks = chosen()
   if not picks then
@@ -854,8 +856,7 @@ function M.pins()
     local bundle = picks[s.key]
     if bundle ~= "" then
       local base = configPin(bundle) or {}
-      list[#list + 1] = { bundle = bundle, side = s.side, row = s.row,
-        expandPct = base.expandPct, mainOnly = base.mainOnly }
+      list[#list + 1] = { bundle = bundle, side = s.side, row = s.row, expandPct = base.expandPct }
     end
   end
   return list
@@ -955,13 +956,19 @@ function M.slotFor(win)
   return slots[bundleOf(win)]
 end
 
--- pinsWindow reports whether pin applies to win, honoring mainOnly.
+-- pinsWindow reports whether pin holds win. A pin holds one window: the one it already
+-- holds, or else the app's main window, which it then keeps.
 local function pinsWindow(pin, win)
-  if not pin.mainOnly then
-    return true
+  local held = state.holders[pin.bundle]
+  if held then
+    return held == win:id()
   end
   local main = win:application():mainWindow()
-  return main ~= nil and main:id() == win:id()
+  if main ~= nil and main:id() == win:id() then
+    state.holders[pin.bundle] = win:id()
+    return true
+  end
+  return false
 end
 
 -- pinned reports whether the layout holds win at an edge, which only happens
@@ -1289,6 +1296,11 @@ function M.moor()
       if not seen[id] then
         tbl[id] = nil
       end
+    end
+  end
+  for bundle, id in pairs(state.holders) do
+    if not seen[id] then
+      state.holders[bundle] = nil
     end
   end
 end
