@@ -2167,9 +2167,10 @@ local function menu()
   local pins = pinWindows()
   local items = {
     {
-      title = frozen and "⚓ Weigh anchor (resume layout)" or "⚓ Drop anchor (freeze layout)",
-      tooltip = frozen and "Hold the pins in their slots again."
-        or "Stop holding windows so you can arrange them freely.",
+      title = frozen and "⚓ Drop anchor (hold the layout)"
+        or "⚓ Raise anchor (let windows drift)",
+      tooltip = frozen and "Hold the pins in their slots and free windows in the channel again."
+        or "Stop holding windows so you can arrange them freely. The shortcuts rest too.",
       fn = safe(function()
         hs.settings.set(keys.paused, not paused())
         state.placed = {}
