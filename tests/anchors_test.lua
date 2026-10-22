@@ -1663,7 +1663,7 @@ tests[#tests + 1] = function()
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
     and item("No sizes in the config").disabled == true)
   check("t79 settings", titles(folder("Settings")) == "Settings window…,-,Fullscreen fills the channel,"
-    .. "Fullscreen keeps anchored apps in their slots,Snap by dragging,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
+    .. "Fullscreen keeps anchored apps in their slots,Snap by dragging,Keep Hammerspoon up to date,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
   check("t79 left text", action("left-half").title == "Left half  ⌃⌥←", action("left-half").title)
   action("bottom-right-sixth").fn()
   frameIs("t79 sixth", w, { x = 2048, y = 732, w = 768, h = 708 })
@@ -3848,6 +3848,30 @@ tests[#tests + 1] = function()
   world.poll()
   frameIs("t182 slack back", slack, leftFull)
   frameIs("t182 term back", term, rightFull)
+end
+
+-- Test 183: moorings turns on Hammerspoon's quiet updates at start, the Settings toggle turns
+-- the quiet install off and back on, and the choice survives a reload.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local calls = {}
+  hs.automaticallyCheckForUpdates = function(v) calls[#calls + 1] = v return v end
+  anchors.start()
+  check("t183 checks", world.settings["SUEnableAutomaticChecks"] == true and calls[1] == true)
+  check("t183 quiet install", world.settings["SUAutomaticallyUpdate"] == true)
+  check("t183 ticked", item("Keep Hammerspoon up to date").checked == true)
+  click("Keep Hammerspoon up to date")
+  check("t183 asks again", world.settings["SUAutomaticallyUpdate"] == false
+    and world.settings["SUEnableAutomaticChecks"] == true)
+  check("t183 unticked", item("Keep Hammerspoon up to date").checked == false)
+  local settings = world.settings
+  install(ultrawide())
+  world.settings = settings
+  anchors.start()
+  check("t183 off survives reload", world.settings["SUAutomaticallyUpdate"] == false)
+  click("Keep Hammerspoon up to date")
+  check("t183 back on", world.settings["SUAutomaticallyUpdate"] == true
+    and world.settings["moorings.hammerspoonUpdates"] == true)
 end
 
 -- unhinted returns the titles of entries in items, at any depth, whose hover hint is wrong:
