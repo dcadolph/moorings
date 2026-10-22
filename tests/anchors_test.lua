@@ -1503,7 +1503,9 @@ tests[#tests + 1] = function()
   check("t79 top", titles(world.bar.menu()) == "⚓ Drop anchor (freeze layout),Re-moor now,-,"
     .. "Window,Locked apps,Widths,Settings,-,Reload", titles(world.bar.menu()))
   check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
-    .. "Size and move,Displays,Organize", titles(folder("Window")))
+    .. "Size and move,Displays,Custom sizes,Organize", titles(folder("Window")))
+  check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
+    and item("No sizes in the config").disabled == true)
   check("t79 settings", titles(folder("Settings")) == "Fullscreen fills the channel,"
     .. "Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
   check("t79 left text", action("left-half").title == "Left half  ⌃⌥←", action("left-half").title)
@@ -1520,6 +1522,52 @@ tests[#tests + 1] = function()
   focus(w)
   press("ctrl+alt", "left")
   check("t80 untouched", w.moves == 0)
+end
+
+-- Test 81: Custom sizes show in their folder with shortcuts, run from the menu and the key,
+-- and bad entries are reported at load.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.sizes = {
+    { title = "Reading", x = 0.25, w = 0.5, shortcut = { mods = { "ctrl", "alt" }, key = "y" } },
+    { title = "Video", width = 1280, height = 720 },
+    { title = "Broken", w = 2 },
+  }
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  focus(w)
+  check("t81 folder", titles(item("Custom sizes").menu) == "Reading  ⌃⌥Y,Video",
+    titles(item("Custom sizes").menu))
+  check("t81 reported", said("size Broken needs x, y, w and h") == 1)
+  press("ctrl+alt", "y")
+  frameIs("t81 reading", w, { x = 1088, y = 25, w = 1152, h = 1415 })
+  action("size:Video").fn()
+  frameIs("t81 video", w, { x = 1024, y = 373, w = 1280, h = 720 })
+  press("ctrl+alt", "delete")
+  frameIs("t81 restore", w, { x = 1000, y = 200, w = 800, h = 600 })
+end
+
+-- Test 82: gapPx spaces halves, moves and resizes, and a bad gap is reported and ignored.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.config.gapPx = 10
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  focus(w)
+  press("ctrl+alt", "left")
+  frameIs("t82 left gap", w, { x = 10, y = 35, w = 945, h = 1035 })
+  press("ctrl+alt", "=")
+  frameIs("t82 larger keeps the gap edge", w, { x = 10, y = 35, w = 975, h = 1035 })
+  press("ctrl+alt", "right")
+  frameIs("t82 right gap", w, { x = 965, y = 35, w = 945, h = 1035 })
+  press("ctrl+alt", "return")
+  frameIs("t82 maximize gap", w, { x = 10, y = 35, w = 1900, h = 1035 })
+  press("ctrl+alt", "-")
+  frameIs("t82 smaller gap", w, { x = 40, y = 65, w = 1840, h = 975 })
+  anchors.config.gapPx = -5
+  press("ctrl+alt", "left")
+  frameIs("t82 bad gap", w, { x = 0, y = 25, w = 960, h = 1055 })
+  check("t82 said", said("gapPx must be a number from 0 to 100") == 1)
 end
 
 for i, t in ipairs(tests) do

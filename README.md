@@ -144,9 +144,29 @@ shortcuts = {
 },
 ```
 
-An unknown action, a bad key, or two actions on one key are reported in the Console at load.
-Shortcuts turn off while an app in `ignoreBundles` is frontmost, and Settings, Ignore frontmost
-app does the same for the app you were just using. That choice survives a reload.
+An unknown action, a bad key, or two actions on one key are reported in the Console at load. A
+key set in the config beats a default on the same key. Shortcuts turn off while an app in
+`ignoreBundles` is frontmost, and Settings, Ignore frontmost app does the same for the app you
+were just using. That choice survives a reload.
+
+### Custom sizes and gaps
+
+`sizes` in the config adds your own positions to the Window, Custom sizes folder. `x`, `y`, `w`
+and `h` are shares of the area from 0 to 1 and default to the whole area. `width` and `height`
+in points size the window and center it in that share. `shortcut` binds a key.
+
+```lua
+sizes = {
+  { title = "Reading", x = 0.25, w = 0.5, shortcut = { mods = { "ctrl", "alt" }, key = "y" } },
+  { title = "Video", width = 1280, height = 720 },
+},
+gapPx = 10,
+```
+
+`gapPx` leaves that many points between the area's edges and the window, and between two
+windows side by side, for every action except almost maximize and the display moves. An entry
+without a title, with shares outside 0 to 1 or past the area's edge, or a gap outside 0 to 100
+is reported in the Console and skipped.
 
 ### Locked apps
 

@@ -22,6 +22,12 @@ M.config = {
   -- shortcuts overrides Rectangle's keymap by action name. Set an action to
   -- { mods = { "ctrl", "alt" }, key = "h" } to rebind it, or to false to unbind it.
   shortcuts = {},
+  -- sizes lists custom window sizes for the Window, Custom sizes folder. Each
+  -- has a title, x, y, w and h as shares of the area from 0 to 1, an optional
+  -- width and height in points centered in that share, and an optional shortcut.
+  sizes = {},
+  -- gapPx is the space in points around and between windows placed by an action.
+  gapPx = 0,
   -- leftPct and rightPct are the edge widths until a preset is chosen.
   leftPct = 10,
   rightPct = 45,

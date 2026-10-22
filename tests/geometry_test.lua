@@ -249,6 +249,40 @@ tests[#tests + 1] = function()
   end
 end
 
+-- Test 18: A custom size covers its share of the area, with and without a gap.
+tests[#tests + 1] = function()
+  is("t18 middle half", G.custom(channel, { x = 0.25, w = 0.5 }),
+    { x = 1088, y = 25, w = 1152, h = 1415 })
+  is("t18 whole", G.custom(channel, {}), channel)
+  is("t18 corner", G.custom(channel, { x = 0.5, y = 0.5, w = 0.5, h = 0.5 }),
+    G.position("bottom-right", channel))
+  is("t18 gap matches halves", G.custom(channel, { w = 0.5 }, 10),
+    G.position("left-half", channel, nil, 10))
+  is("t18 gap inner", G.custom(channel, { x = 0.5, w = 0.5 }, 10),
+    G.position("right-half", channel, nil, 10))
+  is("t18 two thirds", G.custom(channel, { x = 1 / 3, w = 2 / 3 }),
+    G.position("last-two-thirds", channel))
+  is("t18 first two thirds", G.custom(channel, { w = 2 / 3 }), G.position("first-two-thirds", channel))
+end
+
+-- Test 19: A custom pixel size is centered in its share and shrunk to fit.
+tests[#tests + 1] = function()
+  is("t19 centered", G.custom(channel, { width = 1280, height = 720 }),
+    { x = 1024, y = 373, w = 1280, h = 720 })
+  is("t19 too wide", G.custom(channel, { x = 0, w = 0.25, width = 1000 }),
+    { x = 512, y = 25, w = 576, h = 1415 })
+  is("t19 height only", G.custom(channel, { w = 0.5, height = 415 }),
+    { x = 512, y = 525, w = 1152, h = 415 })
+  is("t19 too tall", G.custom(channel, { height = 5000 }), channel)
+end
+
+-- Test 20: A share whose product lands just under a whole point by float error is not cut short.
+tests[#tests + 1] = function()
+  local square = { x = 0, y = 0, w = 100, h = 100 }
+  check("t20 float", 100 * 0.29 < 29, "the float case no longer applies")
+  is("t20 share", G.custom(square, { w = 0.29 }), { x = 0, y = 0, w = 29, h = 100 })
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then
