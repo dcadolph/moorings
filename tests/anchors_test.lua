@@ -321,6 +321,10 @@ local function install(...)
         return world.focused and newApp(world.focused.app) or nil
       end,
       nameForBundleID = function(bundle) return nameFor(bundle) end,
+      applicationForPID = function(pid)
+        if pid ~= 4242 then return nil end
+        return { kill = function() world.quit = { agentOn = world.agent.on } end }
+      end,
       infoForBundlePath = function(path)
         local name = path:match("/([^/]+)%.app$")
         return name and { CFBundleIdentifier = bundleFor(name) } or {}
@@ -423,6 +427,21 @@ local function install(...)
       world.notices[#world.notices + 1] = n
       return n
     end,
+  }
+  -- The keep-alive agent is faked here and written for real in keepalive_test.lua.
+  world.agent = { installs = {}, uninstalls = 0 }
+  package.loaded.keepalive = {
+    install = function(sentinel)
+      world.agent.installs[#world.agent.installs + 1] = sentinel
+      world.agent.on = true
+      if world.agent.fail then return nil, world.agent.fail end
+      return true
+    end,
+    uninstall = function()
+      world.agent.uninstalls = world.agent.uninstalls + 1
+      world.agent.on = false
+    end,
+    revived = function() return world.agent.revived == true end,
   }
   anchors = require("anchors")
 end
@@ -1706,13 +1725,14 @@ tests[#tests + 1] = function()
   anchors.start()
   focus(w)
   check("t79 top", titles(world.bar.menu()) == "⚓ Raise anchor (let windows drift),Re-moor now,Anchor Safari,-,"
-    .. "Anchored apps,Window,Lift,Widths,Heights,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
+    .. "Anchored apps,Window,Lift,Widths,Heights,Workspaces,Settings,-,Reload,Quit moorings",
+    titles(world.bar.menu()))
   check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
     .. "Size and move,Displays,Custom sizes,Organize", titles(folder("Window")))
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
     and item("No sizes in the config").disabled == true)
   check("t79 settings", titles(folder("Settings")) == "Settings window…,-,Fullscreen fills the channel,"
-    .. "Fullscreen keeps anchored apps in their slots,Snap by dragging,Keep Hammerspoon up to date,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
+    .. "Fullscreen keeps anchored apps in their slots,Snap by dragging,Keep Hammerspoon up to date,Restart if it stops,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
   check("t79 left text", action("left-half").title == "Left half  ⌃⌥←", action("left-half").title)
   action("bottom-right-sixth").fn()
   frameIs("t79 sixth", w, { x = 2048, y = 732, w = 768, h = 708 })
@@ -4264,10 +4284,63 @@ tests[#tests + 1] = function()
   check("t191 title", world.alertTitle == "Slack released", tostring(world.alertTitle))
   check("t191 no keys", world.alerted == "Click its green button to put it back.", tostring(world.alerted))
   check("t191 one banner", #world.notices == 1 and not world.notices[1].opts.sticky)
-  check("t191 banner file listed", anchors.files[#anchors.files] == "banner.lua")
+  local listed = {}
+  for _, file in ipairs(anchors.files) do listed[file] = true end
+  check("t191 banner file listed", listed["banner.lua"] and listed["keepalive.lua"])
   local f = io.open("banner-mark.svg", "r")
   check("t191 banner mark in repo", f ~= nil)
   if f then f:close() end
+end
+
+-- Test 192: moorings installs the keep-alive agent at start and again at each start, the
+-- Settings toggle removes and restores it, the choice survives a reload, a failed install is
+-- logged, Quit moorings removes the agent before it quits, and a start the agent made after a
+-- crash opens no anchored app while a fresh login does.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  check("t192 installed", #world.agent.installs == 1
+    and world.agent.installs[1] == "/tmp/hammerspoon/moorings/anchors.lua", world.agent.installs[1])
+  check("t192 ticked", item("Restart if it stops").checked == true)
+  click("Restart if it stops")
+  check("t192 removed", world.agent.on == false and world.agent.uninstalls == 1
+    and world.settings["moorings.keepAlive"] == false)
+  check("t192 unticked", item("Restart if it stops").checked == false)
+  local settings = world.settings
+  install(ultrawide())
+  world.settings = settings
+  anchors.start()
+  check("t192 off survives reload", #world.agent.installs == 0 and world.agent.uninstalls == 1)
+  click("Restart if it stops")
+  check("t192 back on", world.agent.on == true and #world.agent.installs == 1
+    and world.settings["moorings.keepAlive"] == true)
+
+  install(ultrawide())
+  world.agent.fail = "keep-alive not loaded: Bootstrap failed: 5: Input/output error"
+  anchors.start()
+  local logged = false
+  for _, line in ipairs(world.printed) do
+    if line == "moorings: " .. world.agent.fail then logged = true end
+  end
+  check("t192 failure logged", logged, table.concat(world.printed, " | "))
+  check("t192 still starts", world.bar ~= nil and world.poll ~= nil)
+
+  install(ultrawide())
+  anchors.start()
+  click("Quit moorings")
+  check("t192 quit", world.quit ~= nil and world.quit.agentOn == false)
+  check("t192 quit leaves login item", world.autoLaunch == true)
+
+  install(ultrawide())
+  anchors.config.pins = { { bundle = "test.Notes", side = "left", row = "top" } }
+  world.agent.revived = true
+  anchors.start()
+  check("t192 revived opens nothing", #world.opened == 0, table.concat(world.opened, " | "))
+  check("t192 revived records start", world.settings["moorings.launchedPID"] == 4242)
+  install(ultrawide())
+  anchors.config.pins = { { bundle = "test.Notes", side = "left", row = "top" } }
+  anchors.start()
+  check("t192 login opens", #world.opened == 1, table.concat(world.opened, " | "))
 end
 
 for i, t in ipairs(tests) do

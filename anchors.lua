@@ -4,6 +4,7 @@
 local actions = require("actions")
 local banner = require("banner")
 local geometry = require("geometry")
+local keepalive = require("keepalive")
 local snap = require("snap")
 local tile = require("tile")
 local workspaces = require("workspaces")
@@ -171,6 +172,7 @@ local keys = {
   ignoreShortcuts = "moorings.ignoreShortcuts",
   snap = "moorings.snap",
   hammerspoonUpdates = "moorings.hammerspoonUpdates",
+  keepAlive = "moorings.keepAlive",
   keymap = "moorings.keymap",
   shortcuts = "moorings.shortcuts",
   sizes = "moorings.sizes",
@@ -285,7 +287,7 @@ M.loadfile = loadfile
 -- inside the Hammerspoon config directory.
 M.files = {
   "anchors.lua", "geometry.lua", "actions.lua", "snap.lua", "tile.lua", "workspaces.lua",
-  "settings.lua", "banner.lua",
+  "settings.lua", "banner.lua", "keepalive.lua",
 }
 
 -- path returns the full path of a moorings source file.
@@ -553,6 +555,41 @@ end
 function M.setHammerspoonUpdates(on)
   hs.settings.set(keys.hammerspoonUpdates, on == true)
   applyHammerspoonUpdates()
+end
+
+-- keepAlive reports whether moorings starts Hammerspoon again when it stops, on unless the
+-- owner turned it off.
+function M.keepAlive()
+  return hs.settings.get(keys.keepAlive) ~= false
+end
+
+-- applyKeepAlive installs the agent that restarts Hammerspoon while the setting is on and
+-- removes it while off.
+local function applyKeepAlive()
+  if not M.keepAlive() then
+    keepalive.uninstall()
+    return
+  end
+  local ok, err = keepalive.install(M.path("anchors.lua"))
+  if not ok then
+    log(err)
+  end
+end
+
+-- setKeepAlive turns restarting Hammerspoon on or off and applies the choice.
+function M.setKeepAlive(on)
+  hs.settings.set(keys.keepAlive, on == true)
+  applyKeepAlive()
+end
+
+-- quit removes the agent so nothing restarts Hammerspoon, then quits it. The login item
+-- brings moorings back at the next login.
+function M.quit()
+  keepalive.uninstall()
+  local app = hs.application.applicationForPID(hs.processInfo.processID)
+  if app then
+    app:kill()
+  end
 end
 
 -- fullscreenFills reports whether native fullscreen is redirected to the channel.
@@ -2299,6 +2336,13 @@ local function settingItems()
       checked = M.hammerspoonUpdates(),
       fn = safe(function() M.setHammerspoonUpdates(not M.hammerspoonUpdates()) end),
     },
+    {
+      title = "Restart if it stops",
+      tooltip = "If Hammerspoon quits or crashes, it starts again within 30 seconds. "
+        .. "Quit moorings to stop it until you next log in.",
+      checked = M.keepAlive(),
+      fn = safe(function() M.setKeepAlive(not M.keepAlive()) end),
+    },
     { title = "Keymap", menu = keymaps },
     {
       title = ignoreTitle,
@@ -2413,6 +2457,11 @@ local function menu()
       tooltip = "Reload Hammerspoon to apply config changes, unless the config has an error.",
       fn = safe(M.reload),
     },
+    {
+      title = "Quit moorings",
+      tooltip = "Stop moorings and Hammerspoon until you next log in.",
+      fn = safe(M.quit),
+    },
   }) do
     items[#items + 1] = it
   end
@@ -2448,6 +2497,7 @@ function M.start()
   hs.autoLaunch(true)
   hs.accessibilityState(true)
   applyHammerspoonUpdates()
+  safe(applyKeepAlive)()
   local _, problems = M.layout(M.pins())
   for _, problem in ipairs(problems) do
     log(problem)
@@ -2478,8 +2528,9 @@ function M.start()
     M.moor()
   end)):start()
   -- A fresh start opens the anchored apps, so they keep their space through the first poll and
-  -- a reload, which opens nothing, leaves a closed app closed.
-  local fresh = launched()
+  -- a reload, which opens nothing, leaves a closed app closed. A start the keep-alive agent made
+  -- after a crash opens nothing either.
+  local fresh = launched() and not keepalive.revived()
   if fresh then
     for _, pin in ipairs(M.pins()) do
       state.opening[pin.bundle] = M.now()
