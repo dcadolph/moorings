@@ -344,8 +344,9 @@ the channel up again, unless it was resized by hand in between. Windows already 
 are never touched, and windows on other displays are left alone.
 
 A free window that goes native fullscreen on the ultrawide, which the green button does, leaves
-fullscreen and fills the channel instead. Untick Fullscreen fills the channel to get true
-fullscreen back, or use Drop anchor for a while.
+fullscreen and fills the channel instead. A pinned app's window does the same and goes back to
+its strip. Untick Fullscreen fills the channel or Fullscreen fills the pin's strip to get true
+fullscreen back for that kind of window, or use Drop anchor for a while.
 
 ### Guards
 
