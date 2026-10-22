@@ -99,16 +99,16 @@ layouts. Each exits non-zero on any failure.
 
 The top of the menu holds Drop anchor and Re-moor now, then four folders, then Reload.
 
-| Item                       | What it holds&nbsp;                                                                               |
-|----------------------------|---------------------------------------------------------------------------------------------------|
-| Drop anchor / Weigh anchor | Freezes and releases the layout and the shortcuts. Survives a reload.                             |
-| Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                   |
-| Window                     | Every window action by family, each showing its shortcut.                                         |
-| Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                  |
-| Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                                         |
-| Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                |
-| Settings                   | Fullscreen fills the channel, Snap by dragging, Ignore frontmost app, Icon, Edit config, Console. |
-| Reload                     | Reloads the Hammerspoon config once every moorings file compiles.                                 |
+| Item                       | What it holds&nbsp;                                                                                       |
+|----------------------------|-----------------------------------------------------------------------------------------------------------|
+| Drop anchor / Weigh anchor | Freezes and releases the layout and the shortcuts. Survives a reload.                                     |
+| Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                           |
+| Window                     | Every window action by family, each showing its shortcut.                                                 |
+| Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                          |
+| Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                                                 |
+| Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                        |
+| Settings                   | Fullscreen fills the channel, Snap by dragging, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
+| Reload                     | Reloads the Hammerspoon config once every moorings file compiles.                                         |
 
 Tidy keeps the windows in their current left-to-right order and then leaves them alone. Undo
 tidy restores the position each window had before the first Fill, Tidy or window action since
@@ -135,7 +135,10 @@ display the screen is the whole area below the menu bar. A pinned window ignores
 
 This is Rectangle's recommended keymap. Fourths, sixths, eighths, ninths, corner thirds, almost
 maximize, center prominently and the four moves have no default key and run from the Window
-folder. Rebind or unbind any action in `shortcuts` in the config:
+folder. Settings, Keymap switches to Spectacle's set instead: ⌥⌘ arrows for halves, ⌃⌘ and ⌃⇧⌘
+Left and Right for corners, ⌃⌥ Right and Left to walk the thirds, ⌥⌘ F to maximize, ⌥⌘ C to
+center, ⌃⌥⇧ Right and Left for larger and smaller, and ⌥⌘ Z to restore. `keymap` in the config
+sets the starting choice. Rebind or unbind any action in `shortcuts` in the config:
 
 ```lua
 shortcuts = {
@@ -148,6 +151,27 @@ An unknown action, a bad key, or two actions on one key are reported in the Cons
 key set in the config beats a default on the same key. Shortcuts turn off while an app in
 `ignoreBundles` is frontmost, and Settings, Ignore frontmost app does the same for the app you
 were just using. That choice survives a reload.
+
+### Links and mouse buttons
+
+Any action runs from a link, so a script, a launcher or a Stream Deck can call it:
+
+```sh
+open -g "hammerspoon://moorings?action=left-half"
+open -g "hammerspoon://moorings?action=size:Reading"
+```
+
+The action names are the ones Rectangle uses, such as `next-display` and `tile-all`. A custom
+size is `size:` followed by its title. An unknown name is reported in the Console.
+
+`mouseButtons` in the config binds extra mouse buttons, 2 for the middle button and 3 and up for
+side buttons. A bound button's clicks run the action and go no further, so a browser does not
+also go back. Unbound buttons pass through, and every button passes through while the layout is
+frozen or an ignored app is frontmost.
+
+```lua
+mouseButtons = { [3] = "previous-display", [4] = "next-display" },
+```
 
 ### Custom sizes and gaps
 
