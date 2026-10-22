@@ -210,9 +210,12 @@ local state = {
   axNotice = nil,
   -- clamped maps a window id to the width it had before the channel narrowed it.
   clamped = {},
-  -- floors maps a window id to the frame it was asked to take and the larger size it
-  -- kept instead.
+  -- floors maps a window id to the smallest width and height it was seen to keep.
   floors = {},
+  -- minPts holds the widest floor among the pinned windows on each side.
+  minPts = { left = 0, right = 0 },
+  -- minBy names the app whose floor sets minPts on each side.
+  minBy = {},
 }
 
 -- now returns the current time in seconds.
@@ -293,15 +296,10 @@ end
 M.near = near
 
 -- fit grows frame to the smallest size the window with id is known to keep. The edges
--- named in anchor stay put: right keeps the right edge and bottom the bottom edge. A new
--- frame drops what was known, so the window gets one more try at it.
+-- named in anchor stay put: right keeps the right edge and bottom the bottom edge.
 local function fit(id, frame, anchor)
   local fl = state.floors[id]
   if not fl then
-    return frame
-  end
-  if not near(fl.target, frame) then
-    state.floors[id] = nil
     return frame
   end
   local f = rect(frame)
@@ -329,7 +327,7 @@ local function learn(win, target, frame, anchor)
     return
   end
   local id = win:id()
-  local fl = { target = rect(target), w = math.max(got.w, frame.w), h = math.max(got.h, frame.h) }
+  local fl = { w = math.max(got.w, frame.w), h = math.max(got.h, frame.h) }
   state.floors[id] = fl
   log(string.format("window %s keeps a size of at least %.0fx%.0f: leaving it that size",
     tostring(id), fl.w, fl.h))
@@ -535,8 +533,13 @@ function M.setWidths(left, right)
   M.moor()
 end
 
+-- held reports whether an app that will not shrink holds side wider than pct on screen s.
+local function held(s, side, pct)
+  return s ~= nil and state.minPts[side] > math.floor(s:frame().w * pct / 100)
+end
+
 -- stepped returns the widths after moving side by delta points, and whether
--- they still leave a usable channel.
+-- they still leave a usable channel and do not narrow a side an app holds wider.
 local function stepped(side, delta)
   local left, right = M.widths()
   if side == "left" then
@@ -544,7 +547,8 @@ local function stepped(side, delta)
   else
     right = right + delta
   end
-  return left, right, validSplit(left, right)
+  local narrowHeld = delta < 0 and held(M.ultrawide(), side, side == "left" and left or right)
+  return left, right, validSplit(left, right) and not narrowHeld
 end
 
 -- step widens or narrows side by delta points, refusing a step that would
@@ -634,9 +638,25 @@ function M.ultrawide()
   return best
 end
 
+-- inUse returns the left and right widths in use on frame f: the chosen widths, grown to
+-- fit the widest pin on each side that will not shrink, while the channel keeps at least
+-- minChannelPct.
+function M.inUse(f)
+  local left, right = M.widths()
+  local grow = {}
+  for side, pct in pairs({ left = left, right = right }) do
+    grow[side] = math.max(0, (state.minPts[side] + 0.5) * 100 / f.w - pct)
+  end
+  local room, total = 100 - minChannelPct - left - right, grow.left + grow.right
+  if total > room then
+    grow.left, grow.right = grow.left * room / total, grow.right * room / total
+  end
+  return left + grow.left, right + grow.right
+end
+
 -- channel returns the channel frame on screen s.
 function M.channel(s)
-  return M.regions(s:frame(), M.widths()).channel
+  return M.regions(s:frame(), M.inUse(s:frame())).channel
 end
 
 -- area returns the frame window actions work in on screen s: the channel on the
@@ -908,7 +928,7 @@ end
 -- screen s at the side's current width and height.
 function M.slotFrame(s, key)
   local side, row = key:match("^(%a+)-(%a+)$")
-  local leftPct, rightPct = M.widths()
+  local leftPct, rightPct = M.inUse(s:frame())
   local leftTop, rightTop = M.heights()
   if side == "left" then
     return M.slot(s:frame(), side, row, leftPct, leftTop)
@@ -1080,6 +1100,26 @@ local function settle(win, ch)
   place(win, want)
 end
 
+-- appName returns the name of win's app, or its bundle ID when it has no name.
+local function appName(win)
+  local app = win:application()
+  local name = app and app.name and app:name()
+  return name or bundleOf(win) or "an app"
+end
+
+-- measure records the widest floor among the pinned windows on each side in wins.
+local function measure(wins, slots)
+  local mins, by = { left = 0, right = 0 }, {}
+  for _, w in ipairs(wins) do
+    local slot = slots[bundleOf(w)]
+    local fl = slot and state.floors[w:id()]
+    if fl and fl.w > mins[slot.side] then
+      mins[slot.side], by[slot.side] = fl.w, appName(w)
+    end
+  end
+  state.minPts, state.minBy = mins, by
+end
+
 -- moor puts every pin on its edge and every free window in the channel.
 function M.moor()
   local granted = trusted()
@@ -1091,16 +1131,18 @@ function M.moor()
     return
   end
   local frame = s:frame()
-  local leftPct, rightPct = M.widths()
+  local slots = M.layout(M.pins())
+  local all = windows()
+  measure(all, slots)
+  local leftPct, rightPct = M.inUse(frame)
   local pct = { left = leftPct, right = rightPct }
   local leftTop, rightTop = M.heights()
   local topPct = { left = leftTop, right = rightTop }
   local ch = M.regions(frame, leftPct, rightPct).channel
-  local slots = M.layout(M.pins())
   local focused = hs.window.focusedWindow()
   local focusedSlot = focused and slots[bundleOf(focused)]
   local t, seen = M.now(), {}
-  for _, w in ipairs(windows()) do
+  for _, w in ipairs(all) do
     local slot = slots[bundleOf(w)]
     seen[w:id()] = true
     if slot then
@@ -1591,10 +1633,25 @@ end
 local function widthItems()
   local items = {}
   local leftPct, rightPct = M.widths()
+  local s = M.ultrawide()
+  local useLeft, useRight = leftPct, rightPct
+  if s then
+    useLeft, useRight = M.inUse(s:frame())
+  end
   items[#items + 1] = {
-    title = string.format("Channel %g%%", 100 - leftPct - rightPct),
+    title = string.format("Channel %.0f%%", 100 - useLeft - useRight),
     disabled = true,
   }
+  for _, h in ipairs({ { "left", "Left", leftPct }, { "right", "Right", rightPct } }) do
+    local side, name, chosen = h[1], h[2], h[3]
+    if s and held(s, side, chosen) then
+      items[#items + 1] = {
+        title = string.format("%s %.0f%% in use: %s needs %.0f pt", name,
+          side == "left" and useLeft or useRight, state.minBy[side] or "an app", state.minPts[side]),
+        disabled = true,
+      }
+    end
+  end
   for _, s in ipairs({
     { title = "Left wider", side = "left", delta = 1 },
     { title = "Left narrower", side = "left", delta = -1 },
@@ -1612,6 +1669,7 @@ local function widthItems()
     items[#items + 1] = {
       title = string.format("Left %d%%, right %d%%", p.left, p.right),
       checked = p.left == leftPct and p.right == rightPct,
+      disabled = held(s, "left", p.left) or held(s, "right", p.right),
       fn = safe(function() M.setWidths(p.left, p.right) end),
     }
   end
