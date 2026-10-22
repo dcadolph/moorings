@@ -154,6 +154,10 @@ tests[#tests + 1] = function()
   check("t7 size wins", map["size:Reading"] ~= nil and map.center == nil)
   check("t7 said", has(problems, "size:Reading and center share ⌃⌥C: size:Reading keeps it"))
   check("t7 malformed", has(problems, "shortcut for size:Bad needs mods and key"))
+  local keyed, none = A.shortcuts({ ["size:Plain"] = { mods = { "ctrl" }, key = "p" } },
+    { ["size:Plain"] = false })
+  check("t7 size without its own key", keyed["size:Plain"] ~= nil and #none == 0,
+    table.concat(none, "; "))
 end
 
 -- Test 8: Spectacle's keymap binds its defaults, and an unknown keymap falls back to Rectangle's.

@@ -67,7 +67,10 @@ A.step = 30
 -- families groups the actions for the Window menu folder. A family with groups
 -- holds a folder per group.
 A.families = {
-  { title = "Halves", names = { "left-half", "right-half", "center-half", "top-half", "bottom-half" } },
+  {
+    title = "Halves",
+    names = { "left-half", "right-half", "center-half", "top-half", "bottom-half" },
+  },
   { title = "Quarters", names = { "top-left", "top-right", "bottom-left", "bottom-right" } },
   {
     title = "Thirds",
@@ -198,7 +201,7 @@ end
 
 -- sizeSpec returns the config entry of the custom size action name, or nil.
 local function sizeSpec(name)
-  for _, s in ipairs((A.sizes(host.config.sizes))) do
+  for _, s in ipairs((A.sizes(host.sizeList()))) do
     if s.name == name then
       return s.spec
     end
@@ -211,7 +214,7 @@ local maxGap = 100
 
 -- gap returns the gap between windows in points from the config.
 function A.gap()
-  local g = host.config.gapPx
+  local g = host.gapPx()
   if g == nil then
     return 0
   end
@@ -260,30 +263,34 @@ end
 
 -- shortcuts merges overrides and extra onto the keymap named keymap, Rectangle's
 -- by default, and returns the binding for each action plus the problems found.
--- extra maps more action names, such as custom sizes, to their shortcuts. An
--- override of false removes a binding. When two actions share a key, one the
--- config set beats a default, and otherwise the first in name order keeps it.
+-- extra maps more action names, such as custom sizes, to their shortcuts, and
+-- also makes those names valid in overrides. An override of false removes a
+-- binding. When two actions share a key, one the config set beats a default,
+-- and otherwise the first in name order keeps it.
 function A.shortcuts(overrides, extra, keymap)
   local merged, explicit, problems = {}, {}, {}
   for name, sc in pairs(A.keymaps[keymap] or A.keymaps.rectangle) do
     merged[name] = sc
   end
+  local extraNames = {}
+  for name, sc in pairs(extra or {}) do
+    extraNames[name] = true
+    if wellFormed(sc) then
+      merged[name], explicit[name] = sc, true
+    elseif sc ~= false then
+      problems[#problems + 1] = "shortcut for " .. name .. " needs mods and key: ignoring it"
+    end
+  end
   for name, sc in pairs(overrides or {}) do
-    if not A.known(name) then
-      problems[#problems + 1] = "shortcuts names unknown action " .. tostring(name) .. ": ignoring it"
+    if not (A.known(name) or extraNames[name]) then
+      problems[#problems + 1] = "shortcuts names unknown action " .. tostring(name)
+        .. ": ignoring it"
     elseif sc == false then
       merged[name] = nil
     elseif not wellFormed(sc) then
       problems[#problems + 1] = "shortcut for " .. name .. " needs mods and key: ignoring it"
     else
       merged[name], explicit[name] = sc, true
-    end
-  end
-  for name, sc in pairs(extra or {}) do
-    if wellFormed(sc) then
-      merged[name], explicit[name] = sc, true
-    else
-      problems[#problems + 1] = "shortcut for " .. name .. " needs mods and key: ignoring it"
     end
   end
   local names = {}
@@ -391,18 +398,27 @@ end
 -- bindings returns the shortcut for every action, custom sizes included, and
 -- the problems found in the shortcuts and sizes config.
 local function bindings()
-  local sizes, problems = A.sizes(host.config.sizes)
+  local sizes, problems = A.sizes(host.sizeList())
   local extra = {}
   for _, s in ipairs(sizes) do
-    if s.shortcut ~= nil then
+    if s.shortcut == nil then
+      extra[s.name] = false
+    else
       extra[s.name] = s.shortcut
     end
   end
-  local map, more = A.shortcuts(host.config.shortcuts, extra, host.keymap())
+  local map, more = A.shortcuts(host.shortcutOverrides(), extra, host.keymap())
   for _, p in ipairs(more) do
     problems[#problems + 1] = p
   end
   return map, problems, sizes
+end
+
+A.bindings = bindings
+
+-- organizeNames returns the organize actions in menu order.
+function A.organizeNames()
+  return tile.names
 end
 
 -- preview returns the frame action name would give win on screen s, without
@@ -525,6 +541,14 @@ function A.refresh()
     else
       hk:enable()
     end
+  end
+end
+
+-- suspend turns every shortcut off until the next refresh, so a key press
+-- being recorded in the settings window reaches the window.
+function A.suspend()
+  for _, hk in pairs(state.hotkeys) do
+    hk:disable()
   end
 end
 
