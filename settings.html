@@ -111,6 +111,7 @@
     <button role="tab" data-tab="shortcuts" aria-selected="true">Shortcuts</button>
     <button role="tab" data-tab="sizes" aria-selected="false">Custom sizes</button>
     <button role="tab" data-tab="workspaces" aria-selected="false">Workspaces</button>
+    <button role="tab" data-tab="icons" aria-selected="false">Icon</button>
     <button role="tab" data-tab="general" aria-selected="false">General</button>
   </nav>
 </header>
@@ -141,6 +142,23 @@
     <div class="row">
       <input type="text" id="workspaceName" placeholder="Name" aria-label="Workspace name">
       <button class="primary" id="saveWorkspace">Save current layout</button>
+    </div>
+  </section>
+
+  <section id="icons" hidden>
+    <p class="lead">Pick the menu bar icon. Custom text takes 1 to 5 characters. Your own icons
+      come from the icons list in the config file and from PNG or SVG files in the icons folder.</p>
+    <div id="iconGroups"></div>
+    <h2>Custom text</h2>
+    <div class="row">
+      <input type="text" id="iconText" placeholder="Custom" aria-label="Custom icon text">
+      <button class="primary" id="saveIcon">Use text</button>
+    </div>
+    <div class="row">
+      <button class="small" id="iconSurprise">Surprise me</button>
+      <button class="small" id="iconDefault">Default icon</button>
+      <button class="small" id="iconUndo">Undo icon change</button>
+      <button class="small" id="iconFolder">Open icons folder</button>
     </div>
   </section>
 
@@ -308,6 +326,30 @@ function drawWorkspaces() {
   }
 }
 
+// drawIcons fills the icon tab.
+function drawIcons() {
+  const root = document.getElementById("iconGroups");
+  root.replaceChildren();
+  const icons = model.icons || {};
+  const groups = list(icons.groups).map((g) => ({ title: g.title, icons: list(g.icons) }));
+  const yours = list(icons.yours);
+  if (yours.length > 0) groups.push({ title: "Yours", icons: yours });
+  for (const group of groups) {
+    root.append(el("h2", group.title));
+    const row = el("div", null, { class: "row", style: "flex-wrap: wrap" });
+    for (const icon of group.icons) {
+      const label = icon.glyph ? icon.glyph + "  " + icon.title : icon.title;
+      const b = button(label, () => post({ type: "iconPick", name: icon.name }));
+      b.setAttribute("aria-pressed", String(icon.checked === true));
+      if (icon.checked === true) b.classList.add("primary");
+      row.append(b);
+    }
+    root.append(row);
+  }
+  document.getElementById("iconText").value = icons.custom || "";
+  document.getElementById("iconUndo").disabled = icons.canUndo !== true;
+}
+
 // drawGeneral fills the general tab.
 function drawGeneral() {
   const select = document.getElementById("keymap");
@@ -330,6 +372,7 @@ function draw() {
   drawGroups();
   drawSizes();
   drawWorkspaces();
+  drawIcons();
   drawGeneral();
 }
 
@@ -353,6 +396,11 @@ for (const tab of document.querySelectorAll("nav button")) {
 document.getElementById("keymap").addEventListener("change", (e) => post({ type: "keymap", name: e.target.value }));
 document.getElementById("snap").addEventListener("change", (e) => post({ type: "snap", on: e.target.checked }));
 document.getElementById("saveGap").addEventListener("click", () => post({ type: "gap", value: document.getElementById("gap").value }));
+document.getElementById("saveIcon").addEventListener("click", () => post({ type: "iconCustom", text: document.getElementById("iconText").value }));
+document.getElementById("iconSurprise").addEventListener("click", () => post({ type: "iconSurprise" }));
+document.getElementById("iconDefault").addEventListener("click", () => post({ type: "iconDefault" }));
+document.getElementById("iconUndo").addEventListener("click", () => post({ type: "iconUndo" }));
+document.getElementById("iconFolder").addEventListener("click", () => post({ type: "iconFolder" }));
 document.getElementById("saveWorkspace").addEventListener("click", () => {
   const input = document.getElementById("workspaceName");
   post({ type: "saveWorkspace", name: input.value });

@@ -154,6 +154,7 @@ function S.model()
     workspaces = ws,
     keymap = host.keymap(),
     keymaps = actions.keymapNames,
+    icons = host.iconModel(),
     snap = host.snapOn(),
     gap = host.gapPx() or 0,
     problems = problems,
@@ -298,6 +299,33 @@ local handlers = {
   deleteWorkspace = function(m)
     workspaces.delete(m.name)
   end,
+  iconPick = function(m)
+    local ok, why = host.pickIcon(m.name)
+    if not ok then
+      return why
+    end
+  end,
+  iconCustom = function(m)
+    local ok, why = host.setCustomIcon(m.text)
+    if not ok then
+      return why
+    end
+  end,
+  iconDefault = function()
+    host.defaultIcon()
+  end,
+  iconSurprise = function()
+    host.surpriseIcon()
+  end,
+  iconUndo = function()
+    local ok, why = host.undoIcon()
+    if not ok then
+      return why
+    end
+  end,
+  iconFolder = function()
+    host.openIconDir()
+  end,
   saveWorkspace = function(m)
     local name = type(m.name) == "string" and m.name:match("^%s*(.-)%s*$") or ""
     if name == "" then
@@ -308,14 +336,19 @@ local handlers = {
   end,
 }
 
--- receive handles one message from the window and sends the new state back.
-function S.receive(m)
+-- handle runs one message from the window and returns the notice to show, or nil.
+function S.handle(m)
   local fn = type(m) == "table" and handlers[m.type]
   if not fn then
     host.log("the settings window sent an unknown message")
-    return
+    return nil
   end
-  state.notice = fn(m)
+  return fn(m)
+end
+
+-- receive handles one message from the window and sends the new state back.
+function S.receive(m)
+  state.notice = S.handle(m)
   push()
 end
 
