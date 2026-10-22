@@ -60,31 +60,96 @@ M.presets = {
   { left = 20, right = 40 },
 }
 
--- icons are the menu bar glyphs offered in the Icon submenu.
-M.icons = {
-  { name = "Sailboat", glyph = "⛵" },
-  { name = "Motor boat", glyph = "🛥️" },
-  { name = "Speedboat", glyph = "🚤" },
-  { name = "Canoe", glyph = "🛶" },
-  { name = "Rowboat", glyph = "🚣" },
-  { name = "Ferry", glyph = "⛴️" },
-  { name = "Ship", glyph = "🚢" },
-  { name = "Passenger ship", glyph = "🛳️" },
-  { name = "Anchor", glyph = "⚓" },
-  { name = "Ring buoy", glyph = "🛟" },
-  { name = "Compass", glyph = "🧭" },
-  { name = "Wave", glyph = "🌊" },
-  { name = "Ladder", glyph = "🪜" },
-  { name = "Orange heart", glyph = "🧡" },
-  { name = "Pushpin", glyph = "📌" },
-  { name = "Octopus", glyph = "🐙" },
-  { name = "Crab", glyph = "🦀" },
-  { name = "Turtle", glyph = "🐢" },
+-- iconFolders groups the menu bar glyphs offered in the Icon submenu. The first icon is the default.
+M.iconFolders = {
+  {
+    name = "Boats",
+    icons = {
+      { name = "Sailboat", glyph = "⛵" },
+      { name = "Motor boat", glyph = "🛥️" },
+      { name = "Speedboat", glyph = "🚤" },
+      { name = "Canoe", glyph = "🛶" },
+      { name = "Rowboat", glyph = "🚣" },
+      { name = "Ferry", glyph = "⛴️" },
+      { name = "Ship", glyph = "🚢" },
+      { name = "Passenger ship", glyph = "🛳️" },
+      { name = "Anchor", glyph = "⚓" },
+      { name = "Ring buoy", glyph = "🛟" },
+      { name = "Compass", glyph = "🧭" },
+    },
+  },
+  {
+    name = "Sea life",
+    icons = {
+      { name = "Wave", glyph = "🌊" },
+      { name = "Octopus", glyph = "🐙" },
+      { name = "Crab", glyph = "🦀" },
+      { name = "Turtle", glyph = "🐢" },
+      { name = "Whale", glyph = "🐳" },
+      { name = "Dolphin", glyph = "🐬" },
+      { name = "Fish", glyph = "🐟" },
+      { name = "Tropical fish", glyph = "🐠" },
+      { name = "Shark", glyph = "🦈" },
+      { name = "Seal", glyph = "🦭" },
+      { name = "Shrimp", glyph = "🦐" },
+      { name = "Lobster", glyph = "🦞" },
+      { name = "Squid", glyph = "🦑" },
+      { name = "Jellyfish", glyph = "🪼" },
+      { name = "Coral", glyph = "🪸" },
+      { name = "Shell", glyph = "🐚" },
+      { name = "Penguin", glyph = "🐧" },
+    },
+  },
+  {
+    name = "Tools",
+    icons = {
+      { name = "Ladder", glyph = "🪜" },
+      { name = "Pushpin", glyph = "📌" },
+      { name = "Wrench", glyph = "🔧" },
+      { name = "Hammer", glyph = "🔨" },
+      { name = "Gear", glyph = "⚙️" },
+      { name = "Link", glyph = "🔗" },
+      { name = "Magnet", glyph = "🧲" },
+      { name = "Toolbox", glyph = "🧰" },
+      { name = "Window", glyph = "🪟" },
+      { name = "Rocket", glyph = "🚀" },
+    },
+  },
+  {
+    name = "Hearts and shapes",
+    icons = {
+      { name = "Orange heart", glyph = "🧡" },
+      { name = "Blue heart", glyph = "💙" },
+      { name = "Black heart", glyph = "🖤" },
+      { name = "White heart", glyph = "🤍" },
+      { name = "Orange circle", glyph = "🟠" },
+      { name = "Black circle", glyph = "⚫" },
+      { name = "Orange square", glyph = "🟧" },
+      { name = "Diamond", glyph = "🔶" },
+      { name = "Star", glyph = "⭐" },
+      { name = "Sparkles", glyph = "✨" },
+      { name = "Lightning", glyph = "⚡" },
+      { name = "Sun", glyph = "☀️" },
+      { name = "Moon", glyph = "🌙" },
+    },
+  },
 }
+
+-- icons is every built-in glyph in folder order.
+M.icons = {}
+for _, folder in ipairs(M.iconFolders) do
+  for _, icon in ipairs(folder.icons) do
+    M.icons[#M.icons + 1] = icon
+  end
+end
+
+-- maxIconChars is the longest custom icon text, counted in code points.
+local maxIconChars = 5
 
 local keys = {
   widths = "moorings.widths",
   icon = "moorings.icon",
+  customIcon = "moorings.customIcon",
   paused = "moorings.paused",
   fullscreen = "moorings.fullscreenFills",
   pinFullscreen = "moorings.pinFullscreenFills",
@@ -931,8 +996,25 @@ function M.undo()
   state.saved = {}
 end
 
--- iconGlyph returns the glyph of the chosen icon.
+-- M.validIcon trims text and returns it when it is 1 to 5 code points, else nil and a reason.
+function M.validIcon(text)
+  if type(text) ~= "string" then
+    return nil, "Enter 1 to " .. maxIconChars .. " characters."
+  end
+  text = text:match("^%s*(.-)%s*$")
+  local n = utf8.len(text)
+  if n == nil or n < 1 or n > maxIconChars then
+    return nil, "Enter 1 to " .. maxIconChars .. " characters."
+  end
+  return text
+end
+
+-- iconGlyph returns the custom icon when one is saved, else the chosen built-in glyph.
 local function iconGlyph()
+  local custom = hs.settings.get(keys.customIcon)
+  if M.validIcon(custom) then
+    return M.validIcon(custom)
+  end
   local name = hs.settings.get(keys.icon)
   for _, icon in ipairs(M.icons) do
     if icon.name == name then
@@ -1098,6 +1180,23 @@ local function workspaceItems()
   return items
 end
 
+-- M.promptIcon asks for custom menu bar text and applies it when valid.
+function M.promptIcon()
+  local button, text = hs.dialog.textPrompt("Custom icon",
+    "Enter 1 to " .. maxIconChars .. " characters, such as an emoji or initials.",
+    hs.settings.get(keys.customIcon) or "", "Set", "Cancel")
+  if button ~= "Set" then
+    return
+  end
+  local valid, problem = M.validIcon(text)
+  if not valid then
+    hs.alert.show(problem)
+    return
+  end
+  hs.settings.set(keys.customIcon, valid)
+  M.bar:setTitle(valid)
+end
+
 -- settingItems builds the Settings folder.
 local function settingItems()
   local keymaps, current = {}, M.keymap()
@@ -1110,16 +1209,28 @@ local function settingItems()
   end
   local icons = {}
   local glyph = iconGlyph()
-  for _, icon in ipairs(M.icons) do
-    icons[#icons + 1] = {
-      title = icon.glyph .. "  " .. icon.name,
-      checked = icon.glyph == glyph,
-      fn = safe(function()
-        hs.settings.set(keys.icon, icon.name)
-        M.bar:setTitle(icon.glyph)
-      end),
-    }
+  local usingCustom = M.validIcon(hs.settings.get(keys.customIcon)) ~= nil
+  for _, group in ipairs(M.iconFolders) do
+    local entries = {}
+    for _, icon in ipairs(group.icons) do
+      entries[#entries + 1] = {
+        title = icon.glyph .. "  " .. icon.name,
+        checked = not usingCustom and icon.glyph == glyph,
+        fn = safe(function()
+          hs.settings.set(keys.icon, icon.name)
+          hs.settings.clear(keys.customIcon)
+          M.bar:setTitle(icon.glyph)
+        end),
+      }
+    end
+    icons[#icons + 1] = { title = group.name, menu = entries }
   end
+  icons[#icons + 1] = { title = "-" }
+  icons[#icons + 1] = {
+    title = usingCustom and ("Custom…  " .. glyph) or "Custom…",
+    checked = usingCustom,
+    fn = safe(M.promptIcon),
+  }
   local front = hs.application.frontmostApplication()
   local frontBundle = front and front:bundleID()
   local ignoreTitle = "Ignore frontmost app"

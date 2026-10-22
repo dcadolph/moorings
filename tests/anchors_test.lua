@@ -2672,6 +2672,98 @@ tests[#tests + 1] = function()
   check("t134 survives reload", item("Fullscreen fills the pin's strip").checked == false)
 end
 
+-- Test 135: Icons sit in folders, every built-in is unique, and the default stays first.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  check("t135 folders", titles(folder("Settings")):find("Icon", 1, true) ~= nil)
+  local icons = item("Icon").menu
+  check("t135 groups", titles(icons) == "Boats,Sea life,Tools,Hearts and shapes,-,Custom…", titles(icons))
+  check("t135 count", #anchors.icons >= 40, #anchors.icons)
+  local names, glyphs = {}, {}
+  for _, icon in ipairs(anchors.icons) do
+    check("t135 unique name " .. icon.name, not names[icon.name])
+    check("t135 unique glyph " .. icon.name, not glyphs[icon.glyph])
+    names[icon.name], glyphs[icon.glyph] = true, true
+  end
+  check("t135 default", anchors.icons[1].name == "Sailboat" and world.bar.title == "⛵")
+  click("🐳  Whale")
+  check("t135 nested pick", world.bar.title == "🐳")
+end
+
+-- Test 136: validIcon accepts 1 to 5 code points after trimming and refuses the rest.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local cases = {
+    { "", nil }, { "   ", nil }, { "A", "A" }, { "  AB  ", "AB" }, { "🐙", "🐙" },
+    { "abcde", "abcde" }, { "abcdef", nil }, { "🛥️🛥️", "🛥️🛥️" }, { "a b c", "a b c" },
+    { "\xff", nil }, { nil, nil }, { 7, nil },
+  }
+  for i, c in ipairs(cases) do
+    local got, problem = anchors.validIcon(c[1])
+    check("t136 case " .. i, got == c[2], tostring(got))
+    check("t136 reason " .. i, (got == nil) == (problem ~= nil))
+  end
+end
+
+-- Test 137: A custom icon sets the title, shows checked, and survives reload.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  world.prompt = { "Set", "  DCA " }
+  click("Custom…")
+  check("t137 title", world.bar.title == "DCA", world.bar.title)
+  check("t137 prompt text", world.promptArgs[1] == "Custom icon")
+  check("t137 checked", item("Custom…  DCA").checked == true)
+  check("t137 builtin unchecked", item("⛵  Sailboat").checked == false)
+  local settings = world.settings
+  install(ultrawide())
+  world.settings = settings
+  anchors.start()
+  check("t137 survives reload", world.bar.title == "DCA")
+  world.prompt = { "Set", "" }
+  world.alerted = nil
+  click("Custom…  DCA")
+  check("t137 prefilled", world.promptArgs[3] == "DCA", tostring(world.promptArgs[3]))
+end
+
+-- Test 138: Bad or cancelled input leaves the icon alone and bad input alerts.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  world.prompt = { "Set", "toolong" }
+  click("Custom…")
+  check("t138 refused", world.bar.title == "⛵")
+  check("t138 alert", world.alerted == "Enter 1 to 5 characters.", tostring(world.alerted))
+  check("t138 not saved", world.settings["moorings.customIcon"] == nil)
+  world.alerted = nil
+  world.prompt = { "Cancel", "OK" }
+  click("Custom…")
+  check("t138 cancel", world.bar.title == "⛵" and world.alerted == nil)
+  check("t138 cancel not saved", world.settings["moorings.customIcon"] == nil)
+end
+
+-- Test 139: Picking a built-in icon replaces a custom one, and a bad saved custom value is ignored.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  world.prompt = { "Set", "DCA" }
+  click("Custom…")
+  click("🐙  Octopus")
+  check("t139 title", world.bar.title == "🐙")
+  check("t139 custom cleared", world.settings["moorings.customIcon"] == nil)
+  check("t139 checked", item("🐙  Octopus").checked == true)
+  world.settings["moorings.customIcon"] = "far too long"
+  check("t139 bad saved ignored", item("🐙  Octopus").checked == true)
+  world.prompt = { "Set", "⛵" }
+  click("Custom…")
+  check("t139 custom twin", item("Custom…  ⛵").checked == true and item("⛵  Sailboat").checked == false)
+  world.settings["moorings.customIcon"] = nil
+  world.settings["moorings.icon"] = "Gone"
+  world.settings["moorings.customIcon"] = nil
+  check("t139 unknown name falls back", item("⛵  Sailboat").checked == true)
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then
