@@ -985,14 +985,16 @@ tests[#tests + 1] = function()
   frameIs("t40 notes bottom", notes, leftBottom)
 end
 
--- Test 41: A pin without a valid side is reported and its windows stay free.
+-- Test 41: A pin without a valid side is reported and its windows stay free, left where they
+-- are since no side holds an anchored app.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.config.pins = { { bundle = "test.Notes", side = "middle" } }
   local notes = addWin("Notes", { x = 0, y = 25, w = 400, h = 400 })
   anchors.start()
   check("t41 reported", said("a pin needs a bundle and a side") == 1)
-  frameIs("t41 notes free", notes, { x = 512, y = 25, w = 400, h = 400 })
+  frameIs("t41 notes free", notes, { x = 0, y = 25, w = 400, h = 400 })
+  check("t41 not anchored", anchors.pinned(notes) == false)
 end
 
 -- Test 42: Expand on focus widens a stacked pin inside its own half only.
@@ -1180,14 +1182,17 @@ tests[#tests + 1] = function()
   check("t49 notes second window stays", n2.moves == 0)
 end
 
--- Test 50: Empty clears a slot and its app's window goes back to the channel.
+-- Test 50: Empty clears a slot and its app's window is free, staying put on the side that
+-- now belongs to the channel.
 tests[#tests + 1] = function()
   install(ultrawide())
   local slack = addWin("Slack", leftFull)
   anchors.start()
   pick("Left top: Slack", "Empty")
   check("t50 row", item("Left top: Empty") ~= nil)
-  frameIs("t50 slack free", slack, { x = 512, y = 25, w = 512, h = 1415 })
+  frameIs("t50 slack free", slack, leftFull)
+  check("t50 not anchored", anchors.pinned(slack) == false)
+  check("t50 channel", anchors.channel(world.screens[1]).x == 0)
 end
 
 -- Test 51: Anchor frontmost app puts the app last used in the chosen slot.
@@ -1251,7 +1256,8 @@ tests[#tests + 1] = function()
   local slack2 = addWin("Slack", leftFull)
   local notes = addWin("Notes", { x = 1000, y = 200, w = 400, h = 400 })
   anchors.start()
-  frameIs("t55 slack free", slack2, { x = 512, y = 25, w = 512, h = 1415 })
+  frameIs("t55 slack free", slack2, leftFull)
+  check("t55 slack not anchored", anchors.pinned(slack2) == false)
   frameIs("t55 notes right", notes, rightFull)
   check("t55 rows",
     rows() == "Left top: Empty,Left bottom: Empty,Right top: Notes,Right bottom: Empty", rows())
@@ -3872,6 +3878,53 @@ tests[#tests + 1] = function()
   click("Keep Hammerspoon up to date")
   check("t183 back on", world.settings["SUAutomaticallyUpdate"] == true
     and world.settings["moorings.hammerspoonUpdates"] == true)
+end
+
+-- Test 184: A side with no anchored app belongs to the channel: the channel reaches that edge,
+-- a lift reaches it, Widths says so, the park footprint shows the chosen width, and anchoring
+-- an app there gives the strip back.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local term = addWin("iTerm2", rightFull)
+  anchors.start()
+  local picks = anchors.assignments()
+  local termKey, termBundle
+  for k, v in pairs(picks) do
+    if k:find("^right") and v ~= "" then termKey, termBundle = k, v end
+  end
+  anchors.assign(termKey, "")
+  world.poll()
+  local s = world.screens[1]
+  local ch = anchors.channel(s)
+  check("t184 channel to edge", ch.x == 512 and ch.x + ch.w == 5120, string.format("x %g w %g", ch.x, ch.w))
+  frameIs("t184 term stays", term, rightFull)
+  check("t184 empty label", item("Right side empty: part of the channel") ~= nil
+    and item("Right side empty: part of the channel").disabled == true)
+  check("t184 no left label", item("Left side empty: part of the channel") == nil)
+  check("t184 channel label", item("Channel 90%") ~= nil)
+  check("t184 preview", anchors.slotFrame(s, "right-top").w == 2304, tostring(anchors.slotFrame(s, "right-top").w))
+  world.clock = world.clock + 3
+  world.poll()
+  anchors.toggleLift(slack)
+  frameIs("t184 lift to edge", slack, { x = 0, y = 25, w = 5120, h = 1415 })
+  anchors.toggleLift(slack)
+  frameIs("t184 lowered", slack, leftFull)
+  anchors.assign(termKey, termBundle)
+  world.poll()
+  ch = anchors.channel(s)
+  check("t184 strip back", ch.x + ch.w == 2816, string.format("x %g w %g", ch.x, ch.w))
+  check("t184 label gone", item("Right side empty: part of the channel") == nil)
+  click("Unanchor all apps")
+  world.poll()
+  ch = anchors.channel(s)
+  check("t184 all channel", ch.x == 0 and ch.w == 5120, string.format("x %g w %g", ch.x, ch.w))
+  check("t184 both labels", item("Left side empty: part of the channel") ~= nil
+    and item("Right side empty: part of the channel") ~= nil and item("Channel 100%") ~= nil)
+  check("t184 left preview", anchors.slotFrame(s, "left-top").w == 512, tostring(anchors.slotFrame(s, "left-top").w))
+  anchors.assign("left-bottom", picks["left-top"])
+  world.poll()
+  check("t184 bottom row holds the side", anchors.channel(s).x == 512, tostring(anchors.channel(s).x))
 end
 
 -- unhinted returns the titles of entries in items, at any depth, whose hover hint is wrong:

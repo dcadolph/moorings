@@ -148,7 +148,7 @@ The top of the menu holds Raise anchor and Re-moor now, then seven folders, then
 | Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                                             |
 | Lift                       | One entry per anchored window. Lifts it over its strip and the channel, or lowers it back.                                                   |
 | Anchored apps              | Four slot rows, each with running apps and Choose app…, Anchor frontmost app, Unanchor all, Reset.                                           |
-| Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                                                           |
+| Widths                     | The Channel label, a note for an empty side, the wider and narrower steppers, seven presets.                                                 |
 | Heights                    | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                                  |
 | Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                                                |
 | Settings                   | Settings window, the fullscreen and snapping toggles, Keep Hammerspoon up to date, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
@@ -345,6 +345,11 @@ bottom. One app on a side fills the strip's full height. Two split it 50/50. Eac
 menu shows its app and opens a list of running apps plus Empty. Picking an app that already sits
 in another slot moves it, so an app is never in two slots. An app that is anchored but not running
 leaves its half empty, and the other app keeps its half.
+
+A side with no anchored app belongs to the channel. Free windows can use the whole width up to
+that edge, Lift on the other side reaches it, and Widths says "Right side empty: part of the
+channel". The last few points of that edge still snap a window and, with Option held, park an
+app there. Anchoring an app on the side gives the strip back at its chosen width.
 
 Anchor frontmost app is the fast path. The menu bar does not take focus, so the frontmost app is
 the one you were just using. Choices are saved in Hammerspoon settings and win over the anchors
