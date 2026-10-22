@@ -11,11 +11,11 @@
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple&logoColor=white" alt="Platform: macOS">
 </p>
 
-[Hammerspoon](https://www.hammerspoon.org) config that pins chosen apps to the left or right edge
-of an ultrawide screen and keeps every other window in the channel between them. Slack on the
-left and iTerm on the right are the defaults. It replaces Rectangle for one person's desk.
+Free window management for any Mac, built on [Hammerspoon](https://www.hammerspoon.org).
+Rectangle's keymap, drag snapping, tiling, saved layouts, and apps parked on the screen edges.
+Parked apps need an ultrawide display today.
 
-## Why moorings
+## How moorings started
 
 There are some windows I don't want to have to find. I just want them to be right there on the
 screen, ready to go, no matter how much jumping around I'm doing in other apps or windows.
@@ -35,7 +35,7 @@ to my ultrawide way of working.
 
 ## Contents
 
-- [Why moorings](#why-moorings)
+- [How moorings started](#how-moorings-started)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Quickstart](#quickstart)
@@ -44,7 +44,7 @@ to my ultrawide way of working.
 
 ## Requirements
 
-- macOS with an ultrawide display (aspect ratio of 2.2 or wider)
+- macOS
 - Hammerspoon with Accessibility permission
 - Rectangle quit, since both apps move windows
 
@@ -86,9 +86,9 @@ back after every restart and there is nothing to turn on in Preferences.
 - The menu bar is full. macOS hides the overflow behind the notch. Quit a menu bar app or
   Command-drag icons closer together, and look under System Settings, Menu Bar for items that
   are switched off.
-- The sailboat shows but nothing moves. That is expected on a display that is not ultrawide.
-  Moorings only acts on a screen at least 2.2 times wider than it is tall, and it needs the
-  Accessibility permission from step 3.
+- The sailboat shows but no apps park at the edges. That is expected on a display that is not
+  ultrawide. Parked apps only act on a screen at least 2.2 times wider than it is tall.
+- The sailboat shows but nothing moves at all. Check the Accessibility permission from step 3.
 - Slack and iTerm are the defaults. See Locked apps below to choose other apps.
 
 ### Update and uninstall
@@ -294,11 +294,12 @@ Run `defaults write com.googlecode.iterm2 DisableWindowSizeSnap -integer 1` to t
 
 ### Locked apps
 
-Each strip holds up to two locked apps, so there are four slots: Left top, Left bottom, Right
-top and Right bottom. One app on a side fills the strip's full height. Two split it 50/50. Each
-slot row in the menu shows its app and opens a list of running apps plus Empty. Picking an app
-that already sits in another slot moves it, so an app is never in two slots. An app that is
-locked but not running leaves its half empty, and the other app keeps its half.
+Locked apps need an ultrawide display, one at least 2.2 times wider than it is tall. Each strip
+holds up to two locked apps, so there are four slots: Left top, Left bottom, Right top and Right
+bottom. One app on a side fills the strip's full height. Two split it 50/50. Each slot row in the
+menu shows its app and opens a list of running apps plus Empty. Picking an app that already sits
+in another slot moves it, so an app is never in two slots. An app that is locked but not running
+leaves its half empty, and the other app keeps its half.
 
 Pin frontmost app is the fast path. The menu bar does not take focus, so the frontmost app is
 the one you were just using. Choices are saved in Hammerspoon settings and win over the pins in
