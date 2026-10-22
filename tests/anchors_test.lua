@@ -344,10 +344,13 @@ local function install(...)
       },
     },
     window = {
-      orderedWindows = function()
-        local list = {}
-        for i, w in ipairs(world.windows) do list[i] = w end
-        return list
+      orderedWindows = function() error("the poll asked every app for its windows") end,
+      _orderedwinids = function()
+        local ids = {}
+        for _, w in ipairs(world.windows) do
+          if not (world.offScreen and world.offScreen[w.wid]) then ids[#ids + 1] = w.wid end
+        end
+        return ids
       end,
       focusedWindow = function() return world.focused end,
       get = function(id)
@@ -361,12 +364,23 @@ local function install(...)
         windowFocused = "windowFocused",
         windowFullscreened = "windowFullscreened",
         windowUnfullscreened = "windowUnfullscreened",
-        default = {
-          subscribe = function(self, events, fn)
-            world.events, world.onEvent = events, fn
-            return self
-          end,
-        },
+        new = function(all)
+          world.filterAll = all
+          return {
+            subscribe = function(self, events, fn)
+              world.events, world.onEvent = events, fn
+              return self
+            end,
+            getWindows = function()
+              local list = {}
+              for i, w in ipairs(world.windows) do list[i] = w end
+              if world.filterReversed then
+                for i = 1, #list // 2 do list[i], list[#list + 1 - i] = list[#list + 1 - i], list[i] end
+              end
+              return list
+            end,
+          }
+        end,
       },
     },
     menubar = {
@@ -3988,6 +4002,32 @@ tests[#tests + 1] = function()
   check("t180 failed menu", #failed == 1 and failed[1].title == "Menu failed, see Console")
   missing = unhinted(failed)
   check("t180 failed", #missing == 0, table.concat(missing, ", "))
+end
+
+-- Test 185: The poll reads the moorings window filter in on-screen order without asking every
+-- app for its windows, settles a stray window on screen, and leaves one on another Space alone.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  local away = addWin("Notes", { x = 3000, y = 100, w = 900, h = 600 })
+  local back = addWin("Safari", { x = 1000, y = 100, w = 800, h = 600 })
+  local front = addWin("TextEdit", { x = 3100, y = 200, w = 700, h = 500 })
+  world.offScreen, world.filterReversed = { [away.wid] = true }, true
+  anchors.start()
+  check("t185 own filter", world.filterAll == true)
+  world.poll()
+  local ch = anchors.channel(world.screens[1])
+  check("t185 settled", front.f.x >= ch.x and front.f.x + front.f.w <= ch.x + ch.w, tostring(front.f.x))
+  frameIs("t185 other Space untouched", away, { x = 3000, y = 100, w = 900, h = 600 })
+  local free = anchors.freeWindows()
+  check("t185 order", #free == 2 and free[1] == front and free[2] == back,
+    table.concat((function()
+      local t = {}
+      for _, w in ipairs(free) do t[#t + 1] = w.app end
+      return t
+    end)(), ", "))
+  check("t185 no errors", #world.printed == 0, table.concat(world.printed, " | "))
 end
 
 for i, t in ipairs(tests) do
