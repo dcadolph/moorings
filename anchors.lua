@@ -7,6 +7,7 @@ local geometry = require("geometry")
 local keepalive = require("keepalive")
 local snap = require("snap")
 local tile = require("tile")
+local updates = require("updates")
 local workspaces = require("workspaces")
 local settings = require("settings")
 
@@ -285,6 +286,7 @@ local function log(msg)
 end
 
 M.log = log
+M.notify = notify
 
 -- shellQuote wraps s in single quotes for the shell.
 local function shellQuote(s)
@@ -298,7 +300,7 @@ M.loadfile = loadfile
 -- inside the Hammerspoon config directory.
 M.files = {
   "anchors.lua", "geometry.lua", "actions.lua", "snap.lua", "tile.lua", "workspaces.lua",
-  "settings.lua", "banner.lua", "keepalive.lua",
+  "settings.lua", "banner.lua", "keepalive.lua", "updates.lua",
 }
 
 -- path returns the full path of a moorings source file.
@@ -329,6 +331,8 @@ local function safe(fn)
     end
   end
 end
+
+M.safe = safe
 
 -- rect copies the x, y, w and h of a frame into a plain table.
 local function rect(f)
@@ -2377,6 +2381,7 @@ local function settingItems()
   local icons = iconItems()
   local front = hs.application.frontmostApplication()
   local frontBundle = front and front:bundleID()
+  local checks = updates.settingItems()
   local ignoreTitle = "Ignore frontmost app"
   if front then
     ignoreTitle = ignoreTitle .. " (" .. (front:name() or frontBundle) .. ")"
@@ -2421,6 +2426,8 @@ local function settingItems()
       checked = M.keepAlive(),
       fn = safe(function() M.setKeepAlive(not M.keepAlive()) end),
     },
+    checks[1],
+    checks[2],
     { title = "Keymap", menu = keymaps },
     {
       title = ignoreTitle,
@@ -2480,8 +2487,8 @@ local function liftItems(pins, frozen)
 end
 
 -- menu builds the menu bar menu from current state: the two layout controls, a Re-moor entry
--- per released pin, the frontmost app's entry, a folder per job, and Reload. While Accessibility is
--- missing it starts with the way to grant it.
+-- per released pin, the frontmost app's entry, a folder per job, and Reload. An update and an
+-- old Hammerspoon show first. While Accessibility is missing it starts with the way to grant it.
 local function menu()
   local frozen = paused()
   local pins = pinWindows()
@@ -2542,6 +2549,13 @@ local function menu()
     },
   }) do
     items[#items + 1] = it
+  end
+  local top = updates.menuItems()
+  if #top > 0 then
+    table.insert(top, { title = "-" })
+    for i, it in ipairs(top) do
+      table.insert(items, i, it)
+    end
   end
   if not trusted() then
     table.insert(items, 1, { title = "-" })
@@ -2605,6 +2619,7 @@ function M.start()
   M.filter:subscribe(wf.windowMoved, wake)
   workspaces.attach(M)
   settings.attach(M, actions, workspaces)
+  updates.attach(M)
   M.screens = hs.screen.watcher.new(safe(function()
     wake()
     workspaces.screensChanged()
