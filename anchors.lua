@@ -12,13 +12,13 @@ local settings = require("settings")
 
 local M = {}
 
--- config holds the pins, widths and timing. Edit it, then choose Reload.
+-- config holds the anchored apps, widths and timing. Edit it, then choose Reload.
 M.config = {
-  -- pins lists the apps held at an edge, by bundle ID. A side holds at most two.
+  -- anchored lists the apps held at an edge, by bundle ID. A side holds at most two.
   -- row is "top" or "bottom" and only matters when two pins share a side.
   -- expandPct widens a pin while it has focus. A pin holds one window of its app and
   -- leaves the app's other windows free.
-  pins = {
+  anchored = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left" },
     { bundle = "com.googlecode.iterm2", side = "right" },
   },
@@ -960,7 +960,7 @@ end
 
 -- configPin returns the config entry for bundle, or nil.
 local function configPin(bundle)
-  for _, pin in ipairs(M.config.pins) do
+  for _, pin in ipairs(M.config.anchored) do
     if pin.bundle == bundle then
       return pin
     end
@@ -973,7 +973,7 @@ end
 function M.pins()
   local picks = chosen()
   if not picks then
-    return M.config.pins
+    return M.config.anchored
   end
   local list = {}
   for _, s in ipairs(M.slotNames) do
@@ -997,7 +997,7 @@ function M.assignments()
   for _, s in ipairs(M.slotNames) do
     out[s.key] = ""
   end
-  for bundle, slot in pairs(M.layout(M.config.pins)) do
+  for bundle, slot in pairs(M.layout(M.config.anchored)) do
     out[slot.side .. "-" .. (slot.row or "top")] = bundle
   end
   return out
@@ -2034,7 +2034,7 @@ local function lockedItems()
   end
   items[#items + 1] = {
     title = "Unanchor all apps",
-    tooltip = "Empty every slot so no app is held. Raise anchor pauses instead.",
+    tooltip = "Empty every slot so no app is held. Weigh anchor pauses instead.",
     disabled = not anchored,
     fn = safe(M.clearSlots),
   }
@@ -2455,7 +2455,7 @@ local function menu()
   local items = {
     {
       title = frozen and "⚓ Drop anchor (hold the layout)"
-        or "⚓ Raise anchor (let windows drift)",
+        or "⚓ Weigh anchor (let windows drift)",
       tooltip = frozen
         and "Hold anchored apps in their slots and free windows in the channel again."
         or "Stop holding windows so you can arrange them freely. The shortcuts rest too.",

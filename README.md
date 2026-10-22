@@ -151,12 +151,12 @@ non-zero on any failure.
 
 ### Menu
 
-The top of the menu holds Raise anchor, Re-moor now and Anchor *app*, then seven folders, then
+The top of the menu holds Weigh anchor, Re-moor now and Anchor *app*, then seven folders, then
 Reload and Quit moorings.
 
 | Item                          | What it holds&nbsp;                                                                                                                                               |
 |-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Raise anchor / Drop anchor    | Raise lets every window drift and rests the shortcuts. Drop holds the layout again. Survives a reload.                                                            |
+| Weigh anchor / Drop anchor    | Weigh lets every window drift and rests the shortcuts. Drop holds the layout again. Survives a reload.                                                            |
 | Re-moor now                   | Applies the layout immediately instead of waiting for the poll.                                                                                                   |
 | Re-moor *app*                 | Shown for each anchored window released after you moved it. Puts it back.                                                                                         |
 | Anchor *app* / Unanchor *app* | The app you were just using. Anchor picks one of the four slots. Unanchor frees its slot and leaves the window.                                                   |
@@ -371,7 +371,7 @@ app there. Anchoring an app on the side gives the strip back at its chosen width
 Anchor *app* near the top of the menu is the fast path. The menu bar does not take focus, so it
 names the app you were just using, and turns into Unanchor *app* once that app holds a slot. Choices are saved in Hammerspoon settings and win over the anchors
 in the config file. Unanchor all apps empties every slot, so every window is free until you pick
-an app again. Raise anchor is the pause: it keeps your choices and only stops holding windows.
+an app again. Weigh anchor is the pause: it keeps your choices and only stops holding windows.
 Reset to defaults goes back to the anchors in the config file.
 
 An anchored app keeps the `expandPct` the config gives it. Apps the config does not name get no
@@ -380,7 +380,7 @@ expand. Expand on focus widens an app only within its own row of the strip.
 ### Anchors in the config
 
 Anchored apps, widths and the poll rate live in `M.config` at the top of `anchors.lua`. Each entry
-in `pins` names an app by bundle ID, the side it sits on, and an optional `expandPct` it grows to
+in `anchored` names an app by bundle ID, the side it sits on, and an optional `expandPct` it grows to
 while focused. An anchored app holds one window, the main window when moorings first sees the app,
 and keeps holding it until it closes. The app's other windows are free, so Slack huddles, preference
 panes and a tab torn out of iTerm stay out of the slot. A side holds up to two anchored apps. One
@@ -391,7 +391,7 @@ windows on other displays are pulled onto the ultrawide. Apps listed in `ignoreB
 moved or offered in the menu. This example stacks Slack over Notes on the left:
 
 ```lua
-pins = {
+anchored = {
   { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top", expandPct = 30 },
   { bundle = "com.apple.Notes", side = "left", row = "bottom" },
   { bundle = "com.googlecode.iterm2", side = "right" },
@@ -436,7 +436,7 @@ are never touched, and windows on other displays are left alone.
 A free window that goes native fullscreen on the ultrawide, which its green button does, leaves
 fullscreen and fills the channel instead. An anchored window that ends up in fullscreen goes back to
 its slot. Untick Fullscreen fills the channel or Fullscreen keeps anchored apps in their slots to
-get true fullscreen back for that kind of window, or use Raise anchor for a while.
+get true fullscreen back for that kind of window, or use Weigh anchor for a while.
 
 Hovering over the green button shows a menu that belongs to macOS, not to moorings. Its Move &
 Resize, Fill & Arrange, Full Screen and Move to display entries are macOS window tiling. Moorings
