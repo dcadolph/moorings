@@ -1227,29 +1227,28 @@ tests[#tests + 1] = function()
   check("t50 channel", anchors.channel(world.screens[1]).x == 0)
 end
 
--- Test 51: Anchor frontmost app puts the app last used in the chosen slot.
+-- Test 51: The top-level Anchor entry puts the app last used in the chosen slot.
 tests[#tests + 1] = function()
   install(ultrawide())
   local term = addWin("iTerm2", rightFull)
   local safari = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
   world.front = "Safari"
   anchors.start()
-  local fast = item("Anchor frontmost app (Safari)")
+  local fast = item("Anchor Safari")
   check("t51 enabled", fast ~= nil and fast.disabled == false)
-  pick("Anchor frontmost app (Safari)", "Right bottom")
+  pick("Anchor Safari", "Right bottom")
   frameIs("t51 safari right bottom", safari, rightBottom)
   frameIs("t51 iterm right top", term, rightTop)
-  local target = item("Right bottom", item("Anchor frontmost app (Safari)").menu)
-  check("t51 checked", target.checked == true)
+  check("t51 now unanchor", item("Anchor Safari") == nil and item("Unanchor Safari") ~= nil)
 end
 
--- Test 52: Anchor frontmost app is disabled for an ignored app.
+-- Test 52: The Anchor entry is disabled for an ignored app.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.config.ignoreBundles = { "test.Zoom" }
   world.front = "Zoom"
   anchors.start()
-  check("t52 disabled", item("Anchor frontmost app (Zoom)").disabled == true)
+  check("t52 disabled", item("Anchor Zoom").disabled == true)
 end
 
 -- Test 53: Reset to defaults restores the config layout and clears the saved choice.
@@ -1709,7 +1708,7 @@ tests[#tests + 1] = function()
   local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
   anchors.start()
   focus(w)
-  check("t79 top", titles(world.bar.menu()) == "⚓ Raise anchor (let windows drift),Re-moor now,-,"
+  check("t79 top", titles(world.bar.menu()) == "⚓ Raise anchor (let windows drift),Re-moor now,Anchor Safari,-,"
     .. "Anchored apps,Window,Lift,Widths,Heights,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
   check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
     .. "Size and move,Displays,Custom sizes,Organize", titles(folder("Window")))
@@ -3497,7 +3496,7 @@ tests[#tests + 1] = function()
   check("t164 empty", anchors.assignments()["left-bottom"] == "" and #world.opened == 1)
   anchors.lock("left-bottom", "")
   check("t164 lock empty", #world.opened == 1)
-  pick("Anchor frontmost app (Finder)", "Right bottom")
+  pick("Anchor Finder", "Right bottom")
   check("t164 frontmost", anchors.assignments()["right-bottom"] == "test.Finder"
     and #world.opened == 1)
 end
@@ -4216,6 +4215,40 @@ tests[#tests + 1] = function()
   end
   local want = "Anchored apps,Window,Lift,Widths,Heights,Workspaces,Settings"
   check("t189 folder order", table.concat(got, ",") == want, table.concat(got, ","))
+end
+
+-- Test 190: The frontmost app's entry sits after the Re-moor entries. Its slots say what they
+-- replace, Unanchor frees the slot and leaves the window, and with no frontmost app it is gone.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  anchors.start()
+  world.clock = world.clock + 3
+  world.poll()
+  slack.f = { x = 900, y = 200, w = 700, h = 600 }
+  world.poll()
+  world.front = "TextEdit"
+  local top = titles(world.bar.menu())
+  check("t190 placed", top:find("Re%-moor now,Re%-moor Slack,Anchor TextEdit,%-,Anchored apps") ~= nil, top)
+  local slots = item("Anchor TextEdit").menu
+  check("t190 slot titles", titles(slots) == "Left top,Left bottom,Right top,Right bottom", titles(slots))
+  check("t190 replace hint", slots[1].tooltip == "Anchor TextEdit here in place of Slack.", slots[1].tooltip)
+  check("t190 empty hint", slots[2].tooltip == "Anchor TextEdit to this empty slot.", slots[2].tooltip)
+  check("t190 not nested", titles(folder("Anchored apps")):find("Anchor ") == nil,
+    titles(folder("Anchored apps")))
+  world.front = "Slack"
+  slack.f = copy(leftFull)
+  anchors.remoor(slack)
+  local before = slack.moves
+  local free = item("Unanchor Slack")
+  check("t190 unanchor", free ~= nil and free.menu == nil and item("Anchor Slack") == nil)
+  if free then free.fn({}, free) end
+  check("t190 slot freed", anchors.assignments()["left-top"] == "")
+  check("t190 window stays", slack.moves == before)
+  check("t190 anchor again", item("Anchor Slack") ~= nil)
+  world.front, world.focused = nil, nil
+  check("t190 no front", titles(world.bar.menu()):find("Anchor ") == nil, titles(world.bar.menu()))
 end
 
 for i, t in ipairs(tests) do
