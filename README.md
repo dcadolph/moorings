@@ -56,24 +56,26 @@ to my ultrawide way of working.
 Four steps. When they are done the moorings mark, a small sailboat, sits in
 the menu bar at the top right of the screen.
 
-**1. Get the files and Hammerspoon.** Skip the `brew` line if Hammerspoon is already installed.
+**1. Get the files and Hammerspoon.** Skip the cask line if Hammerspoon is already installed.
+With Homebrew:
 
 ```sh
-git clone https://github.com/dcadolph/moorings.git ~/src/moorings
 brew install --cask hammerspoon
+brew install dcadolph/tap/moorings
 ```
 
-**2. Wire moorings into Hammerspoon.** Paste this whole block. It is safe to run twice.
+Or from a clone, to edit moorings yourself:
 
 ```sh
-mkdir -p ~/.hammerspoon
-ln -sfn ~/src/moorings ~/.hammerspoon/moorings
-grep -q 'require("anchors")' ~/.hammerspoon/init.lua 2>/dev/null \
-  || cat ~/src/moorings/init.lua >> ~/.hammerspoon/init.lua
+brew install --cask hammerspoon
+git clone https://github.com/dcadolph/moorings.git ~/src/moorings
 ```
 
-The link means an edit in the repo takes effect on the next Reload. Copy the folder instead of
-linking it to pin a version.
+**2. Wire moorings into Hammerspoon.** It is safe to run twice. With Homebrew run
+`moorings setup`, from a clone run `~/src/moorings/moorings setup`. Setup links
+`~/.hammerspoon/moorings` to the files and adds three marked lines to
+`~/.hammerspoon/init.lua`, backing it up first. `moorings doctor` checks the result. With a clone
+the link means an edit in the repo takes effect on the next Reload.
 
 **3. Start Hammerspoon and allow it.** Open Hammerspoon from Applications. macOS asks for
 Accessibility access. Click Open System Settings, switch Hammerspoon on under Privacy &
@@ -110,8 +112,9 @@ moorings updates. To update by hand, run `brew upgrade moorings` or
 `git -C ~/src/moorings pull`, then Reload. When Hammerspoon is older than the version moorings
 was checked on, the top of the menu says so and offers Hammerspoon's own update check.
 
-To remove moorings, choose Quit moorings, delete the `~/.hammerspoon/moorings` link, and delete
-the moorings lines from `~/.hammerspoon/init.lua`.
+To remove moorings, choose Quit moorings, then run `moorings uninstall`. It removes the link, the
+lines setup added to `init.lua` and the restart helper, and leaves anything else alone. With
+Homebrew, `brew uninstall moorings` afterward removes the files.
 
 Moorings keeps Hammerspoon running. A small helper checks every 30 seconds and starts Hammerspoon
 again if it quit or crashed, without reopening apps you closed. It is a shell command, not an app,
