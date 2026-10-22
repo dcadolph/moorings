@@ -59,8 +59,11 @@ Win.__index = Win
 -- Win:id returns the window id.
 function Win:id() return self.wid end
 
--- Win:frame returns the current frame.
-function Win:frame() return copy(self.f) end
+-- Win:frame returns the current frame and counts the read.
+function Win:frame()
+  world.frameReads = (world.frameReads or 0) + 1
+  return copy(self.f)
+end
 
 -- Win:setFrame moves the window and counts the move. A window with minW or minH keeps
 -- its origin and stays at least that size, as apps with a minimum size do.
@@ -1854,10 +1857,10 @@ tests[#tests + 1] = function()
   local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
   anchors.start()
   local path = {}
-  for i = 1, 25 do path[i] = { x = 0, y = 540 } end
+  for i = 1, 25 do path[i] = { x = 0, y = 300 + 10 * i } end
   drag(w, path, true)
   w.f.x = w.f.x + 50
-  world.mousePos = { x = 0, y = 540 }
+  world.mousePos = { x = 0, y = 600 }
   fire(6)
   check("t86 no footprint", world.canvas == nil)
   fire(2)
@@ -4120,6 +4123,86 @@ tests[#tests + 1] = function()
   slack.minimized = false
   world.poll()
   check("t187 restored holds", anchors.channel(world.screens[1]).x == 512)
+end
+
+-- Test 188: A drag never reads its window inside the tap. It queues one look at a time once
+-- the cursor travels, reads the frame at most four times, and ignores a look from an ended drag.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  local queue, asks = {}, 0
+  hs.timer.doAfter = function(_, fn) queue[#queue + 1] = fn return {} end
+  hs.window.focusedWindow = function() asks = asks + 1 return world.focused end
+  local function run()
+    local q = queue
+    queue = {}
+    for _, fn in ipairs(q) do fn() end
+  end
+  local function at(x, y)
+    world.mousePos = { x = x, y = y }
+    fire(6)
+  end
+  focus(w)
+  fire(1)
+  world.frameReads = 0
+  at(900, 500)
+  at(900, 500)
+  at(950, 500)
+  check("t188 nothing read in tap", asks == 0 and world.frameReads == 0)
+  check("t188 one look queued", #queue == 1, tostring(#queue))
+  run()
+  check("t188 first look", asks == 1 and world.frameReads == 1)
+  at(903, 502)
+  at(905, 502)
+  check("t188 short travel queues none", #queue == 0, tostring(#queue))
+  w.f.x = w.f.x + 40
+  at(908, 500)
+  check("t188 travel queues a look", #queue == 1 and world.frameReads == 1)
+  run()
+  check("t188 move seen", world.frameReads == 2)
+  at(0, 540)
+  check("t188 footprint", world.canvas ~= nil)
+  fire(2)
+  run()
+  frameIs("t188 snapped", w, { x = 0, y = 25, w = 960, h = 1055 })
+
+  w.f = { x = 500, y = 300, w = 800, h = 500 }
+  focus(w)
+  fire(1)
+  world.frameReads = 0
+  for i = 1, 8 do
+    at(900, 300 + 10 * i)
+    run()
+  end
+  check("t188 budget", world.frameReads == 4, tostring(world.frameReads))
+  w.f.x = w.f.x + 40
+  at(0, 540)
+  run()
+  check("t188 spent budget never snaps", world.canvas == nil and world.frameReads == 4)
+  fire(2)
+  run()
+
+  fire(1)
+  at(900, 500)
+  fire(2)
+  fire(1)
+  local before = asks
+  run()
+  check("t188 stale look ignored", asks == before and #queue == 0)
+  at(900, 500)
+  run()
+  check("t188 new press looks", asks == before + 1)
+  fire(2)
+
+  hs.window.focusedWindow = function() error("window gone") end
+  fire(1)
+  at(900, 500)
+  run()
+  check("t188 look error logged", said("window gone") == 1)
+  at(1000, 500)
+  check("t188 error ends the drag", #queue == 0)
+  fire(2)
 end
 
 for i, t in ipairs(tests) do
