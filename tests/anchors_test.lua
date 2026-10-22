@@ -4343,6 +4343,51 @@ tests[#tests + 1] = function()
   check("t192 login opens", #world.opened == 1, table.concat(world.opened, " | "))
 end
 
+-- Test 193: A window in front of a pin's green button keeps the click, a window behind it or
+-- beside it does not, and a click away from every button reads no frame.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  for _ = 1, 3 do
+    world.clock = world.clock + 1
+    world.poll()
+  end
+  -- send fires a mouse event of type t at point p and returns whether it passed on.
+  local function send(t, p)
+    world.mousePos = p
+    return world.tap({ getType = function() return t end, getFlags = function() return {} end })
+  end
+  local button = { x = 60, y = 40 }
+  local reads = world.frameReads
+  check("t193 elsewhere passes", send(1, { x = 300, y = 300 }) == false
+    and send(2, { x = 300, y = 300 }) == false)
+  check("t193 elsewhere reads no frame", world.frameReads == reads,
+    string.format("%d reads", world.frameReads - reads))
+  check("t193 right of button passes", send(1, { x = 73, y = 40 }) == false
+    and send(2, { x = 73, y = 40 }) == false)
+  check("t193 below button passes", send(1, { x = 60, y = 52 }) == false
+    and send(2, { x = 60, y = 52 }) == false)
+  local note = addWin("Notes", { x = 0, y = 25, w = 400, h = 300 })
+  check("t193 covered passes", send(1, button) == false and send(2, button) == false)
+  frameIs("t193 pin stays", slack, leftFull)
+  note.f = { x = 500, y = 25, w = 400, h = 300 }
+  check("t193 beside eaten", send(1, button) == true and send(2, button) == true)
+  frameIs("t193 lifted", slack, { x = 0, y = 25, w = 2816, h = 1415 })
+  check("t193 lowered", send(1, button) == true and send(2, button) == true)
+  frameIs("t193 back", slack, leftFull)
+  note.f = { x = 0, y = 25, w = 60, h = 300 }
+  check("t193 ends left eaten", send(1, button) == true and send(2, button) == true)
+  note.f = { x = 0, y = 25, w = 400, h = 15 }
+  check("t193 ends above eaten", send(1, button) == true and send(2, button) == true)
+  frameIs("t193 down again", slack, leftFull)
+  note.f = { x = 0, y = 25, w = 400, h = 300 }
+  table.remove(world.windows, 1)
+  world.windows[#world.windows + 1] = note
+  check("t193 behind eaten", send(1, button) == true and send(2, button) == true)
+  frameIs("t193 lifted over", slack, { x = 0, y = 25, w = 2816, h = 1415 })
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then

@@ -1291,16 +1291,37 @@ function M.remoor(win)
   return true
 end
 
+-- inside reports whether point p lies in rect r.
+local function inside(p, r)
+  return p.x >= r.x and p.x < r.x + r.w and p.y >= r.y and p.y < r.y + r.h
+end
+
+-- covered reports whether a window in front of window id holds point p, so a click there
+-- belongs to that window. It reads frames only for the windows in front.
+local function covered(id, p)
+  for _, w in ipairs(onScreen()) do
+    if w:id() == id then
+      return false
+    end
+    local f = w:frame()
+    if f and inside(p, f) then
+      return true
+    end
+  end
+  return false
+end
+
 -- zoomClick lifts or lowers the pin whose green button holds point p, or re-moors it when
 -- it was released, and reports whether it did, so the click can be kept from starting native
--- fullscreen. The work runs after the event so the mouse tap never waits on a window.
+-- fullscreen. A window covering the button keeps its click. Frames are read only on a hit, and
+-- the lift runs after the event so the mouse tap never waits on it.
 function M.zoomClick(p)
   if not p or paused() then
     return false
   end
   for id, c in pairs(state.zoom) do
     local r = c.rect
-    if r and p.x >= r.x and p.x < r.x + r.w and p.y >= r.y and p.y < r.y + r.h then
+    if r and inside(p, r) and not covered(id, p) then
       hs.timer.doAfter(0, safe(function()
         local win = hs.window.get(id)
         if win and state.released[id] then
