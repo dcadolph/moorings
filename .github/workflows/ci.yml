@@ -1,0 +1,26 @@
+name: ci
+
+# Run every test suite on Lua 5.4, the version Hammerspoon embeds.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Lua 5.4
+        run: sudo apt-get update -q && sudo apt-get install -y -q lua5.4
+
+      - name: Test
+        run: |
+          status=0
+          for t in tests/*_test.lua; do
+            echo "== $t"
+            lua5.4 "$t" || status=1
+          done
+          exit $status
