@@ -80,41 +80,73 @@ channel, the open strip in between. Click Slack to expand it to 30%. Click anoth
 collapse it. An expanded pin overlaps the channel instead of pushing windows aside, so nothing
 in the channel moves when it opens or closes.
 
-To lock another app, click it, open the sailboat menu, choose Pin frontmost app, then pick a
-slot. The wider and narrower items move each strip by 1%, and the Channel label shows what is
-left in the middle.
+To lock another app, click it, open the sailboat menu, choose Locked apps, Pin frontmost app,
+then pick a slot. The wider and narrower items under Widths move each strip by 1%, and the
+Channel label shows what is left in the middle.
 
-To test a change, run `lua tests/anchors_test.lua` and `lua tests/geometry_test.lua` from the
-repo root. The first drives `anchors.lua` against a fake Hammerspoon, the second checks the frame
-math in `geometry.lua`, and both exit non-zero on any failure.
+Press Control-Option-Left to put the focused window in the left half of the channel. Press it
+again for two thirds, then one third. The Window folder in the menu lists every action with its
+shortcut.
+
+To test a change, run `lua tests/anchors_test.lua`, `lua tests/geometry_test.lua` and
+`lua tests/actions_test.lua` from the repo root. The first drives `anchors.lua` against a fake
+Hammerspoon, the second checks the frame math in `geometry.lua`, the third checks the keymap and
+menu families in `actions.lua`, and each exits non-zero on any failure.
 
 ## Docs
 
 ### Menu
 
-The menu bar item holds, top to bottom:
+The top of the menu holds Drop anchor and Re-moor now, then four folders, then Reload.
 
-| Item                          | What it does&nbsp;                                              |
-|-------------------------------|-----------------------------------------------------------------|
-| Drop anchor / Weigh anchor    | Freezes and releases the layout. The state survives a reload.   |
-| Re-moor now                   | Applies the layout immediately instead of waiting for the poll. |
-| Fill channel                  | Stretches the focused window across the whole channel.          |
-| Tidy channel                  | Tiles the 2 or 3 front-most free windows into Halves or Thirds. |
-| Undo tidy                     | Puts every window Fill or Tidy moved back where it started.     |
-| Locked apps                   | Four slot rows. Each picks a running app or Empty.              |
-| Pin frontmost app             | Puts the app you were just using into the chosen slot.          |
-| Reset to defaults             | Drops the switcher choices and goes back to the config pins.    |
-| Channel                       | Shows the width the two strips leave for the channel.           |
-| Left or Right wider, narrower | Moves one strip by 1%. The choice survives reload.              |
-| Seven width presets           | Sets both strip widths at once. The choice survives reload.     |
-| Fullscreen fills the channel  | Turns native fullscreen on the ultrawide into a channel fill.   |
-| Edit config                   | Opens `anchors.lua` in the default text editor.                 |
-| Console                       | Opens the Hammerspoon Console, where errors are printed.        |
-| Reload                        | Reloads the Hammerspoon config.                                 |
-| Icon                          | Picks the menu bar glyph. The default is a sailboat.            |
+| Item                       | What it holds&nbsp;                                                             |
+|----------------------------|---------------------------------------------------------------------------------|
+| Drop anchor / Weigh anchor | Freezes and releases the layout and the shortcuts. Survives a reload.           |
+| Re-moor now                | Applies the layout immediately instead of waiting for the poll.                 |
+| Window                     | Every window action by family, each showing its shortcut.                       |
+| Window, Organize           | Fill channel, Tidy channel into Halves or Thirds, and Undo tidy.                |
+| Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                       |
+| Widths                     | The Channel label, the wider and narrower steppers, seven presets.              |
+| Settings                   | Fullscreen fills the channel, Ignore frontmost app, Icon, Edit config, Console. |
+| Reload                     | Reloads the Hammerspoon config once every moorings file compiles.               |
 
 Tidy keeps the windows in their current left-to-right order and then leaves them alone. Undo
-restores the position each window had before the first Fill or Tidy since the last undo.
+tidy restores the position each window had before the first Fill, Tidy or window action since
+the last undo.
+
+### Window actions
+
+Window actions work on the focused window, on every display. On the ultrawide the channel is the
+screen, so a left half is the left half of the channel and the pins never move. On any other
+display the screen is the whole area below the menu bar. A pinned window ignores actions.
+
+| Shortcut        | Action&nbsp;                                                          |
+|-----------------|-----------------------------------------------------------------------|
+| ⌃⌥ arrows       | Left, right, top and bottom half. Left and right cycle 1/2, 2/3, 1/3. |
+| ⌃⌥ U I J K      | Top left, top right, bottom left and bottom right quarter.            |
+| ⌃⌥ D F G        | First, center and last third. First and last walk the thirds.         |
+| ⌃⌥ E R T        | First, center and last two thirds.                                    |
+| ⌃⌥ Return       | Maximize.                                                             |
+| ⌃⌥⇧ Up          | Maximize height.                                                      |
+| ⌃⌥ C            | Center.                                                               |
+| ⌃⌥ = and -      | Larger and smaller by 30 points on every edge not at the screen edge. |
+| ⌃⌥ Delete       | Restore the frame the window had before its first action.             |
+| ⌃⌥⌘ Left, Right | Previous and next display, keeping the window's relative place.       |
+
+This is Rectangle's recommended keymap. Fourths, sixths, eighths, ninths, corner thirds, almost
+maximize, center prominently and the four moves have no default key and run from the Window
+folder. Rebind or unbind any action in `shortcuts` in the config:
+
+```lua
+shortcuts = {
+  ["left-half"] = { mods = { "ctrl", "alt" }, key = "h" },
+  maximize = false,
+},
+```
+
+An unknown action, a bad key, or two actions on one key are reported in the Console at load.
+Shortcuts turn off while an app in `ignoreBundles` is frontmost, and Settings, Ignore frontmost
+app does the same for the app you were just using. That choice survives a reload.
 
 ### Locked apps
 
@@ -177,12 +209,14 @@ window that keeps moving away from where moorings puts it, four times inside ten
 alone for a minute and the Console says so. Re-moor now clears those holds. Without
 Accessibility permission nothing moves and the Console says that once. Widths that leave less
 than a 10% channel fall back to 10 and 45, and a step that would do so is grayed out. While the
-layout is frozen, Fill, Tidy and Undo are grayed out.
+layout is frozen, Fill, Tidy, Undo and every window action are grayed out, and the shortcuts do
+nothing.
 
 ### Screens
 
 Moorings acts on the widest display whose aspect ratio is at least `minAspect`. With no such
-display attached it does nothing, so a laptop screen or a 16:9 monitor is safe.
+display attached the layout does nothing, so a laptop screen or a 16:9 monitor is safe. Window
+actions still work there, and nothing moves until one is pressed.
 
 ## License
 

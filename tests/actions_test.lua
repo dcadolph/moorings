@@ -1,0 +1,111 @@
+-- actions_test checks the parts of actions.lua that run without Hammerspoon:
+-- labels, shortcut text, keymap merging and the menu families. Run it from the
+-- repo root with: lua tests/actions_test.lua
+
+package.path = "./?.lua;" .. package.path
+
+local A = require("actions")
+local G = require("geometry")
+local failures, passes = 0, 0
+
+-- check records a failure when cond is false.
+local function check(name, cond, msg)
+  if cond then
+    passes = passes + 1
+  else
+    failures = failures + 1
+    print("FAIL " .. name .. ": " .. (msg or "condition false"))
+  end
+end
+
+-- has reports whether any problem contains text.
+local function has(problems, text)
+  for _, p in ipairs(problems) do
+    if p:find(text, 1, true) then return true end
+  end
+  return false
+end
+
+local tests = {}
+
+-- Test 0: Labels read as plain words.
+tests[#tests + 1] = function()
+  check("t0 half", A.label("left-half") == "Left half", A.label("left-half"))
+  check("t0 grid", A.label("top-center-left-eighth") == "Top center left eighth")
+  check("t0 one word", A.label("maximize") == "Maximize")
+end
+
+-- Test 1: Shortcut text uses menu glyphs in macOS order.
+tests[#tests + 1] = function()
+  check("t1 arrow", A.keyText({ mods = { "ctrl", "alt" }, key = "left" }) == "⌃⌥←")
+  check("t1 letter", A.keyText({ mods = { "ctrl", "alt", "cmd" }, key = "u" }) == "⌃⌥⌘U")
+  check("t1 delete", A.keyText({ mods = { "ctrl", "alt" }, key = "delete" }) == "⌃⌥⌫")
+end
+
+-- Test 2: The keymap alone binds every Rectangle default with no problems.
+tests[#tests + 1] = function()
+  local map, problems = A.shortcuts({})
+  local n = 0
+  for _ in pairs(map) do n = n + 1 end
+  check("t2 count", n == 22, tostring(n))
+  check("t2 clean", #problems == 0, table.concat(problems, "; "))
+  check("t2 left", A.keyText(map["left-half"]) == "⌃⌥←")
+  check("t2 height", A.keyText(map["maximize-height"]) == "⌃⌥⇧↑")
+  check("t2 next display", A.keyText(map["next-display"]) == "⌃⌥⌘→")
+  for name in pairs(map) do
+    check("t2 known " .. name, A.known(name))
+  end
+end
+
+-- Test 3: Overrides rebind, unbind, normalize aliases and report bad entries.
+tests[#tests + 1] = function()
+  local map, problems = A.shortcuts({
+    ["left-half"] = { mods = { "command", "Option" }, key = "H" },
+    maximize = false,
+    center = { mods = { "ctrl", "alt" }, key = "k" },
+    sideways = { mods = { "ctrl" }, key = "s" },
+    ["top-half"] = { key = "t" },
+    ["bottom-half"] = { mods = { "hyper" }, key = "b" },
+  })
+  check("t3 rebound", map["left-half"] and A.keyText(map["left-half"]) == "⌥⌘H")
+  check("t3 unbound", map.maximize == nil)
+  check("t3 clash keeps first", map["bottom-right"] ~= nil and map.center == nil)
+  check("t3 clash said", has(problems, "bottom-right and center share ⌃⌥K: bottom-right keeps it"))
+  check("t3 unknown", has(problems, "unknown action sideways"))
+  check("t3 malformed", has(problems, "shortcut for top-half needs mods and key"))
+  check("t3 malformed keeps default", map["top-half"] ~= nil)
+  check("t3 bad modifier", has(problems, "shortcut for bottom-half has an unknown modifier"))
+  check("t3 bad modifier dropped", map["bottom-half"] == nil)
+end
+
+-- Test 4: The families list every geometry position once plus the special actions.
+tests[#tests + 1] = function()
+  local seen, dupes = {}, {}
+  for _, fam in ipairs(A.families) do
+    local lists = fam.groups or { fam }
+    for _, g in ipairs(lists) do
+      for _, name in ipairs(g.names) do
+        if seen[name] then dupes[#dupes + 1] = name end
+        seen[name] = true
+      end
+    end
+  end
+  check("t4 no dupes", #dupes == 0, table.concat(dupes, ","))
+  for _, name in ipairs(G.names()) do
+    check("t4 listed " .. name, seen[name] == true)
+  end
+  for _, name in ipairs({ "larger", "smaller", "restore", "next-display", "previous-display" }) do
+    check("t4 special " .. name, seen[name] == true and A.known(name))
+  end
+  check("t4 unknown", not A.known("sideways"))
+end
+
+for i, t in ipairs(tests) do
+  local ok, err = pcall(t)
+  if not ok then
+    failures = failures + 1
+    print(string.format("FAIL test %d raised: %s", i - 1, err))
+  end
+end
+print(string.format("%d checks passed, %d failed", passes, failures))
+os.exit(failures == 0 and 0 or 1)

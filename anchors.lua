@@ -1,6 +1,7 @@
 -- anchors pins chosen apps to the edges of an ultrawide screen and keeps every
 -- other window in the channel between them.
 
+local actions = require("actions")
 local geometry = require("geometry")
 
 local M = {}
@@ -15,8 +16,12 @@ M.config = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left", expandPct = 30, mainOnly = true },
     { bundle = "com.googlecode.iterm2", side = "right" },
   },
-  -- ignoreBundles lists apps whose windows are never moved.
+  -- ignoreBundles lists apps whose windows are never moved. Shortcuts are off
+  -- while one of them is frontmost.
   ignoreBundles = {},
+  -- shortcuts overrides Rectangle's keymap by action name. Set an action to
+  -- { mods = { "ctrl", "alt" }, key = "h" } to rebind it, or to false to unbind it.
+  shortcuts = {},
   -- leftPct and rightPct are the edge widths until a preset is chosen.
   leftPct = 10,
   rightPct = 45,
@@ -67,6 +72,7 @@ local keys = {
   paused = "moorings.paused",
   fullscreen = "moorings.fullscreenFills",
   slots = "moorings.slots",
+  ignoreShortcuts = "moorings.ignoreShortcuts",
 }
 
 -- minChannelPct is the narrowest channel a width pair may leave.
@@ -82,7 +88,8 @@ local pendingSeconds = 5
 local repeatSeconds = 60
 
 local state = {
-  -- saved maps a window id to its frame from before the first Fill or Tidy move.
+  -- saved maps a window id to its frame from before the first Fill, Tidy or
+  -- window action moved it.
   saved = {},
   -- pendingFill maps a window leaving native fullscreen to when it left.
   pendingFill = {},
@@ -113,6 +120,8 @@ local function log(msg)
   print(msg)
 end
 
+M.log = log
+
 -- shellQuote wraps s in single quotes for the shell.
 local function shellQuote(s)
   return "'" .. (s:gsub("'", "'\\''")) .. "'"
@@ -123,7 +132,7 @@ M.loadfile = loadfile
 
 -- files lists the moorings source files, which live in the moorings folder
 -- inside the Hammerspoon config directory.
-M.files = { "anchors.lua", "geometry.lua" }
+M.files = { "anchors.lua", "geometry.lua", "actions.lua" }
 
 -- path returns the full path of a moorings source file.
 function M.path(file)
@@ -203,6 +212,8 @@ end
 local function paused()
   return hs.settings.get(keys.paused) == true
 end
+
+M.paused = paused
 
 -- fullscreenFills reports whether native fullscreen is redirected to the channel.
 local function fullscreenFills()
@@ -308,6 +319,42 @@ end
 -- ignored reports whether win belongs to an app in ignoreBundles.
 local function ignored(win)
   return ignoredBundle(bundleOf(win))
+end
+
+-- shortcutIgnores returns the bundles chosen with Ignore frontmost app.
+local function shortcutIgnores()
+  local saved = hs.settings.get(keys.ignoreShortcuts)
+  return type(saved) == "table" and saved or {}
+end
+
+-- shortcutsIgnored reports whether shortcuts are off while bundle is frontmost.
+function M.shortcutsIgnored(bundle)
+  if bundle == nil then
+    return false
+  end
+  for _, id in ipairs(shortcutIgnores()) do
+    if id == bundle then
+      return true
+    end
+  end
+  return ignoredBundle(bundle)
+end
+
+-- toggleShortcutIgnore adds bundle to the shortcut ignore list, or removes it.
+function M.toggleShortcutIgnore(bundle)
+  local list, found = {}, false
+  for _, id in ipairs(shortcutIgnores()) do
+    if id == bundle then
+      found = true
+    else
+      list[#list + 1] = id
+    end
+  end
+  if not found then
+    list[#list + 1] = bundle
+  end
+  hs.settings.set(keys.ignoreShortcuts, list)
+  actions.refresh()
 end
 
 -- validRow reports whether row names a half of a strip.
@@ -479,6 +526,16 @@ local function pinsWindow(pin, win)
   return main ~= nil and main:id() == win:id()
 end
 
+-- pinned reports whether the layout holds win at an edge, which only happens
+-- while an ultrawide is attached.
+function M.pinned(win)
+  if not M.ultrawide() then
+    return false
+  end
+  local slot = M.slotFor(win)
+  return slot ~= nil and pinsWindow(slot.pin, win)
+end
+
 -- mouseHeld reports whether the primary mouse button is down, as during a drag.
 local function mouseHeld()
   local ok, buttons = pcall(hs.mouse.getButtons)
@@ -529,13 +586,30 @@ local function freeWindows(s)
   return list
 end
 
--- save records win's frame once, before Fill or Tidy first moves it.
+-- save records win's frame once, before Fill, Tidy or a window action first
+-- moves it.
 local function save(win)
   local id = win:id()
   if not state.saved[id] then
     state.saved[id] = rect(win:frame())
   end
   state.clamped[id] = nil
+end
+
+M.save = save
+
+-- restore puts win back where it was before the first move moorings made, and
+-- reports whether there was a frame to return to.
+function M.restore(win)
+  local id = win:id()
+  local f = state.saved[id]
+  if not f then
+    return false
+  end
+  state.saved[id] = nil
+  state.clamped[id] = nil
+  win:setFrame(f)
+  return true
 end
 
 -- settle keeps a free window inside the channel and lets a window the channel
@@ -717,11 +791,11 @@ local function runningApps()
   return list
 end
 
--- lockedItems builds the Locked apps section: a row per slot that opens a
--- list of running apps, a fast path for the frontmost app, and a reset.
+-- lockedItems builds the Locked apps folder: a row per slot that opens a list
+-- of running apps, a fast path for the frontmost app, and a reset.
 local function lockedItems()
   local picks, apps = M.assignments(), runningApps()
-  local items = { { title = "Locked apps", disabled = true } }
+  local items = {}
   for _, s in ipairs(M.slotNames) do
     local current = picks[s.key]
     local choices = {
@@ -756,44 +830,36 @@ local function lockedItems()
     disabled = chosen() == nil,
     fn = safe(M.resetSlots),
   }
-  items[#items + 1] = { title = "-" }
   return items
 end
 
--- menu builds the menu bar menu from current state.
-local function menu()
+-- windowItems builds the Window folder: the action families, then Organize
+-- with the channel fill and tidy.
+local function windowItems()
   local frozen = paused()
-  local items = {
-    {
-      title = frozen and "⚓ Weigh anchor (resume layout)" or "⚓ Drop anchor (freeze layout)",
-      fn = safe(function()
-        hs.settings.set(keys.paused, not paused())
-        M.moor()
-      end),
-    },
-    {
-      title = "Re-moor now",
-      disabled = frozen,
-      fn = safe(function()
-        state.bursts = {}
-        M.moor()
-      end),
-    },
-    { title = "Fill channel", disabled = frozen, fn = safe(M.fill) },
-    {
-      title = "Tidy channel",
-      disabled = frozen,
-      menu = {
-        { title = "Halves", fn = safe(function() M.tidy(2) end) },
-        { title = "Thirds", fn = safe(function() M.tidy(3) end) },
+  local items = actions.menu()
+  items[#items + 1] = {
+    title = "Organize",
+    menu = {
+      { title = "Fill channel", disabled = frozen, fn = safe(M.fill) },
+      {
+        title = "Tidy channel",
+        disabled = frozen,
+        menu = {
+          { title = "Halves", fn = safe(function() M.tidy(2) end) },
+          { title = "Thirds", fn = safe(function() M.tidy(3) end) },
+        },
       },
+      { title = "Undo tidy", fn = safe(M.undo), disabled = frozen or not M.canUndo() },
     },
-    { title = "Undo tidy", fn = safe(M.undo), disabled = frozen or not M.canUndo() },
-    { title = "-" },
   }
-  for _, it in ipairs(lockedItems()) do
-    items[#items + 1] = it
-  end
+  return items
+end
+
+-- widthItems builds the Widths folder: the channel label, the steppers and
+-- the presets.
+local function widthItems()
+  local items = {}
   local leftPct, rightPct = M.widths()
   items[#items + 1] = {
     title = string.format("Channel %g%%", 100 - leftPct - rightPct),
@@ -819,6 +885,11 @@ local function menu()
       fn = safe(function() M.setWidths(p.left, p.right) end),
     }
   end
+  return items
+end
+
+-- settingItems builds the Settings folder.
+local function settingItems()
   local icons = {}
   local glyph = iconGlyph()
   for _, icon in ipairs(M.icons) do
@@ -831,25 +902,61 @@ local function menu()
       end),
     }
   end
-  local rest = {
-    { title = "-" },
+  local front = hs.application.frontmostApplication()
+  local frontBundle = front and front:bundleID()
+  local ignoreTitle = "Ignore frontmost app"
+  if front then
+    ignoreTitle = ignoreTitle .. " (" .. (front:name() or frontBundle) .. ")"
+  end
+  return {
     {
       title = "Fullscreen fills the channel",
       checked = fullscreenFills(),
       fn = safe(function() hs.settings.set(keys.fullscreen, not fullscreenFills()) end),
     },
     {
+      title = ignoreTitle,
+      checked = M.shortcutsIgnored(frontBundle),
+      disabled = frontBundle == nil or ignoredBundle(frontBundle),
+      fn = safe(function() M.toggleShortcutIgnore(frontBundle) end),
+    },
+    { title = "Icon", menu = icons },
+    {
       title = "Edit config",
       fn = safe(function() hs.execute("open -t " .. shellQuote(M.path("anchors.lua"))) end),
     },
     { title = "Console", fn = safe(hs.openConsole) },
-    { title = "Reload", fn = safe(M.reload) },
-    { title = "Icon", menu = icons },
   }
-  for _, item in ipairs(rest) do
-    items[#items + 1] = item
-  end
-  return items
+end
+
+-- menu builds the menu bar menu from current state: the two layout controls,
+-- a folder per job, and Reload.
+local function menu()
+  local frozen = paused()
+  return {
+    {
+      title = frozen and "⚓ Weigh anchor (resume layout)" or "⚓ Drop anchor (freeze layout)",
+      fn = safe(function()
+        hs.settings.set(keys.paused, not paused())
+        M.moor()
+      end),
+    },
+    {
+      title = "Re-moor now",
+      disabled = frozen,
+      fn = safe(function()
+        state.bursts = {}
+        M.moor()
+      end),
+    },
+    { title = "-" },
+    { title = "Window", menu = windowItems() },
+    { title = "Locked apps", menu = lockedItems() },
+    { title = "Widths", menu = widthItems() },
+    { title = "Settings", menu = settingItems() },
+    { title = "-" },
+    { title = "Reload", fn = safe(M.reload) },
+  }
 end
 
 -- menuOrError builds the menu, falling back to a pointer at the Console.
@@ -869,6 +976,10 @@ function M.start()
   hs.accessibilityState(true)
   local _, problems = M.layout(M.pins())
   for _, problem in ipairs(problems) do
+    log(problem)
+  end
+  actions.attach(M)
+  for _, problem in ipairs(actions.bind()) do
     log(problem)
   end
   M.bar = hs.menubar.new()
