@@ -190,6 +190,10 @@ local state = {
   logged = {},
   -- axWarned is set once the missing Accessibility permission has been logged.
   axWarned = false,
+  -- axMissing is set while Accessibility is known to be missing.
+  axMissing = false,
+  -- axNotice is the notification shown the first time Accessibility is missing.
+  axNotice = nil,
   -- clamped maps a window id to the width it had before the channel narrowed it.
   clamped = {},
 }
@@ -772,15 +776,28 @@ local function mouseHeld()
   return ok and type(buttons) == "table" and buttons[1] == true
 end
 
--- trusted reports whether Accessibility is granted, logging once when it is not.
+-- accessChanged reacts when Accessibility goes missing or comes back. It is set
+-- with the menu bar code below.
+local accessChanged
+
+-- trusted reports whether Accessibility is granted, logging once when it is not,
+-- and calls accessChanged when the answer flips.
 local function trusted()
   if hs.accessibilityState() then
     state.axWarned = false
+    if state.axMissing then
+      state.axMissing = false
+      accessChanged(true)
+    end
     return true
   end
   if not state.axWarned then
     print("moorings: Accessibility is not granted: windows will not move")
     state.axWarned = true
+  end
+  if not state.axMissing then
+    state.axMissing = true
+    accessChanged(false)
   end
   return false
 end
@@ -891,7 +908,8 @@ end
 
 -- moor puts every pin on its edge and every free window in the channel.
 function M.moor()
-  if paused() or mouseHeld() or not trusted() then
+  local granted = trusted()
+  if paused() or mouseHeld() or not granted then
     return
   end
   local s = M.ultrawide()
@@ -1019,6 +1037,12 @@ local imageExts = { png = true, svg = true, pdf = true, jpg = true, jpeg = true 
 -- iconSize is the width and height in points of an image icon in the menu bar.
 local iconSize = 18
 
+-- axGlyph replaces the menu bar icon while Accessibility is missing.
+local axGlyph = "⚠️"
+
+-- axPane is the System Settings page that grants Accessibility.
+local axPane = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+
 -- M.random picks an integer from 1 to n. Tests replace it.
 M.random = math.random
 
@@ -1112,6 +1136,11 @@ local function applyIcon()
   if not M.bar then
     return
   end
+  if state.axMissing then
+    M.bar:setIcon(nil)
+    M.bar:setTitle(axGlyph)
+    return
+  end
   local icon = currentIcon()
   if icon.image then
     local img = hs.image.imageFromPath(icon.image)
@@ -1193,6 +1222,41 @@ function M.undoIcon()
   end
   setChoice(prev.icon, prev.custom)
   return true
+end
+
+-- M.openAccessibility opens the System Settings page that grants Accessibility.
+function M.openAccessibility()
+  hs.execute("open " .. shellQuote(axPane))
+end
+
+-- accessChanged shows the warning glyph and one notification when Accessibility
+-- goes missing. When it comes back it clears both and binds the shortcuts and
+-- the drag watcher again, since ones made before the grant may not receive events.
+accessChanged = function(granted)
+  applyIcon()
+  if not granted then
+    if not state.axNotice then
+      state.axNotice = hs.notify.new(function() M.openAccessibility() end, {
+        title = "moorings needs Accessibility",
+        informativeText = "Windows will not move until Hammerspoon is allowed under "
+          .. "Privacy & Security, Accessibility.",
+        actionButtonTitle = "Open Settings",
+        hasActionButton = true,
+      }):send()
+    end
+    return
+  end
+  if state.axNotice then
+    state.axNotice:withdraw()
+  end
+  if not M.bar then
+    return
+  end
+  for _, problem in ipairs(actions.bind()) do
+    log(problem)
+  end
+  snap.start()
+  hs.alert.show("moorings: Accessibility granted")
 end
 
 -- M.openIconDir reveals the icon folder, or says how to create it.
@@ -1498,10 +1562,11 @@ local function settingItems()
 end
 
 -- menu builds the menu bar menu from current state: the two layout controls,
--- a folder per job, and Reload.
+-- a folder per job, and Reload. While Accessibility is missing it starts with
+-- the way to grant it.
 local function menu()
   local frozen = paused()
-  return {
+  local items = {
     {
       title = frozen and "⚓ Weigh anchor (resume layout)" or "⚓ Drop anchor (freeze layout)",
       fn = safe(function()
@@ -1526,6 +1591,11 @@ local function menu()
     { title = "-" },
     { title = "Reload", fn = safe(M.reload) },
   }
+  if not trusted() then
+    table.insert(items, 1, { title = "-" })
+    table.insert(items, 1, { title = axGlyph .. " Grant Accessibility access", fn = safe(M.openAccessibility) })
+  end
+  return items
 end
 
 -- menuOrError builds the menu, falling back to a pointer at the Console.

@@ -158,7 +158,7 @@ local function install(...)
   world = {
     screens = { ... }, windows = {}, settings = {}, nextID = 0, printed = {}, apps = {},
     clock = 1000, mouseDown = false, trusted = true, hotkeys = {}, taps = {}, urls = {},
-    dirs = {}, images = {},
+    dirs = {}, images = {}, notices = {},
   }
   hs = {
     hotkey = {
@@ -260,6 +260,15 @@ local function install(...)
         return img
       end,
     },
+    notify = {
+      new = function(fn, attrs)
+        local n = { fn = fn, attrs = attrs }
+        function n:send() self.sent = true return self end
+        function n:withdraw() self.withdrawn = true return self end
+        world.notices[#world.notices + 1] = n
+        return n
+      end,
+    },
     openConsole = function() world.console = true end,
     reload = function() world.reloaded = true end,
     execute = function(cmd) world.executed = cmd end,
@@ -333,7 +342,7 @@ local function install(...)
     menubar = {
       new = function()
         local bar = {}
-        function bar:setTitle(t) self.title = t return self end
+        function bar:setTitle(t) self.title, self.titleCalls = t, (self.titleCalls or 0) + 1 return self end
         function bar:setIcon(i, t) self.icon, self.iconTemplate = i, t return self end
         function bar:setMenu(m) self.menu = m return self end
         world.bar = bar
@@ -2956,6 +2965,94 @@ tests[#tests + 1] = function()
     check("t146 script " .. id, id == "icons" or html:find('getElementById("' .. id .. '")', 1, true) ~= nil)
   end
   check("t146 tab", html:find('data-tab="icons"', 1, true) ~= nil)
+end
+
+-- dragTaps counts the running and stopped left mouse taps, which belong to snap.
+local function dragTaps()
+  local running, stopped = 0, 0
+  for _, tap in ipairs(world.taps) do
+    if tap.types[1] == 1 then
+      if tap.running then running = running + 1 else stopped = stopped + 1 end
+    end
+  end
+  return running, stopped
+end
+
+-- Test 147: Missing Accessibility shows the warning glyph, one notification and a menu item to grant it.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  world.trusted = false
+  anchors.start()
+  check("t147 glyph", world.bar.title == "⚠️" and world.bar.icon == nil, tostring(world.bar.title))
+  check("t147 one notice", #world.notices == 1 and world.notices[1].sent == true)
+  check("t147 notice text", world.notices[1].attrs.title == "moorings needs Accessibility"
+    and world.notices[1].attrs.hasActionButton == true)
+  local items = world.bar.menu()
+  check("t147 first item", items[1].title == "⚠️ Grant Accessibility access" and items[2].title == "-")
+  click("⚠️ Grant Accessibility access")
+  local pane = "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'"
+  check("t147 opens pane", world.executed == pane, tostring(world.executed))
+  world.executed = nil
+  world.notices[1].fn()
+  check("t147 notice opens pane", world.executed == pane)
+  local calls = world.bar.titleCalls
+  for _ = 1, 5 do world.poll() end
+  check("t147 no redraw per tick", world.bar.titleCalls == calls, world.bar.titleCalls .. " vs " .. calls)
+  check("t147 still one notice", #world.notices == 1)
+  check("t147 still glyph", world.bar.title == "⚠️")
+end
+
+-- Test 148: Granting Accessibility clears the warning once and binds shortcuts and the drag tap again.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  world.trusted = false
+  anchors.start()
+  local before = #world.hotkeys
+  local oldKey = world.hotkeys[1]
+  check("t148 one drag tap", select(1, dragTaps()) == 1)
+  world.trusted = true
+  world.poll()
+  check("t148 icon back", world.bar.title == "⛵")
+  check("t148 withdrawn", world.notices[1].withdrawn == true)
+  check("t148 alert", world.alerted == "moorings: Accessibility granted", tostring(world.alerted))
+  check("t148 rebound", #world.hotkeys == 2 * before and oldKey.deleted == true and world.hotkeys[before + 1].enabled)
+  local running, stopped = dragTaps()
+  check("t148 drag tap replaced", running == 1 and stopped == 1, running .. " " .. stopped)
+  check("t148 no grant item", world.bar.menu()[1].title ~= "⚠️ Grant Accessibility access")
+  world.alerted = nil
+  world.poll()
+  check("t148 once", world.alerted == nil and #world.hotkeys == 2 * before)
+end
+
+-- Test 149: A later loss shows the glyph again without a second notification, and the
+-- warning wins over an icon picked meanwhile.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  check("t149 trusted start quiet", #world.notices == 0 and world.bar.title == "⛵")
+  check("t149 no grant item", world.bar.menu()[1].title ~= "⚠️ Grant Accessibility access")
+  world.trusted = false
+  world.poll()
+  check("t149 lost", world.bar.title == "⚠️" and #world.notices == 1)
+  click("🐙  Octopus")
+  check("t149 warning wins", world.bar.title == "⚠️")
+  world.trusted = true
+  world.poll()
+  check("t149 picked shows", world.bar.title == "🐙")
+  world.trusted = false
+  world.poll()
+  check("t149 no second notice", world.bar.title == "⚠️" and #world.notices == 1)
+end
+
+-- Test 150: The grant is picked up while the layout is frozen.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  world.trusted = false
+  anchors.start()
+  click("⚓ Drop anchor (freeze layout)")
+  world.trusted = true
+  world.poll()
+  check("t150 picked up", world.bar.title == "⛵" and world.notices[1].withdrawn == true)
 end
 
 for i, t in ipairs(tests) do

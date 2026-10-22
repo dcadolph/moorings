@@ -277,6 +277,9 @@ end
 function S.start()
   local types = hs.eventtap.event.types
   reset()
+  if S.tap then
+    S.tap:stop()
+  end
   S.tap = hs.eventtap.new({ types.leftMouseDown, types.leftMouseDragged, types.leftMouseUp },
     S.handle):start()
 end
