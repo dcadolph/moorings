@@ -210,6 +210,9 @@ local state = {
   axNotice = nil,
   -- clamped maps a window id to the width it had before the channel narrowed it.
   clamped = {},
+  -- floors maps a window id to the frame it was asked to take and the larger size it
+  -- kept instead.
+  floors = {},
 }
 
 -- now returns the current time in seconds.
@@ -289,10 +292,59 @@ end
 
 M.near = near
 
--- place moves win to frame unless it is already there. A window that keeps
--- moving away from the same frame is left alone for holdSeconds.
-local function place(win, frame)
-  local id, t = win:id(), M.now()
+-- fit grows frame to the smallest size the window with id is known to keep. The edges
+-- named in anchor stay put: right keeps the right edge and bottom the bottom edge. A new
+-- frame drops what was known, so the window gets one more try at it.
+local function fit(id, frame, anchor)
+  local fl = state.floors[id]
+  if not fl then
+    return frame
+  end
+  if not near(fl.target, frame) then
+    state.floors[id] = nil
+    return frame
+  end
+  local f = rect(frame)
+  anchor = anchor or {}
+  if fl.w > f.w then
+    if anchor.right then
+      f.x = f.x + f.w - fl.w
+    end
+    f.w = fl.w
+  end
+  if fl.h > f.h then
+    if anchor.bottom then
+      f.y = f.y + f.h - fl.h
+    end
+    f.h = fl.h
+  end
+  return f
+end
+
+-- learn records when win kept a larger size than frame, the move it was just given,
+-- and moves it once more so the edges in anchor line up with target.
+local function learn(win, target, frame, anchor)
+  local got, t = win:frame(), M.config.tolerance
+  if got.w <= frame.w + t and got.h <= frame.h + t then
+    return
+  end
+  local id = win:id()
+  local fl = { target = rect(target), w = math.max(got.w, frame.w), h = math.max(got.h, frame.h) }
+  state.floors[id] = fl
+  log(string.format("window %s keeps a size of at least %.0fx%.0f: leaving it that size",
+    tostring(id), fl.w, fl.h))
+  local want = fit(id, target, anchor)
+  if not near(got, want) then
+    win:setFrame(want)
+  end
+end
+
+-- place moves win to frame unless it is already there, keeping the size of a window that
+-- will not shrink to fit, against the edges in anchor. A window that keeps moving away
+-- from the same frame is left alone for holdSeconds.
+local function place(win, frame, anchor)
+  local id, t, target = win:id(), M.now(), frame
+  frame = fit(id, frame, anchor)
   local b = state.bursts[id]
   if b and not near(b.target, frame) then
     b = nil
@@ -304,6 +356,7 @@ local function place(win, frame)
     return
   end
   win:setFrame(frame)
+  learn(win, target, frame, anchor)
   b = b or { target = rect(frame), moves = 0, since = t }
   b.holdUntil = nil
   if t - b.since > burstSeconds then
@@ -1061,7 +1114,8 @@ function M.moor()
       elseif pinsWindow(slot.pin, w) then
         state.pendingFill[id] = nil
         local width = (slot == focusedSlot and slot.pin.expandPct) or pct[slot.side]
-        place(w, M.slot(frame, slot.side, slot.row, width, topPct[slot.side]))
+        place(w, M.slot(frame, slot.side, slot.row, width, topPct[slot.side]),
+          { right = slot.side == "right", bottom = slot.row == "bottom" })
       end
     elseif sameScreen(w:screen(), s) then
       local id = w:id()
@@ -1085,7 +1139,7 @@ function M.moor()
       end
     end
   end
-  for _, tbl in ipairs({ state.clamped, state.bursts, state.pendingFill }) do
+  for _, tbl in ipairs({ state.clamped, state.bursts, state.pendingFill, state.floors }) do
     for id in pairs(tbl) do
       if not seen[id] then
         tbl[id] = nil
@@ -1247,22 +1301,28 @@ local function findIcon(name)
   return nil
 end
 
--- currentIcon returns the icon in effect and its name, which is nil for custom text.
--- A missing or unknown choice gives the default icon.
+-- currentIcon returns the icon in effect, its name, which is nil for custom text, and
+-- the loaded image of an image icon. A missing or unknown choice, or an image that does
+-- not load, gives the default icon.
 local function currentIcon()
   local custom = M.validIcon(hs.settings.get(keys.customIcon))
   if custom then
     return { glyph = custom }, nil
   end
   local found = findIcon(hs.settings.get(keys.icon))
-  if found then
+  if found and found.image then
+    local img = hs.image.imageFromPath(found.image)
+    if img then
+      return found, found.name, img
+    end
+    log("icon image " .. found.image .. " did not load: using the default icon")
+  elseif found then
     return found, found.name
   end
   return M.icons[1], M.icons[1].name
 end
 
--- applyIcon puts the icon in effect on the menu bar. An image that does not load
--- falls back to the default icon.
+-- applyIcon puts the icon in effect on the menu bar.
 local function applyIcon()
   if not M.bar then
     return
@@ -1272,18 +1332,13 @@ local function applyIcon()
     M.bar:setTitle(axGlyph)
     return
   end
-  local icon = currentIcon()
-  if icon.image then
-    local img = hs.image.imageFromPath(icon.image)
-    if img then
-      img = img:setSize({ w = iconSize, h = iconSize })
-      img:template(true)
-      M.bar:setIcon(img, true)
-      M.bar:setTitle(nil)
-      return
-    end
-    log("icon image " .. icon.image .. " did not load: using the default icon")
-    icon = M.icons[1]
+  local icon, _, img = currentIcon()
+  if img then
+    img = img:setSize({ w = iconSize, h = iconSize })
+    img:template(true)
+    M.bar:setIcon(img, true)
+    M.bar:setTitle(nil)
+    return
   end
   M.bar:setIcon(nil)
   M.bar:setTitle(icon.glyph)
@@ -1644,6 +1699,7 @@ end
 
 -- M.promptIcon asks for custom menu bar text and applies it when valid.
 function M.promptIcon()
+  hs.focus()
   local button, text = hs.dialog.textPrompt("Custom icon",
     "Enter 1 to " .. maxIconChars .. " characters, such as an emoji or initials.",
     hs.settings.get(keys.customIcon) or "", "Set", "Cancel")
@@ -1767,7 +1823,7 @@ local function menu()
       title = "Re-moor now",
       disabled = frozen,
       fn = safe(function()
-        state.bursts = {}
+        state.bursts, state.floors = {}, {}
         M.moor()
       end),
     },
