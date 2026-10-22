@@ -4,14 +4,38 @@
 
 <h1 align="center">moorings</h1>
 
-<p align="center"><em>Ultrawide aficionados: anchor your screens in style.</em></p>
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-0a6c74" alt="License: Apache-2.0"></a>
+  <a href="https://www.hammerspoon.org"><img src="https://img.shields.io/badge/built_on-Hammerspoon-0a6c74" alt="Built on Hammerspoon"></a>
+  <a href="https://www.lua.org"><img src="https://img.shields.io/badge/lua-5.4-2C2D72?logo=lua&logoColor=white" alt="Lua 5.4"></a>
+  <img src="https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple&logoColor=white" alt="Platform: macOS">
+</p>
 
 [Hammerspoon](https://www.hammerspoon.org) config that pins chosen apps to the left or right edge
 of an ultrawide screen and keeps every other window in the channel between them. Slack on the
 left and iTerm on the right are the defaults. It replaces Rectangle for one person's desk.
 
+## Why moorings
+
+There are some windows I don't want to have to find. I just want them to be right there on the
+screen, ready to go, no matter how much jumping around I'm doing in other apps or windows.
+
+With a standard sized monitor, apps like Rectangle deliver everything you could reasonably want.
+You only have enough space to anchor or park a persistent window, so the fact that Rectangle's
+Todo mode only locks down one specified app or window is logical.
+
+For an ultrawide user, the goal posts shift a bit. You still want Rectangle features like
+setting your window widths, organizing your windows, snap shortcuts, and more. However, a single
+Todo zone just doesn't cut it. For many people optimizing what they have on screen, both sides
+of the ultrawide typically need to be parked apps or they go to waste.
+
+Long story short, I created moorings because I wanted for free what Rectangle wanted to charge
+me, I wanted more flexibility, and I wanted the customization and the ability to tailor things
+to my ultrawide way of working.
+
 ## Contents
 
+- [Why moorings](#why-moorings)
 - [Requirements](#requirements)
 - [Install](#install)
 - [Quickstart](#quickstart)
