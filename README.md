@@ -88,10 +88,10 @@ Press Control-Option-Left to put the focused window in the left half of the chan
 again for two thirds, then one third. The Window folder in the menu lists every action with its
 shortcut.
 
-To test a change, run `lua tests/anchors_test.lua`, `lua tests/geometry_test.lua` and
-`lua tests/actions_test.lua` from the repo root. The first drives `anchors.lua` against a fake
-Hammerspoon, the second checks the frame math in `geometry.lua`, the third checks the keymap and
-menu families in `actions.lua`, and each exits non-zero on any failure.
+To test a change, run `for t in anchors geometry actions snap; do lua tests/${t}_test.lua; done`
+from the repo root. The anchors test drives the whole tool against a fake Hammerspoon, and the
+other three check the frame math, the keymap and menu families, and the drag zones. Each exits
+non-zero on any failure.
 
 ## Docs
 
@@ -99,16 +99,16 @@ menu families in `actions.lua`, and each exits non-zero on any failure.
 
 The top of the menu holds Drop anchor and Re-moor now, then four folders, then Reload.
 
-| Item                       | What it holds&nbsp;                                                             |
-|----------------------------|---------------------------------------------------------------------------------|
-| Drop anchor / Weigh anchor | Freezes and releases the layout and the shortcuts. Survives a reload.           |
-| Re-moor now                | Applies the layout immediately instead of waiting for the poll.                 |
-| Window                     | Every window action by family, each showing its shortcut.                       |
-| Window, Organize           | Fill channel, Tidy channel into Halves or Thirds, and Undo tidy.                |
-| Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                       |
-| Widths                     | The Channel label, the wider and narrower steppers, seven presets.              |
-| Settings                   | Fullscreen fills the channel, Ignore frontmost app, Icon, Edit config, Console. |
-| Reload                     | Reloads the Hammerspoon config once every moorings file compiles.               |
+| Item                       | What it holds&nbsp;                                                                               |
+|----------------------------|---------------------------------------------------------------------------------------------------|
+| Drop anchor / Weigh anchor | Freezes and releases the layout and the shortcuts. Survives a reload.                             |
+| Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                   |
+| Window                     | Every window action by family, each showing its shortcut.                                         |
+| Window, Organize           | Fill channel, Tidy channel into Halves or Thirds, and Undo tidy.                                  |
+| Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                                         |
+| Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                |
+| Settings                   | Fullscreen fills the channel, Snap by dragging, Ignore frontmost app, Icon, Edit config, Console. |
+| Reload                     | Reloads the Hammerspoon config once every moorings file compiles.                                 |
 
 Tidy keeps the windows in their current left-to-right order and then leaves them alone. Undo
 tidy restores the position each window had before the first Fill, Tidy or window action since
@@ -167,6 +167,25 @@ gapPx = 10,
 windows side by side, for every action except almost maximize and the display moves. An entry
 without a title, with shares outside 0 to 1 or past the area's edge, or a gap outside 0 to 100
 is reported in the Console and skipped.
+
+### Snap by dragging
+
+Drag a window by its title bar to a screen edge and a footprint shows where it will land. Let go
+to snap it there. On a normal display this is Rectangle's map: the left and right edges give
+halves, the top edge maximizes, the corners give quarters, the stretch of an edge next to a
+corner gives the top or bottom half, and the bottom edge gives thirds. Sliding along the bottom
+from a side third into the middle gives two thirds.
+
+On the ultrawide the screen edges belong to the pins, so the strips stand in for them. Dragging
+over the left strip snaps to the channel's left half and over the right strip to its right half.
+The top or bottom of a strip gives that corner's quarter of the channel. The top edge above the
+channel maximizes into the channel, and its bottom edge gives the channel's thirds.
+
+A drag that resizes a window, a drag inside a window, and a pinned window never snap. Untick
+Settings, Snap by dragging to turn it off.
+
+iTerm resizes in whole character cells, so its windows land a few points short of a snap target.
+Run `defaults write com.googlecode.iterm2 DisableWindowSizeSnap -integer 1` to turn that off.
 
 ### Locked apps
 

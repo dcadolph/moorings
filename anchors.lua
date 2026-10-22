@@ -3,6 +3,7 @@
 
 local actions = require("actions")
 local geometry = require("geometry")
+local snap = require("snap")
 
 local M = {}
 
@@ -79,6 +80,7 @@ local keys = {
   fullscreen = "moorings.fullscreenFills",
   slots = "moorings.slots",
   ignoreShortcuts = "moorings.ignoreShortcuts",
+  snap = "moorings.snap",
 }
 
 -- minChannelPct is the narrowest channel a width pair may leave.
@@ -138,7 +140,7 @@ M.loadfile = loadfile
 
 -- files lists the moorings source files, which live in the moorings folder
 -- inside the Hammerspoon config directory.
-M.files = { "anchors.lua", "geometry.lua", "actions.lua" }
+M.files = { "anchors.lua", "geometry.lua", "actions.lua", "snap.lua" }
 
 -- path returns the full path of a moorings source file.
 function M.path(file)
@@ -220,6 +222,11 @@ local function paused()
 end
 
 M.paused = paused
+
+-- snapOn reports whether dragging a window to an edge snaps it.
+function M.snapOn()
+  return hs.settings.get(keys.snap) ~= false
+end
 
 -- fullscreenFills reports whether native fullscreen is redirected to the channel.
 local function fullscreenFills()
@@ -921,6 +928,11 @@ local function settingItems()
       fn = safe(function() hs.settings.set(keys.fullscreen, not fullscreenFills()) end),
     },
     {
+      title = "Snap by dragging",
+      checked = M.snapOn(),
+      fn = safe(function() hs.settings.set(keys.snap, not M.snapOn()) end),
+    },
+    {
       title = ignoreTitle,
       checked = M.shortcutsIgnored(frontBundle),
       disabled = frontBundle == nil or ignoredBundle(frontBundle),
@@ -988,6 +1000,8 @@ function M.start()
   for _, problem in ipairs(actions.bind()) do
     log(problem)
   end
+  snap.attach(M, actions)
+  snap.start()
   M.bar = hs.menubar.new()
   M.bar:setTitle(iconGlyph())
   M.bar:setMenu(menuOrError)
