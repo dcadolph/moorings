@@ -102,9 +102,16 @@ every restart and there is nothing to turn on in Preferences.
 
 ### Update and uninstall
 
-Update with `git -C ~/src/moorings pull`, then Reload from the moorings menu. To remove moorings,
-choose Quit moorings, delete the `~/.hammerspoon/moorings` link, and delete the moorings lines
-from `~/.hammerspoon/init.lua`.
+Moorings checks GitHub once a day for a new release. When one is out, Update moorings and its
+version show at the top of the menu. Choosing it runs `brew upgrade moorings` for a Homebrew
+install or `git pull --ff-only` for a clone, then reloads. Nothing installs until you choose it.
+Settings, Check for updates now asks at once. To stop the daily check, untick Settings, Check for
+moorings updates. To update by hand, run `brew upgrade moorings` or
+`git -C ~/src/moorings pull`, then Reload. When Hammerspoon is older than the version moorings
+was checked on, the top of the menu says so and offers Hammerspoon's own update check.
+
+To remove moorings, choose Quit moorings, delete the `~/.hammerspoon/moorings` link, and delete
+the moorings lines from `~/.hammerspoon/init.lua`.
 
 Moorings keeps Hammerspoon running. A small helper checks every 30 seconds and starts Hammerspoon
 again if it quit or crashed, without reopening apps you closed. It is a shell command, not an app,
@@ -152,24 +159,25 @@ non-zero on any failure.
 ### Menu
 
 The top of the menu holds Weigh anchor, Re-moor now and Anchor *app*, then seven folders, then
-Reload and Quit moorings.
+Reload and Quit moorings. Update moorings shows above them all while a new release is out.
 
-| Item                          | What it holds&nbsp;                                                                                                                                               |
-|-------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Weigh anchor / Drop anchor    | Weigh lets every window drift and rests the shortcuts. Drop holds the layout again. Survives a reload.                                                            |
-| Re-moor now                   | Applies the layout immediately instead of waiting for the poll.                                                                                                   |
-| Re-moor *app*                 | Shown for each anchored window released after you moved it. Puts it back.                                                                                         |
-| Anchor *app* / Unanchor *app* | The app you were just using. Anchor picks one of the four slots. Unanchor frees its slot and leaves the window.                                                   |
-| Anchored apps                 | Four slot rows, each with running apps and Choose app…, then Unanchor all apps and Reset to defaults.                                                             |
-| Window                        | Every window action by family, each showing its shortcut.                                                                                                         |
-| Window, Organize              | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                                                                  |
-| Lift                          | One entry per anchored window. Lifts it over its strip and the channel, or lowers it back.                                                                        |
-| Widths                        | The Channel label, a note for an empty side, the wider and narrower steppers, seven presets.                                                                      |
-| Heights                       | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                                                       |
-| Workspaces                    | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                                                                     |
-| Settings                      | Settings window, the fullscreen and snapping toggles, Keep Hammerspoon up to date, Restart if it stops, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
-| Reload                        | Reloads the Hammerspoon config once every moorings file compiles.                                                                                                 |
-| Quit moorings                 | Stops moorings and Hammerspoon, and the restart helper with them, until the next login.                                                                           |
+| Item                          | What it holds&nbsp;                                                                                                                                                                      |
+|-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Update moorings (*version*)   | Shown while a newer release is out. Installs it the way moorings was installed, then reloads.                                                                                            |
+| Weigh anchor / Drop anchor    | Weigh lets every window drift and rests the shortcuts. Drop holds the layout again. Survives a reload.                                                                                   |
+| Re-moor now                   | Applies the layout immediately instead of waiting for the poll.                                                                                                                          |
+| Re-moor *app*                 | Shown for each anchored window released after you moved it. Puts it back.                                                                                                                |
+| Anchor *app* / Unanchor *app* | The app you were just using. Anchor picks one of the four slots. Unanchor frees its slot and leaves the window.                                                                          |
+| Anchored apps                 | Four slot rows, each with running apps and Choose app…, then Unanchor all apps and Reset to defaults.                                                                                    |
+| Window                        | Every window action by family, each showing its shortcut.                                                                                                                                |
+| Window, Organize              | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                                                                                         |
+| Lift                          | One entry per anchored window. Lifts it over its strip and the channel, or lowers it back.                                                                                               |
+| Widths                        | The Channel label, a note for an empty side, the wider and narrower steppers, seven presets.                                                                                             |
+| Heights                       | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                                                                              |
+| Workspaces                    | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                                                                                            |
+| Settings                      | Settings window, the fullscreen and snapping toggles, Keep Hammerspoon up to date, Restart if it stops, the two update checks, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
+| Reload                        | Reloads the Hammerspoon config once every moorings file compiles.                                                                                                                        |
+| Quit moorings                 | Stops moorings and Hammerspoon, and the restart helper with them, until the next login.                                                                                                  |
 
 Tidy keeps the windows in their current left-to-right order and then leaves them alone. Undo
 tidy restores the position each window had before the first Fill, Tidy or window action since

@@ -448,6 +448,27 @@ local function install(...)
     end,
     revived = function() return world.agent.revived == true end,
   }
+  -- The update check is faked here and run for real in updates_test.lua.
+  world.updates = { top = {}, attached = 0 }
+  package.loaded.updates = {
+    attach = function(m)
+      world.updates.attached = world.updates.attached + 1
+      world.updates.host = m
+    end,
+    menuItems = function()
+      local items = {}
+      for _, t in ipairs(world.updates.top) do
+        items[#items + 1] = { title = t, tooltip = "Update hint.", fn = function() world.updates.clicked = t end }
+      end
+      return items
+    end,
+    settingItems = function()
+      return {
+        { title = "Check for moorings updates", tooltip = "Check hint.", checked = true, fn = function() end },
+        { title = "Check for updates now", tooltip = "Now hint.", fn = function() end },
+      }
+    end,
+  }
   anchors = require("anchors")
 end
 
@@ -1737,7 +1758,8 @@ tests[#tests + 1] = function()
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
     and item("No sizes in the config").disabled == true)
   check("t79 settings", titles(folder("Settings")) == "Settings window…,-,Fullscreen fills the channel,"
-    .. "Fullscreen keeps anchored apps in their slots,Snap by dragging,Keep Hammerspoon up to date,Restart if it stops,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
+    .. "Fullscreen keeps anchored apps in their slots,Snap by dragging,Keep Hammerspoon up to date,Restart if it stops,"
+    .. "Check for moorings updates,Check for updates now,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
   check("t79 left text", action("left-half").title == "Left half  ⌃⌥←", action("left-half").title)
   action("bottom-right-sixth").fn()
   frameIs("t79 sixth", w, { x = 2048, y = 732, w = 768, h = 708 })
@@ -4053,7 +4075,8 @@ tests[#tests + 1] = function()
   term.f = { x = 1200, y = 200, w = 900, h = 600 }
   world.poll()
   world.trusted = false
-  for _, title in ipairs({ "⚠️ Grant Accessibility access", "Re-moor iTerm2", "Yours",
+  world.updates.top = { "Update moorings (v9.0.0)" }
+  for _, title in ipairs({ "⚠️ Grant Accessibility access", "Update moorings (v9.0.0)", "Re-moor iTerm2", "Yours",
     "Left 13% in use: Slack needs 668 pt", "Calendar", "Desk", "Video", "Slack" }) do
     check("t180 shows " .. title, item(title) ~= nil)
   end
@@ -4294,7 +4317,7 @@ tests[#tests + 1] = function()
   check("t191 one banner", #world.notices == 1 and not world.notices[1].opts.sticky)
   local listed = {}
   for _, file in ipairs(anchors.files) do listed[file] = true end
-  check("t191 banner file listed", listed["banner.lua"] and listed["keepalive.lua"])
+  check("t191 banner file listed", listed["banner.lua"] and listed["keepalive.lua"] and listed["updates.lua"])
   local f = io.open("banner-mark.svg", "r")
   check("t191 banner mark in repo", f ~= nil)
   if f then f:close() end
@@ -4525,6 +4548,27 @@ tests[#tests + 1] = function()
     and send(2, green(slack)) == true)
   local ch = anchors.channel(world.screens[1])
   frameIs("t195 unanchored fills", slack, { x = ch.x, y = ch.y, w = ch.w, h = ch.h })
+end
+
+-- Test 196: Update entries lead the menu above a separator and below the Accessibility entry,
+-- the menu has no extra separator without them, and start hands the update check the module.
+tests[#tests + 1] = function()
+  local function starts(s, prefix) return s:sub(1, #prefix) == prefix end
+  install(ultrawide())
+  anchors.start()
+  check("t196 attached", world.updates.attached == 1 and world.updates.host == anchors)
+  check("t196 helpers", type(anchors.safe) == "function" and type(anchors.notify) == "function")
+  local plain = titles(world.bar.menu())
+  check("t196 no extra separator", starts(plain, "⚓ Weigh anchor"), plain)
+  world.updates.top = { "Update moorings (v9.0.0)", "Hammerspoon 1.0.0 is older than moorings needs (1.1.1)" }
+  local menu = world.bar.menu()
+  check("t196 top", starts(titles(menu), "Update moorings (v9.0.0),Hammerspoon 1.0.0 is older than "
+    .. "moorings needs (1.1.1),-,⚓ Weigh anchor"), titles(menu))
+  menu[1].fn()
+  check("t196 click", world.updates.clicked == "Update moorings (v9.0.0)")
+  world.trusted = false
+  check("t196 under grant", starts(titles(world.bar.menu()),
+    "⚠️ Grant Accessibility access,-,Update moorings (v9.0.0)"), titles(world.bar.menu()))
 end
 
 for i, t in ipairs(tests) do
