@@ -16,7 +16,7 @@ on an ultrawide.
 
 Built on [Hammerspoon](https://www.hammerspoon.org), with Rectangle's keymap, drag snapping,
 tiling and saved layouts on every display, and up to four apps parked on the edges of an
-ultrawide.
+ultrawide. [FEATURES.md](FEATURES.md) lists everything you get.
 
 ## How moorings started
 
@@ -83,9 +83,9 @@ Click either one, or choose Grant Accessibility access at the top of the menu, t
 settings page.
 
 **4. Check for the mark.** Once the switch is on, the warning sign turns into the moorings mark
-on its own and a short message says Accessibility is granted. If the warning stays, click the
-Hammerspoon hammer and choose Reload Config. Moorings registers Hammerspoon as a login item
-itself, so it comes back after every restart and there is nothing to turn on in Preferences.
+on its own and a short message says Accessibility is granted. If the warning stays, click it
+and choose Reload. Moorings registers Hammerspoon as a login item itself, so it comes back after
+every restart and there is nothing to turn on in Preferences.
 
 ### If the mark is missing
 
@@ -417,7 +417,7 @@ An anchored window you drag or resize yourself is released. Moorings leaves it w
 shows a short message saying how to bring it back: its green button, Restore
 (Control-Option-Delete), or Re-moor *app* at the top of the menu. Re-moor now brings every released
 window home at once. The macOS window menu on the green button counts as your hand too, since
-moorings cannot tell which entry ran. Anchored windows moved while the anchor is raised, or by a
+moorings cannot tell which entry ran. Anchored windows moved after Weigh anchor, or by a
 display change, are put back instead of released.
 
 Some apps refuse to get narrower than a set width. A window like that keeps its own width against
