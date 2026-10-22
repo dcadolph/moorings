@@ -334,6 +334,7 @@ function drawIcons() {
   const groups = list(icons.groups).map((g) => ({ title: g.title, icons: list(g.icons) }));
   const yours = list(icons.yours);
   if (yours.length > 0) groups.push({ title: "Yours", icons: yours });
+  if (icons.mark) groups.unshift({ title: "moorings", icons: [icons.mark] });
   for (const group of groups) {
     root.append(el("h2", group.title));
     const row = el("div", null, { class: "row", style: "flex-wrap: wrap" });

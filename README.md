@@ -74,10 +74,14 @@ linking it to pin a version.
 **3. Start Hammerspoon and allow it.** Open Hammerspoon from Applications. macOS asks for
 Accessibility access. Click Open System Settings, switch Hammerspoon on under Privacy &
 Security, then Accessibility. Quit Rectangle first if you use it, since both apps move windows.
+If the macOS prompt was closed, moorings shows a warning sign in the menu bar and a notification.
+Click either one, or choose Grant Accessibility access at the top of the menu, to open the same
+settings page.
 
-**4. Reload once.** Click the Hammerspoon hammer in the menu bar and choose Reload Config. The
-sailboat appears next to it. Moorings registers Hammerspoon as a login item itself, so it comes
-back after every restart and there is nothing to turn on in Preferences.
+**4. Check for the sailboat.** Once the switch is on, the warning sign turns into the sailboat
+on its own and a short message says Accessibility is granted. If the warning stays, click the
+Hammerspoon hammer and choose Reload Config. Moorings registers Hammerspoon as a login item
+itself, so it comes back after every restart and there is nothing to turn on in Preferences.
 
 ### If the sailboat is missing
 
@@ -88,7 +92,7 @@ back after every restart and there is nothing to turn on in Preferences.
   are switched off.
 - The sailboat shows but no apps park at the edges. That is expected on a display that is not
   ultrawide. Parked apps only act on a screen at least 2.2 times wider than it is tall.
-- The sailboat shows but nothing moves at all. Check the Accessibility permission from step 3.
+- A warning sign shows in place of the sailboat. Accessibility is missing. See step 3.
 - Slack and iTerm are the defaults. See Locked apps below to choose other apps.
 
 ### Update and uninstall
@@ -262,11 +266,37 @@ leave it unbound, or Reset to go back to the config or the keymap. Shortcuts are
 key is being recorded so the press reaches the window, and a key without Control, Option or
 Command is refused unless it is a function key. Custom sizes adds, edits, renames and deletes
 sizes, and a size's key follows a rename. Workspaces saves, recalls, ties and deletes them.
-General sets the keymap, snapping and the gap.
+Icon offers every menu bar icon choice described below. General sets the keymap, snapping and
+the gap.
 
 Choices made in the window are saved in Hammerspoon settings and win over the config file, the
 same way a width picked from the menu does. A size saved with the title of a config size takes
 its place.
+
+### Menu bar icon
+
+Settings, Icon picks what sits in the menu bar. The built-in emoji are grouped into Boats, Sea
+life, Tools, and Hearts and shapes. Custom… takes 1 to 5 characters, such as initials or an
+emoji, counted as Unicode code points, so an emoji built from several joined parts may not fit.
+The moorings mark at the top of the list is a template image of the logo, drawn in the menu
+bar's own color. Surprise me picks a different built-in emoji at random, Default icon goes back
+to the sailboat, and
+Undo icon change swaps back to the choice before the last one.
+
+Your own icons appear in a Yours folder. List them in the config under `icons`, each with a
+`name` and either a `glyph` or an `image` path:
+
+```lua
+icons = {
+  { name = "Initials", glyph = "DA" },
+  { name = "Logo", image = "/Users/you/Pictures/logo.svg" },
+},
+```
+
+PNG, SVG, PDF and JPEG files in `~/.hammerspoon/moorings/icons/` are listed there too, by file
+name. Images are drawn as template images, so a black shape on a clear background follows the
+light or dark menu bar. Moorings never creates that folder. Open icons folder reveals it, or says
+how to create it when it is missing. The settings window has the same choices.
 
 ### Snap by dragging
 
@@ -348,12 +378,19 @@ fullscreen and fills the channel instead. A pinned app's window does the same an
 its strip. Untick Fullscreen fills the channel or Fullscreen fills the pin's strip to get true
 fullscreen back for that kind of window, or use Drop anchor for a while.
 
+Hovering over the green button shows a menu that belongs to macOS, not to moorings. Its Move &
+Resize, Fill & Arrange, Full Screen and Move to display entries are macOS window tiling. Moorings
+cannot add to that menu. It only reacts after macOS moves the window: Full Screen behaves as
+described above, and a window that macOS tiles into an edge on the ultrawide is pushed back into
+the channel like any other free window.
+
 ### Guards
 
 Nothing moves while the mouse button is down, so dragging a window is never fought mid-drag. A
 window that keeps moving away from where moorings puts it, four times inside ten seconds, is left
 alone for a minute and the Console says so. Re-moor now clears those holds. Without
-Accessibility permission nothing moves and the Console says that once. Widths that leave less
+Accessibility permission nothing moves, the menu bar shows a warning sign, and one notification
+offers the settings page. Widths that leave less
 than a 10% channel fall back to 10 and 45, and a step that would do so is grayed out. While the
 layout is frozen, Fill, Tidy, Undo and every window action are grayed out, and the shortcuts do
 nothing.

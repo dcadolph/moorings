@@ -1096,12 +1096,20 @@ function M.configIcons()
   return list
 end
 
--- findIcon returns the built-in, config or image icon called name, or nil.
+-- markIcon returns the moorings mark, a template image shipped with moorings.
+local function markIcon()
+  return { name = "moorings mark", title = "moorings mark", image = M.path("mark.svg") }
+end
+
+-- findIcon returns the built-in, mark, config or image icon called name, or nil.
 local function findIcon(name)
   for _, icon in ipairs(M.icons) do
     if icon.name == name then
       return icon
     end
+  end
+  if name == markIcon().name then
+    return markIcon()
   end
   for _, icon in ipairs(M.configIcons()) do
     if icon.name == name then
@@ -1290,7 +1298,9 @@ function M.iconModel()
         image = icon.image ~= nil, checked = icon.name == name }
     end
   end
+  local mark = markIcon()
   return {
+    mark = { name = mark.name, title = mark.title, image = true, checked = mark.name == name },
     groups = groups,
     yours = yours,
     custom = custom or "",
@@ -1473,7 +1483,9 @@ end
 -- that are not a single icon.
 local function iconItems()
   local model = M.iconModel()
-  local items = {}
+  local items = {
+    { title = model.mark.title, checked = model.mark.checked, fn = safe(function() M.pickIcon(model.mark.name) end) },
+  }
   for _, g in ipairs(model.groups) do
     local entries = {}
     for _, icon in ipairs(g.icons) do
