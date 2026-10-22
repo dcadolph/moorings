@@ -88,10 +88,10 @@ Press Control-Option-Left to put the focused window in the left half of the chan
 again for two thirds, then one third. The Window folder in the menu lists every action with its
 shortcut.
 
-To test a change, run `for t in anchors geometry actions snap tile workspaces; do lua tests/${t}_test.lua; done`
+To test a change, run `for t in anchors geometry actions snap tile workspaces settings; do lua tests/${t}_test.lua; done`
 from the repo root. The anchors test drives the whole tool against a fake Hammerspoon, and the
 others check the frame math, the keymap and menu families, the drag zones, the organize
-layouts, and workspace matching. Each exits non-zero on any failure.
+layouts, workspace matching, and key recording. Each exits non-zero on any failure.
 
 ## Docs
 
@@ -99,17 +99,17 @@ layouts, and workspace matching. Each exits non-zero on any failure.
 
 The top of the menu holds Drop anchor and Re-moor now, then five folders, then Reload.
 
-| Item                       | What it holds&nbsp;                                                                                       |
-|----------------------------|-----------------------------------------------------------------------------------------------------------|
-| Drop anchor / Weigh anchor | Freezes and releases the layout and the shortcuts. Survives a reload.                                     |
-| Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                           |
-| Window                     | Every window action by family, each showing its shortcut.                                                 |
-| Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                          |
-| Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                                                 |
-| Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                        |
-| Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.             |
-| Settings                   | Fullscreen fills the channel, Snap by dragging, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
-| Reload                     | Reloads the Hammerspoon config once every moorings file compiles.                                         |
+| Item                       | What it holds&nbsp;                                                                                                        |
+|----------------------------|----------------------------------------------------------------------------------------------------------------------------|
+| Drop anchor / Weigh anchor | Freezes and releases the layout and the shortcuts. Survives a reload.                                                      |
+| Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                                            |
+| Window                     | Every window action by family, each showing its shortcut.                                                                  |
+| Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                           |
+| Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                                                                  |
+| Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                                         |
+| Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                              |
+| Settings                   | Settings window, Fullscreen fills the channel, Snap by dragging, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
+| Reload                     | Reloads the Hammerspoon config once every moorings file compiles.                                                          |
 
 Tidy keeps the windows in their current left-to-right order and then leaves them alone. Undo
 tidy restores the position each window had before the first Fill, Tidy or window action since
@@ -229,6 +229,20 @@ reloading moorings never recalls anything. A workspace also runs from a shortcut
 ```lua
 shortcuts = { ["workspace:Desk"] = { mods = { "ctrl", "alt" }, key = "1" } },
 ```
+
+### Settings window
+
+Settings, Settings window opens a window for everything above without editing the Lua file.
+Shortcuts lists every action by family. Click Record and press the keys to rebind one, Clear to
+leave it unbound, or Reset to go back to the config or the keymap. Shortcuts are paused while a
+key is being recorded so the press reaches the window, and a key without Control, Option or
+Command is refused unless it is a function key. Custom sizes adds, edits, renames and deletes
+sizes, and a size's key follows a rename. Workspaces saves, recalls, ties and deletes them.
+General sets the keymap, snapping and the gap.
+
+Choices made in the window are saved in Hammerspoon settings and win over the config file, the
+same way a width picked from the menu does. A size saved with the title of a config size takes
+its place.
 
 ### Snap by dragging
 

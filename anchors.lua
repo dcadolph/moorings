@@ -6,6 +6,7 @@ local geometry = require("geometry")
 local snap = require("snap")
 local tile = require("tile")
 local workspaces = require("workspaces")
+local settings = require("settings")
 
 local M = {}
 
@@ -90,6 +91,9 @@ local keys = {
   ignoreShortcuts = "moorings.ignoreShortcuts",
   snap = "moorings.snap",
   keymap = "moorings.keymap",
+  shortcuts = "moorings.shortcuts",
+  sizes = "moorings.sizes",
+  gap = "moorings.gapPx",
 }
 
 -- minChannelPct is the narrowest channel a width pair may leave.
@@ -149,7 +153,10 @@ M.loadfile = loadfile
 
 -- files lists the moorings source files, which live in the moorings folder
 -- inside the Hammerspoon config directory.
-M.files = { "anchors.lua", "geometry.lua", "actions.lua", "snap.lua", "tile.lua", "workspaces.lua" }
+M.files = {
+  "anchors.lua", "geometry.lua", "actions.lua", "snap.lua", "tile.lua", "workspaces.lua",
+  "settings.lua",
+}
 
 -- path returns the full path of a moorings source file.
 function M.path(file)
@@ -256,9 +263,97 @@ function M.setKeymap(name)
   end
 end
 
+-- savedTable returns the table saved under k, or an empty one.
+local function savedTable(k)
+  local saved = hs.settings.get(k)
+  return type(saved) == "table" and saved or {}
+end
+
+-- shortcutOverrides returns the config shortcuts with the ones saved from the
+-- settings window laid over them, action by action.
+function M.shortcutOverrides()
+  local out = {}
+  for name, sc in pairs(type(M.config.shortcuts) == "table" and M.config.shortcuts or {}) do
+    out[name] = sc
+  end
+  for name, sc in pairs(savedTable(keys.shortcuts)) do
+    out[name] = sc
+  end
+  return out
+end
+
+-- savedShortcuts returns the shortcuts saved from the settings window.
+function M.savedShortcuts()
+  return savedTable(keys.shortcuts)
+end
+
+-- saveShortcut saves sc for action name from the settings window and rebinds.
+-- A nil sc drops the saved choice so the config or keymap applies again.
+function M.saveShortcut(name, sc)
+  local saved = savedTable(keys.shortcuts)
+  saved[name] = sc
+  hs.settings.set(keys.shortcuts, saved)
+  return actions.bind()
+end
+
+-- savedSizes returns the custom sizes saved from the settings window.
+function M.savedSizes()
+  return savedTable(keys.sizes)
+end
+
+-- sizeList returns the config sizes with the saved ones laid over them by
+-- title, then the saved sizes the config does not name.
+function M.sizeList()
+  local saved, byTitle, out, used = M.savedSizes(), {}, {}, {}
+  for _, e in ipairs(saved) do
+    if type(e) == "table" and e.title ~= nil then
+      byTitle[e.title] = e
+    end
+  end
+  for _, e in ipairs(type(M.config.sizes) == "table" and M.config.sizes or {}) do
+    local title = type(e) == "table" and e.title
+    if title ~= nil and byTitle[title] then
+      out[#out + 1], used[title] = byTitle[title], true
+    else
+      out[#out + 1] = e
+    end
+  end
+  for _, e in ipairs(saved) do
+    if not (type(e) == "table" and used[e.title]) then
+      out[#out + 1] = e
+    end
+  end
+  return out
+end
+
+-- saveSizes saves list as the custom sizes from the settings window and rebinds.
+function M.saveSizes(list)
+  hs.settings.set(keys.sizes, list)
+  return actions.bind()
+end
+
+-- gapPx returns the gap saved from the settings window, or the config's.
+function M.gapPx()
+  local saved = hs.settings.get(keys.gap)
+  if type(saved) == "number" then
+    return saved
+  end
+  return M.config.gapPx
+end
+
+-- saveGap saves the gap from the settings window.
+function M.saveGap(px)
+  hs.settings.set(keys.gap, px)
+end
+
 -- snapOn reports whether dragging a window to an edge snaps it.
 function M.snapOn()
   return hs.settings.get(keys.snap) ~= false
+end
+
+-- setSnap turns snapping by dragging on or off.
+function M.setSnap(on)
+  hs.settings.set(keys.snap, on == true)
 end
 
 -- fullscreenFills reports whether native fullscreen is redirected to the channel.
@@ -1017,6 +1112,8 @@ local function settingItems()
     ignoreTitle = ignoreTitle .. " (" .. (front:name() or frontBundle) .. ")"
   end
   return {
+    { title = "Settings window…", fn = safe(settings.open) },
+    { title = "-" },
     {
       title = "Fullscreen fills the channel",
       checked = fullscreenFills(),
@@ -1025,7 +1122,7 @@ local function settingItems()
     {
       title = "Snap by dragging",
       checked = M.snapOn(),
-      fn = safe(function() hs.settings.set(keys.snap, not M.snapOn()) end),
+      fn = safe(function() M.setSnap(not M.snapOn()) end),
     },
     { title = "Keymap", menu = keymaps },
     {
@@ -1111,6 +1208,7 @@ function M.start()
     wf.windowUnfullscreened,
   }, safe(M.moor))
   workspaces.attach(M)
+  settings.attach(M, actions, workspaces)
   M.screens = hs.screen.watcher.new(safe(function()
     workspaces.screensChanged()
     M.moor()

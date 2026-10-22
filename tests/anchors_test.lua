@@ -203,6 +203,27 @@ local function install(...)
     },
     urlevent = { bind = function(name, fn) world.urls[name] = fn end },
     focus = function() world.hsFocused = true end,
+    json = { encode = function(t) world.model = t return "{}" end },
+    webview = {
+      new = function(rect, prefs, content)
+        local v = { rect = rect, prefs = prefs, content = content }
+        for _, m in ipairs({ "windowStyle", "windowTitle", "allowTextEntry", "deleteOnClose", "html",
+          "show", "bringToFront" }) do
+          v[m] = function(self, arg) self[m .. "Arg"] = arg self[m .. "Calls"] = (self[m .. "Calls"] or 0) + 1 return self end
+        end
+        function v:windowCallback(fn) self.onWindow = fn return self end
+        function v:evaluateJavaScript(js) world.js = js return self end
+        world.view, world.views = v, (world.views or 0) + 1
+        return v
+      end,
+      usercontent = {
+        new = function(name)
+          local u = { name = name }
+          function u:setCallback(fn) world.webMsg = fn return self end
+          return u
+        end,
+      },
+    },
     dialog = {
       textPrompt = function(...)
         world.promptArgs = { ... }
@@ -257,6 +278,7 @@ local function install(...)
     },
     screen = {
       allScreens = function() return world.screens end,
+      mainScreen = function() return world.screens[1] end,
       watcher = {
         new = function(fn)
           world.onScreens = fn
@@ -314,8 +336,9 @@ local function install(...)
   _G.print = function(msg) world.printed[#world.printed + 1] = msg end
   package.loaded.anchors = nil
   package.loaded.geometry = nil
-  package.loaded.actions = nil
-  package.loaded.snap = nil
+  for _, name in ipairs({ "actions", "snap", "tile", "workspaces", "settings" }) do
+    package.loaded[name] = nil
+  end
   anchors = require("anchors")
 end
 
@@ -1565,7 +1588,7 @@ tests[#tests + 1] = function()
     .. "Size and move,Displays,Custom sizes,Organize", titles(folder("Window")))
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
     and item("No sizes in the config").disabled == true)
-  check("t79 settings", titles(folder("Settings")) == "Fullscreen fills the channel,"
+  check("t79 settings", titles(folder("Settings")) == "Settings window…,-,Fullscreen fills the channel,"
     .. "Snap by dragging,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
   check("t79 left text", action("left-half").title == "Left half  ⌃⌥←", action("left-half").title)
   action("bottom-right-sixth").fn()
@@ -2318,6 +2341,230 @@ tests[#tests + 1] = function()
   local l, r = anchors.widths()
   check("t118 kept", l == 20 and r == 40, l .. " " .. r)
   check("t118 slots kept", anchors.assignments()["left-bottom"] == "test.Notes")
+end
+
+-- openSettings opens the settings window from the repo copy of the page and
+-- sends its ready message.
+local function openSettings()
+  anchors.path = function(file) return "./" .. file end
+  click("Settings window…")
+  world.webMsg({ body = { type = "ready" } })
+end
+
+-- send posts message m from the settings window.
+local function send(m)
+  world.webMsg({ body = m })
+end
+
+-- modelRow finds the shortcuts row for action name in the last model sent.
+local function modelRow(name)
+  for _, g in ipairs(world.model.groups) do
+    for _, a in ipairs(g.actions) do
+      if a.name == name then return a end
+    end
+  end
+  return nil
+end
+
+-- Test 119: The settings window opens once, loads the page and gets the model on ready.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.start()
+  openSettings()
+  local v = world.view
+  check("t119 page", v.htmlArg ~= nil and v.htmlArg:find("moorings settings", 1, true) ~= nil)
+  check("t119 window", v.windowTitleArg == "moorings settings" and v.allowTextEntryArg == true
+    and v.showCalls == 1 and world.hsFocused)
+  check("t119 handler", v.content.name == "moorings")
+  check("t119 rendered", world.js == "moorings.render({})")
+  local titlesSeen = {}
+  for _, g in ipairs(world.model.groups) do titlesSeen[#titlesSeen + 1] = g.title end
+  check("t119 groups", table.concat(titlesSeen, ",") == "Halves,Quarters,Thirds,Fourths,"
+    .. "Grids, Sixths,Grids, Eighths,Grids, Ninths,Grids, Corner thirds,Size and move,Displays,"
+    .. "Custom sizes,Organize", table.concat(titlesSeen, ","))
+  local row = modelRow("left-half")
+  check("t119 row", row.label == "Left half" and row.key == "⌃⌥←" and row.source == "default")
+  check("t119 general", world.model.keymap == "rectangle" and world.model.snap == true
+    and world.model.gap == 0)
+  click("Settings window…")
+  check("t119 one window", world.views == 1 and v.showCalls == 2)
+end
+
+-- Test 120: Recording suspends every shortcut and stopping turns them back on.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.start()
+  openSettings()
+  send({ type = "record", on = true })
+  check("t120 off", enabledCount() == 0)
+  send({ type = "record", on = false })
+  check("t120 on", enabledCount() == 22)
+  send({ type = "record", on = true })
+  world.view.onWindow("closing")
+  check("t120 close turns on", enabledCount() == 22)
+  local printed = #world.printed
+  send({ type = "ready" })
+  check("t120 late message quiet", #world.printed == printed)
+  click("Settings window…")
+  check("t120 reopens", world.views == 2)
+end
+
+-- Test 121: A recorded key rebinds an action, survives reload, and Reset and Clear work.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  openSettings()
+  send({ type = "record", on = true })
+  send({ type = "bind", action = "left-half", code = "KeyH", ctrl = true, alt = true })
+  check("t121 bound", hotkey("ctrl+alt", "h") ~= nil and hotkey("ctrl+alt", "left") == nil)
+  check("t121 on again", enabledCount() == 22, tostring(enabledCount()))
+  check("t121 notice", world.model.notice == "Left half is now ⌃⌥H.", world.model.notice)
+  check("t121 source", modelRow("left-half").source == "saved" and modelRow("left-half").key == "⌃⌥H")
+  check("t121 notice clears", (function() send({ type = "ready" }) return world.model.notice == "" end)())
+  focus(w)
+  press("ctrl+alt", "h")
+  frameIs("t121 runs", w, { x = 0, y = 25, w = 960, h = 1055 })
+  local settings = world.settings
+  install(laptop())
+  world.settings = settings
+  anchors.start()
+  check("t121 survives", hotkey("ctrl+alt", "h") ~= nil)
+  openSettings()
+  send({ type = "reset", action = "left-half" })
+  check("t121 reset", hotkey("ctrl+alt", "left") ~= nil and hotkey("ctrl+alt", "h") == nil)
+  check("t121 default again", modelRow("left-half").source == "default")
+  send({ type = "unbind", action = "left-half" })
+  check("t121 cleared", hotkey("ctrl+alt", "left") == nil and modelRow("left-half").key == "")
+end
+
+-- Test 122: A bare key, an unknown key and an unknown action are refused with a notice.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.start()
+  openSettings()
+  send({ type = "record", on = true })
+  send({ type = "bind", action = "left-half", code = "KeyH" })
+  check("t122 bare", world.model.notice == "Add Control, Option or Command to that key.")
+  check("t122 shortcuts back", enabledCount() == 22)
+  send({ type = "bind", action = "left-half", code = "IntlYen", ctrl = true })
+  check("t122 unknown key", world.model.notice == "That key cannot be bound.")
+  send({ type = "bind", action = "sideways", code = "KeyH", ctrl = true })
+  check("t122 unknown action", world.model.notice == "Unknown action sideways.")
+  send({ type = "unbind", action = "sideways" })
+  check("t122 nothing saved", world.settings["moorings.shortcuts"] == nil)
+  send({ type = "dance" })
+  check("t122 unknown message", said("the settings window sent an unknown message") == 1)
+  send("junk")
+  check("t122 junk", said("the settings window sent an unknown message") == 1)
+end
+
+-- Test 123: A key saved in the window beats the config, and the source says which applies.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.config.shortcuts = {
+    ["left-half"] = { mods = { "ctrl", "alt" }, key = "g" },
+    center = { mods = { "ctrl", "alt" }, key = "x" },
+  }
+  anchors.start()
+  openSettings()
+  check("t123 config", modelRow("center").source == "config")
+  send({ type = "bind", action = "left-half", code = "KeyH", ctrl = true, alt = true })
+  check("t123 saved wins", modelRow("left-half").key == "⌃⌥H")
+  check("t123 default freed", modelRow("last-third").key == "⌃⌥G")
+  send({ type = "reset", action = "left-half" })
+  check("t123 config back", modelRow("left-half").key == "⌃⌥G" and modelRow("last-third").key == "")
+end
+
+-- Test 124: Sizes are added, edited, renamed, refused when invalid, deleted, and can lay over
+-- a config size.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.config.sizes = { { title = "Video", width = 1280, height = 720 } }
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  openSettings()
+  check("t124 config row", #world.model.sizes == 1 and world.model.sizes[1].saved == false)
+  send({ type = "saveSize", size = { title = "Reading", x = "0.25", w = "0.5" } })
+  check("t124 notice", world.model.notice == "Reading is saved.")
+  check("t124 rows", #world.model.sizes == 2 and world.model.sizes[1].title == "Reading")
+  check("t124 bindable row", modelRow("size:Reading") ~= nil)
+  focus(w)
+  action("size:Reading").fn()
+  frameIs("t124 runs", w, { x = 480, y = 25, w = 960, h = 1055 })
+  send({ type = "saveSize", old = "Reading", size = { title = "Read", x = "0.25", w = "0.25" } })
+  check("t124 renamed", #anchors.savedSizes() == 1 and anchors.savedSizes()[1].title == "Read")
+  send({ type = "saveSize", size = { title = "Broken", w = "2" } })
+  check("t124 refused", world.model.notice:find("^Not saved: size Broken needs") ~= nil, world.model.notice)
+  check("t124 not stored", #anchors.savedSizes() == 1)
+  send({ type = "saveSize", size = { title = "Video", width = "800", height = "600" } })
+  check("t124 over config", #anchors.sizeList() == 2 and anchors.sizeList()[1].width == 800)
+  send({ type = "bind", action = "size:Read", code = "KeyY", ctrl = true, alt = true })
+  check("t124 size key", hotkey("ctrl+alt", "y") ~= nil and #world.model.problems == 0,
+    table.concat(world.model.problems, "; "))
+  send({ type = "saveSize", old = "Read", size = { title = "Skim", x = "0.25", w = "0.25" } })
+  check("t124 key follows rename", modelRow("size:Skim").key == "⌃⌥Y" and #world.model.problems == 0,
+    table.concat(world.model.problems, "; "))
+  send({ type = "deleteSize", title = "Skim" })
+  check("t124 deleted", #anchors.savedSizes() == 1 and anchors.savedSizes()[1].title == "Video")
+  check("t124 key dropped", hotkey("ctrl+alt", "y") == nil and #world.model.problems == 0
+    and anchors.savedShortcuts()["size:Skim"] == nil)
+end
+
+-- Test 125: The gap, keymap and snapping are set from the window, and a bad gap is refused.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  openSettings()
+  send({ type = "gap", value = "10" })
+  check("t125 gap", anchors.gapPx() == 10 and world.model.gap == 10)
+  focus(w)
+  press("ctrl+alt", "left")
+  frameIs("t125 gap used", w, { x = 10, y = 35, w = 945, h = 1035 })
+  for _, bad in ipairs({ "abc", "-1", "2.5", "101" }) do
+    send({ type = "gap", value = bad })
+    check("t125 refused " .. bad, world.model.notice == "The gap must be a whole number from 0 to 100."
+      and anchors.gapPx() == 10)
+  end
+  send({ type = "keymap", name = "spectacle" })
+  check("t125 keymap", world.model.keymap == "spectacle" and hotkey("alt+cmd", "f") ~= nil)
+  send({ type = "keymap", name = "vim" })
+  check("t125 bad keymap", world.model.keymap == "spectacle")
+  send({ type = "snap", on = false })
+  check("t125 snap off", anchors.snapOn() == false and item("Snap by dragging").checked == false)
+  send({ type = "snap", on = true })
+  check("t125 snap on", anchors.snapOn() == true)
+end
+
+-- Test 126: Workspaces are saved, tied, recalled and deleted from the window.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 100, y = 100, w = 900, h = 700 })
+  anchors.start()
+  openSettings()
+  send({ type = "saveWorkspace", name = "  " })
+  check("t126 blank", world.model.notice == "Name the workspace first." and #world.model.workspaces == 0)
+  send({ type = "saveWorkspace", name = " Night " })
+  check("t126 saved", world.model.notice == "Night is saved." and world.model.workspaces[1].name == "Night"
+    and world.model.workspaces[1].tied == false)
+  send({ type = "tie", name = "Night" })
+  check("t126 tied", world.model.workspaces[1].tied == true)
+  w.f = { x = 500, y = 300, w = 600, h = 400 }
+  send({ type = "recall", name = "Night" })
+  frameIs("t126 recalled", w, { x = 100, y = 100, w = 900, h = 700 })
+  send({ type = "deleteWorkspace", name = "Night" })
+  check("t126 deleted", #world.model.workspaces == 0)
+end
+
+-- Test 127: A missing page is reported and no window opens.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.start()
+  anchors.path = function(file) return "/nonexistent/" .. file end
+  click("Settings window…")
+  check("t127 said", said("settings.html is missing from the moorings folder") == 1)
+  check("t127 no window", world.view == nil)
 end
 
 for i, t in ipairs(tests) do
