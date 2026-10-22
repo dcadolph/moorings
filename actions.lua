@@ -3,6 +3,7 @@
 -- pins and the frozen state.
 
 local geometry = require("geometry")
+local tile = require("tile")
 
 local A = {}
 
@@ -107,7 +108,8 @@ end
 
 -- known reports whether name is an action moorings can run.
 function A.known(name)
-  return special[name] == true or geometry.position(name, { x = 0, y = 0, w = 100, h = 100 }) ~= nil
+  return special[name] == true or tile.handles(name)
+    or geometry.position(name, { x = 0, y = 0, w = 100, h = 100 }) ~= nil
 end
 
 -- sizePrefix starts the action name of every custom size.
@@ -171,7 +173,7 @@ end
 local maxGap = 100
 
 -- gap returns the gap between windows in points from the config.
-local function gap()
+function A.gap()
   local g = host.config.gapPx
   if g == nil then
     return 0
@@ -334,7 +336,7 @@ local function frameFor(name, win, s)
     end
     return geometry.transfer(cur, host.area(s), host.area(to))
   end
-  local area, g = host.area(s), gap()
+  local area, g = host.area(s), A.gap()
   if name == "larger" or name == "smaller" then
     return geometry.resize(area, cur, name == "larger" and A.step or -A.step, g)
   end
@@ -372,8 +374,12 @@ function A.preview(win, name, s)
   return (frameFor(name, win, s))
 end
 
--- run applies action name to the focused window and reports whether it moved.
+-- run applies action name to the focused window, or organizes its screen for
+-- an organize action, and reports whether anything moved.
 function A.run(name)
+  if tile.handles(name) then
+    return not host.paused() and tile.run(name)
+  end
   return A.apply(hs.window.focusedWindow(), name)
 end
 
@@ -472,9 +478,10 @@ local function items(names, map, frozen)
   return out
 end
 
--- menu builds the Window folder: one folder per family and one for the custom
--- sizes, each entry showing its shortcut, so the menu doubles as the cheat sheet.
-function A.menu()
+-- menu builds the Window folder: one folder per family, one for the custom
+-- sizes and one for organizing, which ends with the extra entries given. Each
+-- entry shows its shortcut, so the menu doubles as the cheat sheet.
+function A.menu(extra)
   local map, _, sizes = bindings()
   local frozen = host.paused()
   local out = {}
@@ -499,6 +506,11 @@ function A.menu()
     custom = { { title = "No sizes in the config", disabled = true } }
   end
   out[#out + 1] = { title = "Custom sizes", menu = custom }
+  local organize = items(tile.names, map, frozen)
+  for _, it in ipairs(extra or {}) do
+    organize[#organize + 1] = it
+  end
+  out[#out + 1] = { title = "Organize", menu = organize }
   return out
 end
 

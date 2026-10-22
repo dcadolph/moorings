@@ -98,6 +98,9 @@ tests[#tests + 1] = function()
     check("t4 special " .. name, seen[name] == true and A.known(name))
   end
   check("t4 unknown", not A.known("sideways"))
+  for _, name in ipairs(require("tile").names) do
+    check("t4 organize " .. name, A.known(name))
+  end
 end
 
 -- Test 5: Two config keys on one key keep it for the first in name order, and defaults that

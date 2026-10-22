@@ -108,6 +108,9 @@ function Win:application()
   }
 end
 
+-- Win:focus makes the window the focused one.
+function Win:focus() world.focused = self end
+
 -- Win:isMinimized reports a minimized window.
 function Win:isMinimized() return self.minimized == true end
 
@@ -1758,6 +1761,172 @@ tests[#tests + 1] = function()
   check("t91 footprint gone", world.canvas == nil)
   fire(2)
   check("t91 no snap", w.moves == 0)
+end
+
+-- organize runs the Organize entry for action name.
+local function organize(name)
+  local it = action(name)
+  check("organize has " .. name, it ~= nil)
+  if it then it.fn() end
+end
+
+-- Test 92: Tile columns lays the channel's free windows side by side, leaves pins, and undoes.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local notes = addWin("Notes", { x = 2000, y = 100, w = 400, h = 400 })
+  local chrome = addWin("Chrome", { x = 700, y = 100, w = 400, h = 400 })
+  local safari = addWin("Safari", { x = 1500, y = 100, w = 400, h = 400 })
+  anchors.start()
+  local before = slack.moves
+  focus(safari)
+  organize("tile-columns")
+  frameIs("t92 chrome", chrome, { x = 512, y = 25, w = 768, h = 1415 })
+  frameIs("t92 safari", safari, { x = 1280, y = 25, w = 768, h = 1415 })
+  frameIs("t92 notes", notes, { x = 2048, y = 25, w = 768, h = 1415 })
+  check("t92 pin kept", slack.moves == before)
+  click("Undo tidy")
+  frameIs("t92 undone", safari, { x = 1500, y = 100, w = 400, h = 400 })
+end
+
+-- Test 93: Tile rows stacks by height order and tile all builds a grid on a laptop.
+tests[#tests + 1] = function()
+  install(laptop())
+  local a = addWin("Notes", { x = 100, y = 600, w = 400, h = 300 })
+  local b = addWin("Safari", { x = 300, y = 100, w = 400, h = 300 })
+  local c = addWin("Chrome", { x = 900, y = 100, w = 400, h = 300 })
+  anchors.start()
+  focus(b)
+  organize("tile-rows")
+  frameIs("t93 b top", b, { x = 0, y = 25, w = 1920, h = 351 })
+  frameIs("t93 c middle", c, { x = 0, y = 376, w = 1920, h = 352 })
+  frameIs("t93 a bottom", a, { x = 0, y = 728, w = 1920, h = 352 })
+  a.f = { x = 100, y = 600, w = 400, h = 300 }
+  b.f = { x = 300, y = 100, w = 400, h = 300 }
+  c.f = { x = 900, y = 100, w = 400, h = 300 }
+  organize("tile-all")
+  frameIs("t93 grid b", b, { x = 0, y = 25, w = 960, h = 527 })
+  frameIs("t93 grid c", c, { x = 960, y = 25, w = 960, h = 527 })
+  frameIs("t93 grid a", a, { x = 0, y = 552, w = 1920, h = 528 })
+end
+
+-- Test 94: Cascade all stacks back-most first so the front-most window ends on top.
+tests[#tests + 1] = function()
+  install(laptop())
+  local back = addWin("Notes", { x = 900, y = 300, w = 600, h = 400 })
+  local mid = addWin("Chrome", { x = 500, y = 500, w = 700, h = 500 })
+  local front = addWin("Safari", { x = 100, y = 100, w = 800, h = 600 })
+  anchors.start()
+  focus(front)
+  organize("cascade-all")
+  frameIs("t94 back", back, { x = 0, y = 25, w = 600, h = 400 })
+  frameIs("t94 mid", mid, { x = 30, y = 55, w = 700, h = 500 })
+  frameIs("t94 front", front, { x = 60, y = 85, w = 800, h = 600 })
+end
+
+-- Test 95: Cascade active app moves only the focused app's windows.
+tests[#tests + 1] = function()
+  install(laptop())
+  local other = addWin("Chrome", { x = 500, y = 500, w = 700, h = 500 })
+  local s1 = addWin("Safari", { x = 900, y = 300, w = 600, h = 400 })
+  local s2 = addWin("Safari", { x = 100, y = 100, w = 800, h = 600 })
+  anchors.start()
+  focus(s2)
+  organize("cascade-active-app")
+  frameIs("t95 s1", s1, { x = 0, y = 25, w = 600, h = 400 })
+  frameIs("t95 s2", s2, { x = 30, y = 55, w = 800, h = 600 })
+  check("t95 other", other.moves == 0)
+end
+
+-- Test 96: Cycle stacked windows walks the windows sharing a frame both ways and wraps.
+tests[#tests + 1] = function()
+  install(laptop())
+  local stack = { x = 0, y = 25, w = 960, h = 1055 }
+  local a = addWin("Notes", stack)
+  local b = addWin("Chrome", stack)
+  local c = addWin("Safari", stack)
+  addWin("Mail", { x = 960, y = 25, w = 960, h = 1055 })
+  anchors.start()
+  focus(b)
+  organize("cycle-stacked-windows")
+  check("t96 next", world.focused == c)
+  organize("cycle-stacked-windows")
+  check("t96 wrap", world.focused == a)
+  organize("cycle-stacked-windows-backward")
+  check("t96 back", world.focused == c)
+  check("t96 none moved", a.moves + b.moves + c.moves == 0)
+  local lone = addWin("Maps", { x = 400, y = 400, w = 300, h = 300 })
+  focus(lone)
+  organize("cycle-stacked-windows")
+  check("t96 alone", world.focused == lone)
+end
+
+-- Test 97: Reverse all mirrors the channel's free windows and leaves pins.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local w = addWin("Safari", channelHalf)
+  anchors.start()
+  local before = slack.moves
+  focus(w)
+  organize("reverse-all")
+  frameIs("t97 mirrored", w, { x = 1664, y = 25, w = 1152, h = 1415 })
+  check("t97 pin kept", slack.moves == before)
+end
+
+-- Test 98: Organize does nothing while frozen, and takes shortcuts from the config.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.config.shortcuts = { ["tile-all"] = { mods = { "ctrl", "alt" }, key = "a" } }
+  local a = addWin("Notes", { x = 100, y = 600, w = 400, h = 300 })
+  local b = addWin("Safari", { x = 300, y = 100, w = 400, h = 300 })
+  anchors.start()
+  focus(b)
+  click("⚓ Drop anchor (freeze layout)")
+  check("t98 disabled", action("tile-all").disabled == true)
+  press("ctrl+alt", "a")
+  check("t98 frozen", a.moves + b.moves == 0)
+  click("⚓ Weigh anchor (resume layout)")
+  check("t98 menu key", action("tile-all").title == "Tile all  ⌃⌥A", action("tile-all").title)
+  press("ctrl+alt", "a")
+  frameIs("t98 tiled", b, { x = 0, y = 25, w = 960, h = 1055 })
+end
+
+-- Test 99: Tidy works on a normal screen through the focused window, and does nothing unfocused.
+tests[#tests + 1] = function()
+  install(laptop())
+  local a = addWin("Notes", { x = 900, y = 300, w = 400, h = 300 })
+  local b = addWin("Safari", { x = 100, y = 100, w = 400, h = 300 })
+  anchors.start()
+  local tidy = item("Tidy channel").menu
+  item("Halves", tidy).fn()
+  check("t99 unfocused", a.moves + b.moves == 0)
+  focus(b)
+  item("Halves", tidy).fn()
+  frameIs("t99 left", b, { x = 0, y = 25, w = 960, h = 1055 })
+  frameIs("t99 right", a, { x = 960, y = 25, w = 960, h = 1055 })
+end
+
+-- Test 100: Tiles honor gapPx.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.config.gapPx = 10
+  local a = addWin("Notes", { x = 900, y = 300, w = 400, h = 300 })
+  local b = addWin("Safari", { x = 100, y = 100, w = 400, h = 300 })
+  anchors.start()
+  focus(b)
+  organize("tile-columns")
+  frameIs("t100 left", b, { x = 10, y = 35, w = 945, h = 1035 })
+  frameIs("t100 right", a, { x = 965, y = 35, w = 945, h = 1035 })
+end
+
+-- Test 101: The Organize folder lists the organize actions, then fill, tidy and undo.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  check("t101 titles", titles(item("Organize").menu) == "Tile columns,Tile rows,Tile all,"
+    .. "Cascade all,Cascade active app,Cycle stacked windows,Cycle stacked windows backward,"
+    .. "Reverse all,-,Fill channel,Tidy channel,Undo tidy", titles(item("Organize").menu))
 end
 
 for i, t in ipairs(tests) do
