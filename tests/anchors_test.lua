@@ -102,6 +102,7 @@ function Win:application()
   local name, win = self.app, self
   return {
     bundleID = function() return bundleFor(name) end,
+    name = function() return name end,
     mainWindow = function()
       for _, w in ipairs(world.windows) do
         if w.app == name and not w.secondary then return w end
@@ -3442,26 +3443,26 @@ tests[#tests + 1] = function()
   check("t167 settled", w.moves == moves, "moves " .. w.moves)
 end
 
--- Test 168: A new width drops what was learned, so the window gets one try at it.
+-- Test 168: A learned minimum holds the strip open through width changes, narrowing
+-- below it is refused, and Re-moor now tries the chosen width again.
 tests[#tests + 1] = function()
   install(ultrawide())
   local w = addWin("Slack", { x = 300, y = 100, w = 900, h = 700 })
   w.minW = 668
   anchors.start()
-  frameIs("t168 learned", w, { x = 0, y = 25, w = 668, h = 1415 })
+  local moves = w.moves
+  anchors.setWidths(11, 45)
+  frameIs("t168 held", w, { x = 0, y = 25, w = 668, h = 1415 })
+  check("t168 no retry", w.moves == moves, "moves " .. w.moves)
+  check("t168 narrower refused", anchors.step("left", -1) == false)
+  check("t168 wider ok", anchors.step("left", 1) == true)
   anchors.setWidths(20, 45)
   frameIs("t168 wider", w, { x = 0, y = 25, w = 1024, h = 1415 })
   w.minW = 400
   anchors.setWidths(10, 45)
+  frameIs("t168 still held", w, { x = 0, y = 25, w = 668, h = 1415 })
+  click("Re-moor now")
   frameIs("t168 retried", w, leftFull)
-  w.minW = 668
-  anchors.setWidths(20, 45)
-  anchors.setWidths(10, 45)
-  local moves = w.moves
-  world.clock = world.clock + 5
-  world.poll()
-  frameIs("t168 learned again", w, { x = 0, y = 25, w = 668, h = 1415 })
-  check("t168 still", w.moves == moves, "moves " .. w.moves)
 end
 
 -- Test 169: What was learned goes when the window closes and on Re-moor now.
@@ -3482,6 +3483,58 @@ tests[#tests + 1] = function()
   w.minW = nil
   click("Re-moor now")
   frameIs("t169 re-moor", w, leftFull)
+end
+
+-- Test 170: A pin that will not shrink widens its strip, the channel starts after it,
+-- free windows stay out from under it, and nothing moves on later passes.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", { x = 300, y = 100, w = 900, h = 700 })
+  slack.minW = 668
+  local safari = addWin("Safari", { x = 520, y = 100, w = 800, h = 600 })
+  anchors.start()
+  world.poll()
+  check("t170 channel", anchors.channel(world.screens[1]).x == 668,
+    "x " .. anchors.channel(world.screens[1]).x)
+  check("t170 free window clear", safari.f.x >= 668, "x " .. safari.f.x)
+  local sm, fm = slack.moves, safari.moves
+  for _ = 1, 5 do
+    world.clock = world.clock + 5
+    world.poll()
+  end
+  check("t170 still", slack.moves == sm and safari.moves == fm,
+    "moves " .. slack.moves .. " " .. safari.moves)
+  check("t170 slot", anchors.slotFrame(world.screens[1], "left-top").w == 668)
+end
+
+-- Test 171: The Widths folder says which app holds a side and disables steps and presets
+-- below it.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", { x = 300, y = 100, w = 900, h = 700 })
+  slack.minW = 668
+  anchors.start()
+  world.poll()
+  check("t171 label", item("Left 13% in use: Slack needs 668 pt") ~= nil
+    and item("Left 13% in use: Slack needs 668 pt").disabled == true)
+  check("t171 channel label", item("Channel 42%") ~= nil)
+  check("t171 narrower off", item("Left narrower").disabled == true)
+  check("t171 wider on", item("Left wider").disabled == false)
+  check("t171 preset off", item("Left 10%, right 45%").disabled == true)
+  check("t171 preset on", item("Left 15%, right 40%").disabled == false)
+end
+
+-- Test 172: Pins that would squeeze the channel under 10 percent share what room is left.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", { x = 300, y = 100, w = 900, h = 700 })
+  slack.minW = 2500
+  local term = addWin("iTerm2", { x = 3000, y = 100, w = 900, h = 700 })
+  term.minW = 2500
+  anchors.start()
+  world.poll()
+  local ch = anchors.channel(world.screens[1])
+  check("t172 channel kept", ch.w >= 511, "w " .. ch.w)
 end
 
 for i, t in ipairs(tests) do
