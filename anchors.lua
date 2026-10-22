@@ -169,6 +169,7 @@ local keys = {
   slots = "moorings.slots",
   ignoreShortcuts = "moorings.ignoreShortcuts",
   snap = "moorings.snap",
+  hammerspoonUpdates = "moorings.hammerspoonUpdates",
   keymap = "moorings.keymap",
   shortcuts = "moorings.shortcuts",
   sizes = "moorings.sizes",
@@ -508,6 +509,30 @@ end
 -- setSnap turns snapping by dragging on or off.
 function M.setSnap(on)
   hs.settings.set(keys.snap, on == true)
+end
+
+-- hammerspoonUpdates reports whether moorings keeps Hammerspoon updating itself, on unless
+-- the owner turned it off.
+function M.hammerspoonUpdates()
+  return hs.settings.get(keys.hammerspoonUpdates) ~= false
+end
+
+-- applyHammerspoonUpdates tells Hammerspoon's updater, Sparkle, to check on its own and,
+-- while the setting is on, to download updates quietly and install them when Hammerspoon
+-- next quits. Turned off, Sparkle goes back to asking before it installs.
+local function applyHammerspoonUpdates()
+  local on = M.hammerspoonUpdates()
+  hs.settings.set("SUEnableAutomaticChecks", true)
+  hs.settings.set("SUAutomaticallyUpdate", on)
+  if hs.automaticallyCheckForUpdates then
+    pcall(hs.automaticallyCheckForUpdates, true)
+  end
+end
+
+-- setHammerspoonUpdates turns quiet Hammerspoon updates on or off and applies the choice.
+function M.setHammerspoonUpdates(on)
+  hs.settings.set(keys.hammerspoonUpdates, on == true)
+  applyHammerspoonUpdates()
 end
 
 -- fullscreenFills reports whether native fullscreen is redirected to the channel.
@@ -2107,6 +2132,13 @@ local function settingItems()
       checked = M.snapOn(),
       fn = safe(function() M.setSnap(not M.snapOn()) end),
     },
+    {
+      title = "Keep Hammerspoon up to date",
+      tooltip = "Hammerspoon downloads its updates quietly and installs them when it next "
+        .. "restarts.",
+      checked = M.hammerspoonUpdates(),
+      fn = safe(function() M.setHammerspoonUpdates(not M.hammerspoonUpdates()) end),
+    },
     { title = "Keymap", menu = keymaps },
     {
       title = ignoreTitle,
@@ -2175,7 +2207,8 @@ local function menu()
     {
       title = frozen and "⚓ Drop anchor (hold the layout)"
         or "⚓ Raise anchor (let windows drift)",
-      tooltip = frozen and "Hold anchored apps in their slots and free windows in the channel again."
+      tooltip = frozen
+        and "Hold anchored apps in their slots and free windows in the channel again."
         or "Stop holding windows so you can arrange them freely. The shortcuts rest too.",
       fn = safe(function()
         hs.settings.set(keys.paused, not paused())
@@ -2185,7 +2218,8 @@ local function menu()
     },
     {
       title = "Re-moor now",
-      tooltip = "Put every anchored window back in its slot and forget released, lifted and learned sizes.",
+      tooltip = "Put every anchored window back in its slot and forget released, lifted and "
+        .. "learned sizes.",
       disabled = frozen,
       fn = safe(function()
         state.bursts, state.floors, state.placed, state.released, state.lifted = {}, {}, {}, {}, {}
@@ -2251,6 +2285,7 @@ function M.start()
   hs.window.animationDuration = 0
   hs.autoLaunch(true)
   hs.accessibilityState(true)
+  applyHammerspoonUpdates()
   local _, problems = M.layout(M.pins())
   for _, problem in ipairs(problems) do
     log(problem)
