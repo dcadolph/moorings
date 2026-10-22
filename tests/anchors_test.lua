@@ -2706,7 +2706,7 @@ tests[#tests + 1] = function()
   anchors.start()
   check("t135 folders", titles(folder("Settings")):find("Icon", 1, true) ~= nil)
   local icons = item("Icon").menu
-  check("t135 groups", titles(icons) == "Boats,Sea life,Tools,Hearts and shapes,-,Custom…,Surprise me,"
+  check("t135 groups", titles(icons) == "moorings mark,Boats,Sea life,Tools,Hearts and shapes,-,Custom…,Surprise me,"
     .. "Default icon,Undo icon change,-,Open icons folder", titles(icons))
   check("t135 count", #anchors.icons >= 40, #anchors.icons)
   local names, glyphs = {}, {}
@@ -2976,6 +2976,27 @@ local function dragTaps()
     end
   end
   return running, stopped
+end
+
+-- Test 151: The moorings mark ships with moorings and loads as a template image.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local path = "/tmp/hammerspoon/moorings/mark.svg"
+  world.images[path] = true
+  anchors.start()
+  check("t151 not default", world.bar.title == "⛵" and item("moorings mark").checked == false)
+  click("moorings mark")
+  check("t151 image", world.bar.icon and world.bar.icon.path == path and world.bar.icon.isTemplate == true
+    and world.bar.title == nil)
+  check("t151 checked", item("moorings mark").checked == true and item("⛵  Sailboat").checked == false)
+  check("t151 saved", world.settings["moorings.icon"] == "moorings mark")
+  local f = io.open("mark.svg", "r")
+  check("t151 file in repo", f ~= nil)
+  if f then f:close() end
+  anchors.path = function(file) return "./" .. file end
+  click("Settings window…")
+  world.webMsg({ body = { type = "ready" } })
+  check("t151 model", world.model.icons.mark.checked == true and world.model.icons.mark.image == true)
 end
 
 -- Test 147: Missing Accessibility shows the warning glyph, one notification and a menu item to grant it.
