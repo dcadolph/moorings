@@ -15,9 +15,12 @@ local corner = 20
 -- short is how far in points from a corner the half zones on an edge reach.
 local short = 145
 
--- maxChecks is how many drag events may pass before a window that has not
+-- maxChecks is how many times a drag reads its window's frame before a window that has not
 -- moved is taken for a click inside it, and snapping stops for that drag.
-local maxChecks = 20
+local maxChecks = 3
+
+-- travel is how far in points the cursor must move between looks at the window.
+local travel = 8
 
 -- third returns the third under x across the span ox to ox+w. The center third
 -- becomes two thirds when the drag came from a side third.
@@ -172,30 +175,54 @@ local function channelOf(s)
   return nil
 end
 
--- moving reports whether the drag is moving a window, watching its frame until
--- it moves, resizes or maxChecks events pass.
-local function moving()
-  if state.moving then
-    return true
-  end
+-- look reads the drag's window: the focused window and its frame the first time, then the
+-- frame, until the window moves, resizes or maxChecks reads pass.
+local function look()
   if not state.win then
     state.win = hs.window.focusedWindow()
     if not state.win then
       state.done = true
-      return false
+      return
     end
     state.start, state.checks = state.win:frame(), 0
-    return false
+    return
   end
   local f, s = state.win:frame(), state.start
   if f.w ~= s.w or f.h ~= s.h then
     state.done = true
   elseif f.x ~= s.x or f.y ~= s.y then
-    state.moving, state.pinned = true, host.pinned(state.win)
+    state.moving = true
+    state.pinned, state.parkable = host.pinned(state.win), host.parkable(state.win)
   else
     state.checks = state.checks + 1
     state.done = state.checks >= maxChecks
   end
+end
+
+-- moving reports whether the drag is moving a window. It never reads the window inside the
+-- tap: it queues one look at a time, after the event, once the cursor at p has traveled since
+-- the last look. A look that runs after its drag ended changes nothing.
+local function moving(p)
+  if state.moving then
+    return true
+  end
+  local from = state.from
+  if state.pending or (from and math.abs(p.x - from.x) + math.abs(p.y - from.y) < travel) then
+    return false
+  end
+  local drag = state
+  drag.from, drag.pending = p, true
+  hs.timer.doAfter(0, function()
+    if state ~= drag then
+      return
+    end
+    drag.pending = false
+    local ok, err = pcall(look)
+    if not ok then
+      drag.done = true
+      host.log(err)
+    end
+  end)
   return state.moving == true
 end
 
@@ -204,7 +231,7 @@ end
 local function zoneAt(p, s, alt)
   local ch = channelOf(s)
   if ch and alt then
-    local key = host.parkable(state.win) and S.park(p, s:fullFrame(), ch)
+    local key = state.parkable and S.park(p, s:fullFrame(), ch)
     return key and parkPrefix .. key or nil
   end
   if state.pinned then
@@ -218,10 +245,10 @@ local function dragged(e)
   if not state.down or state.done or host.paused() or not host.snapOn() then
     return
   end
-  if not moving() then
+  local p = hs.mouse.absolutePosition()
+  if not moving(p) then
     return
   end
-  local p = hs.mouse.absolutePosition()
   local s = screenAt(p)
   local zone = s and zoneAt(p, s, e:getFlags().alt == true) or nil
   local sid = s and s:id()
