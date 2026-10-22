@@ -806,6 +806,45 @@ function M.assign(key, bundle)
   M.moor()
 end
 
+-- lock puts bundle in the slot named key and opens the app the way a Dock click
+-- does, which launches it or asks a running app with no window for a new one.
+function M.lock(key, bundle)
+  M.assign(key, bundle)
+  if bundle ~= "" then
+    hs.task.new("/usr/bin/open", nil, { "-b", bundle }):start()
+  end
+end
+
+-- assignPath locks the app at path in the slot named key, or returns nil and a
+-- reason when path is not an app moorings may lock.
+function M.assignPath(key, path)
+  local info = type(path) == "string" and hs.application.infoForBundlePath(path)
+  local bundle = type(info) == "table" and info.CFBundleIdentifier
+  if type(bundle) ~= "string" or bundle == "" then
+    return nil, tostring(path) .. " is not an app with a bundle ID"
+  end
+  if ignoredBundle(bundle) then
+    return nil, bundle .. " is in ignoreBundles"
+  end
+  M.lock(key, bundle)
+  return true
+end
+
+-- chooseApp asks for an app in a file browser and puts it in the slot named key.
+function M.chooseApp(key)
+  hs.focus()
+  local picked = hs.dialog.chooseFileOrFolder("Choose an app to lock", "/Applications",
+    true, false, false, { "app" }, true)
+  local path = picked and picked["1"]
+  if not path then
+    return
+  end
+  local ok, problem = M.assignPath(key, path)
+  if not ok then
+    hs.alert.show(problem)
+  end
+end
+
 -- resetSlots drops the switcher choices so the config is in effect again.
 function M.resetSlots()
   hs.settings.clear(keys.slots)
@@ -1423,22 +1462,31 @@ local function runningApps()
 end
 
 -- lockedItems builds the Locked apps folder: a row per slot that opens a list
--- of running apps, a fast path for the frontmost app, and a reset.
+-- of running apps and a file browser, a fast path for the frontmost app, and a reset.
 local function lockedItems()
   local picks, apps = M.assignments(), runningApps()
+  local running = {}
+  for _, app in ipairs(apps) do
+    running[app.bundle] = true
+  end
   local items = {}
   for _, s in ipairs(M.slotNames) do
     local current = picks[s.key]
     local choices = {
       { title = "Empty", checked = current == "", fn = safe(function() M.assign(s.key, "") end) },
     }
+    if current ~= "" and not running[current] then
+      choices[#choices + 1] = { title = appName(current), checked = true }
+    end
     for _, app in ipairs(apps) do
       choices[#choices + 1] = {
         title = app.name,
         checked = app.bundle == current,
-        fn = safe(function() M.assign(s.key, app.bundle) end),
+        fn = safe(function() M.lock(s.key, app.bundle) end),
       }
     end
+    choices[#choices + 1] = { title = "-" }
+    choices[#choices + 1] = { title = "Choose app…", fn = safe(function() M.chooseApp(s.key) end) }
     items[#items + 1] = { title = s.title .. ": " .. appName(current), menu = choices }
   end
   local front = hs.application.frontmostApplication()
