@@ -1869,8 +1869,47 @@ local function runningApps()
   return list
 end
 
--- lockedItems builds the Locked apps folder: a row per slot that opens a list
--- of running apps and a file browser, a fast path for the frontmost app, and a reset.
+-- frontItem builds the top-level entry for the frontmost app, or nil when there is none:
+-- Unanchor while it holds a slot, else Anchor with the four slots to pick from.
+local function frontItem()
+  local front = hs.application.frontmostApplication()
+  local bundle = front and front:bundleID()
+  if not bundle then
+    return nil
+  end
+  local picks, name = M.assignments(), front:name() or bundle
+  local held = {}
+  for _, s in ipairs(M.slotNames) do
+    if picks[s.key] == bundle then
+      held[#held + 1] = s.key
+    end
+  end
+  if #held > 0 then
+    return {
+      title = "Unanchor " .. name,
+      tooltip = "Free the slot " .. name .. " holds. Its window stays where it is.",
+      fn = safe(function()
+        for _, key in ipairs(held) do
+          M.assign(key, "")
+        end
+      end),
+    }
+  end
+  local targets = {}
+  for _, s in ipairs(M.slotNames) do
+    local current = picks[s.key]
+    targets[#targets + 1] = {
+      title = s.title,
+      tooltip = current == "" and "Anchor " .. name .. " to this empty slot."
+        or "Anchor " .. name .. " here in place of " .. appName(current) .. ".",
+      fn = safe(function() M.assign(s.key, bundle) end),
+    }
+  end
+  return { title = "Anchor " .. name, disabled = ignoredBundle(bundle), menu = targets }
+end
+
+-- lockedItems builds the Anchored apps folder: a row per slot that opens a list of running
+-- apps and a file browser, then Unanchor all apps and a reset.
 local function lockedItems()
   local picks, apps = M.assignments(), runningApps()
   local running = {}
@@ -1911,26 +1950,6 @@ local function lockedItems()
     }
     items[#items + 1] = { title = s.title .. ": " .. appName(current), menu = choices }
   end
-  local front = hs.application.frontmostApplication()
-  local frontBundle = front and front:bundleID()
-  local targets = {}
-  for _, s in ipairs(M.slotNames) do
-    targets[#targets + 1] = {
-      title = s.title,
-      tooltip = "Anchor the frontmost app to this slot.",
-      checked = picks[s.key] == frontBundle,
-      fn = safe(function() M.assign(s.key, frontBundle) end),
-    }
-  end
-  local pinTitle = "Anchor frontmost app"
-  if front then
-    pinTitle = pinTitle .. " (" .. (front:name() or frontBundle) .. ")"
-  end
-  items[#items + 1] = {
-    title = pinTitle,
-    disabled = ignoredBundle(frontBundle),
-    menu = targets,
-  }
   local anchored = false
   for _, bundle in pairs(picks) do
     anchored = anchored or bundle ~= ""
@@ -2342,8 +2361,8 @@ local function liftItems(pins, frozen)
   return items
 end
 
--- menu builds the menu bar menu from current state: the two layout controls, a
--- Re-moor entry per released pin, a folder per job, and Reload. While Accessibility is
+-- menu builds the menu bar menu from current state: the two layout controls, a Re-moor entry
+-- per released pin, the frontmost app's entry, a folder per job, and Reload. While Accessibility is
 -- missing it starts with the way to grant it.
 local function menu()
   local frozen = paused()
@@ -2382,6 +2401,7 @@ local function menu()
       }
     end
   end
+  items[#items + 1] = frontItem()
   for _, it in ipairs({
     { title = "-" },
     { title = "Anchored apps", menu = lockedItems() },

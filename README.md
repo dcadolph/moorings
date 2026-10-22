@@ -117,8 +117,8 @@ channel, the open strip in between. Click Slack's green button to lift it over t
 full height, and click it again to lower it. Drag an anchored window somewhere else and moorings
 lets it go with a short message. Its green button or Control-Option-Delete brings it home.
 
-To anchor another app, click it, open the moorings menu, choose Anchored apps, Anchor frontmost app,
-then pick a slot. Picking an app from a slot's list opens it the way a Dock click does, and the list
+To anchor another app, click it, open the moorings menu, choose Anchor *app* near the top, then
+pick a slot. Picking an app from a slot's list opens it the way a Dock click does, and the list
 ends with Choose app…, which browses for any app. The wider and narrower items under Widths move
 each strip by 1%, and the Channel label shows what is left in the middle. When two apps share a
 side, Heights sets how tall the top one is, from 10% to 90%, and the bottom one takes the rest. A
@@ -137,22 +137,24 @@ layouts, workspace matching, and key recording. Each exits non-zero on any failu
 
 ### Menu
 
-The top of the menu holds Raise anchor and Re-moor now, then seven folders, then Reload.
+The top of the menu holds Raise anchor, Re-moor now and Anchor *app*, then seven folders, then
+Reload.
 
-| Item                       | What it holds&nbsp;                                                                                                                          |
-|----------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
-| Raise anchor / Drop anchor | Raise lets every window drift and rests the shortcuts. Drop holds the layout again. Survives a reload.                                       |
-| Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                                                              |
-| Re-moor *app*              | Shown for each anchored window released after you moved it. Puts it back.                                                                    |
-| Anchored apps              | Four slot rows, each with running apps and Choose app…, Anchor frontmost app, Unanchor all, Reset.                                           |
-| Window                     | Every window action by family, each showing its shortcut.                                                                                    |
-| Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                                             |
-| Lift                       | One entry per anchored window. Lifts it over its strip and the channel, or lowers it back.                                                   |
-| Widths                     | The Channel label, a note for an empty side, the wider and narrower steppers, seven presets.                                                 |
-| Heights                    | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                                  |
-| Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                                                |
-| Settings                   | Settings window, the fullscreen and snapping toggles, Keep Hammerspoon up to date, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
-| Reload                     | Reloads the Hammerspoon config once every moorings file compiles.                                                                            |
+| Item                          | What it holds&nbsp;                                                                                                                          |
+|-------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| Raise anchor / Drop anchor    | Raise lets every window drift and rests the shortcuts. Drop holds the layout again. Survives a reload.                                       |
+| Re-moor now                   | Applies the layout immediately instead of waiting for the poll.                                                                              |
+| Re-moor *app*                 | Shown for each anchored window released after you moved it. Puts it back.                                                                    |
+| Anchor *app* / Unanchor *app* | The app you were just using. Anchor picks one of the four slots. Unanchor frees its slot and leaves the window.                              |
+| Anchored apps                 | Four slot rows, each with running apps and Choose app…, then Unanchor all apps and Reset to defaults.                                        |
+| Window                        | Every window action by family, each showing its shortcut.                                                                                    |
+| Window, Organize              | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                                             |
+| Lift                          | One entry per anchored window. Lifts it over its strip and the channel, or lowers it back.                                                   |
+| Widths                        | The Channel label, a note for an empty side, the wider and narrower steppers, seven presets.                                                 |
+| Heights                       | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                                  |
+| Workspaces                    | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                                                |
+| Settings                      | Settings window, the fullscreen and snapping toggles, Keep Hammerspoon up to date, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
+| Reload                        | Reloads the Hammerspoon config once every moorings file compiles.                                                                            |
 
 Tidy keeps the windows in their current left-to-right order and then leaves them alone. Undo
 tidy restores the position each window had before the first Fill, Tidy or window action since
@@ -351,8 +353,8 @@ that edge, Lift on the other side reaches it, and Widths says "Right side empty:
 channel". The last few points of that edge still snap a window and, with Option held, park an
 app there. Anchoring an app on the side gives the strip back at its chosen width.
 
-Anchor frontmost app is the fast path. The menu bar does not take focus, so the frontmost app is
-the one you were just using. Choices are saved in Hammerspoon settings and win over the anchors
+Anchor *app* near the top of the menu is the fast path. The menu bar does not take focus, so it
+names the app you were just using, and turns into Unanchor *app* once that app holds a slot. Choices are saved in Hammerspoon settings and win over the anchors
 in the config file. Unanchor all apps empties every slot, so every window is free until you pick
 an app again. Raise anchor is the pause: it keeps your choices and only stops holding windows.
 Reset to defaults goes back to the anchors in the config file.
