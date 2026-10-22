@@ -156,6 +156,52 @@ tests[#tests + 1] = function()
   check("t7 malformed", has(problems, "shortcut for size:Bad needs mods and key"))
 end
 
+-- Test 8: Spectacle's keymap binds its defaults, and an unknown keymap falls back to Rectangle's.
+tests[#tests + 1] = function()
+  local map, problems = A.shortcuts({}, {}, "spectacle")
+  local n = 0
+  for _ in pairs(map) do n = n + 1 end
+  check("t8 count", n == 17, tostring(n))
+  check("t8 clean", #problems == 0, table.concat(problems, "; "))
+  check("t8 left", A.keyText(map["left-half"]) == "⌥⌘←")
+  check("t8 next third", A.keyText(map["first-third"]) == "⌃⌥→")
+  check("t8 previous third", A.keyText(map["last-third"]) == "⌃⌥←")
+  check("t8 lower left", A.keyText(map["bottom-left"]) == "⌃⇧⌘←")
+  check("t8 undo", A.keyText(map.restore) == "⌥⌘Z")
+  check("t8 larger", A.keyText(map.larger) == "⌃⌥⇧→")
+  for name in pairs(map) do
+    check("t8 known " .. name, A.known(name))
+  end
+  local fallback = A.shortcuts({}, {}, "nope")
+  check("t8 fallback", A.keyText(fallback["left-half"]) == "⌃⌥←")
+  check("t8 names", table.concat(A.keymapNames, ",") == "rectangle,spectacle")
+end
+
+-- Test 9: Mouse buttons from 2 to 31 bind known actions and custom sizes, and the rest are
+-- reported.
+tests[#tests + 1] = function()
+  local map, problems = A.mouseButtons({
+    [3] = "maximize",
+    [4] = "size:Reading",
+    [31] = "next-display",
+    [1] = "maximize",
+    [32] = "maximize",
+    [2] = "sideways",
+    [5] = "size:Missing",
+    side = "maximize",
+    [2.5] = "maximize",
+  }, { { name = "size:Reading" } })
+  check("t9 kept", map[3] == "maximize" and map[4] == "size:Reading" and map[31] == "next-display")
+  check("t9 primary", has(problems, "mouseButtons has button 1: use a number from 2 to 31"))
+  check("t9 high", has(problems, "button 32"))
+  check("t9 word", has(problems, "button side"))
+  check("t9 fraction", has(problems, "button 2.5"))
+  check("t9 unknown", has(problems, "unknown action sideways for button 2"))
+  check("t9 missing size", has(problems, "unknown action size:Missing for button 5"))
+  check("t9 count", #problems == 6, tostring(#problems))
+  check("t9 not a table", next((A.mouseButtons("junk"))) == nil)
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then

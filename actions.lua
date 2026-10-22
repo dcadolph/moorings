@@ -7,8 +7,11 @@ local tile = require("tile")
 
 local A = {}
 
--- keymap is Rectangle's recommended shortcut set, by action name.
-A.keymap = {
+-- keymaps holds the built-in shortcut sets by name. rectangle is Rectangle's
+-- recommended set and spectacle is Spectacle's default set.
+A.keymaps = {}
+
+A.keymaps.rectangle = {
   ["left-half"] = { mods = { "ctrl", "alt" }, key = "left" },
   ["right-half"] = { mods = { "ctrl", "alt" }, key = "right" },
   ["top-half"] = { mods = { "ctrl", "alt" }, key = "up" },
@@ -32,6 +35,31 @@ A.keymap = {
   ["previous-display"] = { mods = { "ctrl", "alt", "cmd" }, key = "left" },
   ["next-display"] = { mods = { "ctrl", "alt", "cmd" }, key = "right" },
 }
+
+-- Spectacle's next and previous third walk the thirds, which first-third and
+-- last-third do on a repeat press.
+A.keymaps.spectacle = {
+  center = { mods = { "alt", "cmd" }, key = "c" },
+  maximize = { mods = { "alt", "cmd" }, key = "f" },
+  ["left-half"] = { mods = { "alt", "cmd" }, key = "left" },
+  ["right-half"] = { mods = { "alt", "cmd" }, key = "right" },
+  ["top-half"] = { mods = { "alt", "cmd" }, key = "up" },
+  ["bottom-half"] = { mods = { "alt", "cmd" }, key = "down" },
+  ["top-left"] = { mods = { "ctrl", "cmd" }, key = "left" },
+  ["bottom-left"] = { mods = { "ctrl", "shift", "cmd" }, key = "left" },
+  ["top-right"] = { mods = { "ctrl", "cmd" }, key = "right" },
+  ["bottom-right"] = { mods = { "ctrl", "shift", "cmd" }, key = "right" },
+  ["next-display"] = { mods = { "ctrl", "alt", "cmd" }, key = "right" },
+  ["previous-display"] = { mods = { "ctrl", "alt", "cmd" }, key = "left" },
+  ["first-third"] = { mods = { "ctrl", "alt" }, key = "right" },
+  ["last-third"] = { mods = { "ctrl", "alt" }, key = "left" },
+  larger = { mods = { "ctrl", "alt", "shift" }, key = "right" },
+  smaller = { mods = { "ctrl", "alt", "shift" }, key = "left" },
+  restore = { mods = { "alt", "cmd" }, key = "z" },
+}
+
+-- keymapNames lists the built-in keymaps in menu order.
+A.keymapNames = { "rectangle", "spectacle" }
 
 -- step is how many points larger and smaller move each free edge.
 A.step = 30
@@ -98,6 +126,10 @@ local state = {
   last = {},
   -- hotkeys holds the bound shortcuts.
   hotkeys = {},
+  -- mouse maps a mouse button number to the action it runs.
+  mouse = {},
+  -- off is set while an app that turns shortcuts off is frontmost.
+  off = false,
 }
 
 -- attach gives actions the anchors module it reads state from.
@@ -221,14 +253,14 @@ local function wellFormed(sc)
   return type(sc) == "table" and type(sc.mods) == "table" and type(sc.key) == "string"
 end
 
--- shortcuts merges overrides and extra onto the keymap and returns the binding
--- for each action plus the problems found. extra maps more action names, such
--- as custom sizes, to their shortcuts. An override of false removes a binding.
--- When two actions share a key, one the config set beats a default, and
--- otherwise the first in name order keeps it.
-function A.shortcuts(overrides, extra)
+-- shortcuts merges overrides and extra onto the keymap named keymap, Rectangle's
+-- by default, and returns the binding for each action plus the problems found.
+-- extra maps more action names, such as custom sizes, to their shortcuts. An
+-- override of false removes a binding. When two actions share a key, one the
+-- config set beats a default, and otherwise the first in name order keeps it.
+function A.shortcuts(overrides, extra, keymap)
   local merged, explicit, problems = {}, {}, {}
-  for name, sc in pairs(A.keymap) do
+  for name, sc in pairs(A.keymaps[keymap] or A.keymaps.rectangle) do
     merged[name] = sc
   end
   for name, sc in pairs(overrides or {}) do
@@ -361,7 +393,7 @@ local function bindings()
       extra[s.name] = s.shortcut
     end
   end
-  local map, more = A.shortcuts(host.config.shortcuts, extra)
+  local map, more = A.shortcuts(host.config.shortcuts, extra, host.keymap())
   for _, p in ipairs(more) do
     problems[#problems + 1] = p
   end
@@ -404,10 +436,81 @@ function A.apply(win, name, s)
   return true
 end
 
+-- runLogged runs action name and logs an error instead of raising it.
+local function runLogged(name)
+  local ok, err = pcall(A.run, name)
+  if not ok then
+    host.log(err)
+  end
+  return ok and err
+end
+
+-- runnable reports whether name is an action or a custom size in the config.
+local function runnable(name)
+  return type(name) == "string" and (A.known(name) or sizeSpec(name) ~= nil)
+end
+
+-- mouseButtons checks the mouse button bindings from the config and returns
+-- the valid ones plus the problems found. Buttons 0 and 1 are the primary and
+-- secondary buttons and cannot be bound.
+function A.mouseButtons(cfg, sizes)
+  local out, problems = {}, {}
+  local sized = {}
+  for _, s in ipairs(sizes or {}) do
+    sized[s.name] = true
+  end
+  for button, name in pairs(type(cfg) == "table" and cfg or {}) do
+    if math.type(button) ~= "integer" or button < 2 or button > 31 then
+      problems[#problems + 1] = "mouseButtons has button " .. tostring(button)
+        .. ": use a number from 2 to 31"
+    elseif type(name) ~= "string" or not (A.known(name) or sized[name]) then
+      problems[#problems + 1] = "mouseButtons names unknown action " .. tostring(name)
+        .. " for button " .. button .. ": ignoring it"
+    else
+      out[button] = name
+    end
+  end
+  return out, problems
+end
+
+-- mouse runs the action bound to a mouse button. A bound button's events are
+-- swallowed so the app under the cursor does not also act on them. Unbound
+-- buttons, and every button while frozen or while an ignored app is in front,
+-- pass on untouched.
+function A.mouse(e)
+  local ok, swallow = pcall(function()
+    local button = e:getProperty(hs.eventtap.event.properties.mouseEventButtonNumber)
+    local name = state.mouse[button]
+    if not name or state.off or host.paused() then
+      return false
+    end
+    if e:getType() == hs.eventtap.event.types.otherMouseDown then
+      hs.timer.doAfter(0, function() runLogged(name) end)
+    end
+    return true
+  end)
+  if not ok then
+    host.log(swallow)
+    return false
+  end
+  return swallow
+end
+
+-- url runs the action a hammerspoon://moorings?action=name link asks for.
+function A.url(params)
+  local name = type(params) == "table" and params.action or nil
+  if not runnable(name) then
+    host.log("a moorings link asked for unknown action " .. tostring(name))
+    return false
+  end
+  return runLogged(name)
+end
+
 -- refresh enables the shortcuts, or disables them while an ignored app is frontmost.
 function A.refresh()
   local front = hs.application.frontmostApplication()
   local off = front ~= nil and host.shortcutsIgnored(front:bundleID())
+  state.off = off
   for _, hk in pairs(state.hotkeys) do
     if off then
       hk:disable()
@@ -425,18 +528,13 @@ function A.unbind()
   state.hotkeys = {}
 end
 
--- bind binds every shortcut in effect, watches app switches for ignored apps,
--- and returns the problems found.
+-- bind binds every shortcut and mouse button in effect and the moorings URL,
+-- watches app switches for ignored apps, and returns the problems found.
 function A.bind()
   A.unbind()
-  local map, problems = bindings()
+  local map, problems, sizes = bindings()
   for name, sc in pairs(map) do
-    local ok, hk = pcall(hs.hotkey.new, sc.mods, sc.key, function()
-      local ran, err = pcall(A.run, name)
-      if not ran then
-        host.log(err)
-      end
-    end)
+    local ok, hk = pcall(hs.hotkey.new, sc.mods, sc.key, function() runLogged(name) end)
     if ok and hk then
       state.hotkeys[name] = hk
     else
@@ -444,6 +542,20 @@ function A.bind()
         .. ": ignoring it"
     end
   end
+  local buttons, more = A.mouseButtons(host.config.mouseButtons, sizes)
+  for _, p in ipairs(more) do
+    problems[#problems + 1] = p
+  end
+  state.mouse = buttons
+  if state.mouseTap then
+    state.mouseTap:stop()
+    state.mouseTap = nil
+  end
+  if next(buttons) then
+    local types = hs.eventtap.event.types
+    state.mouseTap = hs.eventtap.new({ types.otherMouseDown, types.otherMouseUp }, A.mouse):start()
+  end
+  hs.urlevent.bind("moorings", function(_, params) A.url(params) end)
   if not state.watcher then
     state.watcher = hs.application.watcher.new(function(_, event)
       if event == hs.application.watcher.activated then
@@ -467,12 +579,7 @@ local function items(names, map, frozen)
       title = title,
       action = name,
       disabled = frozen,
-      fn = function()
-        local ok, err = pcall(A.run, name)
-        if not ok then
-          host.log(err)
-        end
-      end,
+      fn = function() runLogged(name) end,
     }
   end
   return out

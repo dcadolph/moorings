@@ -21,9 +21,15 @@ M.config = {
   -- ignoreBundles lists apps whose windows are never moved. Shortcuts are off
   -- while one of them is frontmost.
   ignoreBundles = {},
-  -- shortcuts overrides Rectangle's keymap by action name. Set an action to
+  -- keymap picks the built-in shortcut set, "rectangle" or "spectacle", until
+  -- one is chosen from Settings, Keymap.
+  keymap = "rectangle",
+  -- shortcuts overrides the keymap by action name. Set an action to
   -- { mods = { "ctrl", "alt" }, key = "h" } to rebind it, or to false to unbind it.
   shortcuts = {},
+  -- mouseButtons maps an extra mouse button number, 2 to 31, to an action, such
+  -- as { [3] = "previous-display", [4] = "next-display" }.
+  mouseButtons = {},
   -- sizes lists custom window sizes for the Window, Custom sizes folder. Each
   -- has a title, x, y, w and h as shares of the area from 0 to 1, an optional
   -- width and height in points centered in that share, and an optional shortcut.
@@ -82,6 +88,7 @@ local keys = {
   slots = "moorings.slots",
   ignoreShortcuts = "moorings.ignoreShortcuts",
   snap = "moorings.snap",
+  keymap = "moorings.keymap",
 }
 
 -- minChannelPct is the narrowest channel a width pair may leave.
@@ -225,6 +232,28 @@ local function paused()
 end
 
 M.paused = paused
+
+-- keymap returns the name of the shortcut set in effect. A choice from the
+-- menu wins over the config, and an unknown name falls back to rectangle.
+function M.keymap()
+  local saved = hs.settings.get(keys.keymap)
+  if actions.keymaps[saved] then
+    return saved
+  end
+  if actions.keymaps[M.config.keymap] then
+    return M.config.keymap
+  end
+  log("keymap " .. tostring(M.config.keymap) .. " is unknown: using rectangle")
+  return "rectangle"
+end
+
+-- setKeymap saves name as the shortcut set and rebinds every shortcut.
+function M.setKeymap(name)
+  hs.settings.set(keys.keymap, name)
+  for _, problem in ipairs(actions.bind()) do
+    log(problem)
+  end
+end
 
 -- snapOn reports whether dragging a window to an edge snaps it.
 function M.snapOn()
@@ -884,6 +913,14 @@ end
 
 -- settingItems builds the Settings folder.
 local function settingItems()
+  local keymaps, current = {}, M.keymap()
+  for _, name in ipairs(actions.keymapNames) do
+    keymaps[#keymaps + 1] = {
+      title = name:sub(1, 1):upper() .. name:sub(2),
+      checked = name == current,
+      fn = safe(function() M.setKeymap(name) end),
+    }
+  end
   local icons = {}
   local glyph = iconGlyph()
   for _, icon in ipairs(M.icons) do
@@ -913,6 +950,7 @@ local function settingItems()
       checked = M.snapOn(),
       fn = safe(function() hs.settings.set(keys.snap, not M.snapOn()) end),
     },
+    { title = "Keymap", menu = keymaps },
     {
       title = ignoreTitle,
       checked = M.shortcutsIgnored(frontBundle),

@@ -154,7 +154,7 @@ end
 local function install(...)
   world = {
     screens = { ... }, windows = {}, settings = {}, nextID = 0, printed = {}, apps = {},
-    clock = 1000, mouseDown = false, trusted = true, hotkeys = {},
+    clock = 1000, mouseDown = false, trusted = true, hotkeys = {}, taps = {}, urls = {},
   }
   hs = {
     hotkey = {
@@ -179,12 +179,26 @@ local function install(...)
       absolutePosition = function() return world.mousePos end,
     },
     eventtap = {
-      event = { types = { leftMouseDown = 1, leftMouseUp = 2, leftMouseDragged = 6 } },
+      event = {
+        types = {
+          leftMouseDown = 1, leftMouseUp = 2, leftMouseDragged = 6, otherMouseDown = 25,
+          otherMouseUp = 26,
+        },
+        properties = { mouseEventButtonNumber = 3 },
+      },
       new = function(types, fn)
-        world.tapTypes, world.tap = types, fn
-        return { start = function(self) world.tapping = true return self end }
+        local tap = { types = types, fn = fn }
+        function tap:start() self.running = true return self end
+        function tap:stop() self.running = false return self end
+        world.taps[#world.taps + 1] = tap
+        if types[1] == 1 then
+          world.tapTypes, world.tap = types, fn
+          world.tapping = true
+        end
+        return tap
       end,
     },
+    urlevent = { bind = function(name, fn) world.urls[name] = fn end },
     canvas = {
       new = function(frame)
         local c = { f = copy(frame), shown = false }
@@ -1537,7 +1551,7 @@ tests[#tests + 1] = function()
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
     and item("No sizes in the config").disabled == true)
   check("t79 settings", titles(folder("Settings")) == "Fullscreen fills the channel,"
-    .. "Snap by dragging,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
+    .. "Snap by dragging,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
   check("t79 left text", action("left-half").title == "Left half  ⌃⌥←", action("left-half").title)
   action("bottom-right-sixth").fn()
   frameIs("t79 sixth", w, { x = 2048, y = 732, w = 768, h = 708 })
@@ -1927,6 +1941,122 @@ tests[#tests + 1] = function()
   check("t101 titles", titles(item("Organize").menu) == "Tile columns,Tile rows,Tile all,"
     .. "Cascade all,Cascade active app,Cycle stacked windows,Cycle stacked windows backward,"
     .. "Reverse all,-,Fill channel,Tidy channel,Undo tidy", titles(item("Organize").menu))
+end
+
+-- mouseTap returns the mouse button tap, or nil.
+local function mouseTap()
+  for _, tap in ipairs(world.taps) do
+    if tap.types[1] == 25 and tap.running then return tap end
+  end
+  return nil
+end
+
+-- click sends mouse button event type t for button through the button tap.
+local function button(t, n)
+  return mouseTap().fn({ getType = function() return t end, getProperty = function() return n end })
+end
+
+-- Test 102: A moorings link runs an action, a custom size or nothing for an unknown name.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.config.sizes = { { title = "Video", width = 1280, height = 720 } }
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  focus(w)
+  check("t102 bound", world.urls.moorings ~= nil)
+  world.urls.moorings("moorings", { action = "left-half" })
+  frameIs("t102 left", w, { x = 0, y = 25, w = 960, h = 1055 })
+  world.urls.moorings("moorings", { action = "size:Video" })
+  frameIs("t102 size", w, { x = 320, y = 193, w = 1280, h = 720 })
+  local moves = w.moves
+  world.urls.moorings("moorings", { action = "sideways" })
+  world.urls.moorings("moorings", {})
+  check("t102 unknown", w.moves == moves and said("unknown action sideways") == 1
+    and said("unknown action nil") == 1)
+  click("⚓ Drop anchor (freeze layout)")
+  world.urls.moorings("moorings", { action = "maximize" })
+  check("t102 frozen", w.moves == moves)
+end
+
+-- Test 103: Settings, Keymap switches to Spectacle's keys live and the choice survives reload.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  check("t103 rectangle", item("Rectangle").checked == true and item("Spectacle").checked == false)
+  click("Spectacle")
+  check("t103 checked", item("Spectacle").checked == true)
+  check("t103 old gone", hotkey("ctrl+alt", "return") == nil)
+  focus(w)
+  press("alt+cmd", "left")
+  frameIs("t103 left", w, { x = 0, y = 25, w = 960, h = 1055 })
+  press("ctrl+alt", "left")
+  frameIs("t103 previous third", w, { x = 1280, y = 25, w = 640, h = 1055 })
+  check("t103 menu text", action("left-half").title == "Left half  ⌥⌘←", action("left-half").title)
+  local settings = world.settings
+  install(laptop())
+  world.settings = settings
+  anchors.start()
+  check("t103 survives", hotkey("alt+cmd", "left") ~= nil and hotkey("ctrl+alt", "return") == nil)
+end
+
+-- Test 104: The config keymap applies until a menu choice, and an unknown one falls back.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.config.keymap = "spectacle"
+  anchors.start()
+  check("t104 config", hotkey("alt+cmd", "f") ~= nil)
+  install(laptop())
+  anchors.config.keymap = "vim"
+  anchors.start()
+  check("t104 fallback", hotkey("ctrl+alt", "return") ~= nil)
+  check("t104 said", said("keymap vim is unknown: using rectangle") == 1)
+end
+
+-- Test 105: Bound mouse buttons run their action and swallow their events, and everything
+-- else passes on.
+tests[#tests + 1] = function()
+  install(newScreen(1, 0, 1920, 1080), newScreen(2, 1920, 1920, 1080))
+  anchors.config.mouseButtons = { [3] = "maximize", [4] = "next-display", [9] = "sideways" }
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  check("t105 tap", mouseTap() ~= nil)
+  check("t105 said", said("unknown action sideways for button 9") == 1)
+  focus(w)
+  check("t105 down swallowed", button(25, 3) == true)
+  frameIs("t105 maximized", w, { x = 0, y = 25, w = 1920, h = 1055 })
+  check("t105 up swallowed", button(26, 3) == true)
+  button(25, 4)
+  frameIs("t105 next display", w, { x = 1920, y = 25, w = 1920, h = 1055 })
+  button(26, 4)
+  frameIs("t105 up runs nothing", w, { x = 1920, y = 25, w = 1920, h = 1055 })
+  local moves = w.moves
+  check("t105 unbound passes", button(25, 2) == false)
+  click("⚓ Drop anchor (freeze layout)")
+  check("t105 frozen passes", button(25, 3) == false and w.moves == moves)
+  click("⚓ Weigh anchor (resume layout)")
+  world.front = "Zoom"
+  anchors.toggleShortcutIgnore("test.Zoom")
+  check("t105 ignored passes", button(25, 3) == false and w.moves == moves)
+end
+
+-- Test 106: No mouse buttons means no button tap, and an error in the tap passes the event on.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.start()
+  check("t106 no tap", mouseTap() == nil)
+  install(laptop())
+  anchors.config.mouseButtons = { [3] = "maximize" }
+  anchors.start()
+  local passed = mouseTap().fn({ getType = function() return 25 end,
+    getProperty = function() error("no button") end })
+  check("t106 error passes", passed == false and said("no button") == 1)
+  click("Spectacle")
+  local running = 0
+  for _, tap in ipairs(world.taps) do
+    if tap.types[1] == 25 and tap.running then running = running + 1 end
+  end
+  check("t106 one tap after rebind", running == 1, tostring(running))
 end
 
 for i, t in ipairs(tests) do
