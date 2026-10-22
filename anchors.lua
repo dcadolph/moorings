@@ -1,6 +1,8 @@
 -- anchors pins chosen apps to the edges of an ultrawide screen and keeps every
 -- other window in the channel between them.
 
+local geometry = require("geometry")
+
 local M = {}
 
 -- config holds the pins, widths and timing. Edit it, then choose Reload.
@@ -119,14 +121,25 @@ end
 -- loadfile compiles a config file without running it. Tests replace it.
 M.loadfile = loadfile
 
--- reload reloads Hammerspoon only when anchors.lua still compiles, so a typo from
--- Edit config cannot leave the layout dead.
+-- files lists the moorings source files, which live in the moorings folder
+-- inside the Hammerspoon config directory.
+M.files = { "anchors.lua", "geometry.lua" }
+
+-- path returns the full path of a moorings source file.
+function M.path(file)
+  return hs.configdir .. "/moorings/" .. file
+end
+
+-- reload reloads Hammerspoon only when every moorings file still compiles, so a
+-- typo from Edit config cannot leave the layout dead.
 function M.reload()
-  local chunk, err = M.loadfile(hs.configdir .. "/anchors.lua")
-  if not chunk then
-    log("not reloading, the config has an error: " .. tostring(err))
-    hs.alert.show("moorings: config error, see Console")
-    return
+  for _, file in ipairs(M.files) do
+    local chunk, err = M.loadfile(M.path(file))
+    if not chunk then
+      log("not reloading, the config has an error: " .. tostring(err))
+      hs.alert.show("moorings: config error, see Console")
+      return
+    end
   end
   hs.reload()
 end
@@ -245,38 +258,8 @@ function M.step(side, delta)
   return ok
 end
 
--- edge returns the frame an edge of pct width occupies on f.
-function M.edge(f, side, pct)
-  local w = math.floor(f.w * pct / 100)
-  if side == "right" then
-    return { x = f.x + f.w - w, y = f.y, w = w, h = f.h }
-  end
-  return { x = f.x, y = f.y, w = w, h = f.h }
-end
-
--- slot returns the frame a pin in row of side occupies on f at pct width. A nil
--- row fills the strip's full height. The bottom half takes the odd point.
-function M.slot(f, side, row, pct)
-  local r = M.edge(f, side, pct)
-  local top = math.floor(f.h / 2)
-  if row == "top" then
-    r.h = top
-  elseif row == "bottom" then
-    r.y, r.h = f.y + top, f.h - top
-  end
-  return r
-end
-
--- regions splits f into the left edge, the channel and the right edge.
-function M.regions(f, leftPct, rightPct)
-  local left = M.edge(f, "left", leftPct)
-  local right = M.edge(f, "right", rightPct)
-  return {
-    left = left,
-    channel = { x = left.x + left.w, y = f.y, w = right.x - left.x - left.w, h = f.h },
-    right = right,
-  }
-end
+-- The frame math lives in geometry, re-exported here for callers and tests.
+M.edge, M.slot, M.regions, M.clamp = geometry.edge, geometry.slot, geometry.regions, geometry.clamp
 
 -- ultrawide returns the widest screen at or above minAspect, or nil.
 function M.ultrawide()
@@ -294,6 +277,16 @@ end
 -- channel returns the channel frame on screen s.
 function M.channel(s)
   return M.regions(s:frame(), M.widths()).channel
+end
+
+-- area returns the frame window actions work in on screen s: the channel on the
+-- ultrawide, and the whole usable frame on any other screen.
+function M.area(s)
+  local wide = M.ultrawide()
+  if wide and s:id() == wide:id() then
+    return M.channel(s)
+  end
+  return s:frame()
 end
 
 -- bundleOf returns the bundle ID of win's app, or nil.
@@ -503,18 +496,6 @@ local function trusted()
     state.axWarned = true
   end
   return false
-end
-
--- clamp fits f inside ch, shrinking it only when it is larger than ch.
-function M.clamp(f, ch)
-  local w = math.min(f.w, ch.w)
-  local h = math.min(f.h, ch.h)
-  return {
-    x = math.max(ch.x, math.min(f.x, ch.x + ch.w - w)),
-    y = math.max(ch.y, math.min(f.y, ch.y + ch.h - h)),
-    w = w,
-    h = h,
-  }
 end
 
 -- movable reports whether moorings may move win at all.
@@ -859,7 +840,7 @@ local function menu()
     },
     {
       title = "Edit config",
-      fn = safe(function() hs.execute("open -t " .. shellQuote(hs.configdir .. "/anchors.lua")) end),
+      fn = safe(function() hs.execute("open -t " .. shellQuote(M.path("anchors.lua"))) end),
     },
     { title = "Console", fn = safe(hs.openConsole) },
     { title = "Reload", fn = safe(M.reload) },
