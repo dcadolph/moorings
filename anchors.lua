@@ -200,6 +200,9 @@ local pendingSeconds = 5
 -- window shows up.
 local openSeconds = 30
 
+-- noticeSeconds is how long a moorings notification stays up.
+local noticeSeconds = 5
+
 -- repeatSeconds is how long an identical log message stays quiet.
 local repeatSeconds = 60
 
@@ -253,6 +256,12 @@ function M.now()
   return hs.timer.secondsSinceEpoch()
 end
 
+-- notify shows a macOS notification with title and text that withdraws itself after
+-- noticeSeconds.
+local function notify(title, text)
+  hs.notify.new({ title = title, informativeText = text, withdrawAfter = noticeSeconds }):send()
+end
+
 -- log prints a message to the Hammerspoon Console at most once per repeatSeconds.
 local function log(msg)
   msg = "moorings: " .. tostring(msg)
@@ -294,7 +303,7 @@ function M.reload()
     local chunk, err = M.loadfile(M.path(file))
     if not chunk then
       log("not reloading, the config has an error: " .. tostring(err))
-      hs.alert.show("moorings: config error, see Console")
+      notify("moorings did not reload", "The config has an error. The Console shows it.")
       return
     end
   end
@@ -1036,7 +1045,7 @@ function M.chooseApp(key)
   end
   local ok, problem = M.assignPath(key, path)
   if not ok then
-    hs.alert.show(problem)
+    notify("moorings", problem)
   end
 end
 
@@ -1344,11 +1353,9 @@ local function release(w)
   local id, name = w:id(), windowApp(w)
   state.released[id], state.lifted[id] = true, nil
   local sc = actions.bindings().restore
-  local how = sc and (", press " .. actions.keyText(sc) .. ",") or ""
+  local how = sc and (" or press " .. actions.keyText(sc)) or ""
   log("window " .. tostring(id) .. " was moved by hand: released")
-  hs.alert.show(string.format("%s released: moorings leaves it where you put it. "
-    .. "To re-moor it, click its green button%s or choose Re-moor %s in the moorings menu.",
-    name, how, name), 4)
+  notify(name .. " released", string.format("Click its green button%s to put it back.", how))
 end
 
 -- moorPin places pinned window w at target, or releases it when the owner has moved it
@@ -1792,7 +1799,7 @@ accessChanged = function(granted)
     log(problem)
   end
   snap.start()
-  hs.alert.show("moorings: Accessibility granted")
+  notify("moorings can move windows", "Accessibility is on.")
 end
 
 -- M.openIconDir reveals the icon folder, or says how to create it.
@@ -1801,7 +1808,7 @@ function M.openIconDir()
   if hs.fs.attributes(dir, "mode") == "directory" then
     hs.execute("open " .. shellQuote(dir))
   else
-    hs.alert.show("Create " .. dir .. " and add PNG or SVG files, then reopen the menu.")
+    notify("No icon folder", "Create " .. dir .. " and add PNG or SVG files, then reopen the menu.")
   end
 end
 
@@ -2154,7 +2161,7 @@ function M.promptIcon()
   end
   local ok, problem = M.setCustomIcon(text)
   if not ok then
-    hs.alert.show(problem)
+    notify("moorings", problem)
   end
 end
 
