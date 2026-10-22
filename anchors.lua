@@ -240,8 +240,11 @@ local state = {
   released = {},
   -- lifted holds the pinned window ids lifted over their strip and the channel.
   lifted = {},
-  -- zoom maps a pinned window id to its frame and the green button rect at that frame.
+  -- zoom maps a pinned or free window id to its frame, the green button rect at that frame,
+  -- and whether the window is free.
   zoom = {},
+  -- filled maps a free window id to the frame its green button filled it to.
+  filled = {},
   -- holders maps a pinned bundle ID to the id of the one window the pin holds.
   holders = {},
   -- bundles maps a window id to its app's bundle ID, which never changes for a window.
@@ -1319,20 +1322,43 @@ local function covered(id, p)
   return false
 end
 
+-- zoomFree fills the channel with free window win, or puts it back where it was when it still
+-- sits where its last green click filled it.
+local function zoomFree(win)
+  local id = win:id()
+  local f = state.filled[id]
+  state.filled[id] = nil
+  if f and near(win:frame(), f) then
+    actions.apply(win, "restore")
+    return
+  end
+  if actions.apply(win, "maximize") then
+    state.filled[id] = rect(win:frame())
+  end
+end
+
 -- zoomClick lifts or lowers the pin whose green button holds point p, or re-moors it when
--- it was released, and reports whether it did, so the click can be kept from starting native
--- fullscreen. A window covering the button keeps its click. Frames are read only on a hit, and
--- the lift runs after the event so the mouse tap never waits on it.
-function M.zoomClick(p)
+-- it was released, and fills the channel with a free window instead of native fullscreen. It
+-- reports whether it acted, so the click can be kept from starting native fullscreen. A window
+-- covering the button keeps its click, and so does an Option-click on a free window, which
+-- macOS treats as zoom. Frames are read only on a hit, and the move runs after the event so the
+-- mouse tap never waits on it.
+function M.zoomClick(p, flags)
   if not p or paused() then
     return false
   end
+  local free = fullscreenFills() and not (flags and flags.alt)
   for id, c in pairs(state.zoom) do
     local r = c.rect
-    if r and inside(p, r) and not covered(id, p) then
+    if r and (free or not c.free) and inside(p, r) and not covered(id, p) then
       hs.timer.doAfter(0, safe(function()
         local win = hs.window.get(id)
-        if win and state.released[id] then
+        if not win then
+          return
+        end
+        if c.free then
+          zoomFree(win)
+        elseif state.released[id] then
           M.remoor(win)
         else
           M.toggleLift(win)
@@ -1359,7 +1385,8 @@ function M.restore(win)
 end
 
 -- settle keeps a free window inside the channel and lets a window the channel
--- once narrowed grow back toward its old width when the channel widens.
+-- once narrowed grow back toward its old width when the channel widens. It returns the
+-- window's frame when it left the window where it was.
 local function settle(win, ch)
   local id, cur = win:id(), win:frame()
   local c = state.clamped[id]
@@ -1375,6 +1402,9 @@ local function settle(win, ch)
     state.clamped[id] = { natural = f.w, set = want.w }
   else
     state.clamped[id] = nil
+  end
+  if near(cur, want) then
+    return cur
   end
   place(win, want)
 end
@@ -1399,16 +1429,16 @@ local function measure(wins, slots)
   state.minPts, state.minBy = mins, by
 end
 
--- cacheZoom keeps the green button rect of pinned window w at frame f, asking the window
--- only when the frame changed.
-local function cacheZoom(w, f)
+-- cacheZoom keeps the green button rect of window w at frame f, and whether w is free, asking
+-- the window only when the frame changed.
+local function cacheZoom(w, f, free)
   local id = w:id()
   local c = state.zoom[id]
-  if c and near(c.frame, f) then
+  if c and near(c.frame, f) and c.free == free then
     return
   end
   local ok, r = pcall(function() return w.zoomButtonRect and w:zoomButtonRect() end)
-  state.zoom[id] = { frame = rect(f), rect = ok and r and rect(r) or nil }
+  state.zoom[id] = { frame = rect(f), rect = ok and r and rect(r) or nil, free = free }
 end
 
 -- release leaves pinned window w where the owner put it and says how to re-moor it.
@@ -1523,12 +1553,15 @@ function M.moor()
           settle(w, ch)
         end
       else
-        settle(w, ch)
+        local at = settle(w, ch)
+        if at then
+          cacheZoom(w, at, true)
+        end
       end
     end
   end
   for _, tbl in ipairs({ state.clamped, state.bursts, state.pendingFill, state.floors,
-    state.placed, state.released, state.lifted, state.zoom }) do
+    state.placed, state.released, state.lifted, state.zoom, state.filled }) do
     for id in pairs(tbl) do
       if not seen[id] then
         tbl[id] = nil
@@ -2357,7 +2390,7 @@ local function settingItems()
     { title = "-" },
     {
       title = "Fullscreen fills the channel",
-      tooltip = "A free window that goes fullscreen comes back out and fills the channel.",
+      tooltip = "A free window's green button, or fullscreen, fills the channel instead.",
       checked = fullscreenFills(),
       fn = safe(function() hs.settings.set(keys.fullscreen, not fullscreenFills()) end),
     },
