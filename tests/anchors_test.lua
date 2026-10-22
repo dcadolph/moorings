@@ -748,7 +748,7 @@ tests[#tests + 1] = function()
   check("t21 warned once", warnings == 1, "warnings " .. warnings)
 end
 
--- Test 22: mainOnly leaves Slack's other windows where they are.
+-- Test 22: The Slack pin leaves Slack's other windows where they are.
 tests[#tests + 1] = function()
   install(ultrawide())
   local main = addWin("Slack", { x = 1000, y = 100, w = 900, h = 700 })
@@ -1019,11 +1019,11 @@ tests[#tests + 1] = function()
   frameIs("t43 iterm expanded", term, { x = 2048, y = 732, w = 3072, h = 708 })
 end
 
--- Test 44: Every window of a stacked app goes to its half, and mainOnly moves only the main one.
+-- Test 44: Each stacked pin holds its app's main window and leaves the other windows alone.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.config.pins = {
-    { bundle = "com.tinyspeck.slackmacgap", side = "left", mainOnly = true },
+    { bundle = "com.tinyspeck.slackmacgap", side = "left" },
     { bundle = "test.Notes", side = "left" },
   }
   local main = addWin("Slack", { x = 1000, y = 100, w = 900, h = 700 })
@@ -1036,7 +1036,7 @@ tests[#tests + 1] = function()
   frameIs("t44 slack main top", main, leftTop)
   check("t44 huddle stays", huddle.moves == 0)
   frameIs("t44 notes first bottom", n1, leftBottom)
-  frameIs("t44 notes second bottom", n2, leftBottom)
+  check("t44 notes second stays", n2.moves == 0)
 end
 
 -- Test 45: A preset resizes both halves of a stacked strip.
@@ -1145,7 +1145,7 @@ tests[#tests + 1] = function()
   frameIs("t48 iterm right top", term, rightTop)
 end
 
--- Test 49: A chosen app keeps its config expandPct and mainOnly, and others get neither.
+-- Test 49: A chosen app keeps its config expandPct, others get none, and each holds one window.
 tests[#tests + 1] = function()
   install(ultrawide())
   local slack = addWin("Slack", leftFull)
@@ -1164,7 +1164,7 @@ tests[#tests + 1] = function()
   focus(n1)
   world.onEvent()
   frameIs("t49 notes not expanded", n1, leftBottom)
-  frameIs("t49 notes second window", n2, leftBottom)
+  check("t49 notes second window stays", n2.moves == 0)
 end
 
 -- Test 50: Empty clears a slot and its app's window goes back to the channel.
@@ -2678,7 +2678,7 @@ tests[#tests + 1] = function()
   check("t130 free redirected", free.full == false)
 end
 
--- Test 131: A mainOnly pin's other window in native fullscreen is left alone.
+-- Test 131: A pinned app's other window in native fullscreen is left alone.
 tests[#tests + 1] = function()
   install(ultrawide())
   addWin("Slack", { x = 1000, y = 100, w = 900, h = 700 })
@@ -3719,6 +3719,28 @@ tests[#tests + 1] = function()
   slack.f = copy(leftFull)
   world.poll()
   frameIs("t178 back in slot", slack, leftFull)
+end
+
+-- Test 179: A tab torn out of iTerm into a new window stays where it lands, even once it
+-- becomes the main window, and takes the slot only when the held window closes.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local term = addWin("iTerm2", rightFull)
+  anchors.start()
+  local torn = addWin("iTerm2", { x = 1200, y = 300, w = 700, h = 500 })
+  focus(torn)
+  term.secondary = true
+  world.onEvent()
+  world.clock = world.clock + 5
+  world.poll()
+  check("t179 torn stays", torn.moves == 0, "moves " .. torn.moves)
+  frameIs("t179 held stays", term, rightFull)
+  for i, w in ipairs(world.windows) do
+    if w == term then table.remove(world.windows, i) break end
+  end
+  world.poll()
+  world.poll()
+  frameIs("t179 takes the slot", torn, rightFull)
 end
 
 for i, t in ipairs(tests) do

@@ -339,16 +339,16 @@ Pin frontmost app is the fast path. The menu bar does not take focus, so the fro
 the one you were just using. Choices are saved in Hammerspoon settings and win over the pins in
 the config file. Reset to defaults clears them.
 
-A locked app keeps the `expandPct` and `mainOnly` the config gives it. Apps the config does not
-name get no expand, and all of their windows move into the slot. Expand on focus widens an app
-only within its own row of the strip.
+A locked app keeps the `expandPct` the config gives it. Apps the config does not name get no
+expand. Expand on focus widens an app only within its own row of the strip.
 
 ### Pins
 
 Pins, widths and the poll rate live in `M.config` at the top of `anchors.lua`. Each pin names an
-app by bundle ID, the side it sits on, an optional `expandPct` it grows to while focused, and an
-optional `mainOnly` that moves only the app's main window, so Slack huddles and preference panes
-stay put. A side holds up to two pins. One pin fills the strip's full height. Two split it into
+app by bundle ID, the side it sits on, and an optional `expandPct` it grows to while focused. A
+pin holds one window of its app, the main window when it first sees the app, and keeps holding it
+until it closes. The app's other windows are free, so Slack huddles, preference panes and a tab
+torn out of iTerm stay out of the slot. A side holds up to two pins. One pin fills the strip's full height. Two split it into
 top and bottom rows in config order, unless a pin sets `row` to `"top"` or `"bottom"`. A
 third pin on a side, a row other than top or bottom, and two pins asking for the same row are
 each reported in the Console once at load. Pinned windows on other displays are pulled onto the
@@ -357,8 +357,7 @@ stacks Slack over Notes on the left:
 
 ```lua
 pins = {
-  { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top", expandPct = 30,
-    mainOnly = true },
+  { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top", expandPct = 30 },
   { bundle = "com.apple.Notes", side = "left", row = "bottom" },
   { bundle = "com.googlecode.iterm2", side = "right" },
 },
