@@ -1,0 +1,222 @@
+#!/bin/sh
+# moorings wires moorings into Hammerspoon, checks the wiring, and takes it out again.
+set -eu
+
+usage() {
+	cat <<'EOF'
+Usage: moorings <command>
+
+Commands:
+  setup      Link ~/.hammerspoon/moorings to these files and load moorings from init.lua.
+  doctor     Check Hammerspoon, the link and init.lua. Exits 1 when something is wrong.
+  uninstall  Remove the link, the init.lua lines setup added, and the keep-alive helper.
+  version    Print the moorings version.
+EOF
+}
+
+hs_dir="$HOME/.hammerspoon"
+link="$hs_dir/moorings"
+init="$hs_dir/init.lua"
+agent="$HOME/Library/LaunchAgents/moorings.keepalive.plist"
+launchctl="${MOORINGS_LAUNCHCTL:-/bin/launchctl}"
+apps="${MOORINGS_APPS:-/Applications $HOME/Applications}"
+begin_mark='-- moorings: added by moorings setup, removed by moorings uninstall.'
+end_mark='-- moorings: end'
+
+# Resolve this script through any symlinks to find the moorings files.
+self="$0"
+while [ -L "$self" ]; do
+	target="$(readlink "$self")"
+	case "$target" in
+	/*) self="$target" ;;
+	*) self="$(dirname "$self")/$target" ;;
+	esac
+done
+here="$(cd "$(dirname "$self")" && pwd -P)"
+if [ -f "$here/anchors.lua" ]; then
+	files="$here"
+elif [ -f "$here/../share/moorings/anchors.lua" ]; then
+	files="$(cd "$here/../share/moorings" && pwd -P)"
+else
+	echo "moorings: cannot find the moorings files next to $here" >&2
+	exit 1
+fi
+
+# Point Homebrew installs at the opt path so the link follows upgrades.
+target="$files"
+case "$files" in
+*/Cellar/moorings/*/share/moorings)
+	opt="${files%%/Cellar/moorings/*}/opt/moorings/share/moorings"
+	if [ -d "$opt" ]; then
+		target="$opt"
+	fi
+	;;
+esac
+
+version="$(sed -n 's/^U\.version = "\(.*\)"$/\1/p' "$files/updates.lua")"
+min_hs="$(sed -n 's/^U\.minHammerspoon = "\(.*\)"$/\1/p' "$files/updates.lua")"
+
+# older reports whether version $1 is older than version $2.
+older() {
+	awk -v a="$1" -v b="$2" 'BEGIN {
+		split(a, x, "."); split(b, y, ".")
+		for (i = 1; i <= 3; i++) {
+			if (x[i] + 0 < y[i] + 0) exit 0
+			if (x[i] + 0 > y[i] + 0) exit 1
+		}
+		exit 1
+	}'
+}
+
+# ours reports whether the link at $link points at these files or another moorings install.
+ours() {
+	[ -L "$link" ] || return 1
+	current="$(readlink "$link")"
+	if [ "$current" = "$target" ] || [ "$current" = "$files" ]; then
+		return 0
+	fi
+	case "$current" in
+	*/opt/moorings/share/moorings | */Cellar/moorings/*/share/moorings) return 0 ;;
+	esac
+	return 1
+}
+
+# backup copies init.lua aside before it changes and prints where.
+backup() {
+	copy="$init.moorings-backup-$(date +%Y%m%d-%H%M%S)"
+	cp "$init" "$copy"
+	echo "Backed up init.lua to $copy"
+}
+
+setup() {
+	mkdir -p "$hs_dir"
+	if [ -L "$link" ]; then
+		current="$(readlink "$link")"
+		if [ "$current" = "$target" ]; then
+			echo "Link already in place: $link -> $target"
+		else
+			echo "moorings: $link already links to $current." >&2
+			echo "Remove it with: rm '$link'   then run moorings setup again." >&2
+			exit 1
+		fi
+	elif [ -e "$link" ]; then
+		echo "moorings: $link is a real folder, not a link. Move it aside and run setup again." >&2
+		exit 1
+	else
+		ln -s "$target" "$link"
+		echo "Linked $link -> $target"
+	fi
+
+	if [ -f "$init" ] && grep -q 'require("anchors")' "$init"; then
+		echo "init.lua already loads moorings"
+	else
+		if [ -f "$init" ]; then
+			backup
+		fi
+		{
+			echo ""
+			echo "$begin_mark"
+			echo 'package.path = hs.configdir .. "/moorings/?.lua;" .. package.path'
+			echo 'moorings = require("anchors").start()'
+			echo "$end_mark"
+		} >>"$init"
+		echo "Added moorings to $init"
+	fi
+	echo "Done. Open Hammerspoon, or choose Reload from its menu if it is running."
+}
+
+doctor() {
+	failed=0
+	echo "ok    moorings $version at $files"
+
+	app=""
+	for dir in $apps; do
+		if [ -d "$dir/Hammerspoon.app" ]; then
+			app="$dir/Hammerspoon.app"
+			break
+		fi
+	done
+	if [ -z "$app" ]; then
+		echo "FAIL  Hammerspoon is not installed. Run: brew install --cask hammerspoon"
+		failed=1
+	else
+		hs_version="$(sed -n '/CFBundleShortVersionString/{n;s/.*<string>\(.*\)<\/string>.*/\1/p;}' \
+			"$app/Contents/Info.plist")"
+		if older "$hs_version" "$min_hs"; then
+			echo "FAIL  Hammerspoon $hs_version is older than $min_hs. Update it from its menu."
+			failed=1
+		else
+			echo "ok    Hammerspoon $hs_version at $app"
+		fi
+	fi
+
+	if pgrep -xq Hammerspoon 2>/dev/null; then
+		echo "ok    Hammerspoon is running"
+	else
+		echo "warn  Hammerspoon is not running. Open it to start moorings."
+	fi
+
+	if ours; then
+		echo "ok    $link -> $(readlink "$link")"
+	elif [ -L "$link" ]; then
+		echo "ok    $link -> $(readlink "$link"), a moorings folder you manage yourself"
+	else
+		echo "FAIL  $link is missing. Run: moorings setup"
+		failed=1
+	fi
+
+	if [ -f "$init" ] && grep -q 'require("anchors")' "$init"; then
+		echo "ok    init.lua loads moorings"
+	else
+		echo "FAIL  $init does not load moorings. Run: moorings setup"
+		failed=1
+	fi
+
+	echo "note  Accessibility cannot be read from a shell. When it is missing, the moorings"
+	echo "      menu starts with Grant Accessibility access."
+	return "$failed"
+}
+
+uninstall() {
+	if ours; then
+		rm "$link"
+		echo "Removed $link"
+	elif [ -L "$link" ] || [ -e "$link" ]; then
+		echo "Left $link alone: it is not a link setup made."
+	fi
+
+	if [ -f "$init" ] && grep -qxF -e "$begin_mark" "$init"; then
+		backup
+		# Drop the block and the one blank line setup put before it.
+		awk -v b="$begin_mark" -v e="$end_mark" '
+			skip { if ($0 == e) skip = 0; next }
+			$0 == "" { blank++; next }
+			$0 == b { if (blank) blank--; for (; blank > 0; blank--) print ""; skip = 1; next }
+			{ for (; blank > 0; blank--) print ""; print }
+			END { for (; blank > 0; blank--) print "" }
+		' "$init" >"$init.moorings-tmp"
+		mv "$init.moorings-tmp" "$init"
+		echo "Removed the moorings lines from $init"
+	elif [ -f "$init" ] && grep -q 'require("anchors")' "$init"; then
+		echo "init.lua loads moorings with lines setup did not add. Delete them by hand."
+	fi
+
+	if [ -f "$agent" ]; then
+		"$launchctl" bootout "gui/$(id -u)/moorings.keepalive" >/dev/null 2>&1 || true
+		rm "$agent"
+		echo "Removed the keep-alive helper"
+	fi
+	echo "Done. Reload or quit Hammerspoon to stop moorings."
+}
+
+case "${1:-}" in
+setup) setup ;;
+doctor) doctor ;;
+uninstall) uninstall ;;
+version | --version | -v) echo "$version" ;;
+help | --help | -h) usage ;;
+*)
+	usage >&2
+	exit 2
+	;;
+esac

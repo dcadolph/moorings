@@ -320,6 +320,17 @@ tests[#tests + 1] = function()
   check("t13 count", #all == 4)
 end
 
+-- Test 14: The version in updates.lua is the one place moorings names its version, and the
+-- release workflow and README agree with it.
+tests[#tests + 1] = function()
+  install()
+  check("t14 parses", U.parse(U.version) ~= nil and U.parse(U.minHammerspoon) ~= nil)
+  local f = io.open(".github/workflows/release.yml", "r")
+  local wf = f and f:read("a") or ""
+  if f then f:close() end
+  check("t14 workflow checks tag", wf:find("updates.lua", 1, true) ~= nil)
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then

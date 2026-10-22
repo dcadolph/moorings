@@ -71,6 +71,8 @@ on any display unless it says ultrawide. The [README](README.md) has the details
   seconds if it quits or crashes. Quit moorings stops all of it until the next login.
 - Moorings checks once a day for its own new release and offers it at the top of the menu. One
   click updates a Homebrew install or a clone and reloads. Nothing installs without that click.
+- Installs with `brew install dcadolph/tap/moorings`. `moorings setup` wires it into Hammerspoon,
+  `moorings doctor` checks the wiring and `moorings uninstall` takes it out.
 - The layout is checked four times a second while windows change and every two seconds when
   nothing is moving.
 - Nothing moves while the mouse button is down, and a window that keeps fighting its place is

@@ -1,0 +1,100 @@
+name: release
+
+# On a published release, check the tag names the version in updates.lua, write the Homebrew
+# formula into dcadolph/homebrew-tap, then install moorings from the tap on macOS and test it
+# the way a user would get it.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  tap:
+    runs-on: ubuntu-24.04
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check the tag names the version in updates.lua
+        run: |
+          want="v$(sed -n 's/^U\.version = "\(.*\)"$/\1/p' updates.lua)"
+          if [ "$TAG" != "$want" ]; then
+            echo "::error::tag $TAG does not match updates.lua, which says $want"
+            exit 1
+          fi
+
+      - name: Write the formula into the tap
+        run: |
+          set -euo pipefail
+          if [ -z "${TAP_TOKEN:-}" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN is not set on this repository"
+            exit 1
+          fi
+          VER="${TAG#v}"
+          url="https://github.com/dcadolph/moorings/archive/refs/tags/${TAG}.tar.gz"
+          sha="$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1)"
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/dcadolph/homebrew-tap.git" tap
+          cat > tap/Formula/moorings.rb <<EOF
+          class Moorings < Formula
+            desc "Pin apps to the edges of an ultrawide Mac screen with Hammerspoon"
+            homepage "https://github.com/dcadolph/moorings"
+            url "${url}"
+            sha256 "${sha}"
+            license "Apache-2.0"
+
+            depends_on :macos
+
+            def install
+              pkgshare.install Dir["*.lua", "*.svg", "*.html"], "README.md", "FEATURES.md", "LICENSE"
+              bin.install "moorings"
+            end
+
+            def caveats
+              <<~EOS
+                moorings runs inside Hammerspoon. Install it, then wire moorings in:
+                  brew install --cask hammerspoon
+                  moorings setup
+                moorings doctor checks the setup. Run moorings uninstall before brew uninstall.
+              EOS
+            end
+
+            test do
+              assert_equal version.to_s, shell_output("#{bin}/moorings version").strip
+              assert_path_exists pkgshare/"anchors.lua"
+            end
+          end
+          EOF
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/moorings.rb
+          # A re-run of a tag that already shipped writes the same formula and has nothing to push.
+          if git diff --cached --quiet; then
+            echo "the formula already holds ${VER}; nothing to bump"
+            exit 0
+          fi
+          git commit -m "Update moorings to ${VER}"
+          git push
+
+  verify:
+    needs: tap
+    runs-on: macos-15
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Install from the tap and test it as a user
+        run: |
+          set -euo pipefail
+          brew tap dcadolph/tap
+          brew install dcadolph/tap/moorings
+          test "$(moorings version)" = "${TAG#v}"
+          brew test dcadolph/tap/moorings
+          brew audit --strict --online dcadolph/tap/moorings
+          brew install --cask hammerspoon
+          moorings setup
+          moorings doctor
+          moorings uninstall
