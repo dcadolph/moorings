@@ -108,6 +108,26 @@ local function log(msg)
   print(msg)
 end
 
+-- shellQuote wraps s in single quotes for the shell.
+local function shellQuote(s)
+  return "'" .. (s:gsub("'", "'\\''")) .. "'"
+end
+
+-- loadfile compiles a config file without running it. Tests replace it.
+M.loadfile = loadfile
+
+-- reload reloads Hammerspoon only when anchors.lua still compiles, so a typo from
+-- Edit config cannot leave the layout dead.
+function M.reload()
+  local chunk, err = M.loadfile(hs.configdir .. "/anchors.lua")
+  if not chunk then
+    log("not reloading, the config has an error: " .. tostring(err))
+    hs.alert.show("moorings: config error, see Console")
+    return
+  end
+  hs.reload()
+end
+
 -- safe wraps fn so an error is logged instead of breaking the caller.
 local function safe(fn)
   return function(...)
@@ -556,10 +576,10 @@ local function menu()
     },
     {
       title = "Edit config",
-      fn = safe(function() hs.execute("open -t " .. hs.configdir .. "/anchors.lua") end),
+      fn = safe(function() hs.execute("open -t " .. shellQuote(hs.configdir .. "/anchors.lua")) end),
     },
     { title = "Console", fn = safe(hs.openConsole) },
-    { title = "Reload", fn = safe(hs.reload) },
+    { title = "Reload", fn = safe(M.reload) },
     { title = "Icon", menu = icons },
   }
   for _, item in ipairs(rest) do
@@ -583,10 +603,14 @@ function M.start()
   hs.window.animationDuration = 0
   hs.autoLaunch(true)
   hs.accessibilityState(true)
+  local pinned = {}
   for _, pin in ipairs(M.config.pins) do
     if type(pin.bundle) ~= "string" or (pin.side ~= "left" and pin.side ~= "right") then
       log("a pin needs a bundle and a side of left or right: check the config")
+    elseif pinned[pin.bundle] then
+      log(pin.bundle .. " is pinned twice: the first entry wins")
     end
+    pinned[pin.bundle] = true
   end
   M.bar = hs.menubar.new()
   M.bar:setTitle(iconGlyph())
