@@ -65,7 +65,7 @@ back after every restart and there is nothing to turn on in Preferences.
 - The sailboat shows but nothing moves. That is expected on a display that is not ultrawide.
   Moorings only acts on a screen at least 2.2 times wider than it is tall, and it needs the
   Accessibility permission from step 3.
-- Slack and iTerm are the defaults. See Pins below to name other apps.
+- Slack and iTerm are the defaults. See Locked apps below to choose other apps.
 
 ### Update and uninstall
 
@@ -80,6 +80,10 @@ channel, the open strip in between. Click Slack to expand it to 30%. Click anoth
 collapse it. An expanded pin overlaps the channel instead of pushing windows aside, so nothing
 in the channel moves when it opens or closes.
 
+To lock another app, click it, open the sailboat menu, choose Pin frontmost app, then pick a
+slot. The wider and narrower items move each strip by 1%, and the Channel label shows what is
+left in the middle.
+
 To test a change before copying it into `~/.hammerspoon`, run `lua tests/anchors_test.lua` from
 the repo root. It drives `anchors.lua` against a fake Hammerspoon and exits non-zero on any
 failure.
@@ -90,22 +94,43 @@ failure.
 
 The menu bar item holds, top to bottom:
 
-| Item                          | What it does&nbsp;                                               |
-|-------------------------------|------------------------------------------------------------------|
-| Drop anchor / Weigh anchor    | Freezes and releases the layout. The state survives a reload.    |
-| Re-moor now                   | Applies the layout immediately instead of waiting for the poll.  |
-| Fill channel                  | Stretches the focused window across the whole channel.           |
-| Tidy channel                  | Tiles the 2 or 3 front-most free windows into Halves or Thirds.  |
-| Undo tidy                     | Puts every window Fill or Tidy moved back where it started.      |
-| Seven width presets           | Sets the left and right edge widths. The choice survives reload. |
-| Fullscreen fills the channel  | Turns native fullscreen on the ultrawide into a channel fill.    |
-| Edit config                   | Opens `anchors.lua` in the default text editor.                  |
-| Console                       | Opens the Hammerspoon Console, where errors are printed.         |
-| Reload                        | Reloads the Hammerspoon config.                                  |
-| Icon                          | Picks the menu bar glyph. The default is a sailboat.             |
+| Item                          | What it does&nbsp;                                              |
+|-------------------------------|-----------------------------------------------------------------|
+| Drop anchor / Weigh anchor    | Freezes and releases the layout. The state survives a reload.   |
+| Re-moor now                   | Applies the layout immediately instead of waiting for the poll. |
+| Fill channel                  | Stretches the focused window across the whole channel.          |
+| Tidy channel                  | Tiles the 2 or 3 front-most free windows into Halves or Thirds. |
+| Undo tidy                     | Puts every window Fill or Tidy moved back where it started.     |
+| Locked apps                   | Four slot rows. Each picks a running app or Empty.              |
+| Pin frontmost app             | Puts the app you were just using into the chosen slot.          |
+| Reset to defaults             | Drops the switcher choices and goes back to the config pins.    |
+| Channel                       | Shows the width the two strips leave for the channel.           |
+| Left or Right wider, narrower | Moves one strip by 1%. The choice survives reload.              |
+| Seven width presets           | Sets both strip widths at once. The choice survives reload.     |
+| Fullscreen fills the channel  | Turns native fullscreen on the ultrawide into a channel fill.   |
+| Edit config                   | Opens `anchors.lua` in the default text editor.                 |
+| Console                       | Opens the Hammerspoon Console, where errors are printed.        |
+| Reload                        | Reloads the Hammerspoon config.                                 |
+| Icon                          | Picks the menu bar glyph. The default is a sailboat.            |
 
 Tidy keeps the windows in their current left-to-right order and then leaves them alone. Undo
 restores the position each window had before the first Fill or Tidy since the last undo.
+
+### Locked apps
+
+Each strip holds up to two locked apps, so there are four slots: Left top, Left bottom, Right
+top and Right bottom. One app on a side fills the strip's full height. Two split it 50/50. Each
+slot row in the menu shows its app and opens a list of running apps plus Empty. Picking an app
+that already sits in another slot moves it, so an app is never in two slots. An app that is
+locked but not running leaves its half empty, and the other app keeps its half.
+
+Pin frontmost app is the fast path. The menu bar does not take focus, so the frontmost app is
+the one you were just using. Choices are saved in Hammerspoon settings and win over the pins in
+the config file. Reset to defaults clears them.
+
+A locked app keeps the `expandPct` and `mainOnly` the config gives it. Apps the config does not
+name get no expand, and all of their windows move into the slot. Expand on focus widens an app
+only within its own half of the strip.
 
 ### Pins
 
@@ -114,12 +139,16 @@ app by bundle ID, the side it sits on, an optional `expandPct` it grows to while
 optional `mainOnly` that moves only the app's main window, so Slack huddles and preference panes
 stay put. A side holds up to two pins. One pin fills the strip's full height. Two split it into
 top and bottom halves in config order, unless a pin sets `row` to `"top"` or `"bottom"`. A
-pinned app that is not running leaves its half empty. Pinned windows on other displays are
-pulled onto the ultrawide. Apps listed in `ignoreBundles` are never moved.
+third pin on a side, a row other than top or bottom, and two pins asking for the same row are
+each reported in the Console once at load. Pinned windows on other displays are pulled onto the
+ultrawide. Apps listed in `ignoreBundles` are never moved or offered in the menu. This example
+stacks Slack over Notes on the left:
 
 ```lua
 pins = {
-  { bundle = "com.tinyspeck.slackmacgap", side = "left", expandPct = 30, mainOnly = true },
+  { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top", expandPct = 30,
+    mainOnly = true },
+  { bundle = "com.apple.Notes", side = "left", row = "bottom" },
   { bundle = "com.googlecode.iterm2", side = "right" },
 },
 ignoreBundles = { "us.zoom.xos" },
@@ -127,13 +156,14 @@ ignoreBundles = { "us.zoom.xos" },
 
 Find an app's bundle ID with `osascript -e 'id of app "Spotify"'`.
 
-Once a preset has been chosen, its widths win over `leftPct` and `rightPct` in the file.
+The config pins apply until Locked apps choices are saved. A width chosen from the menu, by a
+preset or a step, wins over `leftPct` and `rightPct` in the file.
 
 ### Channel rules
 
 A free window that strays into an edge is pushed back into the channel. One wider than the
-channel is narrowed to fit, and it grows back toward its old width when a wider preset opens the
-channel up again, unless it was resized by hand in between. Windows already inside the channel
+channel is narrowed to fit, and it grows back toward its old width when a preset or step opens
+the channel up again, unless it was resized by hand in between. Windows already inside the channel
 are never touched, and windows on other displays are left alone.
 
 A free window that goes native fullscreen on the ultrawide, which the green button does, leaves
@@ -146,8 +176,8 @@ Nothing moves while the mouse button is down, so dragging a window is never foug
 window that keeps moving away from where moorings puts it, four times inside ten seconds, is left
 alone for a minute and the Console says so. Re-moor now clears those holds. Without
 Accessibility permission nothing moves and the Console says that once. Widths that leave less
-than a 10% channel fall back to 10 and 45. While the layout is frozen, Fill, Tidy and Undo are
-grayed out.
+than a 10% channel fall back to 10 and 45, and a step that would do so is grayed out. While the
+layout is frozen, Fill, Tidy and Undo are grayed out.
 
 ### Screens
 
