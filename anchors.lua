@@ -1110,9 +1110,9 @@ function M.remoor(win)
   return true
 end
 
--- zoomClick lifts or lowers the pin whose green button holds point p and reports whether
--- it did, so the click can be kept from starting native fullscreen. The work runs after
--- the event so the mouse tap never waits on a window.
+-- zoomClick lifts or lowers the pin whose green button holds point p, or re-moors it when
+-- it was released, and reports whether it did, so the click can be kept from starting native
+-- fullscreen. The work runs after the event so the mouse tap never waits on a window.
 function M.zoomClick(p)
   if not p or paused() then
     return false
@@ -1120,7 +1120,14 @@ function M.zoomClick(p)
   for id, c in pairs(state.zoom) do
     local r = c.rect
     if r and p.x >= r.x and p.x < r.x + r.w and p.y >= r.y and p.y < r.y + r.h then
-      hs.timer.doAfter(0, safe(function() M.toggleLift(hs.window.get(id)) end))
+      hs.timer.doAfter(0, safe(function()
+        local win = hs.window.get(id)
+        if win and state.released[id] then
+          M.remoor(win)
+        else
+          M.toggleLift(win)
+        end
+      end))
       return true
     end
   end
@@ -1197,24 +1204,26 @@ end
 -- release leaves pinned window w where the owner put it and says how to re-moor it.
 local function release(w)
   local id, name = w:id(), windowApp(w)
-  state.released[id], state.lifted[id], state.zoom[id] = true, nil, nil
+  state.released[id], state.lifted[id] = true, nil
   local sc = actions.bindings().restore
-  local how = sc and ("press " .. actions.keyText(sc) .. " or ") or ""
+  local how = sc and (", press " .. actions.keyText(sc) .. ",") or ""
   log("window " .. tostring(id) .. " was moved by hand: released")
   hs.alert.show(string.format("%s released: moorings leaves it where you put it. "
-    .. "To re-moor it, %schoose Re-moor %s in the moorings menu.", name, how, name), 4)
+    .. "To re-moor it, click its green button%s or choose Re-moor %s in the moorings menu.",
+    name, how, name), 4)
 end
 
 -- moorPin places pinned window w at target, or releases it when the owner has moved it
 -- since moorings last left it.
 local function moorPin(w, target, anchor)
   local id, t = w:id(), M.now()
-  if state.released[id] then
-    return
-  end
   local last = state.placed[id]
-  if last and t - last.t > releaseGrace and not near(w:frame(), last.at) then
+  local moved = last and t - last.t > releaseGrace and not near(w:frame(), last.at)
+  if moved and not state.released[id] then
     release(w)
+  end
+  if state.released[id] then
+    cacheZoom(w, w:frame())
     return
   end
   place(w, target, anchor)
@@ -2151,8 +2160,8 @@ local function liftItems(pins, frozen)
 end
 
 -- menu builds the menu bar menu from current state: the two layout controls, a
--- Re-moor entry per released pin, a folder per job, and Reload. While Accessibility is missing it starts with
--- the way to grant it.
+-- Re-moor entry per released pin, a folder per job, and Reload. While Accessibility is
+-- missing it starts with the way to grant it.
 local function menu()
   local frozen = paused()
   local pins = pinWindows()

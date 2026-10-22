@@ -3775,6 +3775,55 @@ tests[#tests + 1] = function()
   frameIs("t179 takes the slot", torn, rightFull)
 end
 
+-- Test 181: A pin released by a move it did not make keeps its green button, and a click
+-- there re-moors it instead of starting fullscreen. The alert names the green button.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  world.clock = world.clock + 3
+  world.poll()
+  -- send fires a mouse event of type t at point p and returns whether it was swallowed.
+  local function send(t, p)
+    world.mousePos = p
+    return world.tap({ getType = function() return t end, getFlags = function() return {} end })
+  end
+  check("t181 lift", send(1, { x = 60, y = 40 }) == true and send(2, { x = 60, y = 40 }) == true)
+  frameIs("t181 lifted", slack, { x = 0, y = 25, w = 2816, h = 1415 })
+  world.clock = world.clock + 3
+  world.poll()
+  slack.f = { x = 0, y = 25, w = 5120, h = 1415 }
+  world.poll()
+  check("t181 released", item("Re-moor Slack") ~= nil)
+  check("t181 released click eaten", send(1, { x = 60, y = 40 }) == true)
+  send(2, { x = 60, y = 40 })
+  frameIs("t181 home at once", slack, leftFull)
+  world.clock = world.clock + 3
+  world.poll()
+  slack.f = { x = 0, y = 25, w = 5120, h = 1415 }
+  world.poll()
+  check("t181 alert", world.alerted ~= nil
+    and world.alerted:find("click its green button, press ⌃⌥⌫, or choose Re-moor Slack", 1, true) ~= nil,
+    tostring(world.alerted))
+  world.poll()
+  check("t181 home click eaten", send(1, { x = 60, y = 40 }) == true and send(2, { x = 60, y = 40 }) == true)
+  frameIs("t181 home", slack, leftFull)
+  check("t181 not released", item("Re-moor Slack") == nil)
+  check("t181 no fullscreen", slack.full ~= true)
+  world.clock = world.clock + 3
+  world.poll()
+  check("t181 lifts again", send(1, { x = 60, y = 40 }) == true and send(2, { x = 60, y = 40 }) == true)
+  frameIs("t181 lifted again", slack, { x = 0, y = 25, w = 2816, h = 1415 })
+  world.clock = world.clock + 3
+  world.poll()
+  slack.f = { x = 900, y = 200, w = 700, h = 600 }
+  world.poll()
+  check("t181 old rect passes", send(1, { x = 60, y = 40 }) == false)
+  send(2, { x = 60, y = 40 })
+  check("t181 moved rect eaten", send(1, { x = 957, y = 211 }) == true and send(2, { x = 957, y = 211 }) == true)
+  frameIs("t181 home again", slack, leftFull)
+end
+
 -- unhinted returns the titles of entries in items, at any depth, whose hover hint is
 -- missing or is not a sentence starting with a capital and ending with a period.
 local function unhinted(items, out)
