@@ -189,6 +189,7 @@ local function install(...)
       end,
     },
     configdir = "/tmp/hammerspoon",
+    processInfo = { processID = 4242 },
     autoLaunch = function(v) world.autoLaunch = v end,
     accessibilityState = function(prompt)
       if prompt then world.axPrompted = true end
@@ -541,6 +542,7 @@ tests[#tests + 1] = function()
   local settings = world.settings
   install(ultrawide())
   world.settings = settings
+  addWin("Slack", { x = 0, y = 25, w = 512, h = 1415 })
   anchors.start()
   check("t7 survives reload", item("⚓ Drop anchor (hold the layout)") ~= nil)
   local w2 = addWin("Safari", { x = 0, y = 25, w = 800, h = 600 })
@@ -811,6 +813,7 @@ end
 -- Test 25: A window that keeps moving back is held off for 60 seconds.
 tests[#tests + 1] = function()
   install(ultrawide())
+  addWin("Slack", { x = 0, y = 25, w = 512, h = 1415 })
   local w = addWin("Safari", { x = 0, y = 25, w = 800, h = 600 })
   anchors.start()
   for _ = 1, 3 do
@@ -1281,17 +1284,31 @@ tests[#tests + 1] = function()
     rows() == "Left top: Empty,Left bottom: Empty,Right top: Notes,Right bottom: Empty", rows())
 end
 
--- Test 56: A chosen app that quits keeps its slot name and leaves its half empty.
+-- Test 56: A chosen app that closes keeps its slot name and gives its row to the app it
+-- shares the side with, reopening takes the row back, and a side whose apps all close joins
+-- the channel.
 tests[#tests + 1] = function()
   install(ultrawide())
   local slack = addWin("Slack", leftFull)
-  addWin("Notes", { x = 1000, y = 200, w = 400, h = 400 })
+  local notes = addWin("Notes", { x = 1000, y = 200, w = 400, h = 400 })
   anchors.start()
   pick("Left bottom: Empty", "Notes")
+  frameIs("t56 slack top", slack, leftTop)
   table.remove(world.windows, 1)
   world.poll()
   check("t56 row", item("Left bottom: Notes") ~= nil)
-  frameIs("t56 slack keeps top", slack, leftTop)
+  frameIs("t56 slack fills the side", slack, leftFull)
+  table.insert(world.windows, 1, notes)
+  world.poll()
+  frameIs("t56 slack top again", slack, leftTop)
+  check("t56 notes bottom", notes.f.y > 25 and notes.f.x == 0, string.format("%g,%g", notes.f.x, notes.f.y))
+  for i = #world.windows, 1, -1 do
+    if world.windows[i] == notes or world.windows[i] == slack then table.remove(world.windows, i) end
+  end
+  world.poll()
+  check("t56 side joins channel", anchors.channel(world.screens[1]).x == 0,
+    tostring(anchors.channel(world.screens[1]).x))
+  check("t56 empty label", item("Left side empty: part of the channel") ~= nil)
 end
 
 -- checkedPresets lists the titles of the checked presets.
@@ -1377,6 +1394,7 @@ tests[#tests + 1] = function()
   local settings = world.settings
   install(ultrawide())
   world.settings = settings
+  addWin("Slack", leftFull)
   local term = addWin("iTerm2", rightFull)
   anchors.start()
   frameIs("t62 right kept", term, { x = 2868, y = 25, w = 2252, h = 1415 })
@@ -3401,6 +3419,7 @@ tests[#tests + 1] = function()
   install(ultrawide())
   local slack = addWin("Slack", leftFull)
   anchors.start()
+  world.opened = {}
   world.chosenFile = { ["1"] = "/Applications/Calendar.app" }
   pick("Left bottom: Empty", "Choose app…")
   check("t162 focused", world.hsFocused == true)
@@ -3424,6 +3443,7 @@ tests[#tests + 1] = function()
   install(ultrawide())
   anchors.config.ignoreBundles = { "test.Zoom" }
   anchors.start()
+  world.opened = {}
   local before = anchors.assignments()["left-bottom"]
   world.chosenFile = nil
   pick("Left bottom: Empty", "Choose app…")
@@ -3452,6 +3472,7 @@ tests[#tests + 1] = function()
   addWin("Finder", { x = 1000, y = 100, w = 600, h = 400 })
   world.focused = world.windows[1]
   anchors.start()
+  world.opened = {}
   pick("Left bottom: Empty", "Finder")
   check("t164 locked", anchors.assignments()["left-bottom"] == "test.Finder")
   check("t164 opened", table.concat(world.opened, ",") == "/usr/bin/open -b test.Finder",
@@ -4059,6 +4080,35 @@ tests[#tests + 1] = function()
   reused.wid = late.wid
   world.poll()
   check("t186 reused id asked again", world.appCalls >= 1, tostring(world.appCalls))
+end
+
+-- Test 187: A fresh start opens each anchored app without a window in the background and
+-- keeps its space while it opens, a reload opens nothing and frees a closed app's space, and
+-- minimizing an anchored window frees its space until it comes back.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  local s = world.screens[1]
+  check("t187 opened missing", table.concat(world.opened, ",") == "/usr/bin/open -g -b com.googlecode.iterm2",
+    table.concat(world.opened, ","))
+  check("t187 held while opening", anchors.channel(s).x + anchors.channel(s).w == 2816)
+  world.clock = world.clock + 31
+  world.poll()
+  check("t187 freed after wait", anchors.channel(s).x + anchors.channel(s).w == 5120)
+  local settings = world.settings
+  install(ultrawide())
+  world.settings = settings
+  slack = addWin("Slack", leftFull)
+  anchors.start()
+  check("t187 reload opens nothing", #world.opened == 0, table.concat(world.opened, ","))
+  check("t187 reload frees", anchors.channel(world.screens[1]).x + anchors.channel(world.screens[1]).w == 5120)
+  slack.minimized = true
+  world.poll()
+  check("t187 minimized frees", anchors.channel(world.screens[1]).x == 0)
+  slack.minimized = false
+  world.poll()
+  check("t187 restored holds", anchors.channel(world.screens[1]).x == 512)
 end
 
 for i, t in ipairs(tests) do
