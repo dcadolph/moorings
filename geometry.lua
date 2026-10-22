@@ -37,6 +37,17 @@ function G.regions(f, leftPct, rightPct)
   }
 end
 
+-- lift returns the frame a lifted pin on side takes on f: its own strip and the channel at
+-- full height, stopping at the other strip.
+function G.lift(f, side, leftPct, rightPct)
+  local r = G.regions(f, leftPct, rightPct)
+  if side == "right" then
+    local x = r.left.x + r.left.w
+    return { x = x, y = f.y, w = f.x + f.w - x, h = f.h }
+  end
+  return { x = f.x, y = f.y, w = r.right.x - f.x, h = f.h }
+end
+
 -- clamp fits f inside ch, shrinking it only when it is larger than ch.
 function G.clamp(f, ch)
   local w = math.min(f.w, ch.w)

@@ -299,6 +299,16 @@ tests[#tests + 1] = function()
   end
 end
 
+-- Test 22: A lifted pin covers its strip and the channel at full height and stops at the
+-- other strip, on a screen that does not start at zero.
+tests[#tests + 1] = function()
+  local screen = { x = 100, y = 25, w = 5120, h = 1415 }
+  is("t22 left", G.lift(screen, "left", 10, 45), { x = 100, y = 25, w = 2816, h = 1415 })
+  is("t22 right", G.lift(screen, "right", 10, 45), { x = 612, y = 25, w = 4608, h = 1415 })
+  local r = G.regions(screen, 13.05, 45)
+  check("t22 meets strip", G.lift(screen, "right", 13.05, 45).x == r.left.x + r.left.w)
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then

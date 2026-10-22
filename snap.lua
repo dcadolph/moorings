@@ -252,17 +252,26 @@ local function released()
   end)
 end
 
--- handle routes one mouse event. It always returns false so the event goes on
--- untouched.
+-- handle routes one mouse event and returns true to swallow it. Only a click on a pin's
+-- green button, which lifts the pin, is swallowed, down and up both.
 function S.handle(e)
+  local eat = false
   local ok, err = pcall(function()
     local types, t = hs.eventtap.event.types, e:getType()
     if t == types.leftMouseDown then
       reset()
+      if host.zoomClick and host.zoomClick(hs.mouse.absolutePosition()) then
+        state.swallow, eat = true, true
+        return
+      end
       state.down = true
     elseif t == types.leftMouseDragged then
       dragged(e)
     elseif t == types.leftMouseUp then
+      if state.swallow then
+        state.swallow, eat = false, true
+        return
+      end
       released()
     end
   end)
@@ -270,7 +279,7 @@ function S.handle(e)
     reset()
     host.log(err)
   end
-  return false
+  return eat
 end
 
 -- start watches mouse drags.
