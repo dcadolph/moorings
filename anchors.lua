@@ -5,8 +5,10 @@ local M = {}
 
 -- config holds the pins, widths and timing. Edit it, then choose Reload.
 M.config = {
-  -- pins lists the apps held at an edge, by bundle ID. expandPct widens a pin
-  -- while it has focus, and mainOnly moves only the app's main window.
+  -- pins lists the apps held at an edge, by bundle ID. A side holds at most two.
+  -- row is "top" or "bottom" and only matters when two pins share a side.
+  -- expandPct widens a pin while it has focus, and mainOnly moves only the
+  -- app's main window.
   pins = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left", expandPct = 30, mainOnly = true },
     { bundle = "com.googlecode.iterm2", side = "right" },
@@ -223,6 +225,19 @@ function M.edge(f, side, pct)
   return { x = f.x, y = f.y, w = w, h = f.h }
 end
 
+-- slot returns the frame a pin in row of side occupies on f at pct width. A nil
+-- row fills the strip's full height. The bottom half takes the odd point.
+function M.slot(f, side, row, pct)
+  local r = M.edge(f, side, pct)
+  local top = math.floor(f.h / 2)
+  if row == "top" then
+    r.h = top
+  elseif row == "bottom" then
+    r.y, r.h = f.y + top, f.h - top
+  end
+  return r
+end
+
 -- regions splits f into the left edge, the channel and the right edge.
 function M.regions(f, leftPct, rightPct)
   local left = M.edge(f, "left", leftPct)
@@ -269,15 +284,76 @@ local function ignored(win)
   return bundle == nil
 end
 
--- pinFor returns the pin entry for win's app, or nil.
-function M.pinFor(win)
-  local bundle = bundleOf(win)
-  for _, pin in ipairs(M.config.pins) do
-    if pin.bundle == bundle then
-      return pin
+-- validRow reports whether row names a half of a strip.
+local function validRow(row)
+  return row == "top" or row == "bottom"
+end
+
+-- rowsOf gives the two pins sharing side a row each. An explicit row is honored
+-- when it is free, and the rest fill the open rows in config order.
+local function rowsOf(side, list, slots, problems)
+  local taken, waiting = {}, {}
+  for _, pin in ipairs(list) do
+    if validRow(pin.row) and not taken[pin.row] then
+      taken[pin.row] = pin
+    else
+      if validRow(pin.row) then
+        problems[#problems + 1] = string.format(
+          "%s and %s both ask for the %s row on the %s: %s takes the other",
+          taken[pin.row].bundle, pin.bundle, pin.row, side, pin.bundle)
+      end
+      waiting[#waiting + 1] = pin
     end
   end
-  return nil
+  for _, row in ipairs({ "top", "bottom" }) do
+    if not taken[row] then
+      taken[row] = table.remove(waiting, 1)
+    end
+  end
+  for row, pin in pairs(taken) do
+    slots[pin.bundle] = { pin = pin, side = side, row = row }
+  end
+end
+
+-- layout resolves pins into slots keyed by bundle ID and lists the problems it
+-- found. A slot holds the pin, its side, and its row, which is nil when the pin
+-- has its side to itself and fills the full height. A side holds two pins at most.
+function M.layout(pins)
+  local slots, problems, seen = {}, {}, {}
+  local sides = { left = {}, right = {} }
+  for _, pin in ipairs(pins) do
+    local list = sides[pin.side]
+    if type(pin.bundle) ~= "string" or not list then
+      problems[#problems + 1] = "a pin needs a bundle and a side of left or right: check the config"
+    elseif seen[pin.bundle] then
+      problems[#problems + 1] = pin.bundle .. " is pinned twice: the first entry wins"
+    elseif #list == 2 then
+      problems[#problems + 1] = string.format("%s is a third pin on the %s: ignoring it",
+        pin.bundle, pin.side)
+    else
+      if pin.row ~= nil and not validRow(pin.row) then
+        problems[#problems + 1] = string.format("%s has row %s: use top or bottom",
+          pin.bundle, tostring(pin.row))
+      end
+      seen[pin.bundle] = true
+      list[#list + 1] = pin
+    end
+  end
+  for _, side in ipairs({ "left", "right" }) do
+    local list = sides[side]
+    if #list == 1 then
+      slots[list[1].bundle] = { pin = list[1], side = side }
+    elseif #list == 2 then
+      rowsOf(side, list, slots, problems)
+    end
+  end
+  return slots, problems
+end
+
+-- slotFor returns the slot of win's app, or nil when the app is not pinned.
+function M.slotFor(win)
+  local slots = M.layout(M.config.pins)
+  return slots[bundleOf(win)]
 end
 
 -- pinsWindow reports whether pin applies to win, honoring mainOnly.
@@ -344,7 +420,7 @@ end
 local function freeWindows(s)
   local list = {}
   for _, w in ipairs(windows()) do
-    if not M.pinFor(w) and not w:isFullScreen() and sameScreen(w:screen(), s) then
+    if not M.slotFor(w) and not w:isFullScreen() and sameScreen(w:screen(), s) then
       list[#list + 1] = w
     end
   end
@@ -394,16 +470,17 @@ function M.moor()
   local leftPct, rightPct = M.widths()
   local pct = { left = leftPct, right = rightPct }
   local ch = M.regions(frame, leftPct, rightPct).channel
+  local slots = M.layout(M.config.pins)
   local focused = hs.window.focusedWindow()
-  local focusedPin = focused and M.pinFor(focused)
+  local focusedSlot = focused and slots[bundleOf(focused)]
   local t, seen = M.now(), {}
   for _, w in ipairs(windows()) do
-    local pin = M.pinFor(w)
+    local slot = slots[bundleOf(w)]
     seen[w:id()] = true
-    if pin then
-      if not w:isFullScreen() and pinsWindow(pin, w) then
-        local width = (pin == focusedPin and pin.expandPct) or pct[pin.side]
-        place(w, M.edge(frame, pin.side, width))
+    if slot then
+      if not w:isFullScreen() and pinsWindow(slot.pin, w) then
+        local width = (slot == focusedSlot and slot.pin.expandPct) or pct[slot.side]
+        place(w, M.slot(frame, slot.side, slot.row, width))
       end
     elseif sameScreen(w:screen(), s) then
       local id = w:id()
@@ -443,7 +520,7 @@ function M.fill()
   end
   local s = M.ultrawide()
   local win = hs.window.focusedWindow()
-  if not s or not win or M.pinFor(win) or win:isFullScreen() then
+  if not s or not win or M.slotFor(win) or win:isFullScreen() then
     return
   end
   save(win)
@@ -603,14 +680,9 @@ function M.start()
   hs.window.animationDuration = 0
   hs.autoLaunch(true)
   hs.accessibilityState(true)
-  local pinned = {}
-  for _, pin in ipairs(M.config.pins) do
-    if type(pin.bundle) ~= "string" or (pin.side ~= "left" and pin.side ~= "right") then
-      log("a pin needs a bundle and a side of left or right: check the config")
-    elseif pinned[pin.bundle] then
-      log(pin.bundle .. " is pinned twice: the first entry wins")
-    end
-    pinned[pin.bundle] = true
+  local _, problems = M.layout(M.config.pins)
+  for _, problem in ipairs(problems) do
+    log(problem)
   end
   M.bar = hs.menubar.new()
   M.bar:setTitle(iconGlyph())

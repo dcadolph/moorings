@@ -108,8 +108,10 @@ restores the position each window had before the first Fill or Tidy since the la
 Pins, widths and the poll rate live in `M.config` at the top of `anchors.lua`. Each pin names an
 app by bundle ID, the side it sits on, an optional `expandPct` it grows to while focused, and an
 optional `mainOnly` that moves only the app's main window, so Slack huddles and preference panes
-stay put. Several pins can share a side, and they stack in the same strip. Pinned windows on
-other displays are pulled onto the ultrawide. Apps listed in `ignoreBundles` are never moved.
+stay put. A side holds up to two pins. One pin fills the strip's full height. Two split it into
+top and bottom halves in config order, unless a pin sets `row` to `"top"` or `"bottom"`. A
+pinned app that is not running leaves its half empty. Pinned windows on other displays are
+pulled onto the ultrawide. Apps listed in `ignoreBundles` are never moved.
 
 ```lua
 pins = {

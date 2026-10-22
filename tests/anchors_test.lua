@@ -633,6 +633,223 @@ tests[#tests + 1] = function()
   check("t29 fill no-op", w.moves == 0)
 end
 
+-- said counts the printed lines that contain text.
+local function said(text)
+  local n = 0
+  for _, line in ipairs(world.printed) do
+    if line:find(text, 1, true) then n = n + 1 end
+  end
+  return n
+end
+
+-- Left, right and the halves of the default ultrawide strips.
+local leftFull = { x = 0, y = 25, w = 512, h = 1415 }
+local leftTop = { x = 0, y = 25, w = 512, h = 707 }
+local leftBottom = { x = 0, y = 732, w = 512, h = 708 }
+local rightFull = { x = 2816, y = 25, w = 2304, h = 1415 }
+
+-- Test 33: Slot frames split a strip into halves that tile it exactly.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local f = { x = 0, y = 25, w = 5120, h = 1415 }
+  frameIs("t33 full", { f = anchors.slot(f, "left", nil, 10) }, leftFull)
+  frameIs("t33 left top", { f = anchors.slot(f, "left", "top", 10) }, leftTop)
+  frameIs("t33 left bottom", { f = anchors.slot(f, "left", "bottom", 10) }, leftBottom)
+  frameIs("t33 right top", { f = anchors.slot(f, "right", "top", 45) },
+    { x = 2816, y = 25, w = 2304, h = 707 })
+  frameIs("t33 right bottom", { f = anchors.slot(f, "right", "bottom", 45) },
+    { x = 2816, y = 732, w = 2304, h = 708 })
+end
+
+-- Test 34: Two pins on a side stack in config order and a lone pin keeps full height.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "com.tinyspeck.slackmacgap", side = "left" },
+    { bundle = "test.Notes", side = "left" },
+    { bundle = "com.googlecode.iterm2", side = "right" },
+  }
+  local slack = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
+  local notes = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
+  local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
+  anchors.start()
+  frameIs("t34 slack top", slack, leftTop)
+  frameIs("t34 notes bottom", notes, leftBottom)
+  frameIs("t34 iterm full", term, rightFull)
+end
+
+-- Test 35: Explicit rows win over config order.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "bottom" },
+    { bundle = "test.Notes", side = "left", row = "top" },
+  }
+  local slack = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
+  local notes = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
+  anchors.start()
+  frameIs("t35 slack bottom", slack, leftBottom)
+  frameIs("t35 notes top", notes, leftTop)
+end
+
+-- Test 36: A side whose only pin asks for the bottom row fills the full height.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = { { bundle = "test.Notes", side = "left", row = "bottom" } }
+  local notes = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
+  anchors.start()
+  frameIs("t36 notes full", notes, leftFull)
+end
+
+-- Test 37: A pinned app that is not running leaves its half empty.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "com.tinyspeck.slackmacgap", side = "left" },
+    { bundle = "test.Notes", side = "left" },
+  }
+  local notes = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
+  anchors.start()
+  world.poll()
+  frameIs("t37 notes keeps bottom", notes, leftBottom)
+end
+
+-- Test 38: A third pin on a side is reported once and its windows stay free.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "com.tinyspeck.slackmacgap", side = "left" },
+    { bundle = "test.Notes", side = "left" },
+    { bundle = "test.Mail", side = "left", row = "top" },
+  }
+  local slack = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
+  local notes = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
+  local mail = addWin("Mail", { x = 0, y = 25, w = 800, h = 600 })
+  anchors.start()
+  for _ = 1, 3 do
+    world.clock = world.clock + 100
+    world.poll()
+    world.bar.menu()
+  end
+  check("t38 reported once", said("test.Mail is a third pin on the left") == 1,
+    "count " .. said("test.Mail is a third pin on the left"))
+  frameIs("t38 slack top", slack, leftTop)
+  frameIs("t38 notes bottom", notes, leftBottom)
+  frameIs("t38 mail free", mail, { x = 512, y = 25, w = 800, h = 600 })
+end
+
+-- Test 39: Two pins asking for the same row are reported and the second takes the other.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top" },
+    { bundle = "test.Notes", side = "left", row = "top" },
+  }
+  local slack = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
+  local notes = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
+  anchors.start()
+  check("t39 reported", said("both ask for the top row on the left") == 1)
+  frameIs("t39 slack top", slack, leftTop)
+  frameIs("t39 notes bottom", notes, leftBottom)
+end
+
+-- Test 40: An unknown row is reported and treated as unset.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "test.Notes", side = "left", row = "middle" },
+    { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top" },
+  }
+  local slack = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
+  local notes = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
+  anchors.start()
+  check("t40 reported", said("test.Notes has row middle") == 1)
+  frameIs("t40 slack top", slack, leftTop)
+  frameIs("t40 notes bottom", notes, leftBottom)
+end
+
+-- Test 41: A pin without a valid side is reported and its windows stay free.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = { { bundle = "test.Notes", side = "middle" } }
+  local notes = addWin("Notes", { x = 0, y = 25, w = 400, h = 400 })
+  anchors.start()
+  check("t41 reported", said("a pin needs a bundle and a side") == 1)
+  frameIs("t41 notes free", notes, { x = 512, y = 25, w = 400, h = 400 })
+end
+
+-- Test 42: Expand on focus widens a stacked pin inside its own half only.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top", expandPct = 30 },
+    { bundle = "test.Notes", side = "left", row = "bottom", expandPct = 20 },
+  }
+  local slack = addWin("Slack", leftTop)
+  local notes = addWin("Notes", leftBottom)
+  anchors.start()
+  focus(slack)
+  world.onEvent()
+  frameIs("t42 slack expanded", slack, { x = 0, y = 25, w = 1536, h = 707 })
+  frameIs("t42 notes kept", notes, leftBottom)
+  focus(notes)
+  world.onEvent()
+  frameIs("t42 slack collapsed", slack, leftTop)
+  frameIs("t42 notes expanded", notes, { x = 0, y = 732, w = 1024, h = 708 })
+end
+
+-- Test 43: A stacked pin on the right expands leftward inside its half.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "com.googlecode.iterm2", side = "right", row = "bottom", expandPct = 60 },
+    { bundle = "test.Notes", side = "right" },
+  }
+  local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
+  local notes = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
+  anchors.start()
+  frameIs("t43 notes top", notes, { x = 2816, y = 25, w = 2304, h = 707 })
+  frameIs("t43 iterm bottom", term, { x = 2816, y = 732, w = 2304, h = 708 })
+  focus(term)
+  world.onEvent()
+  frameIs("t43 iterm expanded", term, { x = 2048, y = 732, w = 3072, h = 708 })
+end
+
+-- Test 44: Every window of a stacked app goes to its half, and mainOnly moves only the main one.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "com.tinyspeck.slackmacgap", side = "left", mainOnly = true },
+    { bundle = "test.Notes", side = "left" },
+  }
+  local main = addWin("Slack", { x = 1000, y = 100, w = 900, h = 700 })
+  local huddle = addWin("Slack", { x = 1200, y = 200, w = 400, h = 300 })
+  huddle.secondary = true
+  local n1 = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
+  local n2 = addWin("Notes", { x = 3000, y = 300, w = 600, h = 500 })
+  n2.secondary = true
+  anchors.start()
+  frameIs("t44 slack main top", main, leftTop)
+  check("t44 huddle stays", huddle.moves == 0)
+  frameIs("t44 notes first bottom", n1, leftBottom)
+  frameIs("t44 notes second bottom", n2, leftBottom)
+end
+
+-- Test 45: A preset resizes both halves of a stacked strip.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "com.tinyspeck.slackmacgap", side = "left" },
+    { bundle = "test.Notes", side = "left" },
+  }
+  local slack = addWin("Slack", leftTop)
+  local notes = addWin("Notes", leftBottom)
+  anchors.start()
+  click("Left 20%, right 40%")
+  frameIs("t45 slack top", slack, { x = 0, y = 25, w = 1024, h = 707 })
+  frameIs("t45 notes bottom", notes, { x = 0, y = 732, w = 1024, h = 708 })
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then
