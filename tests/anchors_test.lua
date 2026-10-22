@@ -101,6 +101,7 @@ end
 
 -- Win:application returns an app with the window's bundle ID and main window.
 function Win:application()
+  world.appCalls = (world.appCalls or 0) + 1
   local name, win = self.app, self
   return {
     bundleID = function() return bundleFor(name) end,
@@ -130,7 +131,10 @@ function Win:focus() world.focused = self end
 function Win:isMinimized() return self.minimized == true end
 
 -- Win:isStandard reports a standard window.
-function Win:isStandard() return true end
+function Win:isStandard()
+  world.standardCalls = (world.standardCalls or 0) + 1
+  return self.nonstandard ~= true
+end
 
 -- Win:isVisible reports a visible window.
 function Win:isVisible() return true end
@@ -4028,6 +4032,33 @@ tests[#tests + 1] = function()
       return t
     end)(), ", "))
   check("t185 no errors", #world.printed == 0, table.concat(world.printed, " | "))
+end
+
+-- Test 186: The poll asks each window for its app and role once, keeps asking a window that is
+-- not yet standard until it is, and forgets a closed window so a reused id is asked again.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  local late = addWin("Safari", { x = 3000, y = 100, w = 800, h = 600 })
+  late.nonstandard = true
+  anchors.start()
+  world.poll()
+  frameIs("t186 opening left alone", late, { x = 3000, y = 100, w = 800, h = 600 })
+  late.nonstandard = false
+  world.poll()
+  local ch = anchors.channel(world.screens[1])
+  check("t186 settled once standard", late.f.x + late.f.w <= ch.x + ch.w, tostring(late.f.x))
+  world.appCalls, world.standardCalls = 0, 0
+  for _ = 1, 5 do world.poll() end
+  check("t186 app cached", world.appCalls == 0, tostring(world.appCalls))
+  check("t186 role cached", world.standardCalls == 0, tostring(world.standardCalls))
+  table.remove(world.windows, 1)
+  world.poll()
+  local reused = addWin("Notes", { x = 3000, y = 100, w = 800, h = 600 })
+  reused.wid = late.wid
+  world.poll()
+  check("t186 reused id asked again", world.appCalls >= 1, tostring(world.appCalls))
 end
 
 for i, t in ipairs(tests) do
