@@ -119,6 +119,21 @@ tests[#tests + 1] = function()
   check("t5 channel end", S.park({ x = 2815, y = 100 }, wide, ch) == nil)
 end
 
+-- Test 6: With a side empty the channel reaches that edge, and the last few points of the
+-- display stand in for the missing strip, for snapping and parking.
+tests[#tests + 1] = function()
+  local open = { x = 0, y = 25, w = 2816, h = 1415 }
+  zoneIs("t6 left edge", wide, open, 2, 700, "left-half")
+  zoneIs("t6 left corner", wide, open, 2, 10, "top-left")
+  zoneIs("t6 near edge", wide, open, 5, 700, nil)
+  zoneIs("t6 right strip", wide, open, 3000, 700, "right-half")
+  check("t6 park edge", S.park({ x = 4, y = 100 }, wide, open) == "left-top")
+  check("t6 park past edge", S.park({ x = 5, y = 100 }, wide, open) == nil)
+  local both = { x = 0, y = 25, w = 5120, h = 1415 }
+  zoneIs("t6 right edge", wide, both, 5115, 700, "right-half")
+  zoneIs("t6 inside right", wide, both, 5114, 700, nil)
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then

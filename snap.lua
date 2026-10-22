@@ -35,6 +35,18 @@ local function third(x, ox, w, prev)
   return "center-third"
 end
 
+-- stripSide returns the side whose strip holds p on the ultrawide with full frame f and
+-- channel ch, or nil over the channel. The last margin points of the display stand in for a
+-- side with no strip, so its edge still snaps and parks.
+local function stripSide(p, f, ch)
+  if p.x < math.max(ch.x, f.x + margin) then
+    return "left"
+  elseif p.x >= math.min(ch.x + ch.w, f.x + f.w - margin) then
+    return "right"
+  end
+  return nil
+end
+
 -- zone returns the action a window dropped at point p gets on a display whose
 -- full frame is f, or nil. ch is the channel when the display is the
 -- ultrawide. prev is the zone the drag was last in.
@@ -43,7 +55,7 @@ function S.zone(p, f, ch, prev)
   local t, b = p.y - f.y, f.y + f.h - p.y
   local atTop, atBottom = t < margin, b <= margin
   if ch then
-    local side = (p.x < ch.x and "left") or (p.x >= ch.x + ch.w and "right") or nil
+    local side = stripSide(p, f, ch)
     if side then
       if t < short then
         return "top-" .. side
@@ -92,7 +104,7 @@ local parkPrefix = "park:"
 -- park returns the slot key, such as left-top, of the strip half under p on
 -- the ultrawide with full frame f and channel ch, or nil over the channel.
 function S.park(p, f, ch)
-  local side = (p.x < ch.x and "left") or (p.x >= ch.x + ch.w and "right") or nil
+  local side = stripSide(p, f, ch)
   if not side then
     return nil
   end

@@ -679,14 +679,25 @@ function M.ultrawide()
   return best
 end
 
+-- anchoredSides reports which sides hold at least one anchored app, running or not.
+local function anchoredSides()
+  local picks = M.assignments()
+  return {
+    left = picks["left-top"] ~= "" or picks["left-bottom"] ~= "",
+    right = picks["right-top"] ~= "" or picks["right-bottom"] ~= "",
+  }
+end
+
 -- inUse returns the left and right widths in use on frame f: the chosen widths, grown to
 -- fit the widest pin on each side that will not shrink, while the channel keeps at least
--- minChannelPct.
+-- minChannelPct. A side with no anchored app is 0 wide, so the channel takes it over.
 function M.inUse(f)
   local left, right = M.widths()
+  local sides = anchoredSides()
+  left, right = sides.left and left or 0, sides.right and right or 0
   local grow = {}
   for side, pct in pairs({ left = left, right = right }) do
-    grow[side] = math.max(0, (state.minPts[side] + 0.5) * 100 / f.w - pct)
+    grow[side] = sides[side] and math.max(0, (state.minPts[side] + 0.5) * 100 / f.w - pct) or 0
   end
   local room, total = 100 - minChannelPct - left - right, grow.left + grow.right
   if total > room then
@@ -980,6 +991,9 @@ end
 function M.slotFrame(s, key)
   local side, row = key:match("^(%a+)-(%a+)$")
   local leftPct, rightPct = M.inUse(s:frame())
+  local chosenLeft, chosenRight = M.widths()
+  leftPct = leftPct > 0 and leftPct or chosenLeft
+  rightPct = rightPct > 0 and rightPct or chosenRight
   local leftTop, rightTop = M.heights()
   if side == "left" then
     return M.slot(s:frame(), side, row, leftPct, leftTop)
@@ -1874,6 +1888,16 @@ local function widthItems()
         title = string.format("%s %.0f%% in use: %s needs %.0f pt", name,
           side == "left" and useLeft or useRight, state.minBy[side] or "an app", state.minPts[side]),
         tooltip = "An anchored window will not go narrower, so the strip grows to fit it.",
+        disabled = true,
+      }
+    end
+  end
+  local sides = anchoredSides()
+  for _, h in ipairs({ { "left", "Left" }, { "right", "Right" } }) do
+    if not sides[h[1]] then
+      items[#items + 1] = {
+        title = h[2] .. " side empty: part of the channel",
+        tooltip = "Nothing is anchored on this side, so free windows use it until an app is.",
         disabled = true,
       }
     end
