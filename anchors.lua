@@ -173,6 +173,7 @@ local keys = {
   keymap = "moorings.keymap",
   shortcuts = "moorings.shortcuts",
   sizes = "moorings.sizes",
+  launchedPID = "moorings.launchedPID",
   gap = "moorings.gapPx",
 }
 
@@ -194,6 +195,10 @@ local releaseGrace = 2
 
 -- pendingSeconds is how long a window leaving fullscreen waits for its fill.
 local pendingSeconds = 5
+
+-- openSeconds is how long an anchored app moorings opened keeps its space before its first
+-- window shows up.
+local openSeconds = 30
 
 -- repeatSeconds is how long an identical log message stays quiet.
 local repeatSeconds = 60
@@ -236,6 +241,11 @@ local state = {
   bundles = {},
   -- standard holds the window ids already seen to be standard windows.
   standard = {},
+  -- present holds the pinned bundle IDs with a window on screen at the last poll, or is nil
+  -- before the first poll.
+  present = nil,
+  -- opening maps a pinned bundle ID moorings opened to when it opened it.
+  opening = {},
 }
 
 -- now returns the current time in seconds.
@@ -684,11 +694,24 @@ function M.ultrawide()
 end
 
 -- anchoredSides reports which sides hold at least one anchored app, running or not.
+-- holdsSpace reports whether the pin for bundle keeps its space: its window is on screen, it
+-- has not been polled yet, or moorings opened it moments ago and its window is on the way.
+local function holdsSpace(bundle)
+  if state.present == nil or state.present[bundle] then
+    return true
+  end
+  local started = state.opening[bundle]
+  return started ~= nil and M.now() - started <= openSeconds
+end
+
 local function anchoredSides()
   local picks = M.assignments()
+  local function holds(key)
+    return picks[key] ~= "" and holdsSpace(picks[key])
+  end
   return {
-    left = picks["left-top"] ~= "" or picks["left-bottom"] ~= "",
-    right = picks["right-top"] ~= "" or picks["right-bottom"] ~= "",
+    left = holds("left-top") or holds("left-bottom"),
+    right = holds("right-top") or holds("right-bottom"),
   }
 end
 
@@ -957,9 +980,33 @@ end
 -- lock puts bundle in the slot named key and opens the app the way a Dock click
 -- does, which launches it or asks a running app with no window for a new one.
 function M.lock(key, bundle)
+  if bundle ~= "" then
+    state.opening[bundle] = M.now()
+  end
   M.assign(key, bundle)
   if bundle ~= "" then
     hs.task.new("/usr/bin/open", nil, { "-b", bundle }):start()
+  end
+end
+
+-- launched reports whether Hammerspoon itself just started, at login or a relaunch, rather
+-- than reloading its config, and remembers this start.
+local function launched()
+  local pid = hs.processInfo and hs.processInfo.processID
+  if pid == nil or hs.settings.get(keys.launchedPID) == pid then
+    return false
+  end
+  hs.settings.set(keys.launchedPID, pid)
+  return true
+end
+
+-- openAnchored opens every anchored app the first poll found without a window, in the
+-- background. Each keeps its space while it opens.
+local function openAnchored()
+  for _, pin in ipairs(M.pins()) do
+    if state.opening[pin.bundle] then
+      hs.task.new("/usr/bin/open", nil, { "-g", "-b", pin.bundle }):start()
+    end
   end
 end
 
@@ -1336,8 +1383,26 @@ function M.moor()
     return
   end
   local frame = s:frame()
-  local slots = M.layout(M.pins())
+  local pins = M.pins()
+  local slots = M.layout(pins)
   local all, shown = windows()
+  local present, held = {}, {}
+  for _, w in ipairs(all) do
+    local slot = slots[bundleOf(w)]
+    if slot and pinsWindow(slot.pin, w) then
+      present[slot.pin.bundle] = true
+    end
+  end
+  state.present = present
+  for _, pin in ipairs(pins) do
+    if present[pin.bundle] then
+      state.opening[pin.bundle] = nil
+    end
+    if holdsSpace(pin.bundle) then
+      held[#held + 1] = pin
+    end
+  end
+  local rows = M.layout(held)
   measure(all, slots)
   local leftPct, rightPct = M.inUse(frame)
   local pct = { left = leftPct, right = rightPct }
@@ -1365,9 +1430,10 @@ function M.moor()
       elseif pinsWindow(slot.pin, w) then
         state.pendingFill[id] = nil
         local width = (slot == focusedSlot and slot.pin.expandPct) or pct[slot.side]
+        local row = rows[slot.pin.bundle] and rows[slot.pin.bundle].row
         local target = state.lifted[id] and lift[slot.side]
-          or M.slot(frame, slot.side, slot.row, width, topPct[slot.side])
-        moorPin(w, target, { right = slot.side == "right", bottom = slot.row == "bottom" })
+          or M.slot(frame, slot.side, row, width, topPct[slot.side])
+        moorPin(w, target, { right = slot.side == "right", bottom = row == "bottom" })
       end
     elseif sameScreen(w:screen(), s) then
       local id = w:id()
@@ -2387,8 +2453,19 @@ function M.start()
     state.placed = {}
     M.moor()
   end)):start()
+  -- A fresh start opens the anchored apps, so they keep their space through the first poll and
+  -- a reload, which opens nothing, leaves a closed app closed.
+  local fresh = launched()
+  if fresh then
+    for _, pin in ipairs(M.pins()) do
+      state.opening[pin.bundle] = M.now()
+    end
+  end
   M.timer = hs.timer.doEvery(M.config.pollSeconds, safe(M.moor))
   safe(M.moor)()
+  if fresh then
+    safe(openAnchored)()
+  end
   return M
 end
 
