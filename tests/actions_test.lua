@@ -206,6 +206,19 @@ tests[#tests + 1] = function()
   check("t9 not a table", next((A.mouseButtons("junk"))) == nil)
 end
 
+-- Test 10: Shortcuts are spelled out with the names printed on the keys, glyphs after.
+tests[#tests + 1] = function()
+  local restore = { mods = { "ctrl", "alt" }, key = "delete" }
+  check("t10 words", A.keyWords(restore) == "Control-Option-Delete", A.keyWords(restore))
+  check("t10 spelled", A.keySpelled(restore) == "Control-Option-Delete (⌃⌥⌫)", A.keySpelled(restore))
+  local tall = { mods = { "ctrl", "alt", "shift", "cmd" }, key = "up" }
+  check("t10 every mod", A.keyWords(tall) == "Control-Option-Shift-Command-Up Arrow", A.keyWords(tall))
+  check("t10 letter", A.keyWords({ mods = { "cmd" }, key = "u" }) == "Command-U")
+  check("t10 escape", A.keyWords({ mods = { "ctrl" }, key = "escape" }) == "Control-Escape")
+  local map = A.shortcuts({}, {}, "rectangle")
+  check("t10 keymap", A.keySpelled(map.restore) == "Control-Option-Delete (⌃⌥⌫)", A.keySpelled(map.restore))
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then

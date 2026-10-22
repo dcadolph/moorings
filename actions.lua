@@ -292,6 +292,32 @@ function A.keyText(sc)
   return table.concat(out)
 end
 
+-- modWords maps a modifier to the name printed on its key.
+local modWords = { ctrl = "Control", alt = "Option", shift = "Shift", cmd = "Command" }
+
+-- keyWords maps a key name to the name printed on its key.
+local keyWords = {
+  left = "Left Arrow", right = "Right Arrow", up = "Up Arrow", down = "Down Arrow",
+  ["return"] = "Return", delete = "Delete", forwarddelete = "Forward Delete", space = "Space",
+  tab = "Tab", escape = "Escape",
+}
+
+-- keyWords returns shortcut sc spelled out, such as Control-Option-Delete.
+function A.keyWords(sc)
+  local out = {}
+  for _, m in ipairs(sc.mods) do
+    out[#out + 1] = modWords[m]
+  end
+  out[#out + 1] = keyWords[sc.key] or sc.key:upper()
+  return table.concat(out, "-")
+end
+
+-- keySpelled returns shortcut sc spelled out with its glyphs after it, such as
+-- Control-Option-Delete (⌃⌥⌫), the way every message names a shortcut.
+function A.keySpelled(sc)
+  return A.keyWords(sc) .. " (" .. A.keyText(sc) .. ")"
+end
+
 -- wellFormed reports whether sc has a mods table and a key string.
 local function wellFormed(sc)
   return type(sc) == "table" and type(sc.mods) == "table" and type(sc.key) == "string"
