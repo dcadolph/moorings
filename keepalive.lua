@@ -6,7 +6,7 @@ local K = {}
 -- label names the LaunchAgent and its plist file.
 K.label = "moorings.keepalive"
 
--- bundle is Hammerspoon's bundle ID, which the agent opens and is listed under in Login Items.
+-- bundle is Hammerspoon's bundle ID, which the agent opens and names as its associated app.
 K.bundle = "org.hammerspoon.Hammerspoon"
 
 -- seconds is how often the agent checks that Hammerspoon is running.

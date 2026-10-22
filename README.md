@@ -106,12 +106,12 @@ Update with `git -C ~/src/moorings pull`, then Reload from the moorings menu. To
 choose Quit moorings, delete the `~/.hammerspoon/moorings` link, and delete the moorings lines
 from `~/.hammerspoon/init.lua`.
 
-Moorings keeps Hammerspoon running. A small helper that macOS lists under Hammerspoon in Login
-Items checks every 30 seconds and starts Hammerspoon again if it quit or crashed, without
-reopening apps you closed. Quit moorings removes the helper and quits Hammerspoon until your next
-login. To stop the restarts and keep Hammerspoon running, untick Settings, Restart if it stops.
-If moorings was deleted without Quit moorings, the helper stops restarting Hammerspoon on its
-own. Remove its file with:
+Moorings keeps Hammerspoon running. A small helper checks every 30 seconds and starts Hammerspoon
+again if it quit or crashed, without reopening apps you closed. It is a shell command, not an app,
+so System Settings lists it under Login Items as sh. Quit moorings removes the helper and quits
+Hammerspoon until your next login. To stop the restarts and keep Hammerspoon running, untick
+Settings, Restart if it stops. If moorings was deleted without Quit moorings, the helper stops
+restarting Hammerspoon on its own. Remove its file with:
 
 ```sh
 launchctl bootout gui/$(id -u)/moorings.keepalive
@@ -433,10 +433,12 @@ channel is narrowed to fit, and it grows back toward its old width when a preset
 the channel up again, unless it was resized by hand in between. Windows already inside the channel
 are never touched, and windows on other displays are left alone.
 
-A free window that goes native fullscreen on the ultrawide, which its green button does, leaves
-fullscreen and fills the channel instead. An anchored window that ends up in fullscreen goes back to
-its slot. Untick Fullscreen fills the channel or Fullscreen keeps anchored apps in their slots to
-get true fullscreen back for that kind of window, or use Weigh anchor for a while.
+Clicking the green button of a free window on the ultrawide fills the channel instead of starting
+native fullscreen, and a second click puts the window back where it was. Option-click it for the
+macOS zoom. A free window that goes native fullscreen another way, such as Control-Command-F, leaves
+fullscreen and fills the channel. An anchored window that ends up in fullscreen goes back to its
+slot. Untick Fullscreen fills the channel or Fullscreen keeps anchored apps in their slots to get
+true fullscreen back for that kind of window, or use Weigh anchor for a while.
 
 Hovering over the green button shows a menu that belongs to macOS, not to moorings. Its Move &
 Resize, Fill & Arrange, Full Screen and Move to display entries are macOS window tiling. Moorings

@@ -4448,6 +4448,85 @@ tests[#tests + 1] = function()
   frameIs("t194 pin held", slack, leftFull)
 end
 
+-- Test 195: A free window's green button fills the channel with no native fullscreen, a second
+-- click puts it back, and the click passes on with Option held, with Fullscreen fills the channel
+-- off, under another window and away from the button. A still free window is asked for its button
+-- once, one moved inside the channel stays where it was put, and an app unanchored in place
+-- fills on its first click.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local safari = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  for _ = 1, 3 do
+    world.clock = world.clock + 1
+    world.poll()
+  end
+  -- send fires a mouse event of type t at point p with flags and returns whether it passed on.
+  local function send(t, p, flags)
+    world.mousePos = p
+    return world.tap({ getType = function() return t end,
+      getFlags = function() return flags or {} end })
+  end
+  -- green returns a point inside win's green button.
+  local function green(win)
+    return { x = win.f.x + 60, y = win.f.y + 15 }
+  end
+  -- settle runs a few passes a second apart.
+  local function settle()
+    for _ = 1, 3 do
+      world.clock = world.clock + 1
+      world.poll()
+    end
+  end
+  local asks = safari.zoomAsks or 0
+  check("t195 button asked once", asks == 1, tostring(asks))
+  settle()
+  check("t195 still window not asked again", safari.zoomAsks == asks, tostring(safari.zoomAsks))
+  local before = { x = 1000, y = 200, w = 800, h = 600 }
+  check("t195 option passes", send(1, green(safari), { alt = true }) == false
+    and send(2, green(safari), { alt = true }) == false)
+  frameIs("t195 option left alone", safari, before)
+  check("t195 away passes", send(1, { x = 1300, y = 500 }) == false
+    and send(2, { x = 1300, y = 500 }) == false)
+  check("t195 click eaten", send(1, green(safari)) == true and send(2, green(safari)) == true)
+  check("t195 no native fullscreen", not safari.full)
+  local fill = { x = 512, y = 25, w = 2304, h = 1415 }
+  frameIs("t195 fills channel", safari, fill)
+  frameIs("t195 pin untouched", slack, leftFull)
+  settle()
+  frameIs("t195 fill holds", safari, fill)
+  check("t195 second click eaten", send(1, green(safari)) == true and send(2, green(safari)) == true)
+  frameIs("t195 put back", safari, before)
+  settle()
+  local note = addWin("Notes", { x = 900, y = 150, w = 400, h = 300 })
+  settle()
+  check("t195 covered passes", send(1, green(safari)) == false and send(2, green(safari)) == false)
+  frameIs("t195 covered left alone", safari, before)
+  note.f = { x = 2000, y = 900, w = 400, h = 300 }
+  settle()
+  click("Fullscreen fills the channel")
+  check("t195 setting off passes", send(1, green(safari)) == false
+    and send(2, green(safari)) == false)
+  frameIs("t195 setting off left alone", safari, before)
+  click("Fullscreen fills the channel")
+  safari.f = { x = 1400, y = 500, w = 800, h = 600 }
+  world.onMoved()
+  settle()
+  frameIs("t195 moved inside channel stays", safari, { x = 1400, y = 500, w = 800, h = 600 })
+  check("t195 moved click eaten", send(1, green(safari)) == true and send(2, green(safari)) == true)
+  frameIs("t195 moved fills", safari, fill)
+  frameIs("t195 pin still untouched", slack, leftFull)
+  local was = { x = slack.f.x, y = slack.f.y, w = slack.f.w, h = slack.f.h }
+  click("Unanchor all apps")
+  settle()
+  frameIs("t195 unanchored stays put", slack, was)
+  check("t195 unanchored click eaten", send(1, green(slack)) == true
+    and send(2, green(slack)) == true)
+  local ch = anchors.channel(world.screens[1])
+  frameIs("t195 unanchored fills", slack, { x = ch.x, y = ch.y, w = ch.w, h = ch.h })
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then

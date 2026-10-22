@@ -73,7 +73,7 @@ end
 
 local tests = {}
 
--- Test 0: The plist names the agent, lists it under Hammerspoon, runs every 30 seconds and
+-- Test 0: The plist names the agent, names Hammerspoon as its app, runs every 30 seconds and
 -- not at load, and lives in the user's LaunchAgents folder.
 tests[#tests + 1] = function()
   install()
@@ -81,7 +81,7 @@ tests[#tests + 1] = function()
   check("t0 path", K.plistPath() == "/Users/me/Library/LaunchAgents/moorings.keepalive.plist",
     K.plistPath())
   check("t0 label", has(p, "<key>Label</key>\n\t<string>moorings.keepalive</string>"))
-  check("t0 listed as Hammerspoon", has(p, "<key>AssociatedBundleIdentifiers</key>\n\t<array>\n"
+  check("t0 names Hammerspoon", has(p, "<key>AssociatedBundleIdentifiers</key>\n\t<array>\n"
     .. "\t\t<string>org.hammerspoon.Hammerspoon</string>"))
   check("t0 interval", has(p, "<key>StartInterval</key>\n\t<integer>30</integer>"))
   check("t0 not at load", has(p, "<key>RunAtLoad</key>\n\t<false/>"))
