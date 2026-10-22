@@ -45,6 +45,10 @@ M.config = {
   -- leftPct and rightPct are the edge widths until a preset is chosen.
   leftPct = 10,
   rightPct = 45,
+  -- leftTopPct and rightTopPct are the share of a strip's height, 10 to 90, its top
+  -- row takes when two pins share the side, until one is chosen from Heights.
+  leftTopPct = 50,
+  rightTopPct = 50,
   -- pollSeconds is how often the layout is re-checked between window events.
   pollSeconds = 0.25,
   -- minAspect is the width-to-height ratio a screen needs to count as ultrawide.
@@ -63,6 +67,9 @@ M.presets = {
   { left = 15, right = 30 },
   { left = 20, right = 40 },
 }
+
+-- heightPresets are the top row heights offered for each side in the menu.
+M.heightPresets = { 10, 25, 33, 50, 67, 75, 90 }
 
 -- iconFolders groups the menu bar glyphs offered in the Icon submenu. The first icon is the default.
 M.iconFolders = {
@@ -152,6 +159,7 @@ local maxIconChars = 5
 
 local keys = {
   widths = "moorings.widths",
+  heights = "moorings.heights",
   icon = "moorings.icon",
   customIcon = "moorings.customIcon",
   paused = "moorings.paused",
@@ -168,6 +176,12 @@ local keys = {
 
 -- minChannelPct is the narrowest channel a width pair may leave.
 local minChannelPct = 10
+
+-- minRowPct is the shortest share of a strip's height either row may take.
+local minRowPct = 10
+
+-- heightStep is how many points Taller and Shorter move a top row.
+local heightStep = 5
 
 -- burstMoves moves of one window inside burstSeconds put it on hold for holdSeconds.
 local burstMoves, burstSeconds, holdSeconds = 4, 10, 60
@@ -490,6 +504,67 @@ function M.step(side, delta)
   return ok
 end
 
+-- validTop reports whether pct leaves both rows of a strip at least minRowPct tall.
+local function validTop(pct)
+  return type(pct) == "number" and pct >= minRowPct and pct <= 100 - minRowPct
+end
+
+-- heights returns the left and right top row percentages in effect. A height
+-- chosen from the menu wins over the config, side by side.
+function M.heights()
+  local saved = hs.settings.get(keys.heights)
+  saved = type(saved) == "table" and saved or {}
+  local out = {}
+  for _, side in ipairs({ "left", "right" }) do
+    local configured = M.config[side .. "TopPct"]
+    if validTop(saved[side]) then
+      out[side] = saved[side]
+    elseif validTop(configured) then
+      out[side] = configured
+    else
+      if configured ~= nil then
+        log(side .. "TopPct must be a number from 10 to 90: using 50")
+      end
+      out[side] = 50
+    end
+  end
+  return out.left, out.right
+end
+
+-- setHeights saves left and right as the top row heights and re-moors.
+function M.setHeights(left, right)
+  hs.settings.set(keys.heights, { left = left, right = right })
+  M.moor()
+end
+
+-- setTop saves pct as the top row height of side, keeping the other side, and re-moors.
+function M.setTop(side, pct)
+  local left, right = M.heights()
+  if side == "left" then
+    M.setHeights(pct, right)
+  else
+    M.setHeights(left, pct)
+  end
+end
+
+-- topStepped returns side's top row height after moving it by delta points, and
+-- whether both rows stay at least minRowPct tall.
+local function topStepped(side, delta)
+  local left, right = M.heights()
+  local pct = (side == "left" and left or right) + delta
+  return pct, validTop(pct)
+end
+
+-- stepTop makes side's top row taller or shorter by delta points, refusing a
+-- step that would leave either row under minRowPct.
+function M.stepTop(side, delta)
+  local pct, ok = topStepped(side, delta)
+  if ok then
+    M.setTop(side, pct)
+  end
+  return ok
+end
+
 -- The frame math lives in geometry, re-exported here for callers and tests.
 M.edge, M.slot, M.regions, M.clamp = geometry.edge, geometry.slot, geometry.regions, geometry.clamp
 
@@ -583,7 +658,7 @@ function M.toggleShortcutIgnore(bundle)
   actions.refresh()
 end
 
--- validRow reports whether row names a half of a strip.
+-- validRow reports whether row names a row of a strip.
 local function validRow(row)
   return row == "top" or row == "bottom"
 end
@@ -738,11 +813,15 @@ function M.resetSlots()
 end
 
 -- slotFrame returns the frame of the slot named key, such as left-top, on
--- screen s at the side's current width.
+-- screen s at the side's current width and height.
 function M.slotFrame(s, key)
   local side, row = key:match("^(%a+)-(%a+)$")
   local leftPct, rightPct = M.widths()
-  return M.slot(s:frame(), side, row, side == "left" and leftPct or rightPct)
+  local leftTop, rightTop = M.heights()
+  if side == "left" then
+    return M.slot(s:frame(), side, row, leftPct, leftTop)
+  end
+  return M.slot(s:frame(), side, row, rightPct, rightTop)
 end
 
 -- slotFor returns the slot of win's app, or nil when the app is not pinned.
@@ -834,14 +913,17 @@ function M.freeWindows()
   return list
 end
 
--- setLayout saves slots and the strip widths without re-mooring. A value that
--- is missing or leaves no channel is skipped.
-function M.setLayout(slots, left, right)
+-- setLayout saves slots, the strip widths and the top row heights without
+-- re-mooring. A value that is missing or out of bounds is skipped.
+function M.setLayout(slots, left, right, heights)
   if type(slots) == "table" then
     hs.settings.set(keys.slots, slots)
   end
   if validSplit(left, right) then
     hs.settings.set(keys.widths, { left = left, right = right })
+  end
+  if type(heights) == "table" and validTop(heights.left) and validTop(heights.right) then
+    hs.settings.set(keys.heights, { left = heights.left, right = heights.right })
   end
 end
 
@@ -919,6 +1001,8 @@ function M.moor()
   local frame = s:frame()
   local leftPct, rightPct = M.widths()
   local pct = { left = leftPct, right = rightPct }
+  local leftTop, rightTop = M.heights()
+  local topPct = { left = leftTop, right = rightTop }
   local ch = M.regions(frame, leftPct, rightPct).channel
   local slots = M.layout(M.pins())
   local focused = hs.window.focusedWindow()
@@ -938,7 +1022,7 @@ function M.moor()
       elseif pinsWindow(slot.pin, w) then
         state.pendingFill[id] = nil
         local width = (slot == focusedSlot and slot.pin.expandPct) or pct[slot.side]
-        place(w, M.slot(frame, slot.side, slot.row, width))
+        place(w, M.slot(frame, slot.side, slot.row, width, topPct[slot.side]))
       end
     elseif sameScreen(w:screen(), s) then
       local id = w:id()
@@ -1431,6 +1515,47 @@ local function widthItems()
   return items
 end
 
+-- heightItems builds the Heights folder: a label per side, the taller and shorter
+-- steppers, and a folder of presets per side.
+local function heightItems()
+  local items = {}
+  local leftTop, rightTop = M.heights()
+  local current = { left = leftTop, right = rightTop }
+  local sides = { { side = "left", name = "Left" }, { side = "right", name = "Right" } }
+  for _, s in ipairs(sides) do
+    local top = current[s.side]
+    items[#items + 1] = {
+      title = string.format("%s top %g%%, bottom %g%%", s.name, top, 100 - top),
+      disabled = true,
+    }
+  end
+  for _, s in ipairs({
+    { title = "Left top taller", side = "left", delta = heightStep },
+    { title = "Left top shorter", side = "left", delta = -heightStep },
+    { title = "Right top taller", side = "right", delta = heightStep },
+    { title = "Right top shorter", side = "right", delta = -heightStep },
+  }) do
+    local _, ok = topStepped(s.side, s.delta)
+    items[#items + 1] = {
+      title = s.title,
+      disabled = not ok,
+      fn = safe(function() M.stepTop(s.side, s.delta) end),
+    }
+  end
+  for _, s in ipairs(sides) do
+    local presets = {}
+    for _, pct in ipairs(M.heightPresets) do
+      presets[#presets + 1] = {
+        title = string.format("Top %d%%, bottom %d%%", pct, 100 - pct),
+        checked = pct == current[s.side],
+        fn = safe(function() M.setTop(s.side, pct) end),
+      }
+    end
+    items[#items + 1] = { title = s.name .. " side", menu = presets }
+  end
+  return items
+end
+
 -- workspaceItems builds the Workspaces folder: a row per saved workspace that
 -- opens Recall, the display tie, Replace and Delete, then Save current layout.
 local function workspaceItems()
@@ -1602,6 +1727,7 @@ local function menu()
     { title = "Window", menu = windowItems() },
     { title = "Locked apps", menu = lockedItems() },
     { title = "Widths", menu = widthItems() },
+    { title = "Heights", menu = heightItems() },
     { title = "Workspaces", menu = workspaceItems() },
     { title = "Settings", menu = settingItems() },
     { title = "-" },

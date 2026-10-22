@@ -13,10 +13,11 @@ function G.edge(f, side, pct)
 end
 
 -- slot returns the frame a pin in row of side occupies on f at pct width. A nil
--- row fills the strip's full height. The bottom half takes the odd point.
-function G.slot(f, side, row, pct)
+-- row fills the strip's full height. The top row is topPct percent of the height,
+-- half when topPct is nil, and the bottom row takes the rest.
+function G.slot(f, side, row, pct, topPct)
   local r = G.edge(f, side, pct)
-  local top = math.floor(f.h / 2)
+  local top = math.floor(f.h * (topPct or 50) / 100)
   if row == "top" then
     r.h = top
   elseif row == "bottom" then

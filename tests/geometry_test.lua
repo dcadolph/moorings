@@ -283,6 +283,22 @@ tests[#tests + 1] = function()
   is("t20 share", G.custom(square, { w = 0.29 }), { x = 0, y = 0, w = 29, h = 100 })
 end
 
+-- Test 21: The top row takes its share of the height and the bottom row takes the rest.
+tests[#tests + 1] = function()
+  local screen = { x = 0, y = 25, w = 5120, h = 1415 }
+  is("t21 nil is half", G.slot(screen, "left", "top", 10), G.slot(screen, "left", "top", 10, 50))
+  is("t21 top 10", G.slot(screen, "left", "top", 10, 10), { x = 0, y = 25, w = 512, h = 141 })
+  is("t21 bottom 90", G.slot(screen, "left", "bottom", 10, 10), { x = 0, y = 166, w = 512, h = 1274 })
+  is("t21 right top 90", G.slot(screen, "right", "top", 45, 90), { x = 2816, y = 25, w = 2304, h = 1273 })
+  is("t21 full ignores", G.slot(screen, "left", nil, 10, 10), { x = 0, y = 25, w = 512, h = 1415 })
+  for _, pct in ipairs({ 10, 25, 33, 50, 67, 75, 90 }) do
+    local top = G.slot(screen, "left", "top", 10, pct)
+    local bottom = G.slot(screen, "left", "bottom", 10, pct)
+    check("t21 joined " .. pct, top.y + top.h == bottom.y, show(top) .. " " .. show(bottom))
+    check("t21 sum " .. pct, top.h + bottom.h == screen.h, show(top) .. " " .. show(bottom))
+  end
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then

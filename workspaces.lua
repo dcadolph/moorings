@@ -1,4 +1,4 @@
--- workspaces saves the slots, the strip widths and every free window's frame
+-- workspaces saves the slots, the strip widths and heights, and every free window's frame
 -- under a name and puts them back on recall. A workspace tied to a display
 -- setup comes back by itself when that setup is plugged in.
 
@@ -91,6 +91,7 @@ end
 function W.save(name)
   local list = all()
   local left, right = host.widths()
+  local leftTop, rightTop = host.heights()
   local windows = {}
   for _, w in ipairs(host.freeWindows()) do
     local d = describe(w)
@@ -105,6 +106,7 @@ function W.save(name)
     slots = host.assignments(),
     left = left,
     right = right,
+    heights = { left = leftTop, right = rightTop },
     windows = windows,
     setup = type(old) == "table" and old.setup or nil,
   }
@@ -136,7 +138,7 @@ function W.recall(name)
     host.log("no workspace is named " .. tostring(name))
     return false
   end
-  host.setLayout(ws.slots, ws.left, ws.right)
+  host.setLayout(ws.slots, ws.left, ws.right, ws.heights)
   local live, info = host.freeWindows(), {}
   for i, w in ipairs(live) do
     info[i] = describe(w)
