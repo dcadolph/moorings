@@ -284,23 +284,7 @@ local function install(...)
         return img
       end,
     },
-    notify = {
-      new = function(fn, attrs)
-        if type(fn) == "table" then fn, attrs = nil, fn end
-        local n = { fn = fn, attrs = attrs }
-        function n:send()
-          self.sent = true
-          if attrs and attrs.withdrawAfter ~= 0 then
-            world.alertTitle, world.alerted = attrs.title, attrs.informativeText
-            world.alerts = (world.alerts or 0) + 1
-          end
-          return self
-        end
-        function n:withdraw() self.withdrawn = true return self end
-        world.notices[#world.notices + 1] = n
-        return n
-      end,
-    },
+    notify = { new = function() error("moorings shows its banner, not macOS notifications") end },
     task = {
       new = function(path, _, args)
         local t = {}
@@ -314,7 +298,7 @@ local function install(...)
     openConsole = function() world.console = true end,
     reload = function() world.reloaded = true end,
     execute = function(cmd) world.executed = cmd end,
-    alert = { show = function() error("moorings shows notifications, not on-screen alerts") end },
+    alert = { show = function() error("moorings shows its banner, not on-screen alerts") end },
     settings = {
       get = function(k) return world.settings[k] end,
       set = function(k, v) world.settings[k] = v end,
@@ -427,6 +411,19 @@ local function install(...)
   for _, name in ipairs({ "actions", "snap", "tile", "workspaces", "settings" }) do
     package.loaded[name] = nil
   end
+  -- The banner is faked here and drawn for real in banner_test.lua.
+  package.loaded.banner = {
+    show = function(opts)
+      local n = { opts = opts }
+      function n.withdraw() n.withdrawn = true end
+      if not opts.sticky then
+        world.alertTitle, world.alerted = opts.title, opts.text
+        world.alerts = (world.alerts or 0) + 1
+      end
+      world.notices[#world.notices + 1] = n
+      return n
+    end,
+  }
   anchors = require("anchors")
 end
 
@@ -3138,29 +3135,29 @@ tests[#tests + 1] = function()
   install(ultrawide())
   world.trusted = false
   anchors.start()
-  check("t148 notice stays", world.notices[1].attrs.withdrawAfter == 0)
+  check("t148 notice stays", world.notices[1].opts.sticky == true)
   local file = assert(io.open("settings.html", "r"))
   local html = file:read("a")
   file:close()
   check("t148 draft kept", html:find("if (saved !== lastIconText)", 1, true) ~= nil)
 end
 
--- Test 149: Missing Accessibility shows the warning glyph, one notification and a menu item to grant it.
+-- Test 149: Missing Accessibility shows the warning glyph, one banner and a menu item to grant it.
 tests[#tests + 1] = function()
   install(ultrawide())
   world.trusted = false
   anchors.start()
   check("t149 glyph", world.bar.title == "⚠️" and world.bar.icon == nil, tostring(world.bar.title))
-  check("t149 one notice", #world.notices == 1 and world.notices[1].sent == true)
-  check("t149 notice text", world.notices[1].attrs.title == "moorings needs Accessibility"
-    and world.notices[1].attrs.hasActionButton == true)
+  check("t149 one notice", #world.notices == 1)
+  check("t149 notice text", world.notices[1].opts.title == "moorings needs Accessibility"
+    and world.notices[1].opts.text:find("\nClick here to open Settings.", 1, true) ~= nil)
   local items = world.bar.menu()
   check("t149 first item", items[1].title == "⚠️ Grant Accessibility access" and items[2].title == "-")
   click("⚠️ Grant Accessibility access")
   local pane = "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'"
   check("t149 opens pane", world.executed == pane, tostring(world.executed))
   world.executed = nil
-  world.notices[1].fn()
+  world.notices[1].opts.click()
   check("t149 notice opens pane", world.executed == pane)
   local calls = world.bar.titleCalls
   for _ = 1, 5 do world.poll() end
@@ -3192,7 +3189,7 @@ tests[#tests + 1] = function()
   check("t150 once", world.alerted == nil and #world.hotkeys == 2 * before)
 end
 
--- Test 151: A later loss shows the glyph again without a second notification, and the
+-- Test 151: A later loss shows the glyph again without a second banner, and the
 -- warning wins over an icon picked meanwhile.
 tests[#tests + 1] = function()
   install(ultrawide())
@@ -3211,7 +3208,7 @@ tests[#tests + 1] = function()
   world.poll()
   local warnings = 0
   for _, n in ipairs(world.notices) do
-    if n.attrs.withdrawAfter == 0 then warnings = warnings + 1 end
+    if n.opts.sticky then warnings = warnings + 1 end
   end
   check("t151 no second notice", world.bar.title == "⚠️" and warnings == 1)
 end
@@ -3656,8 +3653,9 @@ tests[#tests + 1] = function()
   end
   moveByHand()
   frameIs("t173 left alone", slack, moved)
-  check("t173 alert", world.alertTitle == "Slack released"
-    and world.alerted == "Click its green button or press ⌃⌥⌫ to put it back.", tostring(world.alerted))
+  check("t173 alert", world.alertTitle == "Slack released" and world.alerted
+    == "Click its green button to put it back,\nor press Control-Option-Delete (⌃⌥⌫).",
+    tostring(world.alerted))
   check("t173 logged once", said("moved by hand: released") == 1)
   world.clock = world.clock + 10
   world.poll()
@@ -3862,7 +3860,8 @@ tests[#tests + 1] = function()
   world.poll()
   slack.f = { x = 0, y = 25, w = 5120, h = 1415 }
   world.poll()
-  check("t181 alert", world.alerted == "Click its green button or press ⌃⌥⌫ to put it back.",
+  check("t181 alert", world.alerted
+    == "Click its green button to put it back,\nor press Control-Option-Delete (⌃⌥⌫).",
     tostring(world.alerted))
   world.poll()
   check("t181 home click eaten", send(1, { x = 60, y = 40 }) == true and send(2, { x = 60, y = 40 }) == true)
@@ -4249,6 +4248,26 @@ tests[#tests + 1] = function()
   check("t190 anchor again", item("Anchor Slack") ~= nil)
   world.front, world.focused = nil, nil
   check("t190 no front", titles(world.bar.menu()):find("Anchor ") == nil, titles(world.bar.menu()))
+end
+
+-- Test 191: With Restore unbound the release banner names only the green button, and every
+-- notice goes through the banner with Hammerspoon's notifications never touched.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.shortcuts = { restore = false }
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  world.clock = world.clock + 3
+  world.poll()
+  slack.f = { x = 900, y = 200, w = 700, h = 600 }
+  world.poll()
+  check("t191 title", world.alertTitle == "Slack released", tostring(world.alertTitle))
+  check("t191 no keys", world.alerted == "Click its green button to put it back.", tostring(world.alerted))
+  check("t191 one banner", #world.notices == 1 and not world.notices[1].opts.sticky)
+  check("t191 banner file listed", anchors.files[#anchors.files] == "banner.lua")
+  local f = io.open("banner-mark.svg", "r")
+  check("t191 banner mark in repo", f ~= nil)
+  if f then f:close() end
 end
 
 for i, t in ipairs(tests) do

@@ -2,6 +2,7 @@
 -- other window in the channel between them.
 
 local actions = require("actions")
+local banner = require("banner")
 local geometry = require("geometry")
 local snap = require("snap")
 local tile = require("tile")
@@ -200,9 +201,6 @@ local pendingSeconds = 5
 -- window shows up.
 local openSeconds = 30
 
--- noticeSeconds is how long a moorings notification stays up.
-local noticeSeconds = 5
-
 -- repeatSeconds is how long an identical log message stays quiet.
 local repeatSeconds = 60
 
@@ -220,7 +218,7 @@ local state = {
   axWarned = false,
   -- axMissing is set while Accessibility is known to be missing.
   axMissing = false,
-  -- axNotice is the notification shown the first time Accessibility is missing.
+  -- axNotice is the banner shown the first time Accessibility is missing.
   axNotice = nil,
   -- clamped maps a window id to the width it had before the channel narrowed it.
   clamped = {},
@@ -256,10 +254,9 @@ function M.now()
   return hs.timer.secondsSinceEpoch()
 end
 
--- notify shows a macOS notification with title and text that withdraws itself after
--- noticeSeconds.
+-- notify shows the moorings banner with title and text.
 local function notify(title, text)
-  hs.notify.new({ title = title, informativeText = text, withdrawAfter = noticeSeconds }):send()
+  banner.show({ title = title, text = text })
 end
 
 -- log prints a message to the Hammerspoon Console at most once per repeatSeconds.
@@ -288,7 +285,7 @@ M.loadfile = loadfile
 -- inside the Hammerspoon config directory.
 M.files = {
   "anchors.lua", "geometry.lua", "actions.lua", "snap.lua", "tile.lua", "workspaces.lua",
-  "settings.lua",
+  "settings.lua", "banner.lua",
 }
 
 -- path returns the full path of a moorings source file.
@@ -1353,9 +1350,9 @@ local function release(w)
   local id, name = w:id(), windowApp(w)
   state.released[id], state.lifted[id] = true, nil
   local sc = actions.bindings().restore
-  local how = sc and (" or press " .. actions.keyText(sc)) or ""
+  local how = sc and (",\nor press " .. actions.keySpelled(sc)) or ""
   log("window " .. tostring(id) .. " was moved by hand: released")
-  notify(name .. " released", string.format("Click its green button%s to put it back.", how))
+  notify(name .. " released", "Click its green button to put it back" .. how .. ".")
 end
 
 -- moorPin places pinned window w at target, or releases it when the owner has moved it
@@ -1771,21 +1768,20 @@ function M.openAccessibility()
   hs.execute("open " .. shellQuote(axPane))
 end
 
--- accessChanged shows the warning glyph and one notification when Accessibility
+-- accessChanged shows the warning glyph and one banner when Accessibility
 -- goes missing. When it comes back it clears both and binds the shortcuts and
 -- the drag watcher again, since ones made before the grant may not receive events.
 accessChanged = function(granted)
   applyIcon()
   if not granted then
     if not state.axNotice then
-      state.axNotice = hs.notify.new(function() M.openAccessibility() end, {
+      state.axNotice = banner.show({
         title = "moorings needs Accessibility",
-        informativeText = "Windows will not move until Hammerspoon is allowed under "
-          .. "Privacy & Security, Accessibility.",
-        actionButtonTitle = "Open Settings",
-        hasActionButton = true,
-        withdrawAfter = 0,
-      }):send()
+        text = "Windows will not move until Hammerspoon is allowed under "
+          .. "Privacy & Security, Accessibility.\nClick here to open Settings.",
+        click = function() M.openAccessibility() end,
+        sticky = true,
+      })
     end
     return
   end
@@ -2447,6 +2443,7 @@ end
 
 -- start creates the menu bar item, subscribes to window events and starts polling.
 function M.start()
+  banner.markPath = M.path("banner-mark.svg")
   hs.window.animationDuration = 0
   hs.autoLaunch(true)
   hs.accessibilityState(true)

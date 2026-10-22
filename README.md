@@ -53,7 +53,7 @@ to my ultrawide way of working.
 
 ## Install
 
-Four steps. When they are done the moorings mark, a sailboat tied to a buoy, sits in
+Four steps. When they are done the moorings mark, a small sailboat, sits in
 the menu bar at the top right of the screen.
 
 **1. Get the files and Hammerspoon.** Skip the `brew` line if Hammerspoon is already installed.
@@ -78,7 +78,7 @@ linking it to pin a version.
 **3. Start Hammerspoon and allow it.** Open Hammerspoon from Applications. macOS asks for
 Accessibility access. Click Open System Settings, switch Hammerspoon on under Privacy &
 Security, then Accessibility. Quit Rectangle first if you use it, since both apps move windows.
-If the macOS prompt was closed, moorings shows a warning sign in the menu bar and a notification.
+If the macOS prompt was closed, moorings shows a warning sign in the menu bar and a banner.
 Click either one, or choose Grant Accessibility access at the top of the menu, to open the same
 settings page.
 
@@ -128,7 +128,7 @@ Press Control-Option-Left to put the focused window in the left half of the chan
 again for two thirds, then one third. The Window folder in the menu lists every action with its
 shortcut.
 
-To test a change, run `for t in anchors geometry actions snap tile workspaces settings; do lua tests/${t}_test.lua; done`
+To test a change, run `for t in tests/*_test.lua; do lua $t; done`
 from the repo root. The anchors test drives the whole tool against a fake Hammerspoon, and the
 others check the frame math, the keymap and menu families, the drag zones, the organize
 layouts, workspace matching, and key recording. Each exits non-zero on any failure.
@@ -434,8 +434,10 @@ the channel like any other free window.
 Nothing moves while the mouse button is down, so dragging a window is never fought mid-drag. A
 window that keeps moving away from where moorings puts it, four times inside ten seconds, is left
 alone for a minute and the Console says so. Re-moor now clears those holds. Without
-Accessibility permission nothing moves, the menu bar shows a warning sign, and one notification
-offers the settings page. Widths that leave less
+Accessibility permission nothing moves, the menu bar shows a warning sign, and one banner
+offers the settings page. moorings says everything in its own banner at the top right of the
+main screen, not in macOS notifications, so it needs no notification permission. A banner fades
+after five seconds, stays while the pointer is on it, and closes when clicked. Widths that leave less
 than a 10% channel fall back to 10 and 45, and a step that would do so is grayed out. While the
 layout is frozen, Fill, Tidy, Undo and every window action are grayed out, and the shortcuts do
 nothing.
