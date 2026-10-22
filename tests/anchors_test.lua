@@ -1611,7 +1611,7 @@ tests[#tests + 1] = function()
   anchors.start()
   focus(w)
   check("t79 top", titles(world.bar.menu()) == "⚓ Drop anchor (freeze layout),Re-moor now,-,"
-    .. "Window,Locked apps,Widths,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
+    .. "Window,Locked apps,Widths,Heights,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
   check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
     .. "Size and move,Displays,Custom sizes,Organize", titles(folder("Window")))
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
@@ -3099,6 +3099,206 @@ tests[#tests + 1] = function()
   world.trusted = true
   world.poll()
   check("t150 picked up", world.bar.title == "⛵" and world.notices[1].withdrawn == true)
+end
+
+-- stackedLeft pins Notes in the left top row and Slack below it, and returns both windows.
+local function stackedLeft()
+  anchors.config.pins = {
+    { bundle = "test.Notes", side = "left", row = "top" },
+    { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "bottom" },
+    { bundle = "com.googlecode.iterm2", side = "right" },
+  }
+  local notes = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
+  local slack = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
+  return notes, slack
+end
+
+-- heightPreset clicks the preset top of the side folder titled name.
+local function heightPreset(name, top)
+  local title = string.format("Top %d%%, bottom %d%%", top, 100 - top)
+  local side = item(name, folder("Heights"))
+  local it = side and item(title, side.menu)
+  check("heights has " .. name .. " " .. title, it ~= nil)
+  if it then it.fn({}, it) end
+end
+
+-- checkedHeights lists the checked preset of each side folder.
+local function checkedHeights()
+  local out = {}
+  for _, name in ipairs({ "Left side", "Right side" }) do
+    for _, it in ipairs(item(name, folder("Heights")).menu) do
+      if it.checked then out[#out + 1] = name .. " " .. it.title end
+    end
+  end
+  return table.concat(out, ",")
+end
+
+-- Test 151: With nothing chosen the rows split evenly and the Heights folder says so.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local notes, slack = stackedLeft()
+  anchors.start()
+  frameIs("t151 notes", notes, leftTop)
+  frameIs("t151 slack", slack, leftBottom)
+  check("t151 labels", titles(folder("Heights")) == "Left top 50%, bottom 50%,"
+    .. "Right top 50%, bottom 50%,Left top taller,Left top shorter,Right top taller,"
+    .. "Right top shorter,Left side,Right side", titles(folder("Heights")))
+  check("t151 label off", item("Left top 50%, bottom 50%").disabled == true)
+  check("t151 checked", checkedHeights()
+    == "Left side Top 50%, bottom 50%,Right side Top 50%, bottom 50%", checkedHeights())
+end
+
+-- Test 152: A preset sets one side's top row and leaves the other side alone.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local notes, slack = stackedLeft()
+  anchors.start()
+  heightPreset("Left side", 10)
+  frameIs("t152 notes short", notes, { x = 0, y = 25, w = 512, h = 141 })
+  frameIs("t152 slack tall", slack, { x = 0, y = 166, w = 512, h = 1274 })
+  local l, r = anchors.heights()
+  check("t152 heights", l == 10 and r == 50, l .. " " .. r)
+  check("t152 label", item("Left top 10%, bottom 90%") ~= nil)
+  check("t152 checked", checkedHeights()
+    == "Left side Top 10%, bottom 90%,Right side Top 50%, bottom 50%", checkedHeights())
+  for _, top in ipairs(anchors.heightPresets) do
+    heightPreset("Left side", top)
+    local h = math.floor(1415 * top / 100)
+    frameIs("t152 notes " .. top, notes, { x = 0, y = 25, w = 512, h = h })
+    frameIs("t152 slack " .. top, slack, { x = 0, y = 25 + h, w = 512, h = 1415 - h })
+  end
+end
+
+-- Test 153: The steppers move a top row by five points and stop with either row at 10.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local notes, slack = stackedLeft()
+  anchors.start()
+  click("Left top taller")
+  frameIs("t153 taller", notes, { x = 0, y = 25, w = 512, h = 778 })
+  frameIs("t153 below", slack, { x = 0, y = 803, w = 512, h = 637 })
+  check("t153 right kept", select(2, anchors.heights()) == 50)
+  check("t153 no preset", checkedHeights() == "Right side Top 50%, bottom 50%", checkedHeights())
+  click("Left top shorter")
+  frameIs("t153 back", notes, leftTop)
+  anchors.setHeights(90, 10)
+  check("t153 taller off", item("Left top taller").disabled == true)
+  check("t153 shorter on", item("Left top shorter").disabled == false)
+  check("t153 right shorter off", item("Right top shorter").disabled == true)
+  check("t153 refused", anchors.stepTop("left", 5) == false and anchors.stepTop("right", -5) == false)
+  local l, r = anchors.heights()
+  check("t153 unchanged", l == 90 and r == 10, l .. " " .. r)
+  click("Right top taller")
+  check("t153 right stepped", select(2, anchors.heights()) == 15)
+end
+
+-- Test 154: Config heights apply until a choice is saved, and a bad one falls back to 50
+-- without repeating its log line on every poll.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local notes = stackedLeft()
+  anchors.config.leftTopPct = 25
+  anchors.config.rightTopPct = 95
+  anchors.start()
+  frameIs("t154 config", notes, { x = 0, y = 25, w = 512, h = 353 })
+  world.poll()
+  world.poll()
+  check("t154 bad right", select(2, anchors.heights()) == 50)
+  check("t154 one log", said("rightTopPct must be a number from 10 to 90") == 1,
+    tostring(said("rightTopPct must be")))
+  check("t154 left quiet", said("leftTopPct") == 0)
+  heightPreset("Left side", 75)
+  frameIs("t154 choice wins", notes, { x = 0, y = 25, w = 512, h = 1061 })
+  anchors.config.leftTopPct = "tall"
+  hs.settings.clear("moorings.heights")
+  check("t154 junk config", select(1, anchors.heights()) == 50)
+end
+
+-- Test 155: A partial or junk saved height is read side by side against the config.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.rightTopPct = 30
+  world.settings["moorings.heights"] = { left = 20 }
+  local l, r = anchors.heights()
+  check("t155 partial", l == 20 and r == 30, l .. " " .. r)
+  world.settings["moorings.heights"] = { left = 5, right = "x" }
+  l, r = anchors.heights()
+  check("t155 bad values", l == 50 and r == 30, l .. " " .. r)
+  world.settings["moorings.heights"] = "junk"
+  l, r = anchors.heights()
+  check("t155 junk", l == 50 and r == 30, l .. " " .. r)
+  anchors.start()
+  check("t155 menu builds", item("Left top 50%, bottom 50%") ~= nil
+    and item("Right top 30%, bottom 70%") ~= nil)
+end
+
+-- Test 156: Expand on focus widens a stacked pin and keeps its chosen height.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins = {
+    { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top", expandPct = 30 },
+    { bundle = "test.Notes", side = "left", row = "bottom" },
+  }
+  local slack = addWin("Slack", leftTop)
+  local notes = addWin("Notes", leftBottom)
+  world.settings["moorings.heights"] = { left = 25, right = 50 }
+  anchors.start()
+  focus(slack)
+  world.onEvent()
+  frameIs("t156 slack expanded", slack, { x = 0, y = 25, w = 1536, h = 353 })
+  frameIs("t156 notes kept", notes, { x = 0, y = 378, w = 512, h = 1062 })
+end
+
+-- Test 157: A side with one pin fills the full height whatever its top row height is.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  world.settings["moorings.heights"] = { left = 10, right = 90 }
+  local slack = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
+  local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
+  anchors.start()
+  frameIs("t157 slack full", slack, leftFull)
+  frameIs("t157 iterm full", term, rightFull)
+  frameIs("t157 slot frame", { f = anchors.slotFrame(world.screens[1], "left-bottom") },
+    { x = 0, y = 166, w = 512, h = 1274 })
+end
+
+-- Test 158: A workspace puts back its heights, and one saved without heights or with bad
+-- heights keeps the heights in effect.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local notes = stackedLeft()
+  anchors.start()
+  heightPreset("Left side", 25)
+  heightPreset("Right side", 67)
+  saveAs("Calendar")
+  heightPreset("Left side", 90)
+  anchors.recallWorkspace("Calendar")
+  local l, r = anchors.heights()
+  check("t158 recalled", l == 25 and r == 67, l .. " " .. r)
+  frameIs("t158 notes", notes, { x = 0, y = 25, w = 512, h = 353 })
+  local list = world.settings["moorings.workspaces"]
+  list.Old = { left = 10, right = 45, windows = {} }
+  list.Bad = { left = 10, right = 45, heights = { left = 5, right = 50 }, windows = {} }
+  world.settings["moorings.workspaces"] = list
+  anchors.recallWorkspace("Old")
+  l, r = anchors.heights()
+  check("t158 old kept", l == 25 and r == 67, l .. " " .. r)
+  anchors.recallWorkspace("Bad")
+  l, r = anchors.heights()
+  check("t158 bad kept", l == 25 and r == 67, l .. " " .. r)
+end
+
+-- Test 159: A chosen height survives reload.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  heightPreset("Left side", 10)
+  local settings = world.settings
+  install(ultrawide())
+  world.settings = settings
+  local notes = stackedLeft()
+  anchors.start()
+  frameIs("t159 kept", notes, { x = 0, y = 25, w = 512, h = 141 })
 end
 
 for i, t in ipairs(tests) do

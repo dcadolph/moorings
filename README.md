@@ -110,7 +110,9 @@ in the channel moves when it opens or closes.
 
 To lock another app, click it, open the sailboat menu, choose Locked apps, Pin frontmost app,
 then pick a slot. The wider and narrower items under Widths move each strip by 1%, and the
-Channel label shows what is left in the middle.
+Channel label shows what is left in the middle. When two apps share a side, Heights sets how
+tall the top one is, from 10% to 90%, and the bottom one takes the rest. A calendar at 10% over
+Slack at 90% is Heights, Left side, Top 10%.
 
 Press Control-Option-Left to put the focused window in the left half of the channel. Press it
 again for two thirds, then one third. The Window folder in the menu lists every action with its
@@ -125,7 +127,7 @@ layouts, workspace matching, and key recording. Each exits non-zero on any failu
 
 ### Menu
 
-The top of the menu holds Drop anchor and Re-moor now, then five folders, then Reload.
+The top of the menu holds Drop anchor and Re-moor now, then six folders, then Reload.
 
 | Item                       | What it holds&nbsp;                                                                                                        |
 |----------------------------|----------------------------------------------------------------------------------------------------------------------------|
@@ -135,6 +137,7 @@ The top of the menu holds Drop anchor and Re-moor now, then five folders, then R
 | Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                           |
 | Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                                                                  |
 | Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                                         |
+| Heights                    | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                |
 | Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                              |
 | Settings                   | Settings window, Fullscreen fills the channel, Snap by dragging, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
 | Reload                     | Reloads the Hammerspoon config once every moorings file compiles.                                                          |
@@ -243,8 +246,8 @@ None has a default shortcut. Bind one in `shortcuts`, such as `["tile-all"] = { 
 
 ### Workspaces
 
-Workspaces, Save current layout asks for a name and saves the four slots, the strip widths, and
-the frame of every free window on every display. Recall puts them all back. Windows are matched
+Workspaces, Save current layout asks for a name and saves the four slots, the strip widths and
+heights, and the frame of every free window on every display. Recall puts them all back. Windows are matched
 by app and then by title, so two Safari windows each go back to their own place. A window whose
 app is not running, or whose display is not attached, stays where it is and the Console says
 how many.
@@ -337,7 +340,7 @@ the config file. Reset to defaults clears them.
 
 A locked app keeps the `expandPct` and `mainOnly` the config gives it. Apps the config does not
 name get no expand, and all of their windows move into the slot. Expand on focus widens an app
-only within its own half of the strip.
+only within its own row of the strip.
 
 ### Pins
 
@@ -345,7 +348,7 @@ Pins, widths and the poll rate live in `M.config` at the top of `anchors.lua`. E
 app by bundle ID, the side it sits on, an optional `expandPct` it grows to while focused, and an
 optional `mainOnly` that moves only the app's main window, so Slack huddles and preference panes
 stay put. A side holds up to two pins. One pin fills the strip's full height. Two split it into
-top and bottom halves in config order, unless a pin sets `row` to `"top"` or `"bottom"`. A
+top and bottom rows in config order, unless a pin sets `row` to `"top"` or `"bottom"`. A
 third pin on a side, a row other than top or bottom, and two pins asking for the same row are
 each reported in the Console once at load. Pinned windows on other displays are pulled onto the
 ultrawide. Apps listed in `ignoreBundles` are never moved or offered in the menu. This example
@@ -364,7 +367,9 @@ ignoreBundles = { "us.zoom.xos" },
 Find an app's bundle ID with `osascript -e 'id of app "Spotify"'`.
 
 The config pins apply until Locked apps choices are saved. A width chosen from the menu, by a
-preset or a step, wins over `leftPct` and `rightPct` in the file.
+preset or a step, wins over `leftPct` and `rightPct` in the file. The top row of each side is
+`leftTopPct` and `rightTopPct` percent of the strip's height, 50 by default and 10 to 90, and a
+height chosen from Heights wins over them the same way.
 
 ### Channel rules
 
