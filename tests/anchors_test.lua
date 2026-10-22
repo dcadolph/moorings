@@ -142,6 +142,7 @@ local function install(...)
     openConsole = function() world.console = true end,
     reload = function() world.reloaded = true end,
     execute = function(cmd) world.executed = cmd end,
+    alert = { show = function(msg) world.alerted = msg end },
     settings = {
       get = function(k) return world.settings[k] end,
       set = function(k, v) world.settings[k] = v end,
@@ -451,11 +452,50 @@ tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
   click("Edit config")
-  check("t17 edit", world.executed == "open -t /tmp/hammerspoon/anchors.lua")
+  check("t17 edit", world.executed == "open -t '/tmp/hammerspoon/anchors.lua'")
   click("Console")
   check("t17 console", world.console == true)
+  anchors.loadfile = function() return function() end end
   click("Reload")
   check("t17 reload", world.reloaded == true)
+end
+
+-- Test 30: Reload is refused with an alert when the config does not compile.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  anchors.loadfile = function() return nil, "anchors.lua:9: unexpected symbol" end
+  click("Reload")
+  check("t30 not reloaded", world.reloaded == nil)
+  check("t30 alerted", world.alerted ~= nil)
+  check("t30 logged", world.printed[#world.printed] ~= nil
+    and world.printed[#world.printed]:find("unexpected symbol", 1, true) ~= nil)
+end
+
+-- Test 31: Edit config quotes a config directory that holds spaces and quotes.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  hs.configdir = "/tmp/my dir/it's"
+  anchors.start()
+  click("Edit config")
+  check("t31 quoted", world.executed == "open -t '/tmp/my dir/it'\\''s/anchors.lua'",
+    tostring(world.executed))
+end
+
+-- Test 32: A bundle pinned twice is reported and the first entry wins.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.pins[#anchors.config.pins + 1] =
+    { bundle = "com.tinyspeck.slackmacgap", side = "right" }
+  anchors.start()
+  local said = false
+  for _, line in ipairs(world.printed) do
+    if line:find("pinned twice", 1, true) then said = true end
+  end
+  check("t32 reported", said)
+  local win = addWin("Slack", { x = 3000, y = 100, w = 300, h = 300 })
+  anchors.moor()
+  frameIs("t32 first wins", win, { x = 0, y = 25, w = 512, h = 1415 })
 end
 
 -- Test 18: An error inside a callback is logged instead of raised.
