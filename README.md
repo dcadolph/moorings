@@ -394,7 +394,8 @@ Anchored apps, widths and the poll rate live in `M.config` at the top of `anchor
 in `anchored` names an app by bundle ID, the side it sits on, and an optional `expandPct` it grows to
 while focused. An anchored app holds one window, the main window when moorings first sees the app,
 and keeps holding it until it closes. The app's other windows are free, so Slack huddles, preference
-panes and a tab torn out of iTerm stay out of the slot. A side holds up to two anchored apps. One
+panes and a tab torn out of iTerm stay out of the slot. An Open or Save picker is never held, so an
+app that starts on its file picker, such as TextEdit, leaves its slot empty until a document opens. A side holds up to two anchored apps. One
 fills the strip's full height. Two split it into top and bottom rows in config order, unless an
 entry sets `row` to `"top"` or `"bottom"`. A third entry on a side, a row other than top or bottom,
 and two entries asking for the same row are each reported in the Console once at load. Anchored

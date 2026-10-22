@@ -180,6 +180,13 @@ local function install(...)
     dirs = {}, images = { [markPath] = true }, notices = {},
   }
   hs = {
+    axuielement = {
+      windowElement = function(w)
+        world.axReads = (world.axReads or 0) + 1
+        if w.axFails then error("AX read failed") end
+        return { attributeValue = function(_, k) if k == "AXIdentifier" then return w.ident end end }
+      end,
+    },
     hotkey = {
       new = function(mods, key, fn)
         if key == "bogus" then error("unknown key") end
@@ -4569,6 +4576,59 @@ tests[#tests + 1] = function()
   world.trusted = false
   check("t196 under grant", starts(titles(world.bar.menu()),
     "⚠️ Grant Accessibility access,-,Update moorings (v9.0.0)"), titles(world.bar.menu()))
+end
+
+-- Test 197: A pin never holds an open or save panel. With only the picker up the side stays
+-- reserved and empty and the picker is a free window in the channel; the document that opens
+-- next is held. The identifier is read once per window, and a failed read counts as a normal
+-- window.
+tests[#tests + 1] = function()
+  local function settle()
+    for _ = 1, 3 do
+      world.clock = world.clock + 1
+      world.poll()
+    end
+  end
+  install(ultrawide())
+  local picker = addWin("Slack", { x = 700, y = 100, w = 996, h = 1000 })
+  picker.ident = "open-panel"
+  anchors.start()
+  world.poll()
+  world.poll()
+  check("t197 picker not pinned", not anchors.pinned(picker))
+  local ch = anchors.channel(world.screens[1])
+  check("t197 picker in channel", picker.f.x >= ch.x and picker.f.x + picker.f.w <= ch.x + ch.w,
+    picker.f.x .. " " .. ch.x)
+  check("t197 side kept at its width", ch.x == leftFull.w, tostring(ch.x))
+  check("t197 read once", world.axReads == 1, tostring(world.axReads))
+  local doc = addWin("Slack", { x = 1200, y = 200, w = 800, h = 600 })
+  doc.ident = "_NS:34"
+  picker.secondary = true
+  settle()
+  frameIs("t197 document held", doc, leftFull)
+  check("t197 picker still free", not anchors.pinned(picker))
+  world.windows = {}
+  settle()
+  local reads = world.axReads
+  picker.secondary = false
+  table.insert(world.windows, picker)
+  settle()
+  check("t197 closed window forgotten", world.axReads == reads + 1, world.axReads .. " " .. reads)
+
+  install(ultrawide())
+  local save = addWin("Slack", { x = 700, y = 100, w = 800, h = 600 })
+  save.ident = "save-panel"
+  anchors.start()
+  world.poll()
+  check("t197 save panel not pinned", not anchors.pinned(save))
+
+  install(ultrawide())
+  local odd = addWin("Slack", { x = 700, y = 100, w = 800, h = 600 })
+  odd.axFails = true
+  anchors.start()
+  world.poll()
+  check("t197 failed read pinned", anchors.pinned(odd))
+  frameIs("t197 failed read placed", odd, leftFull)
 end
 
 for i, t in ipairs(tests) do
