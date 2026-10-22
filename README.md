@@ -88,16 +88,16 @@ Press Control-Option-Left to put the focused window in the left half of the chan
 again for two thirds, then one third. The Window folder in the menu lists every action with its
 shortcut.
 
-To test a change, run `for t in anchors geometry actions snap tile; do lua tests/${t}_test.lua; done`
+To test a change, run `for t in anchors geometry actions snap tile workspaces; do lua tests/${t}_test.lua; done`
 from the repo root. The anchors test drives the whole tool against a fake Hammerspoon, and the
-others check the frame math, the keymap and menu families, the drag zones, and the organize
-layouts. Each exits non-zero on any failure.
+others check the frame math, the keymap and menu families, the drag zones, the organize
+layouts, and workspace matching. Each exits non-zero on any failure.
 
 ## Docs
 
 ### Menu
 
-The top of the menu holds Drop anchor and Re-moor now, then four folders, then Reload.
+The top of the menu holds Drop anchor and Re-moor now, then five folders, then Reload.
 
 | Item                       | What it holds&nbsp;                                                                                       |
 |----------------------------|-----------------------------------------------------------------------------------------------------------|
@@ -107,6 +107,7 @@ The top of the menu holds Drop anchor and Re-moor now, then four folders, then R
 | Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                          |
 | Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                                                 |
 | Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                        |
+| Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.             |
 | Settings                   | Fullscreen fills the channel, Snap by dragging, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
 | Reload                     | Reloads the Hammerspoon config once every moorings file compiles.                                         |
 
@@ -212,6 +213,23 @@ the ultrawide that means the windows in the channel, and pins never move.
 None has a default shortcut. Bind one in `shortcuts`, such as `["tile-all"] = { mods = { "ctrl",
 "alt" }, key = "a" }`. Undo tidy and Restore put tiled and cascaded windows back.
 
+### Workspaces
+
+Workspaces, Save current layout asks for a name and saves the four slots, the strip widths, and
+the frame of every free window on every display. Recall puts them all back. Windows are matched
+by app and then by title, so two Safari windows each go back to their own place. A window whose
+app is not running, or whose display is not attached, stays where it is and the Console says
+how many.
+
+Recall when these displays connect ties a workspace to the displays attached now. Plugging the
+laptop into that setup again recalls it. Each setup holds one workspace, and starting or
+reloading moorings never recalls anything. A workspace also runs from a shortcut or a link as
+`workspace:` followed by its name:
+
+```lua
+shortcuts = { ["workspace:Desk"] = { mods = { "ctrl", "alt" }, key = "1" } },
+```
+
 ### Snap by dragging
 
 Drag a window by its title bar to a screen edge and a footprint shows where it will land. Let go
@@ -225,8 +243,13 @@ over the left strip snaps to the channel's left half and over the right strip to
 The top or bottom of a strip gives that corner's quarter of the channel. The top edge above the
 channel maximizes into the channel, and its bottom edge gives the channel's thirds.
 
-A drag that resizes a window, a drag inside a window, and a pinned window never snap. Untick
-Settings, Snap by dragging to turn it off.
+Hold Option while dropping a window on a strip to park its app there instead. The top half of a
+strip is that side's top slot and the bottom half its bottom slot, and the footprint shows the
+slot. This is the same as picking the app in Locked apps, so an app already in another slot
+moves. A pinned window can be parked in another slot this way.
+
+A drag that resizes a window and a drag inside a window never snap, and a pinned window only
+parks. Untick Settings, Snap by dragging to turn snapping and parking off.
 
 iTerm resizes in whole character cells, so its windows land a few points short of a snap target.
 Run `defaults write com.googlecode.iterm2 DisableWindowSizeSnap -integer 1` to turn that off.

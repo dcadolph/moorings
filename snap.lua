@@ -1,6 +1,7 @@
 -- snap places a window dragged to a screen edge, as Rectangle does. On the
 -- ultrawide the edges belong to the pins, so the strips stand in for them and
--- every snap lands in the channel. A footprint shows the target while the
+-- every snap lands in the channel, and a window dropped on a strip with Option
+-- held parks its app in that slot. A footprint shows the target while the
 -- mouse is held.
 
 local S = {}
@@ -85,6 +86,19 @@ function S.zone(p, f, ch, prev)
   return nil
 end
 
+-- parkPrefix starts a zone that parks the window's app in a slot.
+local parkPrefix = "park:"
+
+-- park returns the slot key, such as left-top, of the strip half under p on
+-- the ultrawide with full frame f and channel ch, or nil over the channel.
+function S.park(p, f, ch)
+  local side = (p.x < ch.x and "left") or (p.x >= ch.x + ch.w and "right") or nil
+  if not side then
+    return nil
+  end
+  return side .. "-" .. (p.y < f.y + f.h / 2 and "top" or "bottom")
+end
+
 local host, actions
 local state = {}
 
@@ -165,11 +179,7 @@ local function moving()
   if f.w ~= s.w or f.h ~= s.h then
     state.done = true
   elseif f.x ~= s.x or f.y ~= s.y then
-    if host.pinned(state.win) then
-      state.done = true
-    else
-      state.moving = true
-    end
+    state.moving, state.pinned = true, host.pinned(state.win)
   else
     state.checks = state.checks + 1
     state.done = state.checks >= maxChecks
@@ -177,8 +187,22 @@ local function moving()
   return state.moving == true
 end
 
+-- zoneAt returns the zone under p on screen s. With Option held over a strip
+-- it is a park zone, and a pinned window has no other zones.
+local function zoneAt(p, s, alt)
+  local ch = channelOf(s)
+  if ch and alt then
+    local key = host.parkable(state.win) and S.park(p, s:fullFrame(), ch)
+    return key and parkPrefix .. key or nil
+  end
+  if state.pinned then
+    return nil
+  end
+  return S.zone(p, s:fullFrame(), ch, state.zone)
+end
+
 -- dragged follows the cursor and moves the footprint when the zone changes.
-local function dragged()
+local function dragged(e)
   if not state.down or state.done or host.paused() or not host.snapOn() then
     return
   end
@@ -187,13 +211,18 @@ local function dragged()
   end
   local p = hs.mouse.absolutePosition()
   local s = screenAt(p)
-  local zone = s and S.zone(p, s:fullFrame(), channelOf(s), state.zone) or nil
+  local zone = s and zoneAt(p, s, e:getFlags().alt == true) or nil
   local sid = s and s:id()
   if zone == state.zone and sid == state.sid then
     return
   end
   state.zone, state.screen, state.sid = zone, s, sid
-  local frame = zone and actions.preview(state.win, zone, s)
+  local frame
+  if zone and zone:sub(1, #parkPrefix) == parkPrefix then
+    frame = host.slotFrame(s, zone:sub(#parkPrefix + 1))
+  elseif zone then
+    frame = actions.preview(state.win, zone, s)
+  end
   if frame then
     show(frame)
   else
@@ -201,19 +230,26 @@ local function dragged()
   end
 end
 
--- released snaps the window when the drag ended in a zone. The move runs after
--- the event so the tap never waits on a window.
+-- released snaps the window, or parks its app, when the drag ended in a zone.
+-- The work runs after the event so the tap never waits on a window.
 local function released()
   local win, zone, s = state.win, state.zone, state.screen
   reset()
-  if win and zone then
-    hs.timer.doAfter(0, function()
-      local ok, err = pcall(actions.apply, win, zone, s)
-      if not ok then
-        host.log(err)
+  if not (win and zone) then
+    return
+  end
+  hs.timer.doAfter(0, function()
+    local ok, err = pcall(function()
+      if zone:sub(1, #parkPrefix) == parkPrefix then
+        host.assign(zone:sub(#parkPrefix + 1), win:application():bundleID())
+      else
+        actions.apply(win, zone, s)
       end
     end)
-  end
+    if not ok then
+      host.log(err)
+    end
+  end)
 end
 
 -- handle routes one mouse event. It always returns false so the event goes on
@@ -225,7 +261,7 @@ function S.handle(e)
       reset()
       state.down = true
     elseif t == types.leftMouseDragged then
-      dragged()
+      dragged(e)
     elseif t == types.leftMouseUp then
       released()
     end

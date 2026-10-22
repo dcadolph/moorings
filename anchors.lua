@@ -5,6 +5,7 @@ local actions = require("actions")
 local geometry = require("geometry")
 local snap = require("snap")
 local tile = require("tile")
+local workspaces = require("workspaces")
 
 local M = {}
 
@@ -148,7 +149,7 @@ M.loadfile = loadfile
 
 -- files lists the moorings source files, which live in the moorings folder
 -- inside the Hammerspoon config directory.
-M.files = { "anchors.lua", "geometry.lua", "actions.lua", "snap.lua", "tile.lua" }
+M.files = { "anchors.lua", "geometry.lua", "actions.lua", "snap.lua", "tile.lua", "workspaces.lua" }
 
 -- path returns the full path of a moorings source file.
 function M.path(file)
@@ -366,6 +367,11 @@ local function ignored(win)
   return ignoredBundle(bundleOf(win))
 end
 
+-- parkable reports whether win's app may take a slot.
+function M.parkable(win)
+  return not ignored(win)
+end
+
 -- shortcutIgnores returns the bundles chosen with Ignore frontmost app.
 local function shortcutIgnores()
   local saved = hs.settings.get(keys.ignoreShortcuts)
@@ -556,6 +562,14 @@ function M.resetSlots()
   M.moor()
 end
 
+-- slotFrame returns the frame of the slot named key, such as left-top, on
+-- screen s at the side's current width.
+function M.slotFrame(s, key)
+  local side, row = key:match("^(%a+)-(%a+)$")
+  local leftPct, rightPct = M.widths()
+  return M.slot(s:frame(), side, row, side == "left" and leftPct or rightPct)
+end
+
 -- slotFor returns the slot of win's app, or nil when the app is not pinned.
 function M.slotFor(win)
   local slots = M.layout(M.pins())
@@ -619,6 +633,31 @@ local function windows()
   end
   return list
 end
+
+-- freeWindows returns every window on any screen that is not pinned and not
+-- fullscreen, front-most first.
+function M.freeWindows()
+  local list = {}
+  for _, w in ipairs(windows()) do
+    if not M.pinned(w) and not w:isFullScreen() then
+      list[#list + 1] = w
+    end
+  end
+  return list
+end
+
+-- setLayout saves slots and the strip widths without re-mooring. A value that
+-- is missing or leaves no channel is skipped.
+function M.setLayout(slots, left, right)
+  if type(slots) == "table" then
+    hs.settings.set(keys.slots, slots)
+  end
+  if validSplit(left, right) then
+    hs.settings.set(keys.widths, { left = left, right = right })
+  end
+end
+
+M.recallWorkspace = workspaces.recall
 
 -- organizable returns the windows on screen s that organize actions may move:
 -- not pinned and not fullscreen, front-most first.
@@ -911,6 +950,44 @@ local function widthItems()
   return items
 end
 
+-- workspaceItems builds the Workspaces folder: a row per saved workspace that
+-- opens Recall, the display tie, Replace and Delete, then Save current layout.
+local function workspaceItems()
+  local frozen, items = paused(), {}
+  for _, name in ipairs(workspaces.names()) do
+    items[#items + 1] = {
+      title = name,
+      menu = {
+        { title = "Recall", disabled = frozen, fn = safe(function() workspaces.recall(name) end) },
+        {
+          title = "Recall when these displays connect",
+          checked = workspaces.tied(name),
+          fn = safe(function() workspaces.tie(name) end),
+        },
+        { title = "Replace with current layout", fn = safe(function() workspaces.save(name) end) },
+        { title = "Delete", fn = safe(function() workspaces.delete(name) end) },
+      },
+    }
+  end
+  if #items == 0 then
+    items[1] = { title = "No saved workspaces", disabled = true }
+  end
+  items[#items + 1] = { title = "-" }
+  items[#items + 1] = {
+    title = "Save current layout…",
+    fn = safe(function()
+      hs.focus()
+      local button, name = hs.dialog.textPrompt("Save workspace",
+        "Name this layout of slots, widths and windows.", "", "Save", "Cancel")
+      name = type(name) == "string" and name:match("^%s*(.-)%s*$") or ""
+      if button == "Save" and name ~= "" then
+        workspaces.save(name)
+      end
+    end),
+  }
+  return items
+end
+
 -- settingItems builds the Settings folder.
 local function settingItems()
   local keymaps, current = {}, M.keymap()
@@ -990,6 +1067,7 @@ local function menu()
     { title = "Window", menu = windowItems() },
     { title = "Locked apps", menu = lockedItems() },
     { title = "Widths", menu = widthItems() },
+    { title = "Workspaces", menu = workspaceItems() },
     { title = "Settings", menu = settingItems() },
     { title = "-" },
     { title = "Reload", fn = safe(M.reload) },
@@ -1032,7 +1110,11 @@ function M.start()
     wf.windowFullscreened,
     wf.windowUnfullscreened,
   }, safe(M.moor))
-  M.screens = hs.screen.watcher.new(safe(M.moor)):start()
+  workspaces.attach(M)
+  M.screens = hs.screen.watcher.new(safe(function()
+    workspaces.screensChanged()
+    M.moor()
+  end)):start()
   M.timer = hs.timer.doEvery(M.config.pollSeconds, safe(M.moor))
   safe(M.moor)()
   return M

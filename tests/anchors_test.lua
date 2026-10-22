@@ -108,6 +108,9 @@ function Win:application()
   }
 end
 
+-- Win:title returns the window title, the app name unless a test sets one.
+function Win:title() return self.name or self.app end
+
 -- Win:focus makes the window the focused one.
 function Win:focus() world.focused = self end
 
@@ -199,6 +202,13 @@ local function install(...)
       end,
     },
     urlevent = { bind = function(name, fn) world.urls[name] = fn end },
+    focus = function() world.hsFocused = true end,
+    dialog = {
+      textPrompt = function(...)
+        world.promptArgs = { ... }
+        return table.unpack(world.prompt or { "Cancel", "" })
+      end,
+    },
     canvas = {
       new = function(frame)
         local c = { f = copy(frame), shown = false }
@@ -247,7 +257,12 @@ local function install(...)
     },
     screen = {
       allScreens = function() return world.screens end,
-      watcher = { new = function() return { start = function(self) return self end } end },
+      watcher = {
+        new = function(fn)
+          world.onScreens = fn
+          return { start = function(self) return self end }
+        end,
+      },
     },
     window = {
       orderedWindows = function()
@@ -1545,7 +1560,7 @@ tests[#tests + 1] = function()
   anchors.start()
   focus(w)
   check("t79 top", titles(world.bar.menu()) == "⚓ Drop anchor (freeze layout),Re-moor now,-,"
-    .. "Window,Locked apps,Widths,Settings,-,Reload", titles(world.bar.menu()))
+    .. "Window,Locked apps,Widths,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
   check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
     .. "Size and move,Displays,Custom sizes,Organize", titles(folder("Window")))
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
@@ -1616,7 +1631,10 @@ end
 
 -- fire sends a mouse event of type t through the snap tap and checks it passes on.
 local function fire(t)
-  local passed = world.tap({ getType = function() return t end })
+  local passed = world.tap({
+    getType = function() return t end,
+    getFlags = function() return world.flags or {} end,
+  })
   check("tap passes event " .. t, passed == false)
 end
 
@@ -2057,6 +2075,249 @@ tests[#tests + 1] = function()
     if tap.types[1] == 25 and tap.running then running = running + 1 end
   end
   check("t106 one tap after rebind", running == 1, tostring(running))
+end
+
+-- Test 107: Option-dropping a window on a strip half parks its app in that slot.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local term = addWin("iTerm2", rightFull)
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  world.flags = { alt = true }
+  drag(w, { { x = 1300, y = 300 }, { x = 4000, y = 1000 } })
+  frameIs("t107 footprint", { f = world.canvas.f }, rightBottom)
+  fire(2)
+  check("t107 slot", anchors.assignments()["right-bottom"] == "test.Safari")
+  frameIs("t107 parked", w, rightBottom)
+  frameIs("t107 iterm top", term, rightTop)
+  check("t107 row", item("Right bottom: Safari") ~= nil)
+end
+
+-- Test 108: Option over the channel neither parks nor snaps, and Option on a normal screen
+-- snaps as usual.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  world.flags = { alt = true }
+  drag(w, { { x = 1300, y = 300 }, { x = 1500, y = 1 } })
+  check("t108 no footprint", world.canvas == nil)
+  local f = copy(w.f)
+  fire(2)
+  frameIs("t108 left alone", w, f)
+  check("t108 no slot", world.settings["moorings.slots"] == nil)
+  install(laptop())
+  local l = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  world.flags = { alt = true }
+  drag(l, { { x = 900, y = 500 }, { x = 0, y = 540 } })
+  fire(2)
+  frameIs("t108 laptop snap", l, { x = 0, y = 25, w = 960, h = 1055 })
+end
+
+-- Test 109: A pinned window can be parked in another slot but never snaps.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  world.flags = { alt = true }
+  drag(slack, { { x = 200, y = 300 }, { x = 4000, y = 200 } })
+  fire(2)
+  check("t109 moved slot", anchors.assignments()["right-top"] == "com.tinyspeck.slackmacgap"
+    and anchors.assignments()["left-top"] == "")
+  world.flags = {}
+  local before = slack.moves
+  drag(slack, { { x = 4000, y = 300 }, { x = 1500, y = 1 } })
+  check("t109 no snap footprint", world.canvas == nil)
+  fire(2)
+  check("t109 no snap", slack.moves == before)
+end
+
+-- Test 110: An ignored app cannot be parked.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.ignoreBundles = { "test.Zoom" }
+  local z = addWin("Zoom", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  world.flags = { alt = true }
+  drag(z, { { x = 1300, y = 300 }, { x = 200, y = 200 } })
+  check("t110 no footprint", world.canvas == nil)
+  fire(2)
+  check("t110 no slot", world.settings["moorings.slots"] == nil)
+end
+
+-- save names the current layout through the Save current layout prompt.
+local function saveAs(name)
+  world.prompt = { "Save", name }
+  click("Save current layout…")
+end
+
+-- Test 111: A workspace puts back the slots, widths and free window frames.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local safari = addWin("Safari", { x = 600, y = 100, w = 900, h = 700 })
+  local chrome = addWin("Chrome", { x = 1600, y = 300, w = 1000, h = 800 })
+  addWin("Notes", { x = 2000, y = 200, w = 400, h = 400 })
+  anchors.start()
+  check("t111 empty", item("No saved workspaces") ~= nil)
+  saveAs("  Coding ")
+  check("t111 prompt", world.hsFocused and world.promptArgs[1] == "Save workspace")
+  check("t111 listed", item("Coding") ~= nil and item("No saved workspaces") == nil)
+  click("Left 20%, right 40%")
+  pick("Left bottom: Empty", "Notes")
+  safari.f = { x = 1100, y = 50, w = 500, h = 500 }
+  chrome.f = { x = 1100, y = 600, w = 500, h = 500 }
+  focus(safari)
+  click("Recall")
+  local l, r = anchors.widths()
+  check("t111 widths", l == 10 and r == 45)
+  check("t111 slots", anchors.assignments()["left-bottom"] == "")
+  frameIs("t111 slack", slack, leftFull)
+  frameIs("t111 safari", safari, { x = 600, y = 100, w = 900, h = 700 })
+  frameIs("t111 chrome", chrome, { x = 1600, y = 300, w = 1000, h = 800 })
+  press("ctrl+alt", "delete")
+  frameIs("t111 restore", safari, { x = 1100, y = 50, w = 500, h = 500 })
+end
+
+-- Test 112: Windows of one app go back by title, and a missing app is reported.
+tests[#tests + 1] = function()
+  install(laptop())
+  local docs = addWin("Safari", { x = 0, y = 25, w = 900, h = 700 })
+  docs.name = "Docs"
+  local mail = addWin("Safari", { x = 1000, y = 25, w = 900, h = 700 })
+  mail.name = "Mail"
+  addWin("Notes", { x = 100, y = 800, w = 300, h = 200 })
+  anchors.start()
+  focus(docs)
+  saveAs("Two")
+  docs.f, mail.f = copy(mail.f), copy(docs.f)
+  table.remove(world.windows, 1)
+  anchors.recallWorkspace("Two")
+  frameIs("t112 docs", docs, { x = 0, y = 25, w = 900, h = 700 })
+  frameIs("t112 mail", mail, { x = 1000, y = 25, w = 900, h = 700 })
+  check("t112 missed", said("workspace Two: 1 windows had no running app or display") == 1)
+end
+
+-- Test 113: A workspace tied to a display setup comes back when that setup is plugged in.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Safari", { x = 600, y = 100, w = 900, h = 700 })
+  anchors.start()
+  saveAs("Desk")
+  click("Recall when these displays connect")
+  check("t113 tied", item("Recall when these displays connect").checked == true)
+  local wide = world.screens[1]
+  world.screens = { newScreen(2, 0, 1512, 982) }
+  w.f = { x = 100, y = 100, w = 900, h = 700 }
+  world.onScreens()
+  frameIs("t113 no recall on laptop", w, { x = 100, y = 100, w = 900, h = 700 })
+  check("t113 not tied here", item("Recall when these displays connect").checked == false)
+  world.screens = { wide }
+  w.f = { x = 1000, y = 300, w = 900, h = 700 }
+  world.onScreens()
+  frameIs("t113 recalled", w, { x = 600, y = 100, w = 900, h = 700 })
+  w.f = { x = 1000, y = 300, w = 900, h = 700 }
+  world.onScreens()
+  frameIs("t113 same setup no repeat", w, { x = 1000, y = 300, w = 900, h = 700 })
+  pick("Desk", "Replace with current layout")
+  check("t113 replace keeps tie", item("Recall when these displays connect").checked == true)
+  click("Recall when these displays connect")
+  check("t113 untied", item("Recall when these displays connect").checked == false)
+end
+
+-- Test 114: Tying a second workspace to a setup unties the first, and a reload recalls nothing.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Safari", { x = 600, y = 100, w = 900, h = 700 })
+  anchors.start()
+  saveAs("A")
+  saveAs("B")
+  pick("A", "Recall when these displays connect")
+  pick("B", "Recall when these displays connect")
+  check("t114 a untied", item("Recall when these displays connect", item("A").menu).checked == false)
+  check("t114 b tied", item("Recall when these displays connect", item("B").menu).checked == true)
+  local settings = world.settings
+  install(ultrawide())
+  world.settings = settings
+  local w2 = addWin("Safari", { x = 1000, y = 300, w = 900, h = 700 })
+  anchors.start()
+  world.onScreens()
+  frameIs("t114 no recall on reload", w2, { x = 1000, y = 300, w = 900, h = 700 })
+end
+
+-- Test 115: Replace, Delete, a canceled or blank name, and a frozen layout.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 100, y = 100, w = 900, h = 700 })
+  anchors.start()
+  focus(w)
+  world.prompt = { "Cancel", "Nope" }
+  click("Save current layout…")
+  world.prompt = { "Save", "   " }
+  click("Save current layout…")
+  check("t115 nothing saved", item("No saved workspaces") ~= nil)
+  saveAs("Main")
+  w.f = { x = 500, y = 300, w = 600, h = 400 }
+  pick("Main", "Replace with current layout")
+  w.f = { x = 0, y = 25, w = 300, h = 300 }
+  click("⚓ Drop anchor (freeze layout)")
+  check("t115 recall disabled", item("Recall").disabled == true)
+  anchors.recallWorkspace("Main")
+  frameIs("t115 frozen", w, { x = 0, y = 25, w = 300, h = 300 })
+  click("⚓ Weigh anchor (resume layout)")
+  click("Recall")
+  frameIs("t115 replaced", w, { x = 500, y = 300, w = 600, h = 400 })
+  pick("Main", "Delete")
+  check("t115 deleted", item("No saved workspaces") ~= nil)
+end
+
+-- Test 116: A workspace runs from a shortcut or a link, and an unknown one is reported.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.config.shortcuts = { ["workspace:Main"] = { mods = { "ctrl", "alt" }, key = "1" } }
+  local w = addWin("Safari", { x = 100, y = 100, w = 900, h = 700 })
+  anchors.start()
+  focus(w)
+  saveAs("Main")
+  w.f = { x = 500, y = 300, w = 600, h = 400 }
+  press("ctrl+alt", "1")
+  frameIs("t116 shortcut", w, { x = 100, y = 100, w = 900, h = 700 })
+  w.f = { x = 500, y = 300, w = 600, h = 400 }
+  world.urls.moorings("moorings", { action = "workspace:Main" })
+  frameIs("t116 link", w, { x = 100, y = 100, w = 900, h = 700 })
+  world.urls.moorings("moorings", { action = "workspace:Gone" })
+  check("t116 unknown", said("no workspace is named Gone") == 1)
+  world.urls.moorings("moorings", { action = "workspace:" })
+  check("t116 empty name", said("unknown action workspace:") == 1)
+end
+
+-- Test 117: A saved window whose display is gone stays where it is.
+tests[#tests + 1] = function()
+  local side = newScreen(2, 5120, 1512, 982)
+  install(ultrawide(), side)
+  local w = addWin("Safari", { x = 5300, y = 100, w = 800, h = 600 })
+  anchors.start()
+  focus(w)
+  saveAs("Two screens")
+  world.screens = { world.screens[1] }
+  w.f = { x = 1000, y = 200, w = 800, h = 600 }
+  anchors.recallWorkspace("Two screens")
+  frameIs("t117 stays", w, { x = 1000, y = 200, w = 800, h = 600 })
+  check("t117 said", said("1 windows had no running app or display") == 1)
+end
+
+-- Test 118: A saved workspace with widths that leave no channel keeps the widths in effect.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  click("Left 20%, right 40%")
+  anchors.assign("left-bottom", "test.Notes")
+  world.settings["moorings.workspaces"] = { Bad = { left = 60, right = 45, windows = {} } }
+  anchors.recallWorkspace("Bad")
+  local l, r = anchors.widths()
+  check("t118 kept", l == 20 and r == 40, l .. " " .. r)
+  check("t118 slots kept", anchors.assignments()["left-bottom"] == "test.Notes")
 end
 
 for i, t in ipairs(tests) do

@@ -109,6 +109,16 @@ tests[#tests + 1] = function()
   zoneIs("t4 middle", wide, ch, 1500, 700, nil)
 end
 
+-- Test 5: Park finds the strip half under the cursor and nothing over the channel.
+tests[#tests + 1] = function()
+  check("t5 left top", S.park({ x = 100, y = 100 }, wide, ch) == "left-top")
+  check("t5 left bottom", S.park({ x = 511, y = 720 }, wide, ch) == "left-bottom")
+  check("t5 right top", S.park({ x = 2816, y = 719 }, wide, ch) == "right-top")
+  check("t5 right bottom", S.park({ x = 5119, y = 1439 }, wide, ch) == "right-bottom")
+  check("t5 channel", S.park({ x = 512, y = 100 }, wide, ch) == nil)
+  check("t5 channel end", S.park({ x = 2815, y = 100 }, wide, ch) == nil)
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then
