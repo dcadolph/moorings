@@ -138,14 +138,19 @@ function A.attach(m)
   state.last = {}
 end
 
--- known reports whether name is an action moorings can run.
-function A.known(name)
-  return special[name] == true or tile.handles(name)
-    or geometry.position(name, { x = 0, y = 0, w = 100, h = 100 }) ~= nil
-end
-
 -- sizePrefix starts the action name of every custom size.
 local sizePrefix = "size:"
+
+-- workspacePrefix starts the action name that recalls a saved workspace.
+local workspacePrefix = "workspace:"
+
+-- known reports whether name is an action moorings can run. A workspace name
+-- counts, since workspaces are saved after the shortcuts are bound.
+function A.known(name)
+  return special[name] == true or tile.handles(name)
+    or (name:sub(1, #workspacePrefix) == workspacePrefix and #name > #workspacePrefix)
+    or geometry.position(name, { x = 0, y = 0, w = 100, h = 100 }) ~= nil
+end
 
 -- label turns an action name into menu text, so left-half reads Left half and
 -- a custom size reads as its title.
@@ -406,11 +411,14 @@ function A.preview(win, name, s)
   return (frameFor(name, win, s))
 end
 
--- run applies action name to the focused window, or organizes its screen for
--- an organize action, and reports whether anything moved.
+-- run applies action name to the focused window, organizes its screen for an
+-- organize action, or recalls a workspace, and reports whether anything moved.
 function A.run(name)
   if tile.handles(name) then
     return not host.paused() and tile.run(name)
+  end
+  if name:sub(1, #workspacePrefix) == workspacePrefix then
+    return host.recallWorkspace(name:sub(#workspacePrefix + 1))
   end
   return A.apply(hs.window.focusedWindow(), name)
 end
