@@ -65,38 +65,98 @@ A.keymapNames = { "rectangle", "spectacle" }
 A.step = 30
 
 -- families groups the actions for the Window menu folder. A family with groups
--- holds a folder per group.
+-- holds a folder per group. Hint is the hover hint of every entry in the family,
+-- and folder is the hover hint of the family's own folder.
 A.families = {
   {
     title = "Halves",
+    folder = "Snap the front window to a half.",
+    hint = "Snap the front window to this half.",
     names = { "left-half", "right-half", "center-half", "top-half", "bottom-half" },
   },
-  { title = "Quarters", names = { "top-left", "top-right", "bottom-left", "bottom-right" } },
+  {
+    title = "Quarters",
+    folder = "Snap the front window to a corner quarter.",
+    hint = "Snap the front window to this quarter.",
+    names = { "top-left", "top-right", "bottom-left", "bottom-right" },
+  },
   {
     title = "Thirds",
+    folder = "Snap the front window to one or two thirds.",
+    hint = "Snap the front window to this part, in thirds.",
     names = { "first-third", "center-third", "last-third", "first-two-thirds",
       "center-two-thirds", "last-two-thirds" },
   },
   {
     title = "Fourths",
+    folder = "Snap the front window to one to three fourths.",
+    hint = "Snap the front window to this part, in fourths.",
     names = { "first-fourth", "second-fourth", "third-fourth", "last-fourth",
       "first-three-fourths", "center-three-fourths", "last-three-fourths" },
   },
   {
     title = "Grids",
+    folder = "Snap the front window to a cell of a grid.",
+    hint = "Snap the front window to this grid cell.",
     groups = {
-      { title = "Sixths", names = geometry.grids.sixths },
-      { title = "Eighths", names = geometry.grids.eighths },
-      { title = "Ninths", names = geometry.grids.ninths },
-      { title = "Corner thirds", names = geometry.grids.cornerThirds },
+      {
+        title = "Sixths",
+        folder = "A grid of three columns and two rows.",
+        names = geometry.grids.sixths,
+      },
+      {
+        title = "Eighths",
+        folder = "A grid of four columns and two rows.",
+        names = geometry.grids.eighths,
+      },
+      {
+        title = "Ninths",
+        folder = "A grid of three columns and three rows.",
+        names = geometry.grids.ninths,
+      },
+      {
+        title = "Corner thirds",
+        folder = "Two thirds wide and half tall in a corner, turned on a tall display.",
+        names = geometry.grids.cornerThirds,
+      },
     },
   },
   {
     title = "Size and move",
+    folder = "Grow, shrink, center or nudge the front window.",
     names = { "maximize", "almost-maximize", "maximize-height", "center", "center-prominently",
       "larger", "smaller", "move-left", "move-right", "move-up", "move-down", "restore" },
   },
-  { title = "Displays", names = { "previous-display", "next-display" } },
+  {
+    title = "Displays",
+    folder = "Send the front window to another display.",
+    hint = "Send the front window to this display, keeping its place in the layout.",
+    names = { "previous-display", "next-display" },
+  },
+}
+
+-- hints holds the hover hints of the actions whose family has no shared hint.
+A.hints = {
+  maximize = "Fill the whole area with the front window.",
+  ["almost-maximize"] = "Fill most of the area with the front window, centered.",
+  ["maximize-height"] = "Stretch the front window to the full height, keeping its width.",
+  center = "Center the front window, keeping its size.",
+  ["center-prominently"] = "Center the front window a little above the middle.",
+  larger = "Grow the front window. Edges touching the area stay put.",
+  smaller = "Shrink the front window. Edges touching the area stay put.",
+  ["move-left"] = "Move the front window to the left edge, keeping its size.",
+  ["move-right"] = "Move the front window to the right edge, keeping its size.",
+  ["move-up"] = "Move the front window to the top edge, keeping its size.",
+  ["move-down"] = "Move the front window to the bottom edge, keeping its size.",
+  restore = "Put the front window back where it was before moorings first moved it.",
+  ["tile-columns"] = "Lay the free windows out side by side.",
+  ["tile-rows"] = "Stack the free windows top to bottom.",
+  ["tile-all"] = "Lay the free windows out in a grid.",
+  ["cascade-all"] = "Cascade the free windows down and to the right.",
+  ["cascade-active-app"] = "Cascade the front app's free windows.",
+  ["cycle-stacked-windows"] = "Bring forward the next window sharing this frame.",
+  ["cycle-stacked-windows-backward"] = "Bring forward the previous window sharing this frame.",
+  ["reverse-all"] = "Mirror the free windows left to right.",
 }
 
 -- special lists the actions that are not positions in geometry.
@@ -609,8 +669,9 @@ function A.bind()
   return problems
 end
 
--- items builds menu entries for names, each showing its shortcut.
-local function items(names, map, frozen)
+-- items builds menu entries for names, each showing its shortcut. Each entry
+-- hovers with hint, or with its own entry in A.hints when hint is nil.
+local function items(names, map, frozen, hint)
   local out = {}
   for _, name in ipairs(names) do
     local title = A.label(name)
@@ -619,6 +680,7 @@ local function items(names, map, frozen)
     end
     out[#out + 1] = {
       title = title,
+      tooltip = hint or A.hints[name],
       action = name,
       disabled = frozen,
       fn = function() runLogged(name) end,
@@ -639,27 +701,43 @@ function A.menu(extra)
     if fam.groups then
       sub = {}
       for _, g in ipairs(fam.groups) do
-        sub[#sub + 1] = { title = g.title, menu = items(g.names, map, frozen) }
+        sub[#sub + 1] = {
+          title = g.title,
+          tooltip = g.folder,
+          menu = items(g.names, map, frozen, fam.hint),
+        }
       end
     else
-      sub = items(fam.names, map, frozen)
+      sub = items(fam.names, map, frozen, fam.hint)
     end
-    out[#out + 1] = { title = fam.title, menu = sub }
+    out[#out + 1] = { title = fam.title, tooltip = fam.folder, menu = sub }
   end
   local names = {}
   for i, s in ipairs(sizes) do
     names[i] = s.name
   end
-  local custom = items(names, map, frozen)
+  local custom = items(names, map, frozen, "Resize the front window to this size from the config.")
   if #custom == 0 then
-    custom = { { title = "No sizes in the config", disabled = true } }
+    custom = { {
+      title = "No sizes in the config",
+      tooltip = "Add entries to sizes in the config to list them here.",
+      disabled = true,
+    } }
   end
-  out[#out + 1] = { title = "Custom sizes", menu = custom }
+  out[#out + 1] = {
+    title = "Custom sizes",
+    tooltip = "Sizes defined in the config.",
+    menu = custom,
+  }
   local organize = items(tile.names, map, frozen)
   for _, it in ipairs(extra or {}) do
     organize[#organize + 1] = it
   end
-  out[#out + 1] = { title = "Organize", menu = organize }
+  out[#out + 1] = {
+    title = "Organize",
+    tooltip = "Arrange every free window at once.",
+    menu = organize,
+  }
   return out
 end
 
