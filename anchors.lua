@@ -1069,6 +1069,19 @@ local function movable(win)
   return win:id() ~= nil and win:isStandard() and not win:isMinimized() and not ignored(win)
 end
 
+-- onScreen returns the windows on the current Space front to back, as hs.window.orderedWindows
+-- does, from the window filter's cached list instead of asking every app for its windows.
+local function onScreen()
+  local byID, list = {}, {}
+  for _, w in ipairs(M.filter:getWindows()) do
+    byID[w:id() or -1] = w
+  end
+  for _, id in ipairs(hs.window._orderedwinids()) do
+    list[#list + 1] = byID[id]
+  end
+  return list
+end
+
 -- windows returns the movable windows, front-most first.
 local function windows()
   local list, seen = {}, {}
@@ -1076,7 +1089,7 @@ local function windows()
   if focused and movable(focused) then
     list[1], seen[focused:id()] = focused, true
   end
-  for _, w in ipairs(hs.window.orderedWindows()) do
+  for _, w in ipairs(onScreen()) do
     if not seen[w:id()] and movable(w) and w:isVisible() then
       list[#list + 1], seen[w:id()] = w, true
     end
@@ -2324,8 +2337,9 @@ function M.start()
   M.bar = hs.menubar.new()
   applyIcon()
   M.bar:setMenu(menuOrError)
+  -- The filter's own list feeds the poll. Default would drop the moorings Settings window.
   local wf = hs.window.filter
-  M.filter = wf.default:subscribe({
+  M.filter = wf.new(true, "moorings"):subscribe({
     wf.windowCreated,
     wf.windowFocused,
     wf.windowFullscreened,
