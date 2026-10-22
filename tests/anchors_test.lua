@@ -1095,7 +1095,7 @@ end
 -- rows lists the four slot row titles.
 local function rows()
   local out = {}
-  for _, it in ipairs(folder("Locked apps")) do
+  for _, it in ipairs(folder("Anchored apps")) do
     if it.title:find("^Left ") or it.title:find("^Right ") then
       if it.menu then out[#out + 1] = it.title end
     end
@@ -1190,29 +1190,29 @@ tests[#tests + 1] = function()
   frameIs("t50 slack free", slack, { x = 512, y = 25, w = 512, h = 1415 })
 end
 
--- Test 51: Pin frontmost app puts the app last used in the chosen slot.
+-- Test 51: Anchor frontmost app puts the app last used in the chosen slot.
 tests[#tests + 1] = function()
   install(ultrawide())
   local term = addWin("iTerm2", rightFull)
   local safari = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
   world.front = "Safari"
   anchors.start()
-  local fast = item("Pin frontmost app (Safari)")
+  local fast = item("Anchor frontmost app (Safari)")
   check("t51 enabled", fast ~= nil and fast.disabled == false)
-  pick("Pin frontmost app (Safari)", "Right bottom")
+  pick("Anchor frontmost app (Safari)", "Right bottom")
   frameIs("t51 safari right bottom", safari, rightBottom)
   frameIs("t51 iterm right top", term, rightTop)
-  local target = item("Right bottom", item("Pin frontmost app (Safari)").menu)
+  local target = item("Right bottom", item("Anchor frontmost app (Safari)").menu)
   check("t51 checked", target.checked == true)
 end
 
--- Test 52: Pin frontmost app is disabled for an ignored app.
+-- Test 52: Anchor frontmost app is disabled for an ignored app.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.config.ignoreBundles = { "test.Zoom" }
   world.front = "Zoom"
   anchors.start()
-  check("t52 disabled", item("Pin frontmost app (Zoom)").disabled == true)
+  check("t52 disabled", item("Anchor frontmost app (Zoom)").disabled == true)
 end
 
 -- Test 53: Reset to defaults restores the config layout and clears the saved choice.
@@ -1657,13 +1657,13 @@ tests[#tests + 1] = function()
   anchors.start()
   focus(w)
   check("t79 top", titles(world.bar.menu()) == "⚓ Raise anchor (let windows drift),Re-moor now,-,"
-    .. "Window,Lift,Locked apps,Widths,Heights,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
+    .. "Window,Lift,Anchored apps,Widths,Heights,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
   check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
     .. "Size and move,Displays,Custom sizes,Organize", titles(folder("Window")))
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
     and item("No sizes in the config").disabled == true)
   check("t79 settings", titles(folder("Settings")) == "Settings window…,-,Fullscreen fills the channel,"
-    .. "Fullscreen fills the pin's strip,Snap by dragging,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
+    .. "Fullscreen keeps anchored apps in their slots,Snap by dragging,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
   check("t79 left text", action("left-half").title == "Left half  ⌃⌥←", action("left-half").title)
   action("bottom-right-sixth").fn()
   frameIs("t79 sixth", w, { x = 2048, y = 732, w = 768, h = 708 })
@@ -2648,7 +2648,7 @@ tests[#tests + 1] = function()
   local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
   anchors.start()
   frameIs("t128 pinned", term, { x = 2816, y = 25, w = 2304, h = 1415 })
-  check("t128 checked", item("Fullscreen fills the pin's strip").checked == true)
+  check("t128 checked", item("Fullscreen keeps anchored apps in their slots").checked == true)
   term.full = true
   term.f = { x = 0, y = 0, w = 5120, h = 1440 }
   world.onEvent()
@@ -2662,8 +2662,8 @@ tests[#tests + 1] = function()
   install(ultrawide())
   local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
   anchors.start()
-  click("Fullscreen fills the pin's strip")
-  check("t129 unchecked", item("Fullscreen fills the pin's strip").checked == false)
+  click("Fullscreen keeps anchored apps in their slots")
+  check("t129 unchecked", item("Fullscreen keeps anchored apps in their slots").checked == false)
   term.full = true
   world.poll()
   world.clock = world.clock + 10
@@ -2684,7 +2684,7 @@ tests[#tests + 1] = function()
   check("t130 free kept", free.full == true)
   term.full, free.full = false, false
   click("Fullscreen fills the channel")
-  click("Fullscreen fills the pin's strip")
+  click("Fullscreen keeps anchored apps in their slots")
   world.clock = world.clock + 10
   term.full, free.full = true, true
   world.poll()
@@ -2739,12 +2739,12 @@ end
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
-  click("Fullscreen fills the pin's strip")
+  click("Fullscreen keeps anchored apps in their slots")
   local settings = world.settings
   install(ultrawide())
   world.settings = settings
   anchors.start()
-  check("t134 survives reload", item("Fullscreen fills the pin's strip").checked == false)
+  check("t134 survives reload", item("Fullscreen keeps anchored apps in their slots").checked == false)
 end
 
 -- Test 135: Icons sit in folders, every built-in is unique, and the default stays first.
@@ -3436,7 +3436,7 @@ tests[#tests + 1] = function()
   check("t164 empty", anchors.assignments()["left-bottom"] == "" and #world.opened == 1)
   anchors.lock("left-bottom", "")
   check("t164 lock empty", #world.opened == 1)
-  pick("Pin frontmost app (Finder)", "Right bottom")
+  pick("Anchor frontmost app (Finder)", "Right bottom")
   check("t164 frontmost", anchors.assignments()["right-bottom"] == "test.Finder"
     and #world.opened == 1)
 end
@@ -3689,7 +3689,7 @@ tests[#tests + 1] = function()
   frameIs("t176 lift re-moors", slack, { x = 0, y = 25, w = 2816, h = 1415 })
   install(ultrawide())
   anchors.start()
-  check("t176 empty", titles(folder("Lift")) == "No pinned windows")
+  check("t176 empty", titles(folder("Lift")) == "No anchored windows")
 end
 
 -- Test 177: A click on a pin's green button is swallowed, down and up, and lifts the pin.
@@ -3824,6 +3824,32 @@ tests[#tests + 1] = function()
   frameIs("t181 home again", slack, leftFull)
 end
 
+-- Test 182: Unanchor all apps empties every slot and frees the windows into the channel, is
+-- off once nothing is anchored, and Reset to defaults brings the config apps back.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local term = addWin("iTerm2", rightFull)
+  anchors.start()
+  check("t182 on", item("Unanchor all apps").disabled == false)
+  click("Unanchor all apps")
+  local picks = anchors.assignments()
+  check("t182 empty", picks["left-top"] == "" and picks["left-bottom"] == ""
+    and picks["right-top"] == "" and picks["right-bottom"] == "")
+  world.poll()
+  local ch = anchors.channel(world.screens[1])
+  check("t182 slack free", slack.f.x >= ch.x and slack.f.x + slack.f.w <= ch.x + ch.w,
+    string.format("x %g w %g", slack.f.x, slack.f.w))
+  check("t182 term free", term.f.x >= ch.x and term.f.x + term.f.w <= ch.x + ch.w,
+    string.format("x %g w %g", term.f.x, term.f.w))
+  check("t182 rows empty", item("Left top: Empty") ~= nil and item("Right top: Empty") ~= nil)
+  check("t182 off", item("Unanchor all apps").disabled == true)
+  click("Reset to defaults")
+  world.poll()
+  frameIs("t182 slack back", slack, leftFull)
+  frameIs("t182 term back", term, rightFull)
+end
+
 -- unhinted returns the titles of entries in items, at any depth, whose hover hint is wrong:
 -- a folder has one, which would cover its open submenu, or any other entry lacks a sentence
 -- starting with a capital and ending with a period.
@@ -3848,7 +3874,7 @@ end
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
-  check("t180 bare branches", item("No pinned windows") ~= nil and item("No saved workspaces") ~= nil
+  check("t180 bare branches", item("No anchored windows") ~= nil and item("No saved workspaces") ~= nil
     and item("No sizes in the config") ~= nil)
   local missing = unhinted(world.bar.menu())
   check("t180 bare", #missing == 0, table.concat(missing, ", "))

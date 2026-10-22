@@ -894,6 +894,17 @@ function M.assign(key, bundle)
   M.moor()
 end
 
+-- clearSlots empties every slot and saves the result, so no app is anchored until one is
+-- picked again.
+function M.clearSlots()
+  local picks = {}
+  for _, s in ipairs(M.slotNames) do
+    picks[s.key] = ""
+  end
+  hs.settings.set(keys.slots, picks)
+  M.moor()
+end
+
 -- lock puts bundle in the slot named key and opens the app the way a Dock click
 -- does, which launches it or asks a running app with no window for a new one.
 function M.lock(key, bundle)
@@ -921,7 +932,7 @@ end
 -- chooseApp asks for an app in a file browser and puts it in the slot named key.
 function M.chooseApp(key)
   hs.focus()
-  local picked = hs.dialog.chooseFileOrFolder("Choose an app to lock", "/Applications",
+  local picked = hs.dialog.chooseFileOrFolder("Choose an app to anchor", "/Applications",
     true, false, false, { "app" }, true)
   local path = picked and picked["1"]
   if not path then
@@ -1720,14 +1731,14 @@ local function lockedItems()
     if current ~= "" and not running[current] then
       choices[#choices + 1] = {
         title = appName(current),
-        tooltip = "Locked here but not running. Its first window will take the slot.",
+        tooltip = "Anchored here but not running. Its first window will take the slot.",
         checked = true,
       }
     end
     for _, app in ipairs(apps) do
       choices[#choices + 1] = {
         title = app.name,
-        tooltip = "Lock this app to the slot and bring its window there.",
+        tooltip = "Anchor this app to the slot and bring its window there.",
         checked = app.bundle == current,
         fn = safe(function() M.lock(s.key, app.bundle) end),
       }
@@ -1746,12 +1757,12 @@ local function lockedItems()
   for _, s in ipairs(M.slotNames) do
     targets[#targets + 1] = {
       title = s.title,
-      tooltip = "Lock the frontmost app to this slot.",
+      tooltip = "Anchor the frontmost app to this slot.",
       checked = picks[s.key] == frontBundle,
       fn = safe(function() M.assign(s.key, frontBundle) end),
     }
   end
-  local pinTitle = "Pin frontmost app"
+  local pinTitle = "Anchor frontmost app"
   if front then
     pinTitle = pinTitle .. " (" .. (front:name() or frontBundle) .. ")"
   end
@@ -1759,6 +1770,16 @@ local function lockedItems()
     title = pinTitle,
     disabled = ignoredBundle(frontBundle),
     menu = targets,
+  }
+  local anchored = false
+  for _, bundle in pairs(picks) do
+    anchored = anchored or bundle ~= ""
+  end
+  items[#items + 1] = {
+    title = "Unanchor all apps",
+    tooltip = "Empty every slot so no app is held. Raise anchor pauses instead.",
+    disabled = not anchored,
+    fn = safe(M.clearSlots),
   }
   items[#items + 1] = {
     title = "Reset to defaults",
@@ -1827,7 +1848,7 @@ local function widthItems()
       items[#items + 1] = {
         title = string.format("%s %.0f%% in use: %s needs %.0f pt", name,
           side == "left" and useLeft or useRight, state.minBy[side] or "an app", state.minPts[side]),
-        tooltip = "A pinned window will not go narrower, so the strip grows to fit it.",
+        tooltip = "An anchored window will not go narrower, so the strip grows to fit it.",
         disabled = true,
       }
     end
@@ -2074,8 +2095,8 @@ local function settingItems()
       fn = safe(function() hs.settings.set(keys.fullscreen, not fullscreenFills()) end),
     },
     {
-      title = "Fullscreen fills the pin's strip",
-      tooltip = "A pinned window that goes fullscreen comes back out to its slot.",
+      title = "Fullscreen keeps anchored apps in their slots",
+      tooltip = "An anchored window that goes fullscreen comes back out to its slot.",
       checked = pinFullscreenFills(),
       fn = safe(function() hs.settings.set(keys.pinFullscreen, not pinFullscreenFills()) end),
     },
@@ -2128,7 +2149,7 @@ local function liftItems(pins, frozen)
   for _, w in ipairs(pins) do
     items[#items + 1] = {
       title = windowApp(w),
-      tooltip = "Lift this pin over its strip and the channel, or lower it back.",
+      tooltip = "Lift this anchored window over its strip and the channel, or lower it back.",
       checked = state.lifted[w:id()] == true,
       disabled = frozen,
       fn = safe(function() M.toggleLift(w) end),
@@ -2136,8 +2157,8 @@ local function liftItems(pins, frozen)
   end
   if #items == 0 then
     items[1] = {
-      title = "No pinned windows",
-      tooltip = "Lock an app to a slot to pin its window.",
+      title = "No anchored windows",
+      tooltip = "Anchor an app to a slot to list its window here.",
       disabled = true,
     }
   end
@@ -2154,7 +2175,7 @@ local function menu()
     {
       title = frozen and "⚓ Drop anchor (hold the layout)"
         or "⚓ Raise anchor (let windows drift)",
-      tooltip = frozen and "Hold the pins in their slots and free windows in the channel again."
+      tooltip = frozen and "Hold anchored apps in their slots and free windows in the channel again."
         or "Stop holding windows so you can arrange them freely. The shortcuts rest too.",
       fn = safe(function()
         hs.settings.set(keys.paused, not paused())
@@ -2164,7 +2185,7 @@ local function menu()
     },
     {
       title = "Re-moor now",
-      tooltip = "Put every pin back in its slot and forget released, lifted and learned sizes.",
+      tooltip = "Put every anchored window back in its slot and forget released, lifted and learned sizes.",
       disabled = frozen,
       fn = safe(function()
         state.bursts, state.floors, state.placed, state.released, state.lifted = {}, {}, {}, {}, {}
@@ -2176,7 +2197,7 @@ local function menu()
     if state.released[w:id()] then
       items[#items + 1] = {
         title = "Re-moor " .. windowApp(w),
-        tooltip = "You moved this pin, so moorings let it go. Put it back in its slot.",
+        tooltip = "You moved this window, so moorings let it go. Put it back in its slot.",
         disabled = frozen,
         fn = safe(function() M.remoor(w) end),
       }
@@ -2186,7 +2207,7 @@ local function menu()
     { title = "-" },
     { title = "Window", menu = windowItems() },
     { title = "Lift", menu = liftItems(pins, frozen) },
-    { title = "Locked apps", menu = lockedItems() },
+    { title = "Anchored apps", menu = lockedItems() },
     { title = "Widths", menu = widthItems() },
     { title = "Heights", menu = heightItems() },
     { title = "Workspaces", menu = workspaceItems() },

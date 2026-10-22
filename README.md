@@ -97,7 +97,7 @@ itself, so it comes back after every restart and there is nothing to turn on in 
 - The mark shows but no apps park at the edges. That is expected on a display that is not
   ultrawide. Parked apps only act on a screen at least 2.2 times wider than it is tall.
 - A warning sign shows in place of the mark. Accessibility is missing. See step 3.
-- Slack and iTerm are the defaults. See Locked apps below to choose other apps.
+- Slack and iTerm are the defaults. See Anchored apps below to choose other apps.
 
 ### Update and uninstall
 
@@ -109,15 +109,15 @@ delete the `~/.hammerspoon/moorings` link, delete the moorings lines from
 
 Slack sits at 10% on the left, iTerm at 45% on the right, and everything else stays in the
 channel, the open strip in between. Click Slack's green button to lift it over the channel at
-full height, and click it again to lower it. Drag a pinned window somewhere else and moorings
+full height, and click it again to lower it. Drag an anchored window somewhere else and moorings
 lets it go with a short message. Its green button or Control-Option-Delete brings it home.
 
-To lock another app, click it, open the moorings menu, choose Locked apps, Pin frontmost app, then
-pick a slot. Picking an app from a slot's list opens it the way a Dock click does, and the list ends
-with Choose app…, which browses for any app. The wider and narrower items under Widths move each
-strip by 1%, and the Channel label shows what is left in the middle. When two apps share a side,
-Heights sets how tall the top one is, from 10% to 90%, and the bottom one takes the rest. A calendar
-at 10% over Slack at 90% is Heights, Left side, Top 10%.
+To anchor another app, click it, open the moorings menu, choose Anchored apps, Anchor frontmost app,
+then pick a slot. Picking an app from a slot's list opens it the way a Dock click does, and the list
+ends with Choose app…, which browses for any app. The wider and narrower items under Widths move
+each strip by 1%, and the Channel label shows what is left in the middle. When two apps share a
+side, Heights sets how tall the top one is, from 10% to 90%, and the bottom one takes the rest. A
+calendar at 10% over Slack at 90% is Heights, Left side, Top 10%.
 
 Press Control-Option-Left to put the focused window in the left half of the channel. Press it
 again for two thirds, then one third. The Window folder in the menu lists every action with its
@@ -138,11 +138,11 @@ The top of the menu holds Raise anchor and Re-moor now, then seven folders, then
 |----------------------------|-----------------------------------------------------------------------------------------------------------------------------|
 | Raise anchor / Drop anchor | Raise lets every window drift and rests the shortcuts. Drop holds the layout again. Survives a reload.                      |
 | Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                                             |
-| Re-moor *app*              | Shown for each pin moorings released after you moved it. Puts that pin back.                                                |
+| Re-moor *app*              | Shown for each anchored window released after you moved it. Puts it back.                                                   |
 | Window                     | Every window action by family, each showing its shortcut.                                                                   |
 | Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                            |
-| Lift                       | One entry per pinned window. Lifts it over its strip and the channel, or lowers it back.                                    |
-| Locked apps                | Four slot rows, each with running apps and Choose app…, Pin frontmost app, Reset to defaults.                               |
+| Lift                       | One entry per anchored window. Lifts it over its strip and the channel, or lowers it back.                                  |
+| Anchored apps              | Four slot rows, each with running apps and Choose app…, Anchor frontmost app, Unanchor all, Reset.                          |
 | Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                                          |
 | Heights                    | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                 |
 | Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                               |
@@ -156,8 +156,8 @@ the last undo.
 ### Window actions
 
 Window actions work on the focused window, on every display. On the ultrawide the channel is the
-screen, so a left half is the left half of the channel and the pins never move. On any other
-display the screen is the whole area below the menu bar. A pinned window ignores actions.
+screen, so a left half is the left half of the channel and anchored windows never move. On any other
+display the screen is the whole area below the menu bar. An anchored window ignores actions.
 
 | Shortcut        | Action&nbsp;                                                          |
 |-----------------|-----------------------------------------------------------------------|
@@ -234,7 +234,7 @@ is reported in the Console and skipped.
 ### Organize
 
 The Window, Organize folder moves every free window on the focused window's screen at once. On
-the ultrawide that means the windows in the channel, and pins never move.
+the ultrawide that means the windows in the channel, and anchored windows never move.
 
 | Action&nbsp;                   | What it does&nbsp;                                                 |
 |--------------------------------|--------------------------------------------------------------------|
@@ -316,50 +316,52 @@ halves, the top edge maximizes, the corners give quarters, the stretch of an edg
 corner gives the top or bottom half, and the bottom edge gives thirds. Sliding along the bottom
 from a side third into the middle gives two thirds.
 
-On the ultrawide the screen edges belong to the pins, so the strips stand in for them. Dragging
-over the left strip snaps to the channel's left half and over the right strip to its right half.
-The top or bottom of a strip gives that corner's quarter of the channel. The top edge above the
-channel maximizes into the channel, and its bottom edge gives the channel's thirds.
+On the ultrawide the screen edges belong to the anchored apps, so the strips stand in for them.
+Dragging over the left strip snaps to the channel's left half and over the right strip to its right
+half. The top or bottom of a strip gives that corner's quarter of the channel. The top edge above
+the channel maximizes into the channel, and its bottom edge gives the channel's thirds.
 
 Hold Option while dropping a window on a strip to park its app there instead. The top half of a
 strip is that side's top slot and the bottom half its bottom slot, and the footprint shows the
-slot. This is the same as picking the app in Locked apps, so an app already in another slot
-moves. A pinned window can be parked in another slot this way.
+slot. This is the same as picking the app in Anchored apps, so an app already in another slot
+moves. An anchored window can be parked in another slot this way.
 
-A drag that resizes a window and a drag inside a window never snap, and a pinned window only
+A drag that resizes a window and a drag inside a window never snap, and an anchored window only
 parks. Untick Settings, Snap by dragging to turn snapping and parking off.
 
 iTerm resizes in whole character cells, so its windows land a few points short of a snap target.
 Run `defaults write com.googlecode.iterm2 DisableWindowSizeSnap -integer 1` to turn that off.
 
-### Locked apps
+### Anchored apps
 
-Locked apps need an ultrawide display, one at least 2.2 times wider than it is tall. Each strip
-holds up to two locked apps, so there are four slots: Left top, Left bottom, Right top and Right
+Anchored apps need an ultrawide display, one at least 2.2 times wider than it is tall. Each strip
+holds up to two anchored apps, so there are four slots: Left top, Left bottom, Right top and Right
 bottom. One app on a side fills the strip's full height. Two split it 50/50. Each slot row in the
 menu shows its app and opens a list of running apps plus Empty. Picking an app that already sits
-in another slot moves it, so an app is never in two slots. An app that is locked but not running
+in another slot moves it, so an app is never in two slots. An app that is anchored but not running
 leaves its half empty, and the other app keeps its half.
 
-Pin frontmost app is the fast path. The menu bar does not take focus, so the frontmost app is
-the one you were just using. Choices are saved in Hammerspoon settings and win over the pins in
-the config file. Reset to defaults clears them.
+Anchor frontmost app is the fast path. The menu bar does not take focus, so the frontmost app is
+the one you were just using. Choices are saved in Hammerspoon settings and win over the anchors
+in the config file. Unanchor all apps empties every slot, so every window is free until you pick
+an app again. Raise anchor is the pause: it keeps your choices and only stops holding windows.
+Reset to defaults goes back to the anchors in the config file.
 
-A locked app keeps the `expandPct` the config gives it. Apps the config does not name get no
+An anchored app keeps the `expandPct` the config gives it. Apps the config does not name get no
 expand. Expand on focus widens an app only within its own row of the strip.
 
-### Pins
+### Anchors in the config
 
-Pins, widths and the poll rate live in `M.config` at the top of `anchors.lua`. Each pin names an app
-by bundle ID, the side it sits on, and an optional `expandPct` it grows to while focused. A pin
-holds one window of its app, the main window when it first sees the app, and keeps holding it until
-it closes. The app's other windows are free, so Slack huddles, preference panes and a tab torn out
-of iTerm stay out of the slot. A side holds up to two pins. One pin fills the strip's full height.
-Two split it into top and bottom rows in config order, unless a pin sets `row` to `"top"` or
-`"bottom"`. A third pin on a side, a row other than top or bottom, and two pins asking for the same
-row are each reported in the Console once at load. Pinned windows on other displays are pulled onto
-the ultrawide. Apps listed in `ignoreBundles` are never moved or offered in the menu. This example
-stacks Slack over Notes on the left:
+Anchored apps, widths and the poll rate live in `M.config` at the top of `anchors.lua`. Each entry
+in `pins` names an app by bundle ID, the side it sits on, and an optional `expandPct` it grows to
+while focused. An anchored app holds one window, the main window when moorings first sees the app,
+and keeps holding it until it closes. The app's other windows are free, so Slack huddles, preference
+panes and a tab torn out of iTerm stay out of the slot. A side holds up to two anchored apps. One
+fills the strip's full height. Two split it into top and bottom rows in config order, unless an
+entry sets `row` to `"top"` or `"bottom"`. A third entry on a side, a row other than top or bottom,
+and two entries asking for the same row are each reported in the Console once at load. Anchored
+windows on other displays are pulled onto the ultrawide. Apps listed in `ignoreBundles` are never
+moved or offered in the menu. This example stacks Slack over Notes on the left:
 
 ```lua
 pins = {
@@ -372,26 +374,26 @@ ignoreBundles = { "us.zoom.xos" },
 
 Find an app's bundle ID with `osascript -e 'id of app "Spotify"'`.
 
-The config pins apply until Locked apps choices are saved. A width chosen from the menu, by a
+The config anchors apply until Anchored apps choices are saved. A width chosen from the menu, by a
 preset or a step, wins over `leftPct` and `rightPct` in the file. The top row of each side is
 `leftTopPct` and `rightTopPct` percent of the strip's height, 50 by default and 10 to 90, and a
 height chosen from Heights wins over them the same way.
 
 ### Lift and release
 
-A pin can rise over its strip and the channel at full height, stopping at the other strip.
-Click its green button, press Maximize (Control-Option-Return) while it is in front, or pick it
-in the Lift folder. The same again lowers it. Moorings keeps the click away from macOS, so the
-green button on a pin never starts native fullscreen.
+An anchored window can rise over its strip and the channel at full height, stopping at the other
+strip. Click its green button, press Maximize (Control-Option-Return) while it is in front, or pick
+it in the Lift folder. The same again lowers it. Moorings keeps the click away from macOS, so the
+green button on an anchored window never starts native fullscreen.
 
-A pin you drag or resize yourself is released. Moorings leaves it where you put it and shows a
-short message saying how to bring it back: its green button, Restore (Control-Option-Delete), or
-Re-moor *app* at the top of the menu. Re-moor now brings every released pin home at once. The
-macOS window menu on the green button counts as your hand too, since moorings cannot tell which
-entry ran. Pins moved while the anchor is raised, or by a display change, are put back instead
-of released.
+An anchored window you drag or resize yourself is released. Moorings leaves it where you put it and
+shows a short message saying how to bring it back: its green button, Restore
+(Control-Option-Delete), or Re-moor *app* at the top of the menu. Re-moor now brings every released
+window home at once. The macOS window menu on the green button counts as your hand too, since
+moorings cannot tell which entry ran. Anchored windows moved while the anchor is raised, or by a
+display change, are put back instead of released.
 
-Some apps refuse to get narrower than a set width. A pin like that keeps its own width against
+Some apps refuse to get narrower than a set width. A window like that keeps its own width against
 the outer edge, and its strip grows to fit it, so free windows never slide under it. Widths then
 says which app holds the side, such as "Left 13% in use: Slack needs 668 pt", and disables the
 narrower step and the presets below it. The channel always keeps at least 10% of the display.
@@ -405,9 +407,9 @@ the channel up again, unless it was resized by hand in between. Windows already 
 are never touched, and windows on other displays are left alone.
 
 A free window that goes native fullscreen on the ultrawide, which its green button does, leaves
-fullscreen and fills the channel instead. A pinned window that ends up in fullscreen goes back to
-its slot. Untick Fullscreen fills the channel or Fullscreen fills the pin's strip to get true
-fullscreen back for that kind of window, or use Raise anchor for a while.
+fullscreen and fills the channel instead. An anchored window that ends up in fullscreen goes back to
+its slot. Untick Fullscreen fills the channel or Fullscreen keeps anchored apps in their slots to
+get true fullscreen back for that kind of window, or use Raise anchor for a while.
 
 Hovering over the green button shows a menu that belongs to macOS, not to moorings. Its Move &
 Resize, Fill & Arrange, Full Screen and Move to display entries are macOS window tiling. Moorings
