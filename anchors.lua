@@ -64,6 +64,7 @@ local keys = {
   icon = "moorings.icon",
   paused = "moorings.paused",
   fullscreen = "moorings.fullscreenFills",
+  slots = "moorings.slots",
 }
 
 -- minChannelPct is the narrowest channel a width pair may leave.
@@ -273,15 +274,19 @@ local function bundleOf(win)
   return app and app:bundleID()
 end
 
--- ignored reports whether win belongs to an app in ignoreBundles.
-local function ignored(win)
-  local bundle = bundleOf(win)
+-- ignoredBundle reports whether bundle is missing or listed in ignoreBundles.
+local function ignoredBundle(bundle)
   for _, id in ipairs(M.config.ignoreBundles) do
     if id == bundle then
       return true
     end
   end
   return bundle == nil
+end
+
+-- ignored reports whether win belongs to an app in ignoreBundles.
+local function ignored(win)
+  return ignoredBundle(bundleOf(win))
 end
 
 -- validRow reports whether row names a half of a strip.
@@ -350,9 +355,97 @@ function M.layout(pins)
   return slots, problems
 end
 
+-- slotNames lists the four slots in menu order.
+M.slotNames = {
+  { key = "left-top", side = "left", row = "top", title = "Left top" },
+  { key = "left-bottom", side = "left", row = "bottom", title = "Left bottom" },
+  { key = "right-top", side = "right", row = "top", title = "Right top" },
+  { key = "right-bottom", side = "right", row = "bottom", title = "Right bottom" },
+}
+
+-- chosen returns the switcher's slot assignments, or nil when the config is in
+-- effect. Each slot maps to a bundle ID, or to "" when it is empty.
+local function chosen()
+  local saved = hs.settings.get(keys.slots)
+  if type(saved) ~= "table" then
+    return nil
+  end
+  local out = {}
+  for _, s in ipairs(M.slotNames) do
+    out[s.key] = type(saved[s.key]) == "string" and saved[s.key] or ""
+  end
+  return out
+end
+
+-- configPin returns the config entry for bundle, or nil.
+local function configPin(bundle)
+  for _, pin in ipairs(M.config.pins) do
+    if pin.bundle == bundle then
+      return pin
+    end
+  end
+  return nil
+end
+
+-- pins returns the pins in effect. Switcher choices override the config, and a
+-- chosen app keeps the expandPct and mainOnly the config gives it.
+function M.pins()
+  local picks = chosen()
+  if not picks then
+    return M.config.pins
+  end
+  local list = {}
+  for _, s in ipairs(M.slotNames) do
+    local bundle = picks[s.key]
+    if bundle ~= "" then
+      local base = configPin(bundle) or {}
+      list[#list + 1] = { bundle = bundle, side = s.side, row = s.row,
+        expandPct = base.expandPct, mainOnly = base.mainOnly }
+    end
+  end
+  return list
+end
+
+-- assignments returns the bundle in each slot of the layout in effect, with ""
+-- for an empty slot. A pin filling its strip shows in the top slot.
+function M.assignments()
+  local picks = chosen()
+  if picks then
+    return picks
+  end
+  local out = {}
+  for _, s in ipairs(M.slotNames) do
+    out[s.key] = ""
+  end
+  for bundle, slot in pairs(M.layout(M.config.pins)) do
+    out[slot.side .. "-" .. (slot.row or "top")] = bundle
+  end
+  return out
+end
+
+-- assign puts bundle in the slot named key and saves the result. An app already
+-- in another slot moves, and a bundle of "" empties the slot.
+function M.assign(key, bundle)
+  local picks = M.assignments()
+  for k, v in pairs(picks) do
+    if v == bundle then
+      picks[k] = ""
+    end
+  end
+  picks[key] = bundle
+  hs.settings.set(keys.slots, picks)
+  M.moor()
+end
+
+-- resetSlots drops the switcher choices so the config is in effect again.
+function M.resetSlots()
+  hs.settings.clear(keys.slots)
+  M.moor()
+end
+
 -- slotFor returns the slot of win's app, or nil when the app is not pinned.
 function M.slotFor(win)
-  local slots = M.layout(M.config.pins)
+  local slots = M.layout(M.pins())
   return slots[bundleOf(win)]
 end
 
@@ -470,7 +563,7 @@ function M.moor()
   local leftPct, rightPct = M.widths()
   local pct = { left = leftPct, right = rightPct }
   local ch = M.regions(frame, leftPct, rightPct).channel
-  local slots = M.layout(M.config.pins)
+  local slots = M.layout(M.pins())
   local focused = hs.window.focusedWindow()
   local focusedSlot = focused and slots[bundleOf(focused)]
   local t, seen = M.now(), {}
@@ -590,6 +683,74 @@ local function iconGlyph()
   return M.icons[1].glyph
 end
 
+-- appName returns a display name for bundle, or Empty for an empty slot.
+local function appName(bundle)
+  if bundle == "" then
+    return "Empty"
+  end
+  local ok, name = pcall(hs.application.nameForBundleID, bundle)
+  return ok and name or bundle
+end
+
+-- runningApps returns the running Dock apps that can be locked, sorted by name.
+local function runningApps()
+  local list, seen = {}, {}
+  for _, app in ipairs(hs.application.runningApplications()) do
+    local bundle = app:bundleID()
+    if app:kind() == 1 and not ignoredBundle(bundle) and not seen[bundle] then
+      seen[bundle] = true
+      list[#list + 1] = { bundle = bundle, name = app:name() or bundle }
+    end
+  end
+  table.sort(list, function(a, b)
+    return a.name:lower() < b.name:lower()
+  end)
+  return list
+end
+
+-- lockedItems builds the Locked apps section: a row per slot that opens a
+-- list of running apps, a fast path for the frontmost app, and a reset.
+local function lockedItems()
+  local picks, apps = M.assignments(), runningApps()
+  local items = { { title = "Locked apps", disabled = true } }
+  for _, s in ipairs(M.slotNames) do
+    local current = picks[s.key]
+    local choices = {
+      { title = "Empty", checked = current == "", fn = safe(function() M.assign(s.key, "") end) },
+    }
+    for _, app in ipairs(apps) do
+      choices[#choices + 1] = {
+        title = app.name,
+        checked = app.bundle == current,
+        fn = safe(function() M.assign(s.key, app.bundle) end),
+      }
+    end
+    items[#items + 1] = { title = s.title .. ": " .. appName(current), menu = choices }
+  end
+  local front = hs.application.frontmostApplication()
+  local frontBundle = front and front:bundleID()
+  local targets = {}
+  for _, s in ipairs(M.slotNames) do
+    targets[#targets + 1] = {
+      title = s.title,
+      checked = picks[s.key] == frontBundle,
+      fn = safe(function() M.assign(s.key, frontBundle) end),
+    }
+  end
+  local pinTitle = "Pin frontmost app"
+  if front then
+    pinTitle = pinTitle .. " (" .. (front:name() or frontBundle) .. ")"
+  end
+  items[#items + 1] = { title = pinTitle, disabled = ignoredBundle(frontBundle), menu = targets }
+  items[#items + 1] = {
+    title = "Reset to defaults",
+    disabled = chosen() == nil,
+    fn = safe(M.resetSlots),
+  }
+  items[#items + 1] = { title = "-" }
+  return items
+end
+
 -- menu builds the menu bar menu from current state.
 local function menu()
   local frozen = paused()
@@ -621,6 +782,9 @@ local function menu()
     { title = "Undo tidy", fn = safe(M.undo), disabled = frozen or not M.canUndo() },
     { title = "-" },
   }
+  for _, it in ipairs(lockedItems()) do
+    items[#items + 1] = it
+  end
   local leftPct, rightPct = M.widths()
   for i, p in ipairs(M.presets) do
     items[#items + 1] = {
@@ -680,7 +844,7 @@ function M.start()
   hs.window.animationDuration = 0
   hs.autoLaunch(true)
   hs.accessibilityState(true)
-  local _, problems = M.layout(M.config.pins)
+  local _, problems = M.layout(M.pins())
   for _, problem in ipairs(problems) do
     log(problem)
   end

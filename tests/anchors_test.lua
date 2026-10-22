@@ -72,11 +72,33 @@ local bundles = {
   iTerm2 = "com.googlecode.iterm2",
 }
 
+-- bundleFor returns the bundle ID of a test app name.
+local function bundleFor(name)
+  return bundles[name] or ("test." .. name)
+end
+
+-- nameFor returns the test app name of a bundle ID, or nil.
+local function nameFor(bundle)
+  for name, id in pairs(bundles) do
+    if id == bundle then return name end
+  end
+  return bundle:match("^test%.(.+)$")
+end
+
+-- newApp builds a running app with a name and a Dock kind.
+local function newApp(name, kind)
+  return {
+    bundleID = function() return bundleFor(name) end,
+    name = function() return name end,
+    kind = function() return kind or 1 end,
+  }
+end
+
 -- Win:application returns an app with the window's bundle ID and main window.
 function Win:application()
   local name, win = self.app, self
   return {
-    bundleID = function() return bundles[name] or ("test." .. name) end,
+    bundleID = function() return bundleFor(name) end,
     mainWindow = function()
       for _, w in ipairs(world.windows) do
         if w.app == name and not w.secondary then return w end
@@ -128,7 +150,7 @@ end
 -- install builds a fresh fake Hammerspoon and loads anchors into it.
 local function install(...)
   world = {
-    screens = { ... }, windows = {}, settings = {}, nextID = 0, printed = {},
+    screens = { ... }, windows = {}, settings = {}, nextID = 0, printed = {}, apps = {},
     clock = 1000, mouseDown = false, trusted = true,
   }
   hs = {
@@ -146,6 +168,25 @@ local function install(...)
     settings = {
       get = function(k) return world.settings[k] end,
       set = function(k, v) world.settings[k] = v end,
+      clear = function(k) world.settings[k] = nil end,
+    },
+    application = {
+      runningApplications = function()
+        local list, seen = {}, {}
+        for _, w in ipairs(world.windows) do
+          if not seen[w.app] then
+            seen[w.app] = true
+            list[#list + 1] = newApp(w.app)
+          end
+        end
+        for _, app in ipairs(world.apps) do list[#list + 1] = app end
+        return list
+      end,
+      frontmostApplication = function()
+        if world.front then return newApp(world.front) end
+        return world.focused and newApp(world.focused.app) or nil
+      end,
+      nameForBundleID = function(bundle) return nameFor(bundle) end,
     },
     screen = {
       allScreens = function() return world.screens end,
@@ -848,6 +889,200 @@ tests[#tests + 1] = function()
   click("Left 20%, right 40%")
   frameIs("t45 slack top", slack, { x = 0, y = 25, w = 1024, h = 707 })
   frameIs("t45 notes bottom", notes, { x = 0, y = 732, w = 1024, h = 708 })
+end
+
+-- pick runs choice in the submenu of the row titled row.
+local function pick(row, choice)
+  local it = item(row)
+  check("menu has " .. row, it ~= nil and it.menu ~= nil)
+  if not (it and it.menu) then return end
+  local c = item(choice, it.menu)
+  check("row " .. row .. " has " .. choice, c ~= nil)
+  if c then c.fn({}, c) end
+end
+
+-- titles lists the titles of a submenu.
+local function titles(items)
+  local out = {}
+  for i, it in ipairs(items) do out[i] = it.title end
+  return table.concat(out, ",")
+end
+
+-- rows lists the four slot row titles.
+local function rows()
+  local out = {}
+  for _, it in ipairs(world.bar.menu()) do
+    if it.title:find("^Left ") or it.title:find("^Right ") then
+      if it.menu then out[#out + 1] = it.title end
+    end
+  end
+  return table.concat(out, ",")
+end
+
+-- defaultRows is the row titles for the default config.
+local defaultRows = "Left top: Slack,Left bottom: Empty,Right top: iTerm2,Right bottom: Empty"
+
+local rightTop = { x = 2816, y = 25, w = 2304, h = 707 }
+local rightBottom = { x = 2816, y = 732, w = 2304, h = 708 }
+
+-- Test 46: The slot rows show the config layout and offer Empty plus running apps.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  check("t46 rows", rows() == defaultRows, rows())
+  local choices = item("Left top: Slack").menu
+  check("t46 choices", titles(choices) == "Empty,iTerm2,Safari,Slack", titles(choices))
+  check("t46 checked", item("Slack", choices).checked == true)
+  check("t46 empty unchecked", item("Empty", choices).checked == false)
+  check("t46 reset disabled", item("Reset to defaults").disabled == true)
+end
+
+-- Test 47: Picking an app for an empty slot stacks it, and the choice survives reload.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local notes = addWin("Notes", { x = 1000, y = 200, w = 400, h = 400 })
+  anchors.start()
+  pick("Left bottom: Empty", "Notes")
+  frameIs("t47 slack top", slack, leftTop)
+  frameIs("t47 notes bottom", notes, leftBottom)
+  check("t47 row", item("Left bottom: Notes") ~= nil)
+  check("t47 reset enabled", item("Reset to defaults").disabled == false)
+  local settings = world.settings
+  install(ultrawide())
+  world.settings = settings
+  local slack2 = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
+  local notes2 = addWin("Notes", { x = 1000, y = 200, w = 400, h = 400 })
+  anchors.start()
+  frameIs("t47 reload slack top", slack2, leftTop)
+  frameIs("t47 reload notes bottom", notes2, leftBottom)
+end
+
+-- Test 48: Picking an app that sits in another slot moves it, so it holds one slot.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local term = addWin("iTerm2", rightFull)
+  anchors.start()
+  pick("Right bottom: Empty", "Slack")
+  check("t48 rows",
+    rows() == "Left top: Empty,Left bottom: Empty,Right top: iTerm2,Right bottom: Slack", rows())
+  frameIs("t48 slack right bottom", slack, rightBottom)
+  frameIs("t48 iterm right top", term, rightTop)
+end
+
+-- Test 49: A chosen app keeps its config expandPct and mainOnly, and others get neither.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local huddle = addWin("Slack", { x = 1200, y = 200, w = 400, h = 300 })
+  huddle.secondary = true
+  local n1 = addWin("Notes", { x = 1000, y = 200, w = 400, h = 400 })
+  local n2 = addWin("Notes", { x = 1500, y = 300, w = 500, h = 400 })
+  n2.secondary = true
+  anchors.start()
+  pick("Left bottom: Empty", "Notes")
+  check("t49 huddle stays", huddle.moves == 0)
+  focus(slack)
+  world.onEvent()
+  frameIs("t49 slack expanded", slack, { x = 0, y = 25, w = 1536, h = 707 })
+  focus(n1)
+  world.onEvent()
+  frameIs("t49 notes not expanded", n1, leftBottom)
+  frameIs("t49 notes second window", n2, leftBottom)
+end
+
+-- Test 50: Empty clears a slot and its app's window goes back to the channel.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  pick("Left top: Slack", "Empty")
+  check("t50 row", item("Left top: Empty") ~= nil)
+  frameIs("t50 slack free", slack, { x = 512, y = 25, w = 512, h = 1415 })
+end
+
+-- Test 51: Pin frontmost app puts the app last used in the chosen slot.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local term = addWin("iTerm2", rightFull)
+  local safari = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  world.front = "Safari"
+  anchors.start()
+  local fast = item("Pin frontmost app (Safari)")
+  check("t51 enabled", fast ~= nil and fast.disabled == false)
+  pick("Pin frontmost app (Safari)", "Right bottom")
+  frameIs("t51 safari right bottom", safari, rightBottom)
+  frameIs("t51 iterm right top", term, rightTop)
+  local target = item("Right bottom", item("Pin frontmost app (Safari)").menu)
+  check("t51 checked", target.checked == true)
+end
+
+-- Test 52: Pin frontmost app is disabled for an ignored app.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.ignoreBundles = { "test.Zoom" }
+  world.front = "Zoom"
+  anchors.start()
+  check("t52 disabled", item("Pin frontmost app (Zoom)").disabled == true)
+end
+
+-- Test 53: Reset to defaults restores the config layout and clears the saved choice.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local term = addWin("iTerm2", rightFull)
+  anchors.start()
+  pick("Right bottom: Empty", "Slack")
+  click("Reset to defaults")
+  check("t53 cleared", world.settings["moorings.slots"] == nil)
+  frameIs("t53 slack left", slack, leftFull)
+  frameIs("t53 iterm right", term, rightFull)
+  check("t53 rows", rows() == defaultRows, rows())
+end
+
+-- Test 54: The app list leaves out ignored apps, apps without a Dock icon, and repeats.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.ignoreBundles = { "test.Zoom" }
+  world.apps = { newApp("Helper", 0), newApp("Zoom"), newApp("Safari"), newApp("Safari") }
+  anchors.start()
+  local choices = item("Left bottom: Empty").menu
+  check("t54 choices", titles(choices) == "Empty,Safari", titles(choices))
+end
+
+-- Test 55: A corrupt saved choice falls back to the config, and a bad slot value is empty.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  world.settings["moorings.slots"] = "junk"
+  local slack = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
+  anchors.start()
+  frameIs("t55 config layout", slack, leftFull)
+  install(ultrawide())
+  world.settings["moorings.slots"] = { ["left-top"] = 42, ["right-top"] = "test.Notes" }
+  local slack2 = addWin("Slack", leftFull)
+  local notes = addWin("Notes", { x = 1000, y = 200, w = 400, h = 400 })
+  anchors.start()
+  frameIs("t55 slack free", slack2, { x = 512, y = 25, w = 512, h = 1415 })
+  frameIs("t55 notes right", notes, rightFull)
+  check("t55 rows",
+    rows() == "Left top: Empty,Left bottom: Empty,Right top: Notes,Right bottom: Empty", rows())
+end
+
+-- Test 56: A chosen app that quits keeps its slot name and leaves its half empty.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  addWin("Notes", { x = 1000, y = 200, w = 400, h = 400 })
+  anchors.start()
+  pick("Left bottom: Empty", "Notes")
+  table.remove(world.windows, 1)
+  world.poll()
+  check("t56 row", item("Left bottom: Notes") ~= nil)
+  frameIs("t56 slack keeps top", slack, leftTop)
 end
 
 for i, t in ipairs(tests) do
