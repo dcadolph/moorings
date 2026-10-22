@@ -65,71 +65,47 @@ A.keymapNames = { "rectangle", "spectacle" }
 A.step = 30
 
 -- families groups the actions for the Window menu folder. A family with groups
--- holds a folder per group. Hint is the hover hint of every entry in the family,
--- and folder is the hover hint of the family's own folder.
+-- holds a folder per group. Hint is the hover hint of every entry in the family.
 A.families = {
   {
     title = "Halves",
-    folder = "Snap the front window to a half.",
     hint = "Snap the front window to this half.",
     names = { "left-half", "right-half", "center-half", "top-half", "bottom-half" },
   },
   {
     title = "Quarters",
-    folder = "Snap the front window to a corner quarter.",
     hint = "Snap the front window to this quarter.",
     names = { "top-left", "top-right", "bottom-left", "bottom-right" },
   },
   {
     title = "Thirds",
-    folder = "Snap the front window to one or two thirds.",
     hint = "Snap the front window to this part, in thirds.",
     names = { "first-third", "center-third", "last-third", "first-two-thirds",
       "center-two-thirds", "last-two-thirds" },
   },
   {
     title = "Fourths",
-    folder = "Snap the front window to one to three fourths.",
     hint = "Snap the front window to this part, in fourths.",
     names = { "first-fourth", "second-fourth", "third-fourth", "last-fourth",
       "first-three-fourths", "center-three-fourths", "last-three-fourths" },
   },
   {
     title = "Grids",
-    folder = "Snap the front window to a cell of a grid.",
     hint = "Snap the front window to this grid cell.",
     groups = {
-      {
-        title = "Sixths",
-        folder = "A grid of three columns and two rows.",
-        names = geometry.grids.sixths,
-      },
-      {
-        title = "Eighths",
-        folder = "A grid of four columns and two rows.",
-        names = geometry.grids.eighths,
-      },
-      {
-        title = "Ninths",
-        folder = "A grid of three columns and three rows.",
-        names = geometry.grids.ninths,
-      },
-      {
-        title = "Corner thirds",
-        folder = "Two thirds wide and half tall in a corner, turned on a tall display.",
-        names = geometry.grids.cornerThirds,
-      },
+      { title = "Sixths", names = geometry.grids.sixths },
+      { title = "Eighths", names = geometry.grids.eighths },
+      { title = "Ninths", names = geometry.grids.ninths },
+      { title = "Corner thirds", names = geometry.grids.cornerThirds },
     },
   },
   {
     title = "Size and move",
-    folder = "Grow, shrink, center or nudge the front window.",
     names = { "maximize", "almost-maximize", "maximize-height", "center", "center-prominently",
       "larger", "smaller", "move-left", "move-right", "move-up", "move-down", "restore" },
   },
   {
     title = "Displays",
-    folder = "Send the front window to another display.",
     hint = "Send the front window to this display, keeping its place in the layout.",
     names = { "previous-display", "next-display" },
   },
@@ -701,16 +677,12 @@ function A.menu(extra)
     if fam.groups then
       sub = {}
       for _, g in ipairs(fam.groups) do
-        sub[#sub + 1] = {
-          title = g.title,
-          tooltip = g.folder,
-          menu = items(g.names, map, frozen, fam.hint),
-        }
+        sub[#sub + 1] = { title = g.title, menu = items(g.names, map, frozen, fam.hint) }
       end
     else
       sub = items(fam.names, map, frozen, fam.hint)
     end
-    out[#out + 1] = { title = fam.title, tooltip = fam.folder, menu = sub }
+    out[#out + 1] = { title = fam.title, menu = sub }
   end
   local names = {}
   for i, s in ipairs(sizes) do
@@ -724,20 +696,12 @@ function A.menu(extra)
       disabled = true,
     } }
   end
-  out[#out + 1] = {
-    title = "Custom sizes",
-    tooltip = "Sizes defined in the config.",
-    menu = custom,
-  }
+  out[#out + 1] = { title = "Custom sizes", menu = custom }
   local organize = items(tile.names, map, frozen)
   for _, it in ipairs(extra or {}) do
     organize[#organize + 1] = it
   end
-  out[#out + 1] = {
-    title = "Organize",
-    tooltip = "Arrange every free window at once.",
-    menu = organize,
-  }
+  out[#out + 1] = { title = "Organize", menu = organize }
   return out
 end
 

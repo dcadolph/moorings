@@ -1738,11 +1738,7 @@ local function lockedItems()
       tooltip = "Pick any app in Applications, running or not, and open it in this slot.",
       fn = safe(function() M.chooseApp(s.key) end),
     }
-    items[#items + 1] = {
-      title = s.title .. ": " .. appName(current),
-      tooltip = "The app locked to this slot. Its window is held here.",
-      menu = choices,
-    }
+    items[#items + 1] = { title = s.title .. ": " .. appName(current), menu = choices }
   end
   local front = hs.application.frontmostApplication()
   local frontBundle = front and front:bundleID()
@@ -1761,7 +1757,6 @@ local function lockedItems()
   end
   items[#items + 1] = {
     title = pinTitle,
-    tooltip = "Lock the app you are using to a slot.",
     disabled = ignoredBundle(frontBundle),
     menu = targets,
   }
@@ -1788,7 +1783,6 @@ local function windowItems()
     },
     {
       title = "Tidy channel",
-      tooltip = "Line up the front free windows in equal columns.",
       disabled = frozen,
       menu = {
         {
@@ -1903,11 +1897,7 @@ local function heightItems()
         fn = safe(function() M.setTop(s.side, pct) end),
       }
     end
-    items[#items + 1] = {
-      title = s.name .. " side",
-      tooltip = "Preset row splits for the " .. s.side .. " strip.",
-      menu = presets,
-    }
+    items[#items + 1] = { title = s.name .. " side", menu = presets }
   end
   return items
 end
@@ -1919,7 +1909,6 @@ local function workspaceItems()
   for _, name in ipairs(workspaces.names()) do
     items[#items + 1] = {
       title = name,
-      tooltip = "A saved layout of slots, widths, heights and windows.",
       menu = {
         {
           title = "Recall",
@@ -2007,7 +1996,7 @@ local function iconItems()
         fn = safe(function() M.pickIcon(icon.name) end),
       }
     end
-    items[#items + 1] = { title = g.title, tooltip = "Built-in icons of one kind.", menu = entries }
+    items[#items + 1] = { title = g.title, menu = entries }
   end
   if #model.yours > 0 then
     local entries = {}
@@ -2019,11 +2008,7 @@ local function iconItems()
         fn = safe(function() M.pickIcon(icon.name) end),
       }
     end
-    items[#items + 1] = {
-      title = "Yours",
-      tooltip = "Icons from your config and images in the icons folder.",
-      menu = entries,
-    }
+    items[#items + 1] = { title = "Yours", menu = entries }
   end
   items[#items + 1] = { title = "-" }
   items[#items + 1] = {
@@ -2101,7 +2086,7 @@ local function settingItems()
       checked = M.snapOn(),
       fn = safe(function() M.setSnap(not M.snapOn()) end),
     },
-    { title = "Keymap", tooltip = "Choose which app's window shortcuts to match.", menu = keymaps },
+    { title = "Keymap", menu = keymaps },
     {
       title = ignoreTitle,
       tooltip = "Turn the window shortcuts off while this app is in front.",
@@ -2109,7 +2094,7 @@ local function settingItems()
       disabled = frontBundle == nil or ignoredBundle(frontBundle),
       fn = safe(function() M.toggleShortcutIgnore(frontBundle) end),
     },
-    { title = "Icon", tooltip = "Choose what moorings shows in the menu bar.", menu = icons },
+    { title = "Icon", menu = icons },
     {
       title = "Edit config",
       tooltip = "Open anchors.lua in your text editor. Reload to apply changes.",
@@ -2199,33 +2184,13 @@ local function menu()
   end
   for _, it in ipairs({
     { title = "-" },
-    {
-      title = "Window",
-      tooltip = "Move and size the front window. On the ultrawide these work inside the channel.",
-      menu = windowItems(),
-    },
-    {
-      title = "Lift",
-      tooltip = "Lift a pin over its strip and the channel.",
-      menu = liftItems(pins, frozen),
-    },
-    { title = "Locked apps", tooltip = "Choose which app holds each slot.", menu = lockedItems() },
-    {
-      title = "Widths",
-      tooltip = "Set how wide the left and right strips are.",
-      menu = widthItems(),
-    },
-    {
-      title = "Heights",
-      tooltip = "Set where each strip splits into two rows.",
-      menu = heightItems(),
-    },
-    { title = "Workspaces", tooltip = "Save and recall whole layouts.", menu = workspaceItems() },
-    {
-      title = "Settings",
-      tooltip = "Behavior, shortcuts, icon and config.",
-      menu = settingItems(),
-    },
+    { title = "Window", menu = windowItems() },
+    { title = "Lift", menu = liftItems(pins, frozen) },
+    { title = "Locked apps", menu = lockedItems() },
+    { title = "Widths", menu = widthItems() },
+    { title = "Heights", menu = heightItems() },
+    { title = "Workspaces", menu = workspaceItems() },
+    { title = "Settings", menu = settingItems() },
     { title = "-" },
     {
       title = "Reload",

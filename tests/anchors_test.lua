@@ -3824,26 +3824,27 @@ tests[#tests + 1] = function()
   frameIs("t181 home again", slack, leftFull)
 end
 
--- unhinted returns the titles of entries in items, at any depth, whose hover hint is
--- missing or is not a sentence starting with a capital and ending with a period.
+-- unhinted returns the titles of entries in items, at any depth, whose hover hint is wrong:
+-- a folder has one, which would cover its open submenu, or any other entry lacks a sentence
+-- starting with a capital and ending with a period.
 local function unhinted(items, out)
   out = out or {}
   for _, it in ipairs(items) do
-    if it.title ~= "-" then
-      local hint = it.tooltip
-      if type(hint) ~= "string" or not hint:match("^%u") or not hint:match("%.$") then
+    local hint = it.tooltip
+    if it.menu then
+      if hint ~= nil then
         out[#out + 1] = it.title
       end
-      if it.menu then
-        unhinted(it.menu, out)
-      end
+      unhinted(it.menu, out)
+    elseif it.title ~= "-" and (type(hint) ~= "string" or not hint:match("^%u") or not hint:match("%.$")) then
+      out[#out + 1] = it.title
     end
   end
   return out
 end
 
--- Test 180: Every menu entry at every depth has a hover hint, in a bare world, a world
--- that shows every conditional entry, frozen, and when the menu fails to build.
+-- Test 180: Every menu entry that is not a folder has a hover hint and no folder has one, in
+-- a bare world, a world that shows every conditional entry, frozen, and when the menu fails.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
