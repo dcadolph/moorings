@@ -188,6 +188,67 @@ tests[#tests + 1] = function()
   is("t13 clamp", G.clamp({ x = 0, y = 0, w = 3000, h = 500 }, channel), { x = 512, y = 25, w = 2304, h = 500 })
 end
 
+-- Test 14: Halves cycle their width 1/2, 2/3, 1/3 and wrap, and thirds walk the area.
+tests[#tests + 1] = function()
+  local half = { x = 512, y = 25, w = 1152, h = 1415 }
+  is("t14 left 1", G.cycle("left-half", 1, channel), half)
+  is("t14 left 2", G.cycle("left-half", 2, channel), { x = 512, y = 25, w = 1536, h = 1415 })
+  is("t14 left 3", G.cycle("left-half", 3, channel), { x = 512, y = 25, w = 768, h = 1415 })
+  is("t14 left 4", G.cycle("left-half", 4, channel), half)
+  is("t14 right 2", G.cycle("right-half", 2, channel), { x = 1280, y = 25, w = 1536, h = 1415 })
+  is("t14 right 3", G.cycle("right-half", 3, channel), { x = 2048, y = 25, w = 768, h = 1415 })
+  is("t14 first 2", G.cycle("first-third", 2, channel), G.position("center-third", channel))
+  is("t14 first 3", G.cycle("first-third", 3, channel), G.position("last-third", channel))
+  is("t14 last 2", G.cycle("last-third", 2, channel), G.position("center-third", channel))
+  is("t14 last 3", G.cycle("last-third", 3, channel), G.position("first-third", channel))
+  is("t14 tall half stays a width", G.cycle("left-half", 2, tall), { x = 0, y = 25, w = 720, h = 1895 })
+  is("t14 no cycle", G.cycle("maximize", 5, channel, window), channel)
+  check("t14 unknown", G.cycle("sideways", 1, channel, window) == nil)
+end
+
+-- Test 15: Larger and smaller move free edges by the step and hold edges at the area.
+tests[#tests + 1] = function()
+  is("t15 larger", G.resize(channel, window, 30), { x = 570, y = 70, w = 1060, h = 860 })
+  is("t15 smaller", G.resize(channel, window, -30), { x = 630, y = 130, w = 940, h = 740 })
+  local half = G.position("left-half", channel)
+  is("t15 larger curtain", G.resize(channel, half, 30), { x = 512, y = 25, w = 1182, h = 1415 })
+  is("t15 smaller curtain", G.resize(channel, half, -30), { x = 512, y = 55, w = 1122, h = 1355 })
+  is("t15 smaller full", G.resize(channel, channel, -30), { x = 542, y = 55, w = 2244, h = 1355 })
+  is("t15 larger full", G.resize(channel, channel, 30), channel)
+  is("t15 larger stops at edge", G.resize(channel, { x = 530, y = 100, w = 1000, h = 800 }, 30),
+    { x = 512, y = 70, w = 1048, h = 860 })
+  is("t15 smaller floor", G.resize(channel, { x = 600, y = 100, w = 600, h = 800 }, -30),
+    { x = 600, y = 130, w = 600, h = 740 })
+  is("t15 clamped first", G.resize(channel, { x = 0, y = 0, w = 3000, h = 500 }, 30),
+    { x = 512, y = 25, w = 2304, h = 530 })
+end
+
+-- Test 16: Transfer keeps the relative frame across areas of different sizes.
+tests[#tests + 1] = function()
+  local laptop = { x = 5120, y = 25, w = 1512, h = 957 }
+  local half = G.position("left-half", channel)
+  local moved = G.transfer(half, channel, laptop)
+  is("t16 to laptop", moved, { x = 5120, y = 25, w = 756, h = 957 })
+  is("t16 and back", G.transfer(moved, laptop, channel), half)
+  is("t16 right half", G.transfer(G.position("right-half", channel), channel, laptop),
+    { x = 5876, y = 25, w = 756, h = 957 })
+  check("t16 inside", inside(G.transfer({ x = 2000, y = 900, w = 900, h = 600 }, channel, laptop),
+    laptop))
+end
+
+-- Test 17: The grid families list every grid name once, in reading order.
+tests[#tests + 1] = function()
+  check("t17 sixths", table.concat(G.grids.sixths, ",") == "top-left-sixth,top-center-sixth,"
+    .. "top-right-sixth,bottom-left-sixth,bottom-center-sixth,bottom-right-sixth",
+    table.concat(G.grids.sixths, ","))
+  check("t17 counts", #G.grids.ninths == 9 and #G.grids.eighths == 8 and #G.grids.cornerThirds == 4)
+  for _, list in pairs(G.grids) do
+    for _, name in ipairs(list) do
+      check("t17 known " .. name, G.position(name, channel) ~= nil)
+    end
+  end
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then

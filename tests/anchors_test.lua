@@ -151,9 +151,20 @@ end
 local function install(...)
   world = {
     screens = { ... }, windows = {}, settings = {}, nextID = 0, printed = {}, apps = {},
-    clock = 1000, mouseDown = false, trusted = true,
+    clock = 1000, mouseDown = false, trusted = true, hotkeys = {},
   }
   hs = {
+    hotkey = {
+      new = function(mods, key, fn)
+        if key == "bogus" then error("unknown key") end
+        local hk = { mods = table.concat(mods, "+"), key = key, fn = fn, enabled = false }
+        function hk:enable() self.enabled = true return self end
+        function hk:disable() self.enabled = false return self end
+        function hk:delete() self.deleted, self.enabled = true, false end
+        world.hotkeys[#world.hotkeys + 1] = hk
+        return hk
+      end,
+    },
     configdir = "/tmp/hammerspoon",
     autoLaunch = function(v) world.autoLaunch = v end,
     accessibilityState = function(prompt)
@@ -187,6 +198,13 @@ local function install(...)
         return world.focused and newApp(world.focused.app) or nil
       end,
       nameForBundleID = function(bundle) return nameFor(bundle) end,
+      watcher = {
+        activated = 5,
+        new = function(fn)
+          world.appWatch = fn
+          return { start = function(self) return self end }
+        end,
+      },
     },
     screen = {
       allScreens = function() return world.screens end,
@@ -238,6 +256,7 @@ local function install(...)
   _G.print = function(msg) world.printed[#world.printed + 1] = msg end
   package.loaded.anchors = nil
   package.loaded.geometry = nil
+  package.loaded.actions = nil
   anchors = require("anchors")
 end
 
@@ -438,11 +457,12 @@ tests[#tests + 1] = function()
   local b = addWin("Chrome", { x = 700, y = 100, w = 400, h = 400 })
   addWin("Slack", { x = 0, y = 25, w = 512, h = 1415 })
   anchors.start()
-  click("Halves")
+  local tidy = item("Tidy channel").menu
+  item("Halves", tidy).fn()
   frameIs("t13 b left", b, { x = 512, y = 25, w = 1152, h = 1415 })
   frameIs("t13 a right", a, { x = 1664, y = 25, w = 1152, h = 1415 })
   check("t13 back untouched", back.moves == 0)
-  click("Thirds")
+  item("Thirds", tidy).fn()
   frameIs("t13 back col", back, { x = 2048, y = 25, w = 768, h = 1415 })
   click("Undo tidy")
   frameIs("t13 a restored", a, { x = 1500, y = 100, w = 400, h = 400 })
@@ -909,10 +929,18 @@ local function titles(items)
   return table.concat(out, ",")
 end
 
+-- folder returns the submenu of the top-level folder titled title.
+local function folder(title)
+  for _, it in ipairs(world.bar.menu()) do
+    if it.title == title then return it.menu end
+  end
+  return {}
+end
+
 -- rows lists the four slot row titles.
 local function rows()
   local out = {}
-  for _, it in ipairs(world.bar.menu()) do
+  for _, it in ipairs(folder("Locked apps")) do
     if it.title:find("^Left ") or it.title:find("^Right ") then
       if it.menu then out[#out + 1] = it.title end
     end
@@ -1089,7 +1117,7 @@ end
 -- checkedPresets lists the titles of the checked presets.
 local function checkedPresets()
   local out = {}
-  for _, it in ipairs(world.bar.menu()) do
+  for _, it in ipairs(folder("Widths")) do
     if it.title:find("^Left %d+%%, right") and it.checked then out[#out + 1] = it.title end
   end
   return table.concat(out, ",")
@@ -1211,6 +1239,287 @@ tests[#tests + 1] = function()
   check("t65 not reloaded", world.reloaded == nil)
   check("t65 checked both", seen[1] == "/tmp/hammerspoon/moorings/anchors.lua"
     and seen[2] == "/tmp/hammerspoon/moorings/geometry.lua")
+end
+
+-- hotkey returns the bound shortcut for mods and key, or nil.
+local function hotkey(mods, key)
+  for _, hk in ipairs(world.hotkeys) do
+    if hk.mods == mods and hk.key == key and not hk.deleted then return hk end
+  end
+  return nil
+end
+
+-- press runs the shortcut for mods and key when it is bound and enabled.
+local function press(mods, key)
+  local hk = hotkey(mods, key)
+  check("bound " .. mods .. "+" .. key, hk ~= nil)
+  if hk and hk.enabled then hk.fn() end
+end
+
+-- enabledCount counts the shortcuts that are bound and enabled.
+local function enabledCount()
+  local n = 0
+  for _, hk in ipairs(world.hotkeys) do
+    if hk.enabled then n = n + 1 end
+  end
+  return n
+end
+
+-- action finds the Window menu entry for action name.
+local function action(name, items)
+  items = items or folder("Window")
+  for _, it in ipairs(items) do
+    if it.action == name then return it end
+    if it.menu then
+      local found = action(name, it.menu)
+      if found then return found end
+    end
+  end
+  return nil
+end
+
+-- laptop is a 1920 by 1080 display, too narrow to count as ultrawide.
+local function laptop() return newScreen(1, 0, 1920, 1080) end
+
+local channelHalf = { x = 512, y = 25, w = 1152, h = 1415 }
+
+-- Test 66: Start binds Rectangle's keymap and every shortcut is on.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  check("t66 count", #world.hotkeys == 22, tostring(#world.hotkeys))
+  check("t66 enabled", enabledCount() == 22, tostring(enabledCount()))
+  check("t66 left", hotkey("ctrl+alt", "left") ~= nil)
+  check("t66 displays", hotkey("ctrl+alt+cmd", "right") ~= nil)
+  check("t66 restore", hotkey("ctrl+alt", "delete") ~= nil)
+end
+
+-- Test 67: Left half lands in the channel and repeats cycle 2/3, 1/3, then back to 1/2.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  focus(w)
+  press("ctrl+alt", "left")
+  frameIs("t67 half", w, channelHalf)
+  press("ctrl+alt", "left")
+  frameIs("t67 two thirds", w, { x = 512, y = 25, w = 1536, h = 1415 })
+  press("ctrl+alt", "left")
+  frameIs("t67 third", w, { x = 512, y = 25, w = 768, h = 1415 })
+  press("ctrl+alt", "left")
+  frameIs("t67 wrap", w, channelHalf)
+  world.poll()
+  frameIs("t67 layout keeps it", w, channelHalf)
+end
+
+-- Test 68: A window moved by hand between presses starts the cycle over.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  focus(w)
+  press("ctrl+alt", "left")
+  w.f = { x = 900, y = 100, w = 700, h = 500 }
+  press("ctrl+alt", "left")
+  frameIs("t68 half again", w, channelHalf)
+  press("ctrl+alt", "right")
+  frameIs("t68 right half", w, { x = 1664, y = 25, w = 1152, h = 1415 })
+end
+
+-- Test 69: On a screen that is not ultrawide nothing moves until a shortcut, which uses the
+-- whole usable frame and moves a pin app too.
+tests[#tests + 1] = function()
+  install(laptop())
+  local slack = addWin("Slack", { x = 500, y = 100, w = 900, h = 700 })
+  anchors.start()
+  world.poll()
+  check("t69 untouched", slack.moves == 0)
+  focus(slack)
+  press("ctrl+alt", "left")
+  frameIs("t69 half", slack, { x = 0, y = 25, w = 960, h = 1055 })
+  press("ctrl+alt", "return")
+  frameIs("t69 maximize", slack, { x = 0, y = 25, w = 1920, h = 1055 })
+end
+
+-- Test 70: A pinned window ignores shortcuts and the refusal is logged once.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  focus(slack)
+  local before = slack.moves
+  press("ctrl+alt", "right")
+  press("ctrl+alt", "return")
+  check("t70 not moved", slack.moves == before, "moves " .. slack.moves)
+  check("t70 logged once", said("window actions leave pins alone") == 1)
+end
+
+-- Test 71: Restore returns the frame from before the first action and then does nothing.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  focus(w)
+  press("ctrl+alt", "left")
+  press("ctrl+alt", "c")
+  press("ctrl+alt", "=")
+  check("t71 undo enabled", item("Undo tidy").disabled == false)
+  press("ctrl+alt", "delete")
+  frameIs("t71 restored", w, { x = 1000, y = 200, w = 800, h = 600 })
+  check("t71 nothing left", not anchors.canUndo())
+  local moves = w.moves
+  press("ctrl+alt", "delete")
+  check("t71 second restore no-op", w.moves == moves)
+  press("ctrl+alt", "left")
+  frameIs("t71 cycle restarts", w, channelHalf)
+end
+
+-- Test 72: Drop anchor freezes shortcuts and grays out the Window entries.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  click("⚓ Drop anchor (freeze layout)")
+  focus(w)
+  press("ctrl+alt", "left")
+  check("t72 frozen", w.moves == 0)
+  check("t72 menu disabled", action("left-half").disabled == true)
+  click("⚓ Weigh anchor (resume layout)")
+  check("t72 menu enabled", action("left-half").disabled == false)
+end
+
+-- Test 73: Larger and smaller step 30 points and stop at the screen edge.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  focus(w)
+  press("ctrl+alt", "=")
+  frameIs("t73 larger", w, { x = 470, y = 270, w = 860, h = 560 })
+  press("ctrl+alt", "-")
+  frameIs("t73 smaller", w, { x = 500, y = 300, w = 800, h = 500 })
+  press("ctrl+alt", "left")
+  press("ctrl+alt", "=")
+  frameIs("t73 curtain", w, { x = 0, y = 25, w = 990, h = 1055 })
+end
+
+-- Test 74: Display moves keep the relative frame, go from channel to laptop and back, and
+-- wrap.
+tests[#tests + 1] = function()
+  local side = newScreen(2, 5120, 1512, 982)
+  install(ultrawide(), side)
+  local w = addWin("Safari", channelHalf)
+  anchors.start()
+  focus(w)
+  press("ctrl+alt+cmd", "right")
+  frameIs("t74 on laptop", w, { x = 5120, y = 25, w = 756, h = 957 })
+  press("ctrl+alt+cmd", "left")
+  frameIs("t74 back", w, channelHalf)
+  press("ctrl+alt+cmd", "left")
+  frameIs("t74 wraps", w, { x = 5120, y = 25, w = 756, h = 957 })
+end
+
+-- Test 75: A display move with one screen does nothing.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  focus(w)
+  press("ctrl+alt+cmd", "right")
+  check("t75 still", w.moves == 0)
+end
+
+-- Test 76: Ignore frontmost app turns shortcuts off while that app is in front, and back
+-- on for other apps, and the choice survives reload.
+tests[#tests + 1] = function()
+  install(laptop())
+  local zoom = addWin("Zoom", { x = 500, y = 300, w = 800, h = 500 })
+  world.front = "Zoom"
+  anchors.start()
+  local it = item("Ignore frontmost app (Zoom)")
+  check("t76 offered", it ~= nil and it.checked == false and it.disabled == false)
+  click("Ignore frontmost app (Zoom)")
+  check("t76 off", enabledCount() == 0, tostring(enabledCount()))
+  check("t76 checked", item("Ignore frontmost app (Zoom)").checked == true)
+  focus(zoom)
+  for _, hk in ipairs(world.hotkeys) do
+    if hk.key == "left" and hk.mods == "ctrl+alt" then hk.fn() end
+  end
+  world.front = "Safari"
+  world.appWatch("Safari", 5)
+  check("t76 on for others", enabledCount() == 22, tostring(enabledCount()))
+  local settings = world.settings
+  install(laptop())
+  world.settings = settings
+  world.front = "Zoom"
+  anchors.start()
+  check("t76 survives reload", enabledCount() == 0, tostring(enabledCount()))
+  click("Ignore frontmost app (Zoom)")
+  check("t76 unignored", enabledCount() == 22, tostring(enabledCount()))
+end
+
+-- Test 77: An app in ignoreBundles turns shortcuts off and its menu entry is fixed on.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.config.ignoreBundles = { "test.Zoom" }
+  world.front = "Zoom"
+  anchors.start()
+  check("t77 off", enabledCount() == 0)
+  local it = item("Ignore frontmost app (Zoom)")
+  check("t77 fixed", it.checked == true and it.disabled == true)
+  world.front = "Safari"
+  world.appWatch("Safari", 4)
+  check("t77 other events ignored", enabledCount() == 0)
+  world.appWatch("Safari", 5)
+  check("t77 on", enabledCount() == 22)
+end
+
+-- Test 78: Config overrides rebind and unbind keys and report bad entries.
+tests[#tests + 1] = function()
+  install(laptop())
+  anchors.config.shortcuts = {
+    ["left-half"] = { mods = { "ctrl", "alt" }, key = "h" },
+    maximize = false,
+    smaller = { mods = { "ctrl", "alt" }, key = "bogus" },
+  }
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  check("t78 old key gone", hotkey("ctrl+alt", "left") == nil)
+  check("t78 maximize gone", hotkey("ctrl+alt", "return") == nil)
+  check("t78 bad key said", said("shortcut for smaller has an unknown key bogus") == 1)
+  focus(w)
+  press("ctrl+alt", "h")
+  frameIs("t78 rebound", w, { x = 0, y = 25, w = 960, h = 1055 })
+  check("t78 menu text", action("left-half").title == "Left half  ⌃⌥H", action("left-half").title)
+  check("t78 menu no key", action("maximize").title == "Maximize")
+end
+
+-- Test 79: The menu is short at the top, and the Window folder runs actions and shows keys.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  focus(w)
+  check("t79 top", titles(world.bar.menu()) == "⚓ Drop anchor (freeze layout),Re-moor now,-,"
+    .. "Window,Locked apps,Widths,Settings,-,Reload", titles(world.bar.menu()))
+  check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
+    .. "Size and move,Displays,Organize", titles(folder("Window")))
+  check("t79 settings", titles(folder("Settings")) == "Fullscreen fills the channel,"
+    .. "Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
+  check("t79 left text", action("left-half").title == "Left half  ⌃⌥←", action("left-half").title)
+  action("bottom-right-sixth").fn()
+  frameIs("t79 sixth", w, { x = 2048, y = 732, w = 768, h = 708 })
+end
+
+-- Test 80: A fullscreen window is left to the layout's fullscreen handling.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  w.full = true
+  focus(w)
+  press("ctrl+alt", "left")
+  check("t80 untouched", w.moves == 0)
 end
 
 for i, t in ipairs(tests) do

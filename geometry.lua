@@ -100,18 +100,28 @@ G.cells = {
 }
 
 -- grid adds a cell for every square of an nc by nr grid, named by rowNames and
--- colNames joined with a hyphen and the suffix.
+-- colNames joined with a hyphen and the suffix, and returns the names in
+-- reading order.
 local function grid(nc, nr, colNames, rowNames, suffix)
+  local names = {}
   for r, rowName in ipairs(rowNames) do
     for c, colName in ipairs(colNames) do
-      G.cells[rowName .. "-" .. colName .. "-" .. suffix] = cell(c - 1, c, nc, r - 1, r, nr)
+      local name = rowName .. "-" .. colName .. "-" .. suffix
+      G.cells[name] = cell(c - 1, c, nc, r - 1, r, nr)
+      names[#names + 1] = name
     end
   end
+  return names
 end
 
-grid(3, 2, { "left", "center", "right" }, { "top", "bottom" }, "sixth")
-grid(3, 3, { "left", "center", "right" }, { "top", "middle", "bottom" }, "ninth")
-grid(4, 2, { "left", "center-left", "center-right", "right" }, { "top", "bottom" }, "eighth")
+-- grids lists the grid position names by family, in reading order.
+G.grids = {
+  sixths = grid(3, 2, { "left", "center", "right" }, { "top", "bottom" }, "sixth"),
+  ninths = grid(3, 3, { "left", "center", "right" }, { "top", "middle", "bottom" }, "ninth"),
+  eighths = grid(4, 2, { "left", "center-left", "center-right", "right" }, { "top", "bottom" },
+    "eighth"),
+  cornerThirds = { "top-left-third", "top-right-third", "bottom-left-third", "bottom-right-third" },
+}
 
 -- span returns the start and length of parts i0 to i1 of n across length at
 -- origin, with the outer gap at the area's edges and half the gap between parts.
@@ -231,6 +241,76 @@ function G.position(name, area, cur, gap)
     return fn(area, cur or area, gap)
   end
   return nil
+end
+
+-- cycles maps each action that changes on a repeat press to the positions it
+-- steps through. A table entry is a cell that ignores orientation, so a half
+-- cycles its width on a tall area as well.
+G.cycles = {
+  ["left-half"] = { "left-half", cell(0, 2, 3, 0, 1, 1), cell(0, 1, 3, 0, 1, 1) },
+  ["right-half"] = { "right-half", cell(1, 3, 3, 0, 1, 1), cell(2, 3, 3, 0, 1, 1) },
+  ["first-third"] = { "first-third", "center-third", "last-third" },
+  ["last-third"] = { "last-third", "center-third", "first-third" },
+}
+
+-- cycle returns the frame of press i of action name, wrapping after the last
+-- step. A name without a cycle returns its plain position.
+function G.cycle(name, i, area, cur, gap)
+  local steps = G.cycles[name]
+  if not steps then
+    return G.position(name, area, cur, gap)
+  end
+  local s = steps[(i - 1) % #steps + 1]
+  if type(s) == "string" then
+    return G.position(s, area, cur, gap)
+  end
+  return fromCell(s, area, gap or 0)
+end
+
+-- minShare is the smallest share of the area smaller will shrink an axis to.
+local minShare = 0.25
+
+-- touch is how many points from an area edge still count as touching it.
+local touch = 2
+
+-- grow moves the free edges of the span lo to lo+len by d within alo to
+-- alo+alen. An edge touching the area stays put, like a curtain. When
+-- shrinking a span that touches both edges, both edges move in.
+local function grow(lo, len, alo, alen, d)
+  local hi, ahi = lo + len, alo + alen
+  local atLo, atHi = lo <= alo + touch, hi >= ahi - touch
+  if d < 0 and atLo and atHi then
+    atLo, atHi = false, false
+  end
+  local nlo = atLo and lo or math.max(alo, lo - d)
+  local nhi = atHi and hi or math.min(ahi, hi + d)
+  if d < 0 and nhi - nlo < alen * minShare then
+    return lo, len
+  end
+  return nlo, nhi - nlo
+end
+
+-- resize grows cur by d points on each free edge inside area, or shrinks it
+-- when d is negative. cur is first clamped into the area.
+function G.resize(area, cur, d, gap)
+  local a = inset(area, gap or 0)
+  local f = G.clamp(cur, a)
+  local x, w = grow(f.x, f.w, a.x, a.w, d)
+  local y, h = grow(f.y, f.h, a.y, a.h, d)
+  return { x = x, y = y, w = w, h = h }
+end
+
+-- transfer maps cur from one area to another, keeping its relative position
+-- and size, so a left half stays a left half on the next display.
+function G.transfer(cur, from, to)
+  local sx, sy = to.w / from.w, to.h / from.h
+  local f = {
+    x = to.x + round((cur.x - from.x) * sx),
+    y = to.y + round((cur.y - from.y) * sy),
+    w = round(cur.w * sx),
+    h = round(cur.h * sy),
+  }
+  return G.clamp(f, to)
 end
 
 -- names returns every action position knows, sorted.
