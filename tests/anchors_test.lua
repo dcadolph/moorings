@@ -60,9 +60,12 @@ function Win:id() return self.wid end
 -- Win:frame returns the current frame.
 function Win:frame() return copy(self.f) end
 
--- Win:setFrame moves the window and counts the move.
+-- Win:setFrame moves the window and counts the move. A window with minW or minH keeps
+-- its origin and stays at least that size, as apps with a minimum size do.
 function Win:setFrame(f)
   self.f = copy(f)
+  self.f.w = math.max(self.f.w, self.minW or 0)
+  self.f.h = math.max(self.f.h, self.minH or 0)
   self.moves = self.moves + 1
 end
 
@@ -231,7 +234,7 @@ local function install(...)
         return world.chosenFile
       end,
       textPrompt = function(...)
-        world.promptArgs = { ... }
+        world.promptArgs, world.focusedAtPrompt = { ... }, world.hsFocused == true
         return table.unpack(world.prompt or { "Cancel", "" })
       end,
     },
@@ -2757,8 +2760,9 @@ end
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
-  world.prompt = { "Set", "  DCA " }
+  world.prompt, world.hsFocused = { "Set", "  DCA " }, nil
   click("Custom…")
+  check("t137 prompt in front", world.focusedAtPrompt == true)
   check("t137 title", world.bar.title == "DCA", world.bar.title)
   check("t137 prompt text", world.promptArgs[1] == "Custom icon")
   check("t137 checked", item("Custom…  DCA").checked == true)
@@ -2856,6 +2860,8 @@ tests[#tests + 1] = function()
   world.settings["moorings.icon"] = "Wavy"
   anchors.start()
   check("t140 unloadable falls back", world.bar.title == "⛵" and world.bar.icon == nil)
+  check("t140 unloadable unchecked", item("Wavy").checked ~= true)
+  check("t140 default checked", item("⛵  Sailboat").checked == true)
 end
 
 -- Test 141: Image files in the icon folder are listed, sorted, filtered, and loaded as template images.
@@ -2996,119 +3002,120 @@ local function dragTaps()
   return running, stopped
 end
 
--- Test 151: The moorings mark ships with moorings and loads as a template image.
+-- Test 147: The moorings mark ships with moorings and loads as a template image.
 tests[#tests + 1] = function()
   install(ultrawide())
   local path = "/tmp/hammerspoon/moorings/mark.svg"
   world.images[path] = true
   anchors.start()
-  check("t151 not default", world.bar.title == "⛵" and item("moorings mark").checked == false)
+  check("t147 not default", world.bar.title == "⛵" and item("moorings mark").checked == false)
   click("moorings mark")
-  check("t151 image", world.bar.icon and world.bar.icon.path == path and world.bar.icon.isTemplate == true
+  check("t147 image", world.bar.icon and world.bar.icon.path == path and world.bar.icon.isTemplate == true
     and world.bar.title == nil)
-  check("t151 checked", item("moorings mark").checked == true and item("⛵  Sailboat").checked == false)
-  check("t151 saved", world.settings["moorings.icon"] == "moorings mark")
+  check("t147 checked", item("moorings mark").checked == true and item("⛵  Sailboat").checked == false)
+  check("t147 saved", world.settings["moorings.icon"] == "moorings mark")
   local f = io.open("mark.svg", "r")
-  check("t151 file in repo", f ~= nil)
+  check("t147 file in repo", f ~= nil)
   if f then f:close() end
   anchors.path = function(file) return "./" .. file end
+  world.images["./mark.svg"] = true
   click("Settings window…")
   world.webMsg({ body = { type = "ready" } })
-  check("t151 model", world.model.icons.mark.checked == true and world.model.icons.mark.image == true)
+  check("t147 model", world.model.icons.mark.checked == true and world.model.icons.mark.image == true)
 end
 
--- Test 152: Choosing the icon already in effect keeps the undo point, the notice stays
+-- Test 148: Choosing the icon already in effect keeps the undo point, the notice stays
 -- until handled, a config icon cannot take the mark's name, and the page keeps a draft.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.config.icons = { { name = "moorings mark", glyph = "X" } }
   anchors.start()
-  check("t152 mark name refused", item("Yours") == nil)
+  check("t148 mark name refused", item("Yours") == nil)
   click("🐙  Octopus")
   click("🐙  Octopus")
   click("Undo icon change")
-  check("t152 undo after repeat", world.bar.title == "⛵", tostring(world.bar.title))
+  check("t148 undo after repeat", world.bar.title == "⛵", tostring(world.bar.title))
   click("Default icon")
-  check("t152 default no-op keeps undo", item("Undo icon change").disabled == false)
+  check("t148 default no-op keeps undo", item("Undo icon change").disabled == false)
   click("Undo icon change")
-  check("t152 undo to octopus", world.bar.title == "🐙")
+  check("t148 undo to octopus", world.bar.title == "🐙")
   install(ultrawide())
   world.trusted = false
   anchors.start()
-  check("t152 notice stays", world.notices[1].attrs.withdrawAfter == 0)
+  check("t148 notice stays", world.notices[1].attrs.withdrawAfter == 0)
   local file = assert(io.open("settings.html", "r"))
   local html = file:read("a")
   file:close()
-  check("t152 draft kept", html:find("if (saved !== lastIconText)", 1, true) ~= nil)
+  check("t148 draft kept", html:find("if (saved !== lastIconText)", 1, true) ~= nil)
 end
 
--- Test 147: Missing Accessibility shows the warning glyph, one notification and a menu item to grant it.
+-- Test 149: Missing Accessibility shows the warning glyph, one notification and a menu item to grant it.
 tests[#tests + 1] = function()
   install(ultrawide())
   world.trusted = false
   anchors.start()
-  check("t147 glyph", world.bar.title == "⚠️" and world.bar.icon == nil, tostring(world.bar.title))
-  check("t147 one notice", #world.notices == 1 and world.notices[1].sent == true)
-  check("t147 notice text", world.notices[1].attrs.title == "moorings needs Accessibility"
+  check("t149 glyph", world.bar.title == "⚠️" and world.bar.icon == nil, tostring(world.bar.title))
+  check("t149 one notice", #world.notices == 1 and world.notices[1].sent == true)
+  check("t149 notice text", world.notices[1].attrs.title == "moorings needs Accessibility"
     and world.notices[1].attrs.hasActionButton == true)
   local items = world.bar.menu()
-  check("t147 first item", items[1].title == "⚠️ Grant Accessibility access" and items[2].title == "-")
+  check("t149 first item", items[1].title == "⚠️ Grant Accessibility access" and items[2].title == "-")
   click("⚠️ Grant Accessibility access")
   local pane = "open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'"
-  check("t147 opens pane", world.executed == pane, tostring(world.executed))
+  check("t149 opens pane", world.executed == pane, tostring(world.executed))
   world.executed = nil
   world.notices[1].fn()
-  check("t147 notice opens pane", world.executed == pane)
+  check("t149 notice opens pane", world.executed == pane)
   local calls = world.bar.titleCalls
   for _ = 1, 5 do world.poll() end
-  check("t147 no redraw per tick", world.bar.titleCalls == calls, world.bar.titleCalls .. " vs " .. calls)
-  check("t147 still one notice", #world.notices == 1)
-  check("t147 still glyph", world.bar.title == "⚠️")
+  check("t149 no redraw per tick", world.bar.titleCalls == calls, world.bar.titleCalls .. " vs " .. calls)
+  check("t149 still one notice", #world.notices == 1)
+  check("t149 still glyph", world.bar.title == "⚠️")
 end
 
--- Test 148: Granting Accessibility clears the warning once and binds shortcuts and the drag tap again.
+-- Test 150: Granting Accessibility clears the warning once and binds shortcuts and the drag tap again.
 tests[#tests + 1] = function()
   install(ultrawide())
   world.trusted = false
   anchors.start()
   local before = #world.hotkeys
   local oldKey = world.hotkeys[1]
-  check("t148 one drag tap", select(1, dragTaps()) == 1)
+  check("t150 one drag tap", select(1, dragTaps()) == 1)
   world.trusted = true
   world.poll()
-  check("t148 icon back", world.bar.title == "⛵")
-  check("t148 withdrawn", world.notices[1].withdrawn == true)
-  check("t148 alert", world.alerted == "moorings: Accessibility granted", tostring(world.alerted))
-  check("t148 rebound", #world.hotkeys == 2 * before and oldKey.deleted == true and world.hotkeys[before + 1].enabled)
+  check("t150 icon back", world.bar.title == "⛵")
+  check("t150 withdrawn", world.notices[1].withdrawn == true)
+  check("t150 alert", world.alerted == "moorings: Accessibility granted", tostring(world.alerted))
+  check("t150 rebound", #world.hotkeys == 2 * before and oldKey.deleted == true and world.hotkeys[before + 1].enabled)
   local running, stopped = dragTaps()
-  check("t148 drag tap replaced", running == 1 and stopped == 1, running .. " " .. stopped)
-  check("t148 no grant item", world.bar.menu()[1].title ~= "⚠️ Grant Accessibility access")
+  check("t150 drag tap replaced", running == 1 and stopped == 1, running .. " " .. stopped)
+  check("t150 no grant item", world.bar.menu()[1].title ~= "⚠️ Grant Accessibility access")
   world.alerted = nil
   world.poll()
-  check("t148 once", world.alerted == nil and #world.hotkeys == 2 * before)
+  check("t150 once", world.alerted == nil and #world.hotkeys == 2 * before)
 end
 
--- Test 149: A later loss shows the glyph again without a second notification, and the
+-- Test 151: A later loss shows the glyph again without a second notification, and the
 -- warning wins over an icon picked meanwhile.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
-  check("t149 trusted start quiet", #world.notices == 0 and world.bar.title == "⛵")
-  check("t149 no grant item", world.bar.menu()[1].title ~= "⚠️ Grant Accessibility access")
+  check("t151 trusted start quiet", #world.notices == 0 and world.bar.title == "⛵")
+  check("t151 no grant item", world.bar.menu()[1].title ~= "⚠️ Grant Accessibility access")
   world.trusted = false
   world.poll()
-  check("t149 lost", world.bar.title == "⚠️" and #world.notices == 1)
+  check("t151 lost", world.bar.title == "⚠️" and #world.notices == 1)
   click("🐙  Octopus")
-  check("t149 warning wins", world.bar.title == "⚠️")
+  check("t151 warning wins", world.bar.title == "⚠️")
   world.trusted = true
   world.poll()
-  check("t149 picked shows", world.bar.title == "🐙")
+  check("t151 picked shows", world.bar.title == "🐙")
   world.trusted = false
   world.poll()
-  check("t149 no second notice", world.bar.title == "⚠️" and #world.notices == 1)
+  check("t151 no second notice", world.bar.title == "⚠️" and #world.notices == 1)
 end
 
--- Test 150: The grant is picked up while the layout is frozen.
+-- Test 152: The grant is picked up while the layout is frozen.
 tests[#tests + 1] = function()
   install(ultrawide())
   world.trusted = false
@@ -3116,7 +3123,7 @@ tests[#tests + 1] = function()
   click("⚓ Drop anchor (freeze layout)")
   world.trusted = true
   world.poll()
-  check("t150 picked up", world.bar.title == "⛵" and world.notices[1].withdrawn == true)
+  check("t152 picked up", world.bar.title == "⛵" and world.notices[1].withdrawn == true)
 end
 
 -- stackedLeft pins Notes in the left top row and Slack below it, and returns both windows.
@@ -3151,67 +3158,67 @@ local function checkedHeights()
   return table.concat(out, ",")
 end
 
--- Test 151: With nothing chosen the rows split evenly and the Heights folder says so.
+-- Test 153: With nothing chosen the rows split evenly and the Heights folder says so.
 tests[#tests + 1] = function()
   install(ultrawide())
   local notes, slack = stackedLeft()
   anchors.start()
-  frameIs("t151 notes", notes, leftTop)
-  frameIs("t151 slack", slack, leftBottom)
-  check("t151 labels", titles(folder("Heights")) == "Left top 50%, bottom 50%,"
+  frameIs("t153 notes", notes, leftTop)
+  frameIs("t153 slack", slack, leftBottom)
+  check("t153 labels", titles(folder("Heights")) == "Left top 50%, bottom 50%,"
     .. "Right top 50%, bottom 50%,Left top taller,Left top shorter,Right top taller,"
     .. "Right top shorter,Left side,Right side", titles(folder("Heights")))
-  check("t151 label off", item("Left top 50%, bottom 50%").disabled == true)
-  check("t151 checked", checkedHeights()
+  check("t153 label off", item("Left top 50%, bottom 50%").disabled == true)
+  check("t153 checked", checkedHeights()
     == "Left side Top 50%, bottom 50%,Right side Top 50%, bottom 50%", checkedHeights())
 end
 
--- Test 152: A preset sets one side's top row and leaves the other side alone.
+-- Test 154: A preset sets one side's top row and leaves the other side alone.
 tests[#tests + 1] = function()
   install(ultrawide())
   local notes, slack = stackedLeft()
   anchors.start()
   heightPreset("Left side", 10)
-  frameIs("t152 notes short", notes, { x = 0, y = 25, w = 512, h = 141 })
-  frameIs("t152 slack tall", slack, { x = 0, y = 166, w = 512, h = 1274 })
+  frameIs("t154 notes short", notes, { x = 0, y = 25, w = 512, h = 141 })
+  frameIs("t154 slack tall", slack, { x = 0, y = 166, w = 512, h = 1274 })
   local l, r = anchors.heights()
-  check("t152 heights", l == 10 and r == 50, l .. " " .. r)
-  check("t152 label", item("Left top 10%, bottom 90%") ~= nil)
-  check("t152 checked", checkedHeights()
+  check("t154 heights", l == 10 and r == 50, l .. " " .. r)
+  check("t154 label", item("Left top 10%, bottom 90%") ~= nil)
+  check("t154 checked", checkedHeights()
     == "Left side Top 10%, bottom 90%,Right side Top 50%, bottom 50%", checkedHeights())
   for _, top in ipairs(anchors.heightPresets) do
     heightPreset("Left side", top)
     local h = math.floor(1415 * top / 100)
-    frameIs("t152 notes " .. top, notes, { x = 0, y = 25, w = 512, h = h })
-    frameIs("t152 slack " .. top, slack, { x = 0, y = 25 + h, w = 512, h = 1415 - h })
+    frameIs("t154 notes " .. top, notes, { x = 0, y = 25, w = 512, h = h })
+    frameIs("t154 slack " .. top, slack, { x = 0, y = 25 + h, w = 512, h = 1415 - h })
   end
 end
 
--- Test 153: The steppers move a top row by five points and stop with either row at 10.
+-- Test 155: The steppers move a top row by five points and stop with either row at 10.
 tests[#tests + 1] = function()
   install(ultrawide())
   local notes, slack = stackedLeft()
   anchors.start()
   click("Left top taller")
-  frameIs("t153 taller", notes, { x = 0, y = 25, w = 512, h = 778 })
-  frameIs("t153 below", slack, { x = 0, y = 803, w = 512, h = 637 })
-  check("t153 right kept", select(2, anchors.heights()) == 50)
-  check("t153 no preset", checkedHeights() == "Right side Top 50%, bottom 50%", checkedHeights())
+  frameIs("t155 taller", notes, { x = 0, y = 25, w = 512, h = 778 })
+  frameIs("t155 below", slack, { x = 0, y = 803, w = 512, h = 637 })
+  check("t155 right kept", select(2, anchors.heights()) == 50)
+  check("t155 no preset", checkedHeights() == "Right side Top 50%, bottom 50%", checkedHeights())
   click("Left top shorter")
-  frameIs("t153 back", notes, leftTop)
+  frameIs("t155 back", notes, leftTop)
   anchors.setHeights(90, 10)
-  check("t153 taller off", item("Left top taller").disabled == true)
-  check("t153 shorter on", item("Left top shorter").disabled == false)
-  check("t153 right shorter off", item("Right top shorter").disabled == true)
-  check("t153 refused", anchors.stepTop("left", 5) == false
+  check("t155 taller off", item("Left top taller").disabled == true)
+  check("t155 shorter on", item("Left top shorter").disabled == false)
+  check("t155 right shorter off", item("Right top shorter").disabled == true)
+  check("t155 refused", anchors.stepTop("left", 5) == false
     and anchors.stepTop("right", -5) == false)
   local l, r = anchors.heights()
-  check("t153 unchanged", l == 90 and r == 10, l .. " " .. r)
+  check("t155 unchanged", l == 90 and r == 10, l .. " " .. r)
   click("Right top taller")
-  check("t153 right stepped", select(2, anchors.heights()) == 15)
+  check("t155 right stepped", select(2, anchors.heights()) == 15)
 end
 
--- Test 154: Config heights apply until a choice is saved, and a bad one falls back to 50
+-- Test 156: Config heights apply until a choice is saved, and a bad one falls back to 50
 -- without repeating its log line on every poll.
 tests[#tests + 1] = function()
   install(ultrawide())
@@ -3219,39 +3226,39 @@ tests[#tests + 1] = function()
   anchors.config.leftTopPct = 25
   anchors.config.rightTopPct = 95
   anchors.start()
-  frameIs("t154 config", notes, { x = 0, y = 25, w = 512, h = 353 })
+  frameIs("t156 config", notes, { x = 0, y = 25, w = 512, h = 353 })
   world.poll()
   world.poll()
-  check("t154 bad right", select(2, anchors.heights()) == 50)
-  check("t154 one log", said("rightTopPct must be a number from 10 to 90") == 1,
+  check("t156 bad right", select(2, anchors.heights()) == 50)
+  check("t156 one log", said("rightTopPct must be a number from 10 to 90") == 1,
     tostring(said("rightTopPct must be")))
-  check("t154 left quiet", said("leftTopPct") == 0)
+  check("t156 left quiet", said("leftTopPct") == 0)
   heightPreset("Left side", 75)
-  frameIs("t154 choice wins", notes, { x = 0, y = 25, w = 512, h = 1061 })
+  frameIs("t156 choice wins", notes, { x = 0, y = 25, w = 512, h = 1061 })
   anchors.config.leftTopPct = "tall"
   hs.settings.clear("moorings.heights")
-  check("t154 junk config", select(1, anchors.heights()) == 50)
+  check("t156 junk config", select(1, anchors.heights()) == 50)
 end
 
--- Test 155: A partial or junk saved height is read side by side against the config.
+-- Test 157: A partial or junk saved height is read side by side against the config.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.config.rightTopPct = 30
   world.settings["moorings.heights"] = { left = 20 }
   local l, r = anchors.heights()
-  check("t155 partial", l == 20 and r == 30, l .. " " .. r)
+  check("t157 partial", l == 20 and r == 30, l .. " " .. r)
   world.settings["moorings.heights"] = { left = 5, right = "x" }
   l, r = anchors.heights()
-  check("t155 bad values", l == 50 and r == 30, l .. " " .. r)
+  check("t157 bad values", l == 50 and r == 30, l .. " " .. r)
   world.settings["moorings.heights"] = "junk"
   l, r = anchors.heights()
-  check("t155 junk", l == 50 and r == 30, l .. " " .. r)
+  check("t157 junk", l == 50 and r == 30, l .. " " .. r)
   anchors.start()
-  check("t155 menu builds", item("Left top 50%, bottom 50%") ~= nil
+  check("t157 menu builds", item("Left top 50%, bottom 50%") ~= nil
     and item("Right top 30%, bottom 70%") ~= nil)
 end
 
--- Test 156: Expand on focus widens a stacked pin and keeps its chosen height.
+-- Test 158: Expand on focus widens a stacked pin and keeps its chosen height.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.config.pins = {
@@ -3264,24 +3271,24 @@ tests[#tests + 1] = function()
   anchors.start()
   focus(slack)
   world.onEvent()
-  frameIs("t156 slack expanded", slack, { x = 0, y = 25, w = 1536, h = 353 })
-  frameIs("t156 notes kept", notes, { x = 0, y = 378, w = 512, h = 1062 })
+  frameIs("t158 slack expanded", slack, { x = 0, y = 25, w = 1536, h = 353 })
+  frameIs("t158 notes kept", notes, { x = 0, y = 378, w = 512, h = 1062 })
 end
 
--- Test 157: A side with one pin fills the full height whatever its top row height is.
+-- Test 159: A side with one pin fills the full height whatever its top row height is.
 tests[#tests + 1] = function()
   install(ultrawide())
   world.settings["moorings.heights"] = { left = 10, right = 90 }
   local slack = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
   local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
   anchors.start()
-  frameIs("t157 slack full", slack, leftFull)
-  frameIs("t157 iterm full", term, rightFull)
-  frameIs("t157 slot frame", { f = anchors.slotFrame(world.screens[1], "left-bottom") },
+  frameIs("t159 slack full", slack, leftFull)
+  frameIs("t159 iterm full", term, rightFull)
+  frameIs("t159 slot frame", { f = anchors.slotFrame(world.screens[1], "left-bottom") },
     { x = 0, y = 166, w = 512, h = 1274 })
 end
 
--- Test 158: A workspace puts back its heights, and one saved without heights or with bad
+-- Test 160: A workspace puts back its heights, and one saved without heights or with bad
 -- heights keeps the heights in effect.
 tests[#tests + 1] = function()
   install(ultrawide())
@@ -3293,21 +3300,21 @@ tests[#tests + 1] = function()
   heightPreset("Left side", 90)
   anchors.recallWorkspace("Calendar")
   local l, r = anchors.heights()
-  check("t158 recalled", l == 25 and r == 67, l .. " " .. r)
-  frameIs("t158 notes", notes, { x = 0, y = 25, w = 512, h = 353 })
+  check("t160 recalled", l == 25 and r == 67, l .. " " .. r)
+  frameIs("t160 notes", notes, { x = 0, y = 25, w = 512, h = 353 })
   local list = world.settings["moorings.workspaces"]
   list.Old = { left = 10, right = 45, windows = {} }
   list.Bad = { left = 10, right = 45, heights = { left = 5, right = 50 }, windows = {} }
   world.settings["moorings.workspaces"] = list
   anchors.recallWorkspace("Old")
   l, r = anchors.heights()
-  check("t158 old kept", l == 25 and r == 67, l .. " " .. r)
+  check("t160 old kept", l == 25 and r == 67, l .. " " .. r)
   anchors.recallWorkspace("Bad")
   l, r = anchors.heights()
-  check("t158 bad kept", l == 25 and r == 67, l .. " " .. r)
+  check("t160 bad kept", l == 25 and r == 67, l .. " " .. r)
 end
 
--- Test 159: A chosen height survives reload.
+-- Test 161: A chosen height survives reload.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
@@ -3317,10 +3324,10 @@ tests[#tests + 1] = function()
   world.settings = settings
   local notes = stackedLeft()
   anchors.start()
-  frameIs("t159 kept", notes, { x = 0, y = 25, w = 512, h = 141 })
+  frameIs("t161 kept", notes, { x = 0, y = 25, w = 512, h = 141 })
 end
 
--- Test 160: Choose app browses Applications, locks the app picked and launches it, and the
+-- Test 162: Choose app browses Applications, locks the app picked and launches it, and the
 -- slot list shows it checked while it is not running.
 tests[#tests + 1] = function()
   install(ultrawide())
@@ -3328,23 +3335,23 @@ tests[#tests + 1] = function()
   anchors.start()
   world.chosenFile = { ["1"] = "/Applications/Calendar.app" }
   pick("Left bottom: Empty", "Choose app…")
-  check("t160 focused", world.hsFocused == true)
-  check("t160 browser", world.chooseArgs[2] == "/Applications" and world.chooseArgs[3] == true
+  check("t162 focused", world.hsFocused == true)
+  check("t162 browser", world.chooseArgs[2] == "/Applications" and world.chooseArgs[3] == true
     and world.chooseArgs[4] == false and world.chooseArgs[6][1] == "app")
-  check("t160 assigned", anchors.assignments()["left-bottom"] == "test.Calendar")
-  check("t160 opened", table.concat(world.opened, ",") == "/usr/bin/open -b test.Calendar",
+  check("t162 assigned", anchors.assignments()["left-bottom"] == "test.Calendar")
+  check("t162 opened", table.concat(world.opened, ",") == "/usr/bin/open -b test.Calendar",
     table.concat(world.opened, ","))
-  frameIs("t160 slack top", slack, leftTop)
+  frameIs("t162 slack top", slack, leftTop)
   local choices = item("Left bottom: Calendar").menu
-  check("t160 listed", titles(choices) == "Empty,Calendar,Slack,-,Choose app…", titles(choices))
-  check("t160 checked", item("Calendar", choices).checked == true)
+  check("t162 listed", titles(choices) == "Empty,Calendar,Slack,-,Choose app…", titles(choices))
+  check("t162 checked", item("Calendar", choices).checked == true)
   world.chosenFile = { ["1"] = "/Applications/Calendar.app" }
   pick("Left top: Slack", "Choose app…")
-  check("t160 moved", anchors.assignments()["left-top"] == "test.Calendar"
+  check("t162 moved", anchors.assignments()["left-top"] == "test.Calendar"
     and anchors.assignments()["left-bottom"] == "")
 end
 
--- Test 161: Canceling the browser, a path that is not an app and an ignored app change nothing.
+-- Test 163: Canceling the browser, a path that is not an app and an ignored app change nothing.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.config.ignoreBundles = { "test.Zoom" }
@@ -3354,22 +3361,22 @@ tests[#tests + 1] = function()
   pick("Left bottom: Empty", "Choose app…")
   world.chosenFile = {}
   pick("Left bottom: Empty", "Choose app…")
-  check("t161 cancel", anchors.assignments()["left-bottom"] == before and world.alerted == nil)
+  check("t163 cancel", anchors.assignments()["left-bottom"] == before and world.alerted == nil)
   world.chosenFile = { ["1"] = "/tmp" }
   pick("Left bottom: Empty", "Choose app…")
-  check("t161 not app", world.alerted == "/tmp is not an app with a bundle ID",
+  check("t163 not app", world.alerted == "/tmp is not an app with a bundle ID",
     tostring(world.alerted))
   world.chosenFile = { ["1"] = "/Applications/Zoom.app" }
   pick("Left bottom: Empty", "Choose app…")
-  check("t161 ignored", world.alerted == "test.Zoom is in ignoreBundles", tostring(world.alerted))
-  check("t161 unchanged", anchors.assignments()["left-bottom"] == before and #world.opened == 0)
+  check("t163 ignored", world.alerted == "test.Zoom is in ignoreBundles", tostring(world.alerted))
+  check("t163 unchanged", anchors.assignments()["left-bottom"] == before and #world.opened == 0)
   local ok, problem = anchors.assignPath("left-bottom", nil)
-  check("t161 nil path", ok == nil and problem == "nil is not an app with a bundle ID")
+  check("t163 nil path", ok == nil and problem == "nil is not an app with a bundle ID")
 end
 
 
 
--- Test 162: A pick from a slot list opens the app like a Dock click, and Empty and Pin
+-- Test 164: A pick from a slot list opens the app like a Dock click, and Empty and Pin
 -- frontmost app open nothing.
 tests[#tests + 1] = function()
   install(ultrawide())
@@ -3378,16 +3385,103 @@ tests[#tests + 1] = function()
   world.focused = world.windows[1]
   anchors.start()
   pick("Left bottom: Empty", "Finder")
-  check("t162 locked", anchors.assignments()["left-bottom"] == "test.Finder")
-  check("t162 opened", table.concat(world.opened, ",") == "/usr/bin/open -b test.Finder",
+  check("t164 locked", anchors.assignments()["left-bottom"] == "test.Finder")
+  check("t164 opened", table.concat(world.opened, ",") == "/usr/bin/open -b test.Finder",
     table.concat(world.opened, ","))
   pick("Left bottom: Finder", "Empty")
-  check("t162 empty", anchors.assignments()["left-bottom"] == "" and #world.opened == 1)
+  check("t164 empty", anchors.assignments()["left-bottom"] == "" and #world.opened == 1)
   anchors.lock("left-bottom", "")
-  check("t162 lock empty", #world.opened == 1)
+  check("t164 lock empty", #world.opened == 1)
   pick("Pin frontmost app (Finder)", "Right bottom")
-  check("t162 frontmost", anchors.assignments()["right-bottom"] == "test.Finder"
+  check("t164 frontmost", anchors.assignments()["right-bottom"] == "test.Finder"
     and #world.opened == 1)
+end
+
+-- Test 165: A left pin that will not shrink to the strip keeps its own width at the
+-- edge, is logged once and is not moved again.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Slack", { x = 300, y = 100, w = 900, h = 700 })
+  w.minW = 668
+  anchors.start()
+  frameIs("t165 placed", w, { x = 0, y = 25, w = 668, h = 1415 })
+  for _ = 1, 8 do
+    world.clock = world.clock + 5
+    world.poll()
+  end
+  check("t165 one move", w.moves == 1, "moves " .. w.moves)
+  check("t165 logged", said("keeps a size of at least 668x1415") == 1)
+  check("t165 not held", said("keeps moving back") == 0)
+end
+
+-- Test 166: A right pin that will not shrink keeps its right edge on the screen edge.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("iTerm2", { x = 3000, y = 100, w = 900, h = 700 })
+  w.minW = 2500
+  anchors.start()
+  frameIs("t166 placed", w, { x = 2620, y = 25, w = 2500, h = 1415 })
+  world.clock = world.clock + 5
+  world.poll()
+  check("t166 two moves", w.moves == 2, "moves " .. w.moves)
+end
+
+-- Test 167: A bottom row that will not shrink in height keeps its bottom edge.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  local w = addWin("Finder", { x = 1000, y = 100, w = 600, h = 400 })
+  w.minH = 800
+  anchors.start()
+  anchors.assign("left-bottom", "test.Finder")
+  anchors.moor()
+  frameIs("t167 placed", w, { x = 0, y = 640, w = 512, h = 800 })
+  local moves = w.moves
+  world.clock = world.clock + 5
+  world.poll()
+  check("t167 settled", w.moves == moves, "moves " .. w.moves)
+end
+
+-- Test 168: A new width drops what was learned, so the window gets one try at it.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Slack", { x = 300, y = 100, w = 900, h = 700 })
+  w.minW = 668
+  anchors.start()
+  frameIs("t168 learned", w, { x = 0, y = 25, w = 668, h = 1415 })
+  anchors.setWidths(20, 45)
+  frameIs("t168 wider", w, { x = 0, y = 25, w = 1024, h = 1415 })
+  w.minW = 400
+  anchors.setWidths(10, 45)
+  frameIs("t168 retried", w, leftFull)
+  w.minW = 668
+  anchors.setWidths(20, 45)
+  anchors.setWidths(10, 45)
+  local moves = w.moves
+  world.clock = world.clock + 5
+  world.poll()
+  frameIs("t168 learned again", w, { x = 0, y = 25, w = 668, h = 1415 })
+  check("t168 still", w.moves == moves, "moves " .. w.moves)
+end
+
+-- Test 169: What was learned goes when the window closes and on Re-moor now.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Slack", { x = 300, y = 100, w = 900, h = 700 })
+  w.minW = 668
+  anchors.start()
+  table.remove(world.windows, 1)
+  world.poll()
+  table.insert(world.windows, 1, w)
+  w.minW = nil
+  world.poll()
+  frameIs("t169 closed", w, leftFull)
+  w.minW = 668
+  w.f = { x = 300, y = 100, w = 900, h = 700 }
+  world.poll()
+  w.minW = nil
+  click("Re-moor now")
+  frameIs("t169 re-moor", w, leftFull)
 end
 
 for i, t in ipairs(tests) do
