@@ -1,6 +1,10 @@
-# moorings
+<p align="center">
+  <img src="moorings.jpg" alt="Three boats on moorings in a calm cove" width="640">
+</p>
 
-![Three boats on moorings in a calm cove](moorings.jpg)
+<h1 align="center">moorings</h1>
+
+<p align="center"><em>Ultrawide aficionados: anchor your screens in style.</em></p>
 
 [Hammerspoon](https://www.hammerspoon.org) config that pins chosen apps to the left or right edge
 of an ultrawide screen and keeps every other window in the channel between them. Slack on the
