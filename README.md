@@ -129,20 +129,22 @@ layouts, workspace matching, and key recording. Each exits non-zero on any failu
 
 ### Menu
 
-The top of the menu holds Drop anchor and Re-moor now, then six folders, then Reload.
+The top of the menu holds Raise anchor and Re-moor now, then seven folders, then Reload.
 
-| Item                       | What it holds&nbsp;                                                                                                        |
-|----------------------------|----------------------------------------------------------------------------------------------------------------------------|
-| Drop anchor / Weigh anchor | Freezes and releases the layout and the shortcuts. Survives a reload.                                                      |
-| Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                                            |
-| Window                     | Every window action by family, each showing its shortcut.                                                                  |
-| Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                           |
-| Locked apps                | Four slot rows, each with running apps and Choose app…, Pin frontmost app, Reset to defaults.                              |
-| Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                                         |
-| Heights                    | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                |
-| Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                              |
-| Settings                   | Settings window, Fullscreen fills the channel, Snap by dragging, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
-| Reload                     | Reloads the Hammerspoon config once every moorings file compiles.                                                          |
+| Item                       | What it holds&nbsp;                                                                                                         |
+|----------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| Raise anchor / Drop anchor | Raise lets every window drift and rests the shortcuts. Drop holds the layout again. Survives a reload.                      |
+| Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                                             |
+| Re-moor *app*              | Shown for each pin moorings released after you moved it. Puts that pin back.                                                |
+| Window                     | Every window action by family, each showing its shortcut.                                                                   |
+| Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                            |
+| Lift                       | One entry per pinned window. Lifts it over its strip and the channel, or lowers it back.                                    |
+| Locked apps                | Four slot rows, each with running apps and Choose app…, Pin frontmost app, Reset to defaults.                               |
+| Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                                          |
+| Heights                    | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                 |
+| Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                               |
+| Settings                   | Settings window, both Fullscreen fills toggles, Snap by dragging, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
+| Reload                     | Reloads the Hammerspoon config once every moorings file compiles.                                                           |
 
 Tidy keeps the windows in their current left-to-right order and then leaves them alone. Undo
 tidy restores the position each window had before the first Fill, Tidy or window action since
@@ -382,7 +384,7 @@ are never touched, and windows on other displays are left alone.
 A free window that goes native fullscreen on the ultrawide, which the green button does, leaves
 fullscreen and fills the channel instead. A pinned app's window does the same and goes back to
 its strip. Untick Fullscreen fills the channel or Fullscreen fills the pin's strip to get true
-fullscreen back for that kind of window, or use Drop anchor for a while.
+fullscreen back for that kind of window, or use Raise anchor for a while.
 
 Hovering over the green button shows a menu that belongs to macOS, not to moorings. Its Move &
 Resize, Fill & Arrange, Full Screen and Move to display entries are macOS window tiling. Moorings
