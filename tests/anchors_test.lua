@@ -4,6 +4,8 @@
 package.path = "./?.lua;" .. package.path
 
 local realPrint = print
+-- markPath is where the moorings mark loads from in the fake Hammerspoon.
+local markPath = "/tmp/hammerspoon/moorings/mark.svg"
 local failures, passes = 0, 0
 local world, anchors
 
@@ -168,7 +170,7 @@ local function install(...)
   world = {
     screens = { ... }, windows = {}, settings = {}, nextID = 0, printed = {}, apps = {}, opened = {},
     clock = 1000, mouseDown = false, trusted = true, hotkeys = {}, taps = {}, urls = {},
-    dirs = {}, images = {}, notices = {},
+    dirs = {}, images = { [markPath] = true }, notices = {},
   }
   hs = {
     hotkey = {
@@ -411,6 +413,13 @@ local function item(title, items)
   return nil
 end
 
+-- markShown reports whether the menu bar shows the moorings mark, the default icon, from
+-- wherever anchors.path points.
+local function markShown()
+  local icon = world.bar.icon
+  return world.bar.title == nil and icon ~= nil and icon.path:find("/mark%.svg$") ~= nil
+end
+
 -- click runs a menu entry by title.
 local function click(title)
   local it = item(title)
@@ -442,7 +451,7 @@ tests[#tests + 1] = function()
   frameIs("t1 iterm", term, { x = 2816, y = 25, w = 2304, h = 1415 })
   check("t1 autolaunch", world.autoLaunch == true)
   check("t1 ax prompt", world.axPrompted == true)
-  check("t1 title", world.bar.title == "⛵")
+  check("t1 title", markShown())
   check("t1 poll", world.pollSeconds == 0.25 and world.poll ~= nil)
   check("t1 events", world.events and #world.events == 4)
 end
@@ -709,7 +718,11 @@ tests[#tests + 1] = function()
   hs.screen.allScreens = function() error("boom") end
   local ok = pcall(world.poll)
   check("t18 no raise", ok)
-  check("t18 logged", world.printed[1] and world.printed[1]:find("boom") ~= nil)
+  local logged = false
+  for _, line in ipairs(world.printed) do
+    if line:find("boom", 1, true) then logged = true end
+  end
+  check("t18 logged", logged)
 end
 
 -- Test 19: A broken menu build falls back to a Console entry.
@@ -2408,6 +2421,7 @@ end
 -- sends its ready message.
 local function openSettings()
   anchors.path = function(file) return "./" .. file end
+  world.images["./mark.svg"] = true
   click("Settings window…")
   world.webMsg({ body = { type = "ready" } })
 end
@@ -2748,7 +2762,7 @@ tests[#tests + 1] = function()
     check("t135 unique glyph " .. icon.name, not glyphs[icon.glyph])
     names[icon.name], glyphs[icon.glyph] = true, true
   end
-  check("t135 default", anchors.icons[1].name == "Sailboat" and world.bar.title == "⛵")
+  check("t135 default", anchors.icons[1].name == "Sailboat" and markShown())
   click("🐳  Whale")
   check("t135 nested pick", world.bar.title == "🐳")
 end
@@ -2796,13 +2810,13 @@ tests[#tests + 1] = function()
   anchors.start()
   world.prompt = { "Set", "toolong" }
   click("Custom…")
-  check("t138 refused", world.bar.title == "⛵")
+  check("t138 refused", markShown())
   check("t138 alert", world.alerted == "Enter 1 to 5 characters.", tostring(world.alerted))
   check("t138 not saved", world.settings["moorings.customIcon"] == nil)
   world.alerted = nil
   world.prompt = { "Cancel", "OK" }
   click("Custom…")
-  check("t138 cancel", world.bar.title == "⛵" and world.alerted == nil)
+  check("t138 cancel", markShown() and world.alerted == nil)
   check("t138 cancel not saved", world.settings["moorings.customIcon"] == nil)
 end
 
@@ -2824,7 +2838,7 @@ tests[#tests + 1] = function()
   world.settings["moorings.customIcon"] = nil
   world.settings["moorings.icon"] = "Gone"
   world.settings["moorings.customIcon"] = nil
-  check("t139 unknown name falls back", item("⛵  Sailboat").checked == true)
+  check("t139 unknown name falls back", item("moorings mark").checked == true)
 end
 
 -- Test 140: Config icons show under Yours, bad entries are logged and skipped, and a pick survives reload.
@@ -2871,9 +2885,9 @@ tests[#tests + 1] = function()
   world.images["/img/wave.png"] = nil
   world.settings["moorings.icon"] = "Wavy"
   anchors.start()
-  check("t140 unloadable falls back", world.bar.title == "⛵" and world.bar.icon == nil)
+  check("t140 unloadable falls back", markShown())
   check("t140 unloadable unchecked", item("Wavy").checked ~= true)
-  check("t140 default checked", item("⛵  Sailboat").checked == true)
+  check("t140 default checked", item("moorings mark").checked == true)
 end
 
 -- Test 141: Image files in the icon folder are listed, sorted, filtered, and loaded as template images.
@@ -2902,12 +2916,16 @@ tests[#tests + 1] = function()
   check("t141 saved name", world.settings["moorings.icon"] == "image:b.PNG")
 end
 
--- Test 142: Surprise me never picks the current icon, and picks from every built-in when text is set.
+-- Test 142: Surprise me never picks the current icon, and picks from every built-in when the
+-- mark or text is in effect.
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
   local asked
   anchors.random = function(n) asked = n return 1 end
+  click("Surprise me")
+  check("t142 mark pool", asked == #anchors.icons and world.bar.title == anchors.icons[1].glyph,
+    tostring(asked))
   click("Surprise me")
   check("t142 pool", asked == #anchors.icons - 1, tostring(asked))
   check("t142 first other", world.bar.title == anchors.icons[2].glyph)
@@ -2935,14 +2953,14 @@ tests[#tests + 1] = function()
   click("🐙  Octopus")
   check("t143 undo on", item("Undo icon change").disabled == false)
   click("Undo icon change")
-  check("t143 undone", world.bar.title == "⛵" and world.settings["moorings.icon"] == nil)
+  check("t143 undone", markShown() and world.settings["moorings.icon"] == nil)
   click("Undo icon change")
   check("t143 redone", world.bar.title == "🐙" and world.settings["moorings.icon"] == "Octopus")
   world.prompt = { "Set", "DCA" }
   click("Custom…")
   check("t143 custom", world.bar.title == "DCA")
   click("Default icon")
-  check("t143 default", world.bar.title == "⛵" and world.settings["moorings.icon"] == nil
+  check("t143 default", markShown() and world.settings["moorings.icon"] == nil
     and world.settings["moorings.customIcon"] == nil)
   click("Undo icon change")
   check("t143 custom back", world.bar.title == "DCA" and world.settings["moorings.customIcon"] == "DCA")
@@ -2954,7 +2972,7 @@ tests[#tests + 1] = function()
   anchors.start()
   local ok, why = anchors.pickIcon("Nope")
   check("t144 refused", ok == nil and why == "That icon is not available.")
-  check("t144 unchanged", world.bar.title == "⛵" and world.settings["moorings.icon"] == nil)
+  check("t144 unchanged", markShown() and world.settings["moorings.icon"] == nil)
   check("t144 no undo", item("Undo icon change").disabled == true)
 end
 
@@ -2965,10 +2983,10 @@ tests[#tests + 1] = function()
   openSettings()
   local icons = world.model.icons
   check("t145 groups", #icons.groups == 4 and icons.groups[1].title == "Boats")
-  check("t145 default checked", icons.groups[1].icons[1].name == "Sailboat" and icons.groups[1].icons[1].checked)
+  check("t145 default checked", icons.mark.checked and not icons.groups[1].icons[1].checked)
   check("t145 undo off", icons.canUndo == false and icons.usingCustom == false)
   send({ type = "iconUndo" })
-  check("t145 undo refused", world.model.notice == "There is no icon change to undo." and world.bar.title == "⛵")
+  check("t145 undo refused", world.model.notice == "There is no icon change to undo." and markShown())
   send({ type = "iconPick", name = "Octopus" })
   check("t145 picked", world.bar.title == "🐙" and world.model.icons.canUndo == true)
   check("t145 no notice", world.model.notice == "")
@@ -2982,10 +3000,10 @@ tests[#tests + 1] = function()
   send({ type = "iconUndo" })
   check("t145 undo", world.bar.title == "🐙")
   send({ type = "iconDefault" })
-  check("t145 default", world.bar.title == "⛵")
+  check("t145 default", markShown())
   anchors.random = function() return 1 end
   send({ type = "iconSurprise" })
-  check("t145 surprise", world.bar.title == anchors.icons[2].glyph)
+  check("t145 surprise", world.bar.title == anchors.icons[1].glyph)
   send({ type = "iconFolder" })
   check("t145 folder", world.alerted ~= nil and world.alerted:find("Create ", 1, true) == 1)
 end
@@ -3014,16 +3032,30 @@ local function dragTaps()
   return running, stopped
 end
 
--- Test 147: The moorings mark ships with moorings and loads as a template image.
+-- Test 147: The moorings mark ships with moorings, is the default, loads as a template
+-- image, and gives way to the sailboat, logged once, only when it does not load.
 tests[#tests + 1] = function()
   install(ultrawide())
-  local path = "/tmp/hammerspoon/moorings/mark.svg"
-  world.images[path] = true
+  world.images[markPath] = nil
   anchors.start()
-  check("t147 not default", world.bar.title == "⛵" and item("moorings mark").checked == false)
+  check("t147 missing falls back", world.bar.title == "⛵" and world.bar.icon == nil)
+  check("t147 missing default checked", item("⛵  Sailboat").checked == true
+    and item("moorings mark").checked == false)
+  world.clock = world.clock + 3600
+  item("Icon")
+  check("t147 logged once", said("mark.svg did not load: using Sailboat") == 1,
+    "count " .. said("mark.svg did not load: using Sailboat"))
+  install(ultrawide())
+  anchors.start()
+  check("t147 default", markShown() and world.bar.icon.isTemplate == true
+    and world.bar.icon.size.w == 18)
+  check("t147 default checked", item("moorings mark").checked == true
+    and item("⛵  Sailboat").checked == false)
+  check("t147 nothing saved", world.settings["moorings.icon"] == nil)
+  click("⛵  Sailboat")
+  check("t147 sailboat pick", world.bar.title == "⛵" and world.bar.icon == nil)
   click("moorings mark")
-  check("t147 image", world.bar.icon and world.bar.icon.path == path and world.bar.icon.isTemplate == true
-    and world.bar.title == nil)
+  check("t147 image", markShown())
   check("t147 checked", item("moorings mark").checked == true and item("⛵  Sailboat").checked == false)
   check("t147 saved", world.settings["moorings.icon"] == "moorings mark")
   local f = io.open("mark.svg", "r")
@@ -3046,7 +3078,7 @@ tests[#tests + 1] = function()
   click("🐙  Octopus")
   click("🐙  Octopus")
   click("Undo icon change")
-  check("t148 undo after repeat", world.bar.title == "⛵", tostring(world.bar.title))
+  check("t148 undo after repeat", markShown(), tostring(world.bar.title))
   click("Default icon")
   check("t148 default no-op keeps undo", item("Undo icon change").disabled == false)
   click("Undo icon change")
@@ -3095,7 +3127,7 @@ tests[#tests + 1] = function()
   check("t150 one drag tap", select(1, dragTaps()) == 1)
   world.trusted = true
   world.poll()
-  check("t150 icon back", world.bar.title == "⛵")
+  check("t150 icon back", markShown())
   check("t150 withdrawn", world.notices[1].withdrawn == true)
   check("t150 alert", world.alerted == "moorings: Accessibility granted", tostring(world.alerted))
   check("t150 rebound", #world.hotkeys == 2 * before and oldKey.deleted == true and world.hotkeys[before + 1].enabled)
@@ -3112,7 +3144,7 @@ end
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
-  check("t151 trusted start quiet", #world.notices == 0 and world.bar.title == "⛵")
+  check("t151 trusted start quiet", #world.notices == 0 and markShown())
   check("t151 no grant item", world.bar.menu()[1].title ~= "⚠️ Grant Accessibility access")
   world.trusted = false
   world.poll()
@@ -3135,7 +3167,7 @@ tests[#tests + 1] = function()
   click("⚓ Drop anchor (freeze layout)")
   world.trusted = true
   world.poll()
-  check("t152 picked up", world.bar.title == "⛵" and world.notices[1].withdrawn == true)
+  check("t152 picked up", markShown() and world.notices[1].withdrawn == true)
 end
 
 -- stackedLeft pins Notes in the left top row and Slack below it, and returns both windows.

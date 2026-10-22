@@ -50,7 +50,8 @@ to my ultrawide way of working.
 
 ## Install
 
-Four steps. When they are done a sailboat sits in the menu bar at the top right of the screen.
+Four steps. When they are done the moorings mark, a sailboat tied to a buoy, sits in
+the menu bar at the top right of the screen.
 
 **1. Get the files and Hammerspoon.** Skip the `brew` line if Hammerspoon is already installed.
 
@@ -78,26 +79,26 @@ If the macOS prompt was closed, moorings shows a warning sign in the menu bar an
 Click either one, or choose Grant Accessibility access at the top of the menu, to open the same
 settings page.
 
-**4. Check for the sailboat.** Once the switch is on, the warning sign turns into the sailboat
+**4. Check for the mark.** Once the switch is on, the warning sign turns into the moorings mark
 on its own and a short message says Accessibility is granted. If the warning stays, click the
 Hammerspoon hammer and choose Reload Config. Moorings registers Hammerspoon as a login item
 itself, so it comes back after every restart and there is nothing to turn on in Preferences.
 
-### If the sailboat is missing
+### If the mark is missing
 
 - Open the hammer menu and choose Console. A line starting with `moorings:` says what is wrong.
 - Hammerspoon is not running. Open it from Applications.
 - The menu bar is full. macOS hides the overflow behind the notch. Quit a menu bar app or
   Command-drag icons closer together, and look under System Settings, Menu Bar for items that
   are switched off.
-- The sailboat shows but no apps park at the edges. That is expected on a display that is not
+- The mark shows but no apps park at the edges. That is expected on a display that is not
   ultrawide. Parked apps only act on a screen at least 2.2 times wider than it is tall.
-- A warning sign shows in place of the sailboat. Accessibility is missing. See step 3.
+- A warning sign shows in place of the mark. Accessibility is missing. See step 3.
 - Slack and iTerm are the defaults. See Locked apps below to choose other apps.
 
 ### Update and uninstall
 
-Update with `git -C ~/src/moorings pull`, then Reload from the sailboat menu. To remove moorings,
+Update with `git -C ~/src/moorings pull`, then Reload from the moorings menu. To remove moorings,
 delete the `~/.hammerspoon/moorings` link, delete the moorings lines from
 `~/.hammerspoon/init.lua`, and choose Reload Config.
 
@@ -108,7 +109,7 @@ channel, the open strip in between. Click Slack to expand it to 30%. Click anoth
 collapse it. An expanded pin overlaps the channel instead of pushing windows aside, so nothing
 in the channel moves when it opens or closes.
 
-To lock another app, click it, open the sailboat menu, choose Locked apps, Pin frontmost app,
+To lock another app, click it, open the moorings menu, choose Locked apps, Pin frontmost app,
 then pick a slot. Picking an app from a slot's list opens it the way a Dock click does, and
 the list ends with Choose app…, which browses for any app. The wider and narrower items under Widths move each strip by 1%, and the
 Channel label shows what is left in the middle. When two apps share a side, Heights sets how
@@ -282,10 +283,10 @@ its place.
 Settings, Icon picks what sits in the menu bar. The built-in emoji are grouped into Boats, Sea
 life, Tools, and Hearts and shapes. Custom… takes 1 to 5 characters, such as initials or an
 emoji, counted as Unicode code points, so an emoji built from several joined parts may not fit.
-The moorings mark at the top of the list is a template image of the logo, drawn in the menu
-bar's own color. Surprise me picks a different built-in emoji at random, Default icon goes back
-to the sailboat, and
-Undo icon change swaps back to the choice before the last one.
+The moorings mark at the top of the list is the default: a template image of the logo, drawn in
+the menu bar's own color. If it cannot load, the Sailboat emoji stands in and the Console says
+why. Surprise me picks a different built-in emoji at random, Default icon goes back to the
+mark, and Undo icon change swaps back to the choice before the last one.
 
 Your own icons appear in a Yours folder. List them in the config under `icons`, each with a
 `name` and either a `glyph` or an `image` path:

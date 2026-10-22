@@ -71,7 +71,8 @@ M.presets = {
 -- heightPresets are the top row heights offered for each side in the menu.
 M.heightPresets = { 10, 25, 33, 50, 67, 75, 90 }
 
--- iconFolders groups the menu bar glyphs offered in the Icon submenu. The first icon is the default.
+-- iconFolders groups the menu bar glyphs offered in the Icon submenu. The first icon stands
+-- in when the moorings mark does not load.
 M.iconFolders = {
   {
     name = "Boats",
@@ -1201,7 +1202,7 @@ local function release(w)
   local how = sc and ("press " .. actions.keyText(sc) .. " or ") or ""
   log("window " .. tostring(id) .. " was moved by hand: released")
   hs.alert.show(string.format("%s released: moorings leaves it where you put it. "
-    .. "To re-moor it, %schoose Re-moor %s in the sailboat menu.", name, how, name), 4)
+    .. "To re-moor it, %schoose Re-moor %s in the moorings menu.", name, how, name), 4)
 end
 
 -- moorPin places pinned window w at target, or releases it when the owner has moved it
@@ -1458,6 +1459,21 @@ local function findIcon(name)
   return nil
 end
 
+-- fallbackIcon returns the default icon, its name and its loaded image: the moorings mark,
+-- or the first built-in glyph when the mark does not load.
+local function fallbackIcon()
+  local mark = markIcon()
+  local img = hs.image.imageFromPath(mark.image)
+  if img then
+    return mark, mark.name, img
+  end
+  if not state.markWarned then
+    log("icon image " .. mark.image .. " did not load: using " .. M.icons[1].name)
+    state.markWarned = true
+  end
+  return M.icons[1], M.icons[1].name
+end
+
 -- currentIcon returns the icon in effect, its name, which is nil for custom text, and
 -- the loaded image of an image icon. A missing or unknown choice, or an image that does
 -- not load, gives the default icon.
@@ -1476,7 +1492,7 @@ local function currentIcon()
   elseif found then
     return found, found.name
   end
-  return M.icons[1], M.icons[1].name
+  return fallbackIcon()
 end
 
 -- applyIcon puts the icon in effect on the menu bar.
@@ -2014,7 +2030,7 @@ local function iconItems()
   }
   items[#items + 1] = {
     title = "Default icon",
-    tooltip = "Go back to the sailboat.",
+    tooltip = "Go back to the moorings mark.",
     fn = safe(M.defaultIcon),
   }
   items[#items + 1] = {
