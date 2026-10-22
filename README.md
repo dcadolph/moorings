@@ -22,19 +22,52 @@ left and iTerm on the right are the defaults. It replaces Rectangle for one pers
 
 ## Install
 
+Four steps. When they are done a sailboat sits in the menu bar at the top right of the screen.
+
+**1. Get the files and Hammerspoon.** Skip the `brew` line if Hammerspoon is already installed.
+
 ```sh
+git clone https://github.com/dcadolph/moorings.git ~/src/moorings
 brew install --cask hammerspoon
-mkdir -p ~/.hammerspoon
-ln -s "$PWD/anchors.lua" ~/.hammerspoon/anchors.lua
-cat init.lua >> ~/.hammerspoon/init.lua
 ```
 
-The symlink means an edit in the repo takes effect on the next Reload. Copy the file instead to
-pin a version.
+**2. Wire moorings into Hammerspoon.** Paste this whole block. It is safe to run twice.
 
-Open Hammerspoon, grant Accessibility in System Settings under Privacy & Security, then choose
-Reload Config from its menu bar icon. Moorings registers Hammerspoon as a login item itself, so
-there is nothing to turn on in Preferences.
+```sh
+mkdir -p ~/.hammerspoon
+ln -sf ~/src/moorings/anchors.lua ~/.hammerspoon/anchors.lua
+grep -q 'require("anchors")' ~/.hammerspoon/init.lua 2>/dev/null \
+  || cat ~/src/moorings/init.lua >> ~/.hammerspoon/init.lua
+```
+
+The symlink means an edit in the repo takes effect on the next Reload. Copy the file instead of
+linking it to pin a version.
+
+**3. Start Hammerspoon and allow it.** Open Hammerspoon from Applications. macOS asks for
+Accessibility access. Click Open System Settings, switch Hammerspoon on under Privacy &
+Security, then Accessibility. Quit Rectangle first if you use it, since both apps move windows.
+
+**4. Reload once.** Click the Hammerspoon hammer in the menu bar and choose Reload Config. The
+sailboat appears next to it. Moorings registers Hammerspoon as a login item itself, so it comes
+back after every restart and there is nothing to turn on in Preferences.
+
+### If the sailboat is missing
+
+- Open the hammer menu and choose Console. A line starting with `moorings:` says what is wrong.
+- Hammerspoon is not running. Open it from Applications.
+- The menu bar is full. macOS hides the overflow behind the notch. Quit a menu bar app or
+  Command-drag icons closer together, and look under System Settings, Menu Bar for items that
+  are switched off.
+- The sailboat shows but nothing moves. That is expected on a display that is not ultrawide.
+  Moorings only acts on a screen at least 2.2 times wider than it is tall, and it needs the
+  Accessibility permission from step 3.
+- Slack and iTerm are the defaults. See Pins below to name other apps.
+
+### Update and uninstall
+
+Update with `git -C ~/src/moorings pull`, then Reload from the sailboat menu. To remove moorings,
+delete `~/.hammerspoon/anchors.lua`, delete the `require("anchors")` line from
+`~/.hammerspoon/init.lua`, and choose Reload Config.
 
 ## Quickstart
 
@@ -117,4 +150,4 @@ display attached it does nothing, so a laptop screen or a 16:9 monitor is safe.
 
 ## License
 
-None. Personal use.
+Apache-2.0. See `LICENSE`.
