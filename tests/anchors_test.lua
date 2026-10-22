@@ -1589,7 +1589,7 @@ tests[#tests + 1] = function()
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
     and item("No sizes in the config").disabled == true)
   check("t79 settings", titles(folder("Settings")) == "Settings window…,-,Fullscreen fills the channel,"
-    .. "Snap by dragging,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
+    .. "Fullscreen fills the pin's strip,Snap by dragging,Keymap,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
   check("t79 left text", action("left-half").title == "Left half  ⌃⌥←", action("left-half").title)
   action("bottom-right-sixth").fn()
   frameIs("t79 sixth", w, { x = 2048, y = 732, w = 768, h = 708 })
@@ -2565,6 +2565,111 @@ tests[#tests + 1] = function()
   click("Settings window…")
   check("t127 said", said("settings.html is missing from the moorings folder") == 1)
   check("t127 no window", world.view == nil)
+end
+
+-- Test 128: A pinned window that goes native fullscreen leaves it and lands in its slot.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
+  anchors.start()
+  frameIs("t128 pinned", term, { x = 2816, y = 25, w = 2304, h = 1415 })
+  check("t128 checked", item("Fullscreen fills the pin's strip").checked == true)
+  term.full = true
+  term.f = { x = 0, y = 0, w = 5120, h = 1440 }
+  world.onEvent()
+  check("t128 left fullscreen", term.full == false)
+  world.poll()
+  frameIs("t128 back in slot", term, { x = 2816, y = 25, w = 2304, h = 1415 })
+end
+
+-- Test 129: Unticking the pin setting leaves a pinned window in native fullscreen.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
+  anchors.start()
+  click("Fullscreen fills the pin's strip")
+  check("t129 unchecked", item("Fullscreen fills the pin's strip").checked == false)
+  term.full = true
+  world.poll()
+  world.clock = world.clock + 10
+  world.poll()
+  check("t129 still fullscreen", term.full == true)
+end
+
+-- Test 130: The pin and channel fullscreen settings work independently.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
+  local free = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  click("Fullscreen fills the channel")
+  term.full, free.full = true, true
+  world.poll()
+  check("t130 pin redirected", term.full == false)
+  check("t130 free kept", free.full == true)
+  term.full, free.full = false, false
+  click("Fullscreen fills the channel")
+  click("Fullscreen fills the pin's strip")
+  world.clock = world.clock + 10
+  term.full, free.full = true, true
+  world.poll()
+  check("t130 pin kept", term.full == true)
+  check("t130 free redirected", free.full == false)
+end
+
+-- Test 131: A mainOnly pin's other window in native fullscreen is left alone.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", { x = 1000, y = 100, w = 900, h = 700 })
+  local huddle = addWin("Slack", { x = 1200, y = 200, w = 400, h = 300 })
+  huddle.secondary = true
+  anchors.start()
+  huddle.full = true
+  world.poll()
+  check("t131 huddle fullscreen", huddle.full == true)
+  check("t131 huddle unmoved", huddle.moves == 0)
+end
+
+-- Test 132: A pinned window still animating out of fullscreen is told to leave once.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
+  anchors.start()
+  local calls = 0
+  term.setFullScreen = function() calls = calls + 1 end
+  term.full = true
+  world.poll()
+  world.poll()
+  check("t132 once", calls == 1, calls)
+  world.clock = world.clock + 10
+  world.poll()
+  check("t132 retried later", calls == 2, calls)
+end
+
+-- Test 133: A pinned window that lands in its slot and goes fullscreen again is redirected again.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
+  anchors.start()
+  term.full = true
+  world.poll()
+  world.poll()
+  check("t133 first back", term.full == false)
+  term.full = true
+  world.poll()
+  check("t133 second back", term.full == false)
+end
+
+-- Test 134: The pin fullscreen setting survives reload.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  click("Fullscreen fills the pin's strip")
+  local settings = world.settings
+  install(ultrawide())
+  world.settings = settings
+  anchors.start()
+  check("t134 survives reload", item("Fullscreen fills the pin's strip").checked == false)
 end
 
 for i, t in ipairs(tests) do

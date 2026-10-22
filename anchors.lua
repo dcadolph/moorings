@@ -87,6 +87,7 @@ local keys = {
   icon = "moorings.icon",
   paused = "moorings.paused",
   fullscreen = "moorings.fullscreenFills",
+  pinFullscreen = "moorings.pinFullscreenFills",
   slots = "moorings.slots",
   ignoreShortcuts = "moorings.ignoreShortcuts",
   snap = "moorings.snap",
@@ -359,6 +360,12 @@ end
 -- fullscreenFills reports whether native fullscreen is redirected to the channel.
 local function fullscreenFills()
   return hs.settings.get(keys.fullscreen) ~= false
+end
+
+-- pinFullscreenFills reports whether native fullscreen on a pinned window is
+-- redirected back to its slot.
+local function pinFullscreenFills()
+  return hs.settings.get(keys.pinFullscreen) ~= false
 end
 
 -- validSplit reports whether left and right widths leave a usable channel.
@@ -834,7 +841,15 @@ function M.moor()
     local slot = slots[bundleOf(w)]
     seen[w:id()] = true
     if slot then
-      if not w:isFullScreen() and pinsWindow(slot.pin, w) then
+      local id = w:id()
+      if pinsWindow(slot.pin, w) and w:isFullScreen() then
+        local started = state.pendingFill[id]
+        if pinFullscreenFills() and not (started and t - started <= pendingSeconds) then
+          state.pendingFill[id] = t
+          w:setFullScreen(false)
+        end
+      elseif pinsWindow(slot.pin, w) then
+        state.pendingFill[id] = nil
         local width = (slot == focusedSlot and slot.pin.expandPct) or pct[slot.side]
         place(w, M.slot(frame, slot.side, slot.row, width))
       end
@@ -1118,6 +1133,11 @@ local function settingItems()
       title = "Fullscreen fills the channel",
       checked = fullscreenFills(),
       fn = safe(function() hs.settings.set(keys.fullscreen, not fullscreenFills()) end),
+    },
+    {
+      title = "Fullscreen fills the pin's strip",
+      checked = pinFullscreenFills(),
+      fn = safe(function() hs.settings.set(keys.pinFullscreen, not pinFullscreenFills()) end),
     },
     {
       title = "Snap by dragging",
