@@ -11,9 +11,12 @@
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple&logoColor=white" alt="Platform: macOS">
 </p>
 
-Free window management for any Mac, built on [Hammerspoon](https://www.hammerspoon.org).
-Rectangle's keymap, drag snapping, tiling, saved layouts, and apps parked on the screen edges.
-Parked apps need an ultrawide display today.
+A free window manager for any Mac, keyboard or mouse. The permanent home for your always-on apps
+on an ultrawide.
+
+Built on [Hammerspoon](https://www.hammerspoon.org), with Rectangle's keymap, drag snapping,
+tiling and saved layouts on every display, and up to four apps parked on the edges of an
+ultrawide.
 
 ## How moorings started
 
