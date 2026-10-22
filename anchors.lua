@@ -60,7 +60,7 @@ M.icons = {
 }
 
 local keys = {
-  preset = "moorings.preset",
+  widths = "moorings.widths",
   icon = "moorings.icon",
   paused = "moorings.paused",
   fullscreen = "moorings.fullscreenFills",
@@ -202,12 +202,12 @@ local function validSplit(left, right)
     and left > 0 and right > 0 and left + right <= 100 - minChannelPct
 end
 
--- widths returns the left and right edge percentages in effect.
+-- widths returns the left and right edge percentages in effect. A width chosen
+-- from the menu wins over the config.
 function M.widths()
-  local i = hs.settings.get(keys.preset)
-  local p = i and M.presets[i]
-  if p then
-    return p.left, p.right
+  local saved = hs.settings.get(keys.widths)
+  if type(saved) == "table" and validSplit(saved.left, saved.right) then
+    return saved.left, saved.right
   end
   local c = M.config
   if validSplit(c.leftPct, c.rightPct) then
@@ -215,6 +215,34 @@ function M.widths()
   end
   log("leftPct and rightPct leave no channel: using 10 and 45")
   return 10, 45
+end
+
+-- setWidths saves left and right as the edge widths and re-moors.
+function M.setWidths(left, right)
+  hs.settings.set(keys.widths, { left = left, right = right })
+  M.moor()
+end
+
+-- stepped returns the widths after moving side by delta points, and whether
+-- they still leave a usable channel.
+local function stepped(side, delta)
+  local left, right = M.widths()
+  if side == "left" then
+    left = left + delta
+  else
+    right = right + delta
+  end
+  return left, right, validSplit(left, right)
+end
+
+-- step widens or narrows side by delta points, refusing a step that would
+-- leave the channel under minChannelPct or a strip at zero.
+function M.step(side, delta)
+  local left, right, ok = stepped(side, delta)
+  if ok then
+    M.setWidths(left, right)
+  end
+  return ok
 end
 
 -- edge returns the frame an edge of pct width occupies on f.
@@ -786,14 +814,28 @@ local function menu()
     items[#items + 1] = it
   end
   local leftPct, rightPct = M.widths()
-  for i, p in ipairs(M.presets) do
+  items[#items + 1] = {
+    title = string.format("Channel %g%%", 100 - leftPct - rightPct),
+    disabled = true,
+  }
+  for _, s in ipairs({
+    { title = "Left wider", side = "left", delta = 1 },
+    { title = "Left narrower", side = "left", delta = -1 },
+    { title = "Right wider", side = "right", delta = 1 },
+    { title = "Right narrower", side = "right", delta = -1 },
+  }) do
+    local _, _, ok = stepped(s.side, s.delta)
+    items[#items + 1] = {
+      title = s.title,
+      disabled = not ok,
+      fn = safe(function() M.step(s.side, s.delta) end),
+    }
+  end
+  for _, p in ipairs(M.presets) do
     items[#items + 1] = {
       title = string.format("Left %d%%, right %d%%", p.left, p.right),
       checked = p.left == leftPct and p.right == rightPct,
-      fn = safe(function()
-        hs.settings.set(keys.preset, i)
-        M.moor()
-      end),
+      fn = safe(function() M.setWidths(p.left, p.right) end),
     }
   end
   local icons = {}

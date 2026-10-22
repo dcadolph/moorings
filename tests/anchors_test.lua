@@ -1085,6 +1085,106 @@ tests[#tests + 1] = function()
   frameIs("t56 slack keeps top", slack, leftTop)
 end
 
+-- checkedPresets lists the titles of the checked presets.
+local function checkedPresets()
+  local out = {}
+  for _, it in ipairs(world.bar.menu()) do
+    if it.title:find("^Left %d+%%, right") and it.checked then out[#out + 1] = it.title end
+  end
+  return table.concat(out, ",")
+end
+
+-- Test 57: The channel label shows what the strips leave over.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  check("t57 default", item("Channel 45%") ~= nil and item("Channel 45%").disabled == true)
+  click("Left 20%, right 40%")
+  check("t57 preset", item("Channel 40%") ~= nil)
+end
+
+-- Test 58: Each stepper moves only its own side by one point, and the label follows.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  local term = addWin("iTerm2", rightFull)
+  anchors.start()
+  click("Left wider")
+  frameIs("t58 left wider", slack, { x = 0, y = 25, w = 563, h = 1415 })
+  frameIs("t58 right kept", term, rightFull)
+  check("t58 label", item("Channel 44%") ~= nil)
+  check("t58 no preset", checkedPresets() == "", checkedPresets())
+  click("Left narrower")
+  click("Left narrower")
+  frameIs("t58 left narrower", slack, { x = 0, y = 25, w = 460, h = 1415 })
+  click("Right narrower")
+  frameIs("t58 right narrower", term, { x = 2868, y = 25, w = 2252, h = 1415 })
+  frameIs("t58 left kept", slack, { x = 0, y = 25, w = 460, h = 1415 })
+  click("Right wider")
+  frameIs("t58 right wider", term, rightFull)
+  check("t58 label after", item("Channel 46%") ~= nil)
+end
+
+-- Test 59: Stepping back onto a preset's widths checks that preset.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  click("Left wider")
+  click("Left narrower")
+  check("t59 preset checked", checkedPresets() == "Left 10%, right 45%", checkedPresets())
+end
+
+-- Test 60: A step that would leave the channel under 10 percent is disabled and refused.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  world.settings["moorings.widths"] = { left = 45, right = 45 }
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  check("t60 label", item("Channel 10%") ~= nil)
+  check("t60 left wider off", item("Left wider").disabled == true)
+  check("t60 right wider off", item("Right wider").disabled == true)
+  check("t60 narrower on", item("Left narrower").disabled == false)
+  check("t60 refused", anchors.step("left", 1) == false)
+  local l, r = anchors.widths()
+  check("t60 unchanged", l == 45 and r == 45)
+  frameIs("t60 slack", slack, { x = 0, y = 25, w = 2304, h = 1415 })
+end
+
+-- Test 61: A strip cannot be narrowed to zero.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  world.settings["moorings.widths"] = { left = 1, right = 45 }
+  anchors.start()
+  check("t61 left narrower off", item("Left narrower").disabled == true)
+  check("t61 refused", anchors.step("left", -1) == false)
+  check("t61 unchanged", select(1, anchors.widths()) == 1)
+end
+
+-- Test 62: A stepped width survives reload.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  click("Right narrower")
+  local settings = world.settings
+  install(ultrawide())
+  world.settings = settings
+  local term = addWin("iTerm2", rightFull)
+  anchors.start()
+  frameIs("t62 right kept", term, { x = 2868, y = 25, w = 2252, h = 1415 })
+  check("t62 label", item("Channel 46%") ~= nil)
+end
+
+-- Test 63: A saved width that leaves no channel falls back to the config.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  world.settings["moorings.widths"] = { left = 60, right = 45 }
+  local l, r = anchors.widths()
+  check("t63 fallback", l == 10 and r == 45)
+  world.settings["moorings.widths"] = "junk"
+  l, r = anchors.widths()
+  check("t63 junk", l == 10 and r == 45)
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then
