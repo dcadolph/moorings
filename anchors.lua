@@ -252,6 +252,8 @@ local state = {
   bundles = {},
   -- standard holds the window ids already seen to be standard windows.
   standard = {},
+  -- panels maps a window id to whether it is an open or save panel.
+  panels = {},
   -- present holds the pinned bundle IDs with a window on screen at the last poll, or is nil
   -- before the first poll.
   present = nil,
@@ -1125,15 +1127,29 @@ function M.slotFor(win)
   return slots[bundleOf(win)]
 end
 
+-- filePanel reports whether win is an open or save panel, which AppKit names by AXIdentifier.
+-- A window whose identifier cannot be read is not one.
+local function filePanel(win)
+  local id = win:id()
+  if state.panels[id] == nil then
+    local ok, ident = pcall(function()
+      return hs.axuielement.windowElement(win):attributeValue("AXIdentifier")
+    end)
+    state.panels[id] = ok and (ident == "open-panel" or ident == "save-panel")
+  end
+  return state.panels[id]
+end
+
 -- pinsWindow reports whether pin holds win. A pin holds one window: the one it already
--- holds, or else the app's main window, which it then keeps.
+-- holds, or else the app's main window, which it then keeps. A file picker is never held,
+-- so an app showing only its picker leaves its slot free until a document opens.
 local function pinsWindow(pin, win)
   local held = state.holders[pin.bundle]
   if held then
     return held == win:id()
   end
   local main = win:application():mainWindow()
-  if main ~= nil and main:id() == win:id() then
+  if main ~= nil and main:id() == win:id() and not filePanel(win) then
     state.holders[pin.bundle] = win:id()
     return true
   end
@@ -1572,7 +1588,7 @@ function M.moor()
       end
     end
   end
-  for _, tbl in ipairs({ state.bundles, state.standard }) do
+  for _, tbl in ipairs({ state.bundles, state.standard, state.panels }) do
     for id in pairs(tbl) do
       if not shown[id] then
         tbl[id] = nil
