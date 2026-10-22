@@ -232,6 +232,10 @@ local state = {
   zoom = {},
   -- holders maps a pinned bundle ID to the id of the one window the pin holds.
   holders = {},
+  -- bundles maps a window id to its app's bundle ID, which never changes for a window.
+  bundles = {},
+  -- standard holds the window ids already seen to be standard windows.
+  standard = {},
 }
 
 -- now returns the current time in seconds.
@@ -723,8 +727,17 @@ end
 
 -- bundleOf returns the bundle ID of win's app, or nil.
 local function bundleOf(win)
+  local id = win:id()
+  local bundle = id and state.bundles[id]
+  if bundle then
+    return bundle
+  end
   local app = win:application()
-  return app and app:bundleID()
+  bundle = app and app:bundleID()
+  if id and bundle then
+    state.bundles[id] = bundle
+  end
+  return bundle
 end
 
 -- ignoredBundle reports whether bundle is missing or listed in ignoreBundles.
@@ -1066,7 +1079,18 @@ end
 
 -- movable reports whether moorings may move win at all.
 local function movable(win)
-  return win:id() ~= nil and win:isStandard() and not win:isMinimized() and not ignored(win)
+  local id = win:id()
+  if id == nil then
+    return false
+  end
+  -- A new window can report a non-standard role until it finishes opening, so only a yes is kept.
+  if not state.standard[id] then
+    if not win:isStandard() then
+      return false
+    end
+    state.standard[id] = true
+  end
+  return not win:isMinimized() and not ignored(win)
 end
 
 -- onScreen returns the windows on the current Space front to back, as hs.window.orderedWindows
@@ -1082,19 +1106,23 @@ local function onScreen()
   return list
 end
 
--- windows returns the movable windows, front-most first.
+-- windows returns the movable windows, front-most first, and the ids of every window on screen.
 local function windows()
-  local list, seen = {}, {}
+  local list, seen, shown = {}, {}, {}
   local focused = hs.window.focusedWindow()
   if focused and movable(focused) then
     list[1], seen[focused:id()] = focused, true
   end
   for _, w in ipairs(onScreen()) do
-    if not seen[w:id()] and movable(w) and w:isVisible() then
-      list[#list + 1], seen[w:id()] = w, true
+    local id = w:id()
+    if id then
+      shown[id] = true
+    end
+    if not seen[id] and movable(w) and w:isVisible() then
+      list[#list + 1], seen[id] = w, true
     end
   end
-  return list
+  return list, shown
 end
 
 -- freeWindows returns every window on any screen that is not pinned and not
@@ -1309,7 +1337,7 @@ function M.moor()
   end
   local frame = s:frame()
   local slots = M.layout(M.pins())
-  local all = windows()
+  local all, shown = windows()
   measure(all, slots)
   local leftPct, rightPct = M.inUse(frame)
   local pct = { left = leftPct, right = rightPct }
@@ -1367,6 +1395,13 @@ function M.moor()
     state.placed, state.released, state.lifted, state.zoom }) do
     for id in pairs(tbl) do
       if not seen[id] then
+        tbl[id] = nil
+      end
+    end
+  end
+  for _, tbl in ipairs({ state.bundles, state.standard }) do
+    for id in pairs(tbl) do
+      if not shown[id] then
         tbl[id] = nil
       end
     end
