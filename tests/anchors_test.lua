@@ -171,7 +171,29 @@ local function install(...)
       if prompt then world.axPrompted = true end
       return world.trusted
     end,
-    mouse = { getButtons = function() return { [1] = world.mouseDown } end },
+    mouse = {
+      getButtons = function() return { [1] = world.mouseDown } end,
+      absolutePosition = function() return world.mousePos end,
+    },
+    eventtap = {
+      event = { types = { leftMouseDown = 1, leftMouseUp = 2, leftMouseDragged = 6 } },
+      new = function(types, fn)
+        world.tapTypes, world.tap = types, fn
+        return { start = function(self) world.tapping = true return self end }
+      end,
+    },
+    canvas = {
+      new = function(frame)
+        local c = { f = copy(frame), shown = false }
+        function c:appendElements(e) self.element = e return self end
+        function c:level(l) self.lvl = l return self end
+        function c:show() self.shown = true return self end
+        function c:frame(f) self.f = copy(f) return self end
+        function c:delete() self.deleted = true world.canvas = nil end
+        world.canvas, world.canvases = c, (world.canvases or 0) + 1
+        return c
+      end,
+    },
     openConsole = function() world.console = true end,
     reload = function() world.reloaded = true end,
     execute = function(cmd) world.executed = cmd end,
@@ -251,12 +273,17 @@ local function install(...)
         world.pollSeconds, world.poll = s, fn
         return {}
       end,
+      doAfter = function(_, fn)
+        fn()
+        return {}
+      end,
     },
   }
   _G.print = function(msg) world.printed[#world.printed + 1] = msg end
   package.loaded.anchors = nil
   package.loaded.geometry = nil
   package.loaded.actions = nil
+  package.loaded.snap = nil
   anchors = require("anchors")
 end
 
@@ -1507,7 +1534,7 @@ tests[#tests + 1] = function()
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
     and item("No sizes in the config").disabled == true)
   check("t79 settings", titles(folder("Settings")) == "Fullscreen fills the channel,"
-    .. "Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
+    .. "Snap by dragging,Ignore frontmost app (Safari),Icon,Edit config,Console", titles(folder("Settings")))
   check("t79 left text", action("left-half").title == "Left half  ⌃⌥←", action("left-half").title)
   action("bottom-right-sixth").fn()
   frameIs("t79 sixth", w, { x = 2048, y = 732, w = 768, h = 708 })
@@ -1568,6 +1595,169 @@ tests[#tests + 1] = function()
   press("ctrl+alt", "left")
   frameIs("t82 bad gap", w, { x = 0, y = 25, w = 960, h = 1055 })
   check("t82 said", said("gapPx must be a number from 0 to 100") == 1)
+end
+
+-- fire sends a mouse event of type t through the snap tap and checks it passes on.
+local function fire(t)
+  local passed = world.tap({ getType = function() return t end })
+  check("tap passes event " .. t, passed == false)
+end
+
+-- drag presses on win and drags it along path, moving it a little at each point unless
+-- still is set. The button stays down.
+local function drag(win, path, still)
+  focus(win)
+  fire(1)
+  world.mousePos = path[1]
+  fire(6)
+  for _, p in ipairs(path) do
+    if not still then
+      win.f.x, win.f.y = win.f.x + 7, win.f.y + 3
+    end
+    world.mousePos = p
+    fire(6)
+  end
+end
+
+-- Test 83: Dragging to the left edge of a normal screen shows the footprint and snaps on
+-- release.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  check("t83 tap", world.tapping == true and #world.tapTypes == 3)
+  drag(w, { { x = 900, y = 500 }, { x = 0, y = 540 } })
+  check("t83 footprint", world.canvas ~= nil and world.canvas.shown and world.canvas.lvl == "floating")
+  frameIs("t83 footprint frame", { f = world.canvas.f }, { x = 0, y = 25, w = 960, h = 1055 })
+  check("t83 not yet", w.moves == 0)
+  fire(2)
+  frameIs("t83 snapped", w, { x = 0, y = 25, w = 960, h = 1055 })
+  check("t83 footprint gone", world.canvas == nil)
+end
+
+-- Test 84: On the ultrawide the strips snap into the channel.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  drag(w, { { x = 1300, y = 300 }, { x = 4000, y = 700 } })
+  fire(2)
+  frameIs("t84 right half", w, { x = 1664, y = 25, w = 1152, h = 1415 })
+  drag(w, { { x = 2000, y = 300 }, { x = 200, y = 50 } })
+  fire(2)
+  frameIs("t84 top left", w, { x = 512, y = 25, w = 1152, h = 707 })
+  drag(w, { { x = 1000, y = 300 }, { x = 1500, y = 1 } })
+  fire(2)
+  frameIs("t84 maximize", w, { x = 512, y = 25, w = 2304, h = 1415 })
+end
+
+-- Test 85: The footprint follows the zone and leaving every zone drops the snap.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  drag(w, { { x = 900, y = 500 }, { x = 0, y = 540 }, { x = 1919, y = 540 } })
+  frameIs("t85 moved footprint", { f = world.canvas.f }, { x = 960, y = 25, w = 960, h = 1055 })
+  check("t85 one canvas", world.canvases == 1)
+  drag(w, { { x = 900, y = 500 }, { x = 0, y = 540 }, { x = 960, y = 540 } })
+  check("t85 hidden", world.canvas == nil)
+  local f = copy(w.f)
+  fire(2)
+  frameIs("t85 left where dropped", w, f)
+end
+
+-- Test 86: Dragging inside a window that never moves, or resizing one, never snaps.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  local path = {}
+  for i = 1, 25 do path[i] = { x = 0, y = 540 } end
+  drag(w, path, true)
+  w.f.x = w.f.x + 50
+  world.mousePos = { x = 0, y = 540 }
+  fire(6)
+  check("t86 no footprint", world.canvas == nil)
+  fire(2)
+  check("t86 still", w.moves == 0)
+  focus(w)
+  fire(1)
+  world.mousePos = { x = 900, y = 500 }
+  fire(6)
+  w.f.x, w.f.w = w.f.x - 20, w.f.w + 20
+  world.mousePos = { x = 0, y = 540 }
+  fire(6)
+  fire(6)
+  check("t86 resize no footprint", world.canvas == nil)
+  fire(2)
+  check("t86 resize still", w.moves == 0)
+end
+
+-- Test 87: A pinned window never snaps.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  local before = slack.moves
+  drag(slack, { { x = 200, y = 700 }, { x = 4000, y = 700 } })
+  check("t87 no footprint", world.canvas == nil)
+  fire(2)
+  check("t87 not snapped", slack.moves == before)
+end
+
+-- Test 88: Unticking Snap by dragging or dropping anchor turns snapping off.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  check("t88 on by default", item("Snap by dragging").checked == true)
+  click("Snap by dragging")
+  check("t88 unchecked", item("Snap by dragging").checked == false)
+  drag(w, { { x = 900, y = 500 }, { x = 0, y = 540 } })
+  check("t88 no footprint", world.canvas == nil)
+  fire(2)
+  check("t88 off", w.moves == 0)
+  click("Snap by dragging")
+  click("⚓ Drop anchor (freeze layout)")
+  drag(w, { { x = 900, y = 500 }, { x = 0, y = 540 } })
+  fire(2)
+  check("t88 frozen", w.moves == 0 and world.canvas == nil)
+end
+
+-- Test 89: Moving from a side bottom third to the center gives two thirds.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  drag(w, { { x = 900, y = 500 }, { x = 400, y = 1079 }, { x = 960, y = 1079 } })
+  fire(2)
+  frameIs("t89 two thirds", w, { x = 0, y = 25, w = 1280, h = 1055 })
+end
+
+-- Test 90: A drop on another display snaps to that display's area.
+tests[#tests + 1] = function()
+  local side = newScreen(2, 5120, 1512, 982)
+  install(ultrawide(), side)
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  drag(w, { { x = 1300, y = 300 }, { x = 6631, y = 400 } })
+  frameIs("t90 footprint", { f = world.canvas.f }, { x = 5876, y = 25, w = 756, h = 957 })
+  fire(2)
+  frameIs("t90 side right half", w, { x = 5876, y = 25, w = 756, h = 957 })
+end
+
+-- Test 91: An error inside the tap is logged, the event passes on, and the drag is dropped.
+tests[#tests + 1] = function()
+  install(laptop())
+  local w = addWin("Safari", { x = 500, y = 300, w = 800, h = 500 })
+  anchors.start()
+  drag(w, { { x = 900, y = 500 }, { x = 0, y = 540 } })
+  hs.mouse.absolutePosition = function() error("mouse gone") end
+  fire(6)
+  check("t91 logged", said("mouse gone") == 1)
+  check("t91 footprint gone", world.canvas == nil)
+  fire(2)
+  check("t91 no snap", w.moves == 0)
 end
 
 for i, t in ipairs(tests) do

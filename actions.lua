@@ -310,23 +310,23 @@ local function neighbor(s, dir)
   return s
 end
 
--- target returns the focused window when an action may move it, or nil.
-local function target()
-  local win = hs.window.focusedWindow()
+-- actionable reports whether an action may move win, logging when win is pinned.
+local function actionable(win)
   if not win or win:id() == nil or not win:isStandard() or win:isFullScreen() then
-    return nil
+    return false
   end
   if host.pinned(win) then
-    host.log("the focused window is pinned: window actions leave pins alone")
-    return nil
+    host.log("the window is pinned: window actions leave pins alone")
+    return false
   end
-  return win
+  return true
 end
 
--- frameFor returns the frame action name gives win, and the press count for a
--- cycling action.
-local function frameFor(name, win)
-  local cur, s = win:frame(), win:screen()
+-- frameFor returns the frame action name gives win on screen s, which
+-- defaults to win's own screen, and the press count for a cycling action.
+local function frameFor(name, win, s)
+  local cur = win:frame()
+  s = s or win:screen()
   if name == "next-display" or name == "previous-display" then
     local to = neighbor(s, name == "next-display" and 1 or -1)
     if to:id() == s:id() then
@@ -366,14 +366,21 @@ local function bindings()
   return map, problems, sizes
 end
 
+-- preview returns the frame action name would give win on screen s, without
+-- moving it.
+function A.preview(win, name, s)
+  return (frameFor(name, win, s))
+end
+
 -- run applies action name to the focused window and reports whether it moved.
--- Nothing runs while the layout is frozen.
 function A.run(name)
-  if host.paused() then
-    return false
-  end
-  local win = target()
-  if not win then
+  return A.apply(hs.window.focusedWindow(), name)
+end
+
+-- apply applies action name to win on screen s, which defaults to win's own
+-- screen, and reports whether it moved. Nothing runs while the layout is frozen.
+function A.apply(win, name, s)
+  if host.paused() or not actionable(win) then
     return false
   end
   local id = win:id()
@@ -381,7 +388,7 @@ function A.run(name)
     state.last[id] = nil
     return host.restore(win)
   end
-  local frame, i = frameFor(name, win)
+  local frame, i = frameFor(name, win, s)
   if not frame then
     return false
   end
