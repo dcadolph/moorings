@@ -109,7 +109,8 @@ collapse it. An expanded pin overlaps the channel instead of pushing windows asi
 in the channel moves when it opens or closes.
 
 To lock another app, click it, open the sailboat menu, choose Locked apps, Pin frontmost app,
-then pick a slot. The wider and narrower items under Widths move each strip by 1%, and the
+then pick a slot. Picking an app from a slot's list opens it the way a Dock click does, and
+the list ends with Choose app…, which browses for any app. The wider and narrower items under Widths move each strip by 1%, and the
 Channel label shows what is left in the middle. When two apps share a side, Heights sets how
 tall the top one is, from 10% to 90%, and the bottom one takes the rest. A calendar at 10% over
 Slack at 90% is Heights, Left side, Top 10%.
@@ -135,7 +136,7 @@ The top of the menu holds Drop anchor and Re-moor now, then six folders, then Re
 | Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                                            |
 | Window                     | Every window action by family, each showing its shortcut.                                                                  |
 | Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                           |
-| Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                                                                  |
+| Locked apps                | Four slot rows, each with running apps and Choose app…, Pin frontmost app, Reset to defaults.                              |
 | Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                                         |
 | Heights                    | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                |
 | Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                              |

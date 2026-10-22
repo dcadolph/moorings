@@ -156,7 +156,7 @@ end
 -- install builds a fresh fake Hammerspoon and loads anchors into it.
 local function install(...)
   world = {
-    screens = { ... }, windows = {}, settings = {}, nextID = 0, printed = {}, apps = {},
+    screens = { ... }, windows = {}, settings = {}, nextID = 0, printed = {}, apps = {}, opened = {},
     clock = 1000, mouseDown = false, trusted = true, hotkeys = {}, taps = {}, urls = {},
     dirs = {}, images = {}, notices = {},
   }
@@ -226,6 +226,10 @@ local function install(...)
       },
     },
     dialog = {
+      chooseFileOrFolder = function(...)
+        world.chooseArgs = { ... }
+        return world.chosenFile
+      end,
       textPrompt = function(...)
         world.promptArgs = { ... }
         return table.unpack(world.prompt or { "Cancel", "" })
@@ -269,6 +273,16 @@ local function install(...)
         return n
       end,
     },
+    task = {
+      new = function(path, _, args)
+        local t = {}
+        function t:start()
+          world.opened[#world.opened + 1] = path .. " " .. table.concat(args, " ")
+          return self
+        end
+        return t
+      end,
+    },
     openConsole = function() world.console = true end,
     reload = function() world.reloaded = true end,
     execute = function(cmd) world.executed = cmd end,
@@ -295,6 +309,10 @@ local function install(...)
         return world.focused and newApp(world.focused.app) or nil
       end,
       nameForBundleID = function(bundle) return nameFor(bundle) end,
+      infoForBundlePath = function(path)
+        local name = path:match("/([^/]+)%.app$")
+        return name and { CFBundleIdentifier = bundleFor(name) } or {}
+      end,
       watcher = {
         activated = 5,
         new = function(fn)
@@ -1073,7 +1091,7 @@ tests[#tests + 1] = function()
   anchors.start()
   check("t46 rows", rows() == defaultRows, rows())
   local choices = item("Left top: Slack").menu
-  check("t46 choices", titles(choices) == "Empty,iTerm2,Safari,Slack", titles(choices))
+  check("t46 choices", titles(choices) == "Empty,iTerm2,Safari,Slack,-,Choose app…", titles(choices))
   check("t46 checked", item("Slack", choices).checked == true)
   check("t46 empty unchecked", item("Empty", choices).checked == false)
   check("t46 reset disabled", item("Reset to defaults").disabled == true)
@@ -1190,7 +1208,7 @@ tests[#tests + 1] = function()
   world.apps = { newApp("Helper", 0), newApp("Zoom"), newApp("Safari"), newApp("Safari") }
   anchors.start()
   local choices = item("Left bottom: Empty").menu
-  check("t54 choices", titles(choices) == "Empty,Safari", titles(choices))
+  check("t54 choices", titles(choices) == "Empty,Safari,-,Choose app…", titles(choices))
 end
 
 -- Test 55: A corrupt saved choice falls back to the config, and a bad slot value is empty.
@@ -3185,7 +3203,8 @@ tests[#tests + 1] = function()
   check("t153 taller off", item("Left top taller").disabled == true)
   check("t153 shorter on", item("Left top shorter").disabled == false)
   check("t153 right shorter off", item("Right top shorter").disabled == true)
-  check("t153 refused", anchors.stepTop("left", 5) == false and anchors.stepTop("right", -5) == false)
+  check("t153 refused", anchors.stepTop("left", 5) == false
+    and anchors.stepTop("right", -5) == false)
   local l, r = anchors.heights()
   check("t153 unchanged", l == 90 and r == 10, l .. " " .. r)
   click("Right top taller")
@@ -3299,6 +3318,76 @@ tests[#tests + 1] = function()
   local notes = stackedLeft()
   anchors.start()
   frameIs("t159 kept", notes, { x = 0, y = 25, w = 512, h = 141 })
+end
+
+-- Test 160: Choose app browses Applications, locks the app picked and launches it, and the
+-- slot list shows it checked while it is not running.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  world.chosenFile = { ["1"] = "/Applications/Calendar.app" }
+  pick("Left bottom: Empty", "Choose app…")
+  check("t160 focused", world.hsFocused == true)
+  check("t160 browser", world.chooseArgs[2] == "/Applications" and world.chooseArgs[3] == true
+    and world.chooseArgs[4] == false and world.chooseArgs[6][1] == "app")
+  check("t160 assigned", anchors.assignments()["left-bottom"] == "test.Calendar")
+  check("t160 opened", table.concat(world.opened, ",") == "/usr/bin/open -b test.Calendar",
+    table.concat(world.opened, ","))
+  frameIs("t160 slack top", slack, leftTop)
+  local choices = item("Left bottom: Calendar").menu
+  check("t160 listed", titles(choices) == "Empty,Calendar,Slack,-,Choose app…", titles(choices))
+  check("t160 checked", item("Calendar", choices).checked == true)
+  world.chosenFile = { ["1"] = "/Applications/Calendar.app" }
+  pick("Left top: Slack", "Choose app…")
+  check("t160 moved", anchors.assignments()["left-top"] == "test.Calendar"
+    and anchors.assignments()["left-bottom"] == "")
+end
+
+-- Test 161: Canceling the browser, a path that is not an app and an ignored app change nothing.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.ignoreBundles = { "test.Zoom" }
+  anchors.start()
+  local before = anchors.assignments()["left-bottom"]
+  world.chosenFile = nil
+  pick("Left bottom: Empty", "Choose app…")
+  world.chosenFile = {}
+  pick("Left bottom: Empty", "Choose app…")
+  check("t161 cancel", anchors.assignments()["left-bottom"] == before and world.alerted == nil)
+  world.chosenFile = { ["1"] = "/tmp" }
+  pick("Left bottom: Empty", "Choose app…")
+  check("t161 not app", world.alerted == "/tmp is not an app with a bundle ID",
+    tostring(world.alerted))
+  world.chosenFile = { ["1"] = "/Applications/Zoom.app" }
+  pick("Left bottom: Empty", "Choose app…")
+  check("t161 ignored", world.alerted == "test.Zoom is in ignoreBundles", tostring(world.alerted))
+  check("t161 unchanged", anchors.assignments()["left-bottom"] == before and #world.opened == 0)
+  local ok, problem = anchors.assignPath("left-bottom", nil)
+  check("t161 nil path", ok == nil and problem == "nil is not an app with a bundle ID")
+end
+
+
+
+-- Test 162: A pick from a slot list opens the app like a Dock click, and Empty and Pin
+-- frontmost app open nothing.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  addWin("Finder", { x = 1000, y = 100, w = 600, h = 400 })
+  world.focused = world.windows[1]
+  anchors.start()
+  pick("Left bottom: Empty", "Finder")
+  check("t162 locked", anchors.assignments()["left-bottom"] == "test.Finder")
+  check("t162 opened", table.concat(world.opened, ",") == "/usr/bin/open -b test.Finder",
+    table.concat(world.opened, ","))
+  pick("Left bottom: Finder", "Empty")
+  check("t162 empty", anchors.assignments()["left-bottom"] == "" and #world.opened == 1)
+  anchors.lock("left-bottom", "")
+  check("t162 lock empty", #world.opened == 1)
+  pick("Pin frontmost app (Finder)", "Right bottom")
+  check("t162 frontmost", anchors.assignments()["right-bottom"] == "test.Finder"
+    and #world.opened == 1)
 end
 
 for i, t in ipairs(tests) do
