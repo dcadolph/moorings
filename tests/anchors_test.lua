@@ -536,7 +536,7 @@ tests[#tests + 1] = function()
   focus(slack)
   world.onEvent()
   frameIs("t4 default stays", slack, { x = 0, y = 25, w = 512, h = 1415 })
-  anchors.config.pins[1].expandPct = 30
+  anchors.config.anchored[1].expandPct = 30
   world.onEvent()
   frameIs("t4 expanded", slack, { x = 0, y = 25, w = 1536, h = 1415 })
   check("t4 channel kept", other.moves == 0)
@@ -567,7 +567,7 @@ end
 tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   local w = addWin("Safari", { x = 0, y = 25, w = 800, h = 600 })
   world.poll()
   check("t7 frozen", w.moves == 0)
@@ -750,7 +750,7 @@ end
 -- Test 32: A bundle pinned twice is reported and the first entry wins.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins[#anchors.config.pins + 1] =
+  anchors.config.anchored[#anchors.config.anchored + 1] =
     { bundle = "com.tinyspeck.slackmacgap", side = "right" }
   anchors.start()
   local said = false
@@ -894,7 +894,7 @@ tests[#tests + 1] = function()
   install(ultrawide())
   local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
   anchors.start()
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   for _, t in ipairs({ "Re-moor now", "Fill channel", "Tidy channel", "Undo tidy" }) do
     check("t29 disabled " .. t, item(t).disabled == true)
   end
@@ -934,7 +934,7 @@ end
 -- Test 34: Two pins on a side stack in config order and a lone pin keeps full height.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left" },
     { bundle = "test.Notes", side = "left" },
     { bundle = "com.googlecode.iterm2", side = "right" },
@@ -951,7 +951,7 @@ end
 -- Test 35: Explicit rows win over config order.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "bottom" },
     { bundle = "test.Notes", side = "left", row = "top" },
   }
@@ -965,7 +965,7 @@ end
 -- Test 36: A side whose only pin asks for the bottom row fills the full height.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = { { bundle = "test.Notes", side = "left", row = "bottom" } }
+  anchors.config.anchored = { { bundle = "test.Notes", side = "left", row = "bottom" } }
   local notes = addWin("Notes", { x = 1000, y = 100, w = 400, h = 400 })
   anchors.start()
   frameIs("t36 notes full", notes, leftFull)
@@ -974,7 +974,7 @@ end
 -- Test 37: A pinned app that is not running leaves its half empty.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left" },
     { bundle = "test.Notes", side = "left" },
   }
@@ -987,7 +987,7 @@ end
 -- Test 38: A third pin on a side is reported once and its windows stay free.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left" },
     { bundle = "test.Notes", side = "left" },
     { bundle = "test.Mail", side = "left", row = "top" },
@@ -1011,7 +1011,7 @@ end
 -- Test 39: Two pins asking for the same row are reported and the second takes the other.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top" },
     { bundle = "test.Notes", side = "left", row = "top" },
   }
@@ -1026,7 +1026,7 @@ end
 -- Test 40: An unknown row is reported and treated as unset.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "test.Notes", side = "left", row = "middle" },
     { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top" },
   }
@@ -1042,7 +1042,7 @@ end
 -- are since no side holds an anchored app.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = { { bundle = "test.Notes", side = "middle" } }
+  anchors.config.anchored = { { bundle = "test.Notes", side = "middle" } }
   local notes = addWin("Notes", { x = 0, y = 25, w = 400, h = 400 })
   anchors.start()
   check("t41 reported", said("a pin needs a bundle and a side") == 1)
@@ -1053,7 +1053,7 @@ end
 -- Test 42: Expand on focus widens a stacked pin inside its own half only.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top", expandPct = 30 },
     { bundle = "test.Notes", side = "left", row = "bottom", expandPct = 20 },
   }
@@ -1073,7 +1073,7 @@ end
 -- Test 43: A stacked pin on the right expands leftward inside its half.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "com.googlecode.iterm2", side = "right", row = "bottom", expandPct = 60 },
     { bundle = "test.Notes", side = "right" },
   }
@@ -1090,7 +1090,7 @@ end
 -- Test 44: Each stacked pin holds its app's main window and leaves the other windows alone.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left" },
     { bundle = "test.Notes", side = "left" },
   }
@@ -1110,7 +1110,7 @@ end
 -- Test 45: A preset resizes both halves of a stacked strip.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left" },
     { bundle = "test.Notes", side = "left" },
   }
@@ -1222,7 +1222,7 @@ tests[#tests + 1] = function()
   local n1 = addWin("Notes", { x = 1000, y = 200, w = 400, h = 400 })
   local n2 = addWin("Notes", { x = 1500, y = 300, w = 500, h = 400 })
   n2.secondary = true
-  anchors.config.pins[1].expandPct = 30
+  anchors.config.anchored[1].expandPct = 30
   anchors.start()
   pick("Left bottom: Empty", "Notes")
   check("t49 huddle stays", huddle.moves == 0)
@@ -1608,7 +1608,7 @@ tests[#tests + 1] = function()
   install(ultrawide())
   local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
   anchors.start()
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   focus(w)
   press("ctrl+alt", "left")
   check("t72 frozen", w.moves == 0)
@@ -1729,7 +1729,7 @@ tests[#tests + 1] = function()
   local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
   anchors.start()
   focus(w)
-  check("t79 top", titles(world.bar.menu()) == "⚓ Raise anchor (let windows drift),Re-moor now,Anchor Safari,-,"
+  check("t79 top", titles(world.bar.menu()) == "⚓ Weigh anchor (let windows drift),Re-moor now,Anchor Safari,-,"
     .. "Anchored apps,Window,Lift,Widths,Heights,Workspaces,Settings,-,Reload,Quit moorings",
     titles(world.bar.menu()))
   check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
@@ -1924,7 +1924,7 @@ tests[#tests + 1] = function()
   fire(2)
   check("t88 off", w.moves == 0)
   click("Snap by dragging")
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   drag(w, { { x = 900, y = 500 }, { x = 0, y = 540 } })
   fire(2)
   check("t88 frozen", w.moves == 0 and world.canvas == nil)
@@ -2085,7 +2085,7 @@ tests[#tests + 1] = function()
   local b = addWin("Safari", { x = 300, y = 100, w = 400, h = 300 })
   anchors.start()
   focus(b)
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   check("t98 disabled", action("tile-all").disabled == true)
   press("ctrl+alt", "a")
   check("t98 frozen", a.moves + b.moves == 0)
@@ -2162,7 +2162,7 @@ tests[#tests + 1] = function()
   world.urls.moorings("moorings", {})
   check("t102 unknown", w.moves == moves and said("unknown action sideways") == 1
     and said("unknown action nil") == 1)
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   world.urls.moorings("moorings", { action = "maximize" })
   check("t102 frozen", w.moves == moves)
 end
@@ -2221,7 +2221,7 @@ tests[#tests + 1] = function()
   frameIs("t105 up runs nothing", w, { x = 1920, y = 25, w = 1920, h = 1055 })
   local moves = w.moves
   check("t105 unbound passes", button(25, 2) == false)
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   check("t105 frozen passes", button(25, 3) == false and w.moves == moves)
   click("⚓ Drop anchor (hold the layout)")
   world.front = "Zoom"
@@ -2432,7 +2432,7 @@ tests[#tests + 1] = function()
   w.f = { x = 500, y = 300, w = 600, h = 400 }
   pick("Main", "Replace with current layout")
   w.f = { x = 0, y = 25, w = 300, h = 300 }
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   check("t115 recall disabled", item("Recall").disabled == true)
   anchors.recallWorkspace("Main")
   frameIs("t115 frozen", w, { x = 0, y = 25, w = 300, h = 300 })
@@ -3243,7 +3243,7 @@ tests[#tests + 1] = function()
   install(ultrawide())
   world.trusted = false
   anchors.start()
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   world.trusted = true
   world.poll()
   check("t152 picked up", markShown() and world.notices[1].withdrawn == true)
@@ -3251,7 +3251,7 @@ end
 
 -- stackedLeft pins Notes in the left top row and Slack below it, and returns both windows.
 local function stackedLeft()
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "test.Notes", side = "left", row = "top" },
     { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "bottom" },
     { bundle = "com.googlecode.iterm2", side = "right" },
@@ -3384,7 +3384,7 @@ end
 -- Test 158: Expand on focus widens a stacked pin and keeps its chosen height.
 tests[#tests + 1] = function()
   install(ultrawide())
-  anchors.config.pins = {
+  anchors.config.anchored = {
     { bundle = "com.tinyspeck.slackmacgap", side = "left", row = "top", expandPct = 30 },
     { bundle = "test.Notes", side = "left", row = "bottom" },
   }
@@ -3705,7 +3705,7 @@ end
 tests[#tests + 1] = function()
   install(ultrawide())
   local slack = addWin("Slack", leftFull)
-  anchors.config.pins[1].expandPct = 30
+  anchors.config.anchored[1].expandPct = 30
   anchors.start()
   world.clock = world.clock + 3
   anchors.setWidths(15, 40)
@@ -3799,7 +3799,7 @@ tests[#tests + 1] = function()
     and send(2, { x = 300, y = 300 }) == false)
   check("t177 new rect", send(1, { x = 60, y = 40 }) == true and send(2, { x = 60, y = 40 }) == true)
   frameIs("t177 lowered", slack, leftFull)
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   check("t177 frozen passes", send(1, { x = 60, y = 40 }) == false)
 end
 
@@ -3811,7 +3811,7 @@ tests[#tests + 1] = function()
   anchors.start()
   world.clock = world.clock + 3
   world.poll()
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   slack.f = { x = 900, y = 200, w = 700, h = 600 }
   world.clock = world.clock + 3
   click("⚓ Drop anchor (hold the layout)")
@@ -4059,7 +4059,7 @@ tests[#tests + 1] = function()
   end
   missing = unhinted(world.bar.menu())
   check("t180 full", #missing == 0, table.concat(missing, ", "))
-  click("⚓ Raise anchor (let windows drift)")
+  click("⚓ Weigh anchor (let windows drift)")
   missing = unhinted(world.bar.menu())
   check("t180 frozen", #missing == 0, table.concat(missing, ", "))
 
@@ -4340,13 +4340,13 @@ tests[#tests + 1] = function()
   check("t192 quit leaves login item", world.autoLaunch == true)
 
   install(ultrawide())
-  anchors.config.pins = { { bundle = "test.Notes", side = "left", row = "top" } }
+  anchors.config.anchored = { { bundle = "test.Notes", side = "left", row = "top" } }
   world.agent.revived = true
   anchors.start()
   check("t192 revived opens nothing", #world.opened == 0, table.concat(world.opened, " | "))
   check("t192 revived records start", world.settings["moorings.launchedPID"] == 4242)
   install(ultrawide())
-  anchors.config.pins = { { bundle = "test.Notes", side = "left", row = "top" } }
+  anchors.config.anchored = { { bundle = "test.Notes", side = "left", row = "top" } }
   anchors.start()
   check("t192 login opens", #world.opened == 1, table.concat(world.opened, " | "))
 end
