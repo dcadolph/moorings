@@ -2913,6 +2913,51 @@ tests[#tests + 1] = function()
   check("t144 no undo", item("Undo icon change").disabled == true)
 end
 
+-- Test 145: The settings window sends the icon model and runs every icon message.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  openSettings()
+  local icons = world.model.icons
+  check("t145 groups", #icons.groups == 4 and icons.groups[1].title == "Boats")
+  check("t145 default checked", icons.groups[1].icons[1].name == "Sailboat" and icons.groups[1].icons[1].checked)
+  check("t145 undo off", icons.canUndo == false and icons.usingCustom == false)
+  send({ type = "iconUndo" })
+  check("t145 undo refused", world.model.notice == "There is no icon change to undo." and world.bar.title == "⛵")
+  send({ type = "iconPick", name = "Octopus" })
+  check("t145 picked", world.bar.title == "🐙" and world.model.icons.canUndo == true)
+  check("t145 no notice", world.model.notice == "")
+  send({ type = "iconPick", name = "Nope" })
+  check("t145 unknown", world.model.notice == "That icon is not available." and world.bar.title == "🐙")
+  send({ type = "iconCustom", text = "toolong" })
+  check("t145 bad text", world.model.notice == "Enter 1 to 5 characters." and world.bar.title == "🐙")
+  send({ type = "iconCustom", text = "DCA" })
+  check("t145 custom", world.bar.title == "DCA" and world.model.icons.custom == "DCA"
+    and world.model.icons.usingCustom == true and world.model.notice == "")
+  send({ type = "iconUndo" })
+  check("t145 undo", world.bar.title == "🐙")
+  send({ type = "iconDefault" })
+  check("t145 default", world.bar.title == "⛵")
+  anchors.random = function() return 1 end
+  send({ type = "iconSurprise" })
+  check("t145 surprise", world.bar.title == anchors.icons[2].glyph)
+  send({ type = "iconFolder" })
+  check("t145 folder", world.alerted ~= nil and world.alerted:find("Create ", 1, true) == 1)
+end
+
+-- Test 146: The settings page has an element for every icon control its script uses.
+tests[#tests + 1] = function()
+  local file = assert(io.open("settings.html", "r"))
+  local html = file:read("a")
+  file:close()
+  for _, id in ipairs({ "icons", "iconGroups", "iconText", "saveIcon", "iconSurprise", "iconDefault",
+    "iconUndo", "iconFolder" }) do
+    check("t146 markup " .. id, html:find('id="' .. id .. '"', 1, true) ~= nil)
+    check("t146 script " .. id, id == "icons" or html:find('getElementById("' .. id .. '")', 1, true) ~= nil)
+  end
+  check("t146 tab", html:find('data-tab="icons"', 1, true) ~= nil)
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then
