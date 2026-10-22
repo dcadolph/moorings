@@ -3743,6 +3743,68 @@ tests[#tests + 1] = function()
   frameIs("t179 takes the slot", torn, rightFull)
 end
 
+-- unhinted returns the titles of entries in items, at any depth, whose hover hint is
+-- missing or is not a sentence starting with a capital and ending with a period.
+local function unhinted(items, out)
+  out = out or {}
+  for _, it in ipairs(items) do
+    if it.title ~= "-" then
+      local hint = it.tooltip
+      if type(hint) ~= "string" or not hint:match("^%u") or not hint:match("%.$") then
+        out[#out + 1] = it.title
+      end
+      if it.menu then
+        unhinted(it.menu, out)
+      end
+    end
+  end
+  return out
+end
+
+-- Test 180: Every menu entry at every depth has a hover hint, in a bare world, a world
+-- that shows every conditional entry, frozen, and when the menu fails to build.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  check("t180 bare branches", item("No pinned windows") ~= nil and item("No saved workspaces") ~= nil
+    and item("No sizes in the config") ~= nil)
+  local missing = unhinted(world.bar.menu())
+  check("t180 bare", #missing == 0, table.concat(missing, ", "))
+
+  install(ultrawide())
+  world.images["/img/wave.png"] = true
+  anchors.config.icons = { { name = "Wavy", image = "/img/wave.png" } }
+  anchors.config.sizes = { { title = "Video", width = 1280, height = 720 } }
+  local slack = addWin("Slack", { x = 300, y = 100, w = 900, h = 700 })
+  slack.minW = 668
+  local term = addWin("iTerm2", rightFull)
+  anchors.start()
+  world.poll()
+  world.chosenFile = { ["1"] = "/Applications/Calendar.app" }
+  pick("Left bottom: Empty", "Choose app…")
+  saveAs("Desk")
+  world.clock = world.clock + 3
+  world.poll()
+  term.f = { x = 1200, y = 200, w = 900, h = 600 }
+  world.poll()
+  world.trusted = false
+  for _, title in ipairs({ "⚠️ Grant Accessibility access", "Re-moor iTerm2", "Yours",
+    "Left 13% in use: Slack needs 668 pt", "Calendar", "Desk", "Video", "Slack" }) do
+    check("t180 shows " .. title, item(title) ~= nil)
+  end
+  missing = unhinted(world.bar.menu())
+  check("t180 full", #missing == 0, table.concat(missing, ", "))
+  click("⚓ Drop anchor (freeze layout)")
+  missing = unhinted(world.bar.menu())
+  check("t180 frozen", #missing == 0, table.concat(missing, ", "))
+
+  hs.application.frontmostApplication = function() error("boom") end
+  local failed = world.bar.menu()
+  check("t180 failed menu", #failed == 1 and failed[1].title == "Menu failed, see Console")
+  missing = unhinted(failed)
+  check("t180 failed", #missing == 0, table.concat(missing, ", "))
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then

@@ -1685,21 +1685,39 @@ local function lockedItems()
   for _, s in ipairs(M.slotNames) do
     local current = picks[s.key]
     local choices = {
-      { title = "Empty", checked = current == "", fn = safe(function() M.assign(s.key, "") end) },
+      {
+        title = "Empty",
+        tooltip = "Leave this slot free and open nothing.",
+        checked = current == "",
+        fn = safe(function() M.assign(s.key, "") end),
+      },
     }
     if current ~= "" and not running[current] then
-      choices[#choices + 1] = { title = appName(current), checked = true }
+      choices[#choices + 1] = {
+        title = appName(current),
+        tooltip = "Locked here but not running. Its first window will take the slot.",
+        checked = true,
+      }
     end
     for _, app in ipairs(apps) do
       choices[#choices + 1] = {
         title = app.name,
+        tooltip = "Lock this app to the slot and bring its window there.",
         checked = app.bundle == current,
         fn = safe(function() M.lock(s.key, app.bundle) end),
       }
     end
     choices[#choices + 1] = { title = "-" }
-    choices[#choices + 1] = { title = "Choose app…", fn = safe(function() M.chooseApp(s.key) end) }
-    items[#items + 1] = { title = s.title .. ": " .. appName(current), menu = choices }
+    choices[#choices + 1] = {
+      title = "Choose app…",
+      tooltip = "Pick any app in Applications, running or not, and open it in this slot.",
+      fn = safe(function() M.chooseApp(s.key) end),
+    }
+    items[#items + 1] = {
+      title = s.title .. ": " .. appName(current),
+      tooltip = "The app locked to this slot. Its window is held here.",
+      menu = choices,
+    }
   end
   local front = hs.application.frontmostApplication()
   local frontBundle = front and front:bundleID()
@@ -1707,6 +1725,7 @@ local function lockedItems()
   for _, s in ipairs(M.slotNames) do
     targets[#targets + 1] = {
       title = s.title,
+      tooltip = "Lock the frontmost app to this slot.",
       checked = picks[s.key] == frontBundle,
       fn = safe(function() M.assign(s.key, frontBundle) end),
     }
@@ -1715,9 +1734,15 @@ local function lockedItems()
   if front then
     pinTitle = pinTitle .. " (" .. (front:name() or frontBundle) .. ")"
   end
-  items[#items + 1] = { title = pinTitle, disabled = ignoredBundle(frontBundle), menu = targets }
+  items[#items + 1] = {
+    title = pinTitle,
+    tooltip = "Lock the app you are using to a slot.",
+    disabled = ignoredBundle(frontBundle),
+    menu = targets,
+  }
   items[#items + 1] = {
     title = "Reset to defaults",
+    tooltip = "Go back to the slots in the config.",
     disabled = chosen() == nil,
     fn = safe(M.resetSlots),
   }
@@ -1730,16 +1755,35 @@ local function windowItems()
   local frozen = paused()
   return actions.menu({
     { title = "-" },
-    { title = "Fill channel", disabled = frozen, fn = safe(M.fill) },
+    {
+      title = "Fill channel",
+      tooltip = "Stretch the front free window across the whole channel.",
+      disabled = frozen,
+      fn = safe(M.fill),
+    },
     {
       title = "Tidy channel",
+      tooltip = "Line up the front free windows in equal columns.",
       disabled = frozen,
       menu = {
-        { title = "Halves", fn = safe(function() M.tidy(2) end) },
-        { title = "Thirds", fn = safe(function() M.tidy(3) end) },
+        {
+          title = "Halves",
+          tooltip = "Tile the two front free windows side by side.",
+          fn = safe(function() M.tidy(2) end),
+        },
+        {
+          title = "Thirds",
+          tooltip = "Tile the three front free windows side by side.",
+          fn = safe(function() M.tidy(3) end),
+        },
       },
     },
-    { title = "Undo tidy", fn = safe(M.undo), disabled = frozen or not M.canUndo() },
+    {
+      title = "Undo tidy",
+      tooltip = "Put back every window Fill or Tidy moved.",
+      fn = safe(M.undo),
+      disabled = frozen or not M.canUndo(),
+    },
   })
 end
 
@@ -1755,6 +1799,7 @@ local function widthItems()
   end
   items[#items + 1] = {
     title = string.format("Channel %.0f%%", 100 - useLeft - useRight),
+    tooltip = "The share of the display left between the strips for free windows.",
     disabled = true,
   }
   for _, h in ipairs({ { "left", "Left", leftPct }, { "right", "Right", rightPct } }) do
@@ -1763,6 +1808,7 @@ local function widthItems()
       items[#items + 1] = {
         title = string.format("%s %.0f%% in use: %s needs %.0f pt", name,
           side == "left" and useLeft or useRight, state.minBy[side] or "an app", state.minPts[side]),
+        tooltip = "A pinned window will not go narrower, so the strip grows to fit it.",
         disabled = true,
       }
     end
@@ -1776,6 +1822,7 @@ local function widthItems()
     local _, _, ok = stepped(s.side, s.delta)
     items[#items + 1] = {
       title = s.title,
+      tooltip = "Move the strip's inner edge by one percent of the display.",
       disabled = not ok,
       fn = safe(function() M.step(s.side, s.delta) end),
     }
@@ -1783,6 +1830,7 @@ local function widthItems()
   for _, p in ipairs(M.presets) do
     items[#items + 1] = {
       title = string.format("Left %d%%, right %d%%", p.left, p.right),
+      tooltip = "Set both strips to these shares of the display.",
       checked = p.left == leftPct and p.right == rightPct,
       disabled = held(s, "left", p.left) or held(s, "right", p.right),
       fn = safe(function() M.setWidths(p.left, p.right) end),
@@ -1802,6 +1850,7 @@ local function heightItems()
     local top = current[s.side]
     items[#items + 1] = {
       title = string.format("%s top %g%%, bottom %g%%", s.name, top, 100 - top),
+      tooltip = "How this strip's height splits between its two rows.",
       disabled = true,
     }
   end
@@ -1814,6 +1863,7 @@ local function heightItems()
     local _, ok = topStepped(s.side, s.delta)
     items[#items + 1] = {
       title = s.title,
+      tooltip = "Move the line between the top and bottom rows by " .. heightStep .. " percent.",
       disabled = not ok,
       fn = safe(function() M.stepTop(s.side, s.delta) end),
     }
@@ -1823,11 +1873,16 @@ local function heightItems()
     for _, pct in ipairs(M.heightPresets) do
       presets[#presets + 1] = {
         title = string.format("Top %d%%, bottom %d%%", pct, 100 - pct),
+        tooltip = "Split this strip's height between its rows at these shares.",
         checked = pct == current[s.side],
         fn = safe(function() M.setTop(s.side, pct) end),
       }
     end
-    items[#items + 1] = { title = s.name .. " side", menu = presets }
+    items[#items + 1] = {
+      title = s.name .. " side",
+      tooltip = "Preset row splits for the " .. s.side .. " strip.",
+      menu = presets,
+    }
   end
   return items
 end
@@ -1839,24 +1894,44 @@ local function workspaceItems()
   for _, name in ipairs(workspaces.names()) do
     items[#items + 1] = {
       title = name,
+      tooltip = "A saved layout of slots, widths, heights and windows.",
       menu = {
-        { title = "Recall", disabled = frozen, fn = safe(function() workspaces.recall(name) end) },
+        {
+          title = "Recall",
+          tooltip = "Put the slots, widths, heights and windows back as saved.",
+          disabled = frozen,
+          fn = safe(function() workspaces.recall(name) end),
+        },
         {
           title = "Recall when these displays connect",
+          tooltip = "Bring this workspace back whenever the displays attached now are plugged in.",
           checked = workspaces.tied(name),
           fn = safe(function() workspaces.tie(name) end),
         },
-        { title = "Replace with current layout", fn = safe(function() workspaces.save(name) end) },
-        { title = "Delete", fn = safe(function() workspaces.delete(name) end) },
+        {
+          title = "Replace with current layout",
+          tooltip = "Save the layout in effect now under this name.",
+          fn = safe(function() workspaces.save(name) end),
+        },
+        {
+          title = "Delete",
+          tooltip = "Forget this workspace.",
+          fn = safe(function() workspaces.delete(name) end),
+        },
       },
     }
   end
   if #items == 0 then
-    items[1] = { title = "No saved workspaces", disabled = true }
+    items[1] = {
+      title = "No saved workspaces",
+      tooltip = "Save the current layout to recall it later.",
+      disabled = true,
+    }
   end
   items[#items + 1] = { title = "-" }
   items[#items + 1] = {
     title = "Save current layout…",
+    tooltip = "Name and keep the slots, widths, heights and window places in effect now.",
     fn = safe(function()
       hs.focus()
       local button, name = hs.dialog.textPrompt("Save workspace",
@@ -1890,41 +1965,70 @@ end
 local function iconItems()
   local model = M.iconModel()
   local items = {
-    { title = model.mark.title, checked = model.mark.checked, fn = safe(function() M.pickIcon(model.mark.name) end) },
+    {
+      title = model.mark.title,
+      tooltip = "Use the moorings logo in the menu bar.",
+      checked = model.mark.checked,
+      fn = safe(function() M.pickIcon(model.mark.name) end),
+    },
   }
   for _, g in ipairs(model.groups) do
     local entries = {}
     for _, icon in ipairs(g.icons) do
       entries[#entries + 1] = {
         title = icon.glyph .. "  " .. icon.title,
+        tooltip = "Show this in the menu bar.",
         checked = icon.checked,
         fn = safe(function() M.pickIcon(icon.name) end),
       }
     end
-    items[#items + 1] = { title = g.title, menu = entries }
+    items[#items + 1] = { title = g.title, tooltip = "Built-in icons of one kind.", menu = entries }
   end
   if #model.yours > 0 then
     local entries = {}
     for _, icon in ipairs(model.yours) do
       entries[#entries + 1] = {
         title = (icon.glyph and (icon.glyph .. "  ") or "") .. icon.title,
+        tooltip = "Show this in the menu bar.",
         checked = icon.checked,
         fn = safe(function() M.pickIcon(icon.name) end),
       }
     end
-    items[#items + 1] = { title = "Yours", menu = entries }
+    items[#items + 1] = {
+      title = "Yours",
+      tooltip = "Icons from your config and images in the icons folder.",
+      menu = entries,
+    }
   end
   items[#items + 1] = { title = "-" }
   items[#items + 1] = {
     title = model.usingCustom and ("Custom…  " .. model.custom) or "Custom…",
+    tooltip = "Type up to " .. maxIconChars .. " characters, such as an emoji or initials.",
     checked = model.usingCustom,
     fn = safe(M.promptIcon),
   }
-  items[#items + 1] = { title = "Surprise me", fn = safe(M.surpriseIcon) }
-  items[#items + 1] = { title = "Default icon", fn = safe(M.defaultIcon) }
-  items[#items + 1] = { title = "Undo icon change", disabled = not model.canUndo, fn = safe(M.undoIcon) }
+  items[#items + 1] = {
+    title = "Surprise me",
+    tooltip = "Pick a different built-in icon at random.",
+    fn = safe(M.surpriseIcon),
+  }
+  items[#items + 1] = {
+    title = "Default icon",
+    tooltip = "Go back to the sailboat.",
+    fn = safe(M.defaultIcon),
+  }
+  items[#items + 1] = {
+    title = "Undo icon change",
+    tooltip = "Go back to the icon you had before the last change.",
+    disabled = not model.canUndo,
+    fn = safe(M.undoIcon),
+  }
   items[#items + 1] = { title = "-" }
-  items[#items + 1] = { title = "Open icons folder", fn = safe(M.openIconDir) }
+  items[#items + 1] = {
+    title = "Open icons folder",
+    tooltip = "Drop PNG, JPEG, PDF or SVG images here to list them under Yours.",
+    fn = safe(M.openIconDir),
+  }
   return items
 end
 
@@ -1934,6 +2038,7 @@ local function settingItems()
   for _, name in ipairs(actions.keymapNames) do
     keymaps[#keymaps + 1] = {
       title = name:sub(1, 1):upper() .. name:sub(2),
+      tooltip = "Use the shortcuts of this app. The Window folder shows them.",
       checked = name == current,
       fn = safe(function() M.setKeymap(name) end),
     }
@@ -1946,42 +2051,53 @@ local function settingItems()
     ignoreTitle = ignoreTitle .. " (" .. (front:name() or frontBundle) .. ")"
   end
   return {
-    { title = "Settings window…", fn = safe(settings.open) },
+    {
+      title = "Settings window…",
+      tooltip = "Shortcuts, custom sizes, workspaces, icon and general settings in one window.",
+      fn = safe(settings.open),
+    },
     { title = "-" },
     {
       title = "Fullscreen fills the channel",
+      tooltip = "A free window that goes fullscreen comes back out and fills the channel.",
       checked = fullscreenFills(),
       fn = safe(function() hs.settings.set(keys.fullscreen, not fullscreenFills()) end),
     },
     {
       title = "Fullscreen fills the pin's strip",
+      tooltip = "A pinned window that goes fullscreen comes back out to its slot.",
       checked = pinFullscreenFills(),
       fn = safe(function() hs.settings.set(keys.pinFullscreen, not pinFullscreenFills()) end),
     },
     {
       title = "Snap by dragging",
+      tooltip = "Drag a window to an edge or corner to snap it. "
+        .. "On the ultrawide it lands in the channel.",
       checked = M.snapOn(),
       fn = safe(function() M.setSnap(not M.snapOn()) end),
     },
-    { title = "Keymap", menu = keymaps },
+    { title = "Keymap", tooltip = "Choose which app's window shortcuts to match.", menu = keymaps },
     {
       title = ignoreTitle,
+      tooltip = "Turn the window shortcuts off while this app is in front.",
       checked = M.shortcutsIgnored(frontBundle),
       disabled = frontBundle == nil or ignoredBundle(frontBundle),
       fn = safe(function() M.toggleShortcutIgnore(frontBundle) end),
     },
-    { title = "Icon", menu = icons },
+    { title = "Icon", tooltip = "Choose what moorings shows in the menu bar.", menu = icons },
     {
       title = "Edit config",
+      tooltip = "Open anchors.lua in your text editor. Reload to apply changes.",
       fn = safe(function() hs.execute("open -t " .. shellQuote(M.path("anchors.lua"))) end),
     },
-    { title = "Console", fn = safe(hs.openConsole) },
+    {
+      title = "Console",
+      tooltip = "Open the Hammerspoon Console, where moorings logs problems.",
+      fn = safe(hs.openConsole),
+    },
   }
 end
 
--- menu builds the menu bar menu from current state: the two layout controls,
--- a folder per job, and Reload. While Accessibility is missing it starts with
--- the way to grant it.
 -- pinWindows returns the pinned windows on the ultrawide, front-most first.
 local function pinWindows()
   local list = {}
@@ -2002,23 +2118,33 @@ local function liftItems(pins, frozen)
   for _, w in ipairs(pins) do
     items[#items + 1] = {
       title = windowApp(w),
+      tooltip = "Lift this pin over its strip and the channel, or lower it back.",
       checked = state.lifted[w:id()] == true,
       disabled = frozen,
       fn = safe(function() M.toggleLift(w) end),
     }
   end
   if #items == 0 then
-    items[1] = { title = "No pinned windows", disabled = true }
+    items[1] = {
+      title = "No pinned windows",
+      tooltip = "Lock an app to a slot to pin its window.",
+      disabled = true,
+    }
   end
   return items
 end
 
+-- menu builds the menu bar menu from current state: the two layout controls, a
+-- Re-moor entry per released pin, a folder per job, and Reload. While Accessibility is missing it starts with
+-- the way to grant it.
 local function menu()
   local frozen = paused()
   local pins = pinWindows()
   local items = {
     {
       title = frozen and "⚓ Weigh anchor (resume layout)" or "⚓ Drop anchor (freeze layout)",
+      tooltip = frozen and "Hold the pins in their slots again."
+        or "Stop holding windows so you can arrange them freely.",
       fn = safe(function()
         hs.settings.set(keys.paused, not paused())
         state.placed = {}
@@ -2027,6 +2153,7 @@ local function menu()
     },
     {
       title = "Re-moor now",
+      tooltip = "Put every pin back in its slot and forget released, lifted and learned sizes.",
       disabled = frozen,
       fn = safe(function()
         state.bursts, state.floors, state.placed, state.released, state.lifted = {}, {}, {}, {}, {}
@@ -2038,6 +2165,7 @@ local function menu()
     if state.released[w:id()] then
       items[#items + 1] = {
         title = "Re-moor " .. windowApp(w),
+        tooltip = "You moved this pin, so moorings let it go. Put it back in its slot.",
         disabled = frozen,
         fn = safe(function() M.remoor(w) end),
       }
@@ -2045,21 +2173,49 @@ local function menu()
   end
   for _, it in ipairs({
     { title = "-" },
-    { title = "Window", menu = windowItems() },
-    { title = "Lift", menu = liftItems(pins, frozen) },
-    { title = "Locked apps", menu = lockedItems() },
-    { title = "Widths", menu = widthItems() },
-    { title = "Heights", menu = heightItems() },
-    { title = "Workspaces", menu = workspaceItems() },
-    { title = "Settings", menu = settingItems() },
+    {
+      title = "Window",
+      tooltip = "Move and size the front window. On the ultrawide these work inside the channel.",
+      menu = windowItems(),
+    },
+    {
+      title = "Lift",
+      tooltip = "Lift a pin over its strip and the channel.",
+      menu = liftItems(pins, frozen),
+    },
+    { title = "Locked apps", tooltip = "Choose which app holds each slot.", menu = lockedItems() },
+    {
+      title = "Widths",
+      tooltip = "Set how wide the left and right strips are.",
+      menu = widthItems(),
+    },
+    {
+      title = "Heights",
+      tooltip = "Set where each strip splits into two rows.",
+      menu = heightItems(),
+    },
+    { title = "Workspaces", tooltip = "Save and recall whole layouts.", menu = workspaceItems() },
+    {
+      title = "Settings",
+      tooltip = "Behavior, shortcuts, icon and config.",
+      menu = settingItems(),
+    },
     { title = "-" },
-    { title = "Reload", fn = safe(M.reload) },
+    {
+      title = "Reload",
+      tooltip = "Reload Hammerspoon to apply config changes, unless the config has an error.",
+      fn = safe(M.reload),
+    },
   }) do
     items[#items + 1] = it
   end
   if not trusted() then
     table.insert(items, 1, { title = "-" })
-    table.insert(items, 1, { title = axGlyph .. " Grant Accessibility access", fn = safe(M.openAccessibility) })
+    table.insert(items, 1, {
+      title = axGlyph .. " Grant Accessibility access",
+      tooltip = "Hammerspoon needs Accessibility access before moorings can move windows.",
+      fn = safe(M.openAccessibility),
+    })
   end
   return items
 end
@@ -2071,7 +2227,11 @@ local function menuOrError()
     return items
   end
   log(items)
-  return { { title = "Menu failed, see Console", fn = hs.openConsole } }
+  return { {
+    title = "Menu failed, see Console",
+    tooltip = "Building this menu raised an error. The Console shows it.",
+    fn = hs.openConsole,
+  } }
 end
 
 -- start creates the menu bar item, subscribes to window events and starts polling.
