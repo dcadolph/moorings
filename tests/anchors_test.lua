@@ -2999,6 +2999,31 @@ tests[#tests + 1] = function()
   check("t151 model", world.model.icons.mark.checked == true and world.model.icons.mark.image == true)
 end
 
+-- Test 152: Choosing the icon already in effect keeps the undo point, the notice stays
+-- until handled, a config icon cannot take the mark's name, and the page keeps a draft.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.config.icons = { { name = "moorings mark", glyph = "X" } }
+  anchors.start()
+  check("t152 mark name refused", item("Yours") == nil)
+  click("🐙  Octopus")
+  click("🐙  Octopus")
+  click("Undo icon change")
+  check("t152 undo after repeat", world.bar.title == "⛵", tostring(world.bar.title))
+  click("Default icon")
+  check("t152 default no-op keeps undo", item("Undo icon change").disabled == false)
+  click("Undo icon change")
+  check("t152 undo to octopus", world.bar.title == "🐙")
+  install(ultrawide())
+  world.trusted = false
+  anchors.start()
+  check("t152 notice stays", world.notices[1].attrs.withdrawAfter == 0)
+  local file = assert(io.open("settings.html", "r"))
+  local html = file:read("a")
+  file:close()
+  check("t152 draft kept", html:find("if (saved !== lastIconText)", 1, true) ~= nil)
+end
+
 -- Test 147: Missing Accessibility shows the warning glyph, one notification and a menu item to grant it.
 tests[#tests + 1] = function()
   install(ultrawide())

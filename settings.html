@@ -326,6 +326,10 @@ function drawWorkspaces() {
   }
 }
 
+// lastIconText is the saved custom icon text last put in the field, so a draft
+// survives redraws until the saved value changes.
+let lastIconText = null;
+
 // drawIcons fills the icon tab.
 function drawIcons() {
   const root = document.getElementById("iconGroups");
@@ -347,7 +351,11 @@ function drawIcons() {
     }
     root.append(row);
   }
-  document.getElementById("iconText").value = icons.custom || "";
+  const saved = icons.custom || "";
+  if (saved !== lastIconText) {
+    document.getElementById("iconText").value = saved;
+    lastIconText = saved;
+  }
   document.getElementById("iconUndo").disabled = icons.canUndo !== true;
 }
 

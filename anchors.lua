@@ -1073,10 +1073,15 @@ function M.imageIcons()
   return list
 end
 
+-- markIcon returns the moorings mark, a template image shipped with moorings.
+local function markIcon()
+  return { name = "moorings mark", title = "moorings mark", image = M.path("mark.svg") }
+end
+
 -- M.configIcons returns the valid entries of the config icon list. A bad entry is
 -- logged and skipped.
 function M.configIcons()
-  local list, seen = {}, {}
+  local list, seen = {}, { [markIcon().name] = true }
   for _, icon in ipairs(M.icons) do
     seen[icon.name] = true
   end
@@ -1094,11 +1099,6 @@ function M.configIcons()
     end
   end
   return list
-end
-
--- markIcon returns the moorings mark, a template image shipped with moorings.
-local function markIcon()
-  return { name = "moorings mark", title = "moorings mark", image = M.path("mark.svg") }
 end
 
 -- findIcon returns the built-in, mark, config or image icon called name, or nil.
@@ -1176,8 +1176,11 @@ local function assign(key, v)
 end
 
 -- setChoice saves the icon name and custom text, remembers the previous choice for
--- undo and applies the result.
+-- undo and applies the result. A choice equal to the saved one changes nothing.
 local function setChoice(icon, custom)
+  if icon == hs.settings.get(keys.icon) and custom == hs.settings.get(keys.customIcon) then
+    return
+  end
   state.prevIcon = { icon = hs.settings.get(keys.icon), custom = hs.settings.get(keys.customIcon) }
   assign(keys.icon, icon)
   assign(keys.customIcon, custom)
@@ -1250,6 +1253,7 @@ accessChanged = function(granted)
           .. "Privacy & Security, Accessibility.",
         actionButtonTitle = "Open Settings",
         hasActionButton = true,
+        withdrawAfter = 0,
       }):send()
     end
     return
