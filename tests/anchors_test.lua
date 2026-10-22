@@ -112,6 +112,12 @@ function Win:application()
   }
 end
 
+-- Win:zoomButtonRect returns the green button rect, 57 points in and 11 down.
+function Win:zoomButtonRect()
+  self.zoomAsks = (self.zoomAsks or 0) + 1
+  return { x = self.f.x + 57, y = self.f.y + 11, w = 16, h = 16 }
+end
+
 -- Win:title returns the window title, the app name unless a test sets one.
 function Win:title() return self.name or self.app end
 
@@ -290,7 +296,7 @@ local function install(...)
     openConsole = function() world.console = true end,
     reload = function() world.reloaded = true end,
     execute = function(cmd) world.executed = cmd end,
-    alert = { show = function(msg) world.alerted = msg end },
+    alert = { show = function(msg) world.alerted, world.alerts = msg, (world.alerts or 0) + 1 end },
     settings = {
       get = function(k) return world.settings[k] end,
       set = function(k, v) world.settings[k] = v end,
@@ -460,13 +466,17 @@ tests[#tests + 1] = function()
   check("t3 untouched", w.moves == 0, "moves " .. w.moves)
 end
 
--- Test 4: Focusing Slack expands it to 30 percent and focusing another app collapses it.
+-- Test 4: Slack does not expand on focus by default. With expandPct 30, focusing it
+-- expands it to 30 percent and focusing another app collapses it.
 tests[#tests + 1] = function()
   install(ultrawide())
   local slack = addWin("Slack", { x = 0, y = 25, w = 512, h = 1415 })
   local other = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
   anchors.start()
   focus(slack)
+  world.onEvent()
+  frameIs("t4 default stays", slack, { x = 0, y = 25, w = 512, h = 1415 })
+  anchors.config.pins[1].expandPct = 30
   world.onEvent()
   frameIs("t4 expanded", slack, { x = 0, y = 25, w = 1536, h = 1415 })
   check("t4 channel kept", other.moves == 0)
@@ -1144,6 +1154,7 @@ tests[#tests + 1] = function()
   local n1 = addWin("Notes", { x = 1000, y = 200, w = 400, h = 400 })
   local n2 = addWin("Notes", { x = 1500, y = 300, w = 500, h = 400 })
   n2.secondary = true
+  anchors.config.pins[1].expandPct = 30
   anchors.start()
   pick("Left bottom: Empty", "Notes")
   check("t49 huddle stays", huddle.moves == 0)
@@ -1481,7 +1492,7 @@ tests[#tests + 1] = function()
   focus(slack)
   local before = slack.moves
   press("ctrl+alt", "right")
-  press("ctrl+alt", "return")
+  press("ctrl+alt", "c")
   check("t70 not moved", slack.moves == before, "moves " .. slack.moves)
   check("t70 logged once", said("window actions leave pins alone") == 1)
 end
@@ -1633,7 +1644,7 @@ tests[#tests + 1] = function()
   anchors.start()
   focus(w)
   check("t79 top", titles(world.bar.menu()) == "⚓ Drop anchor (freeze layout),Re-moor now,-,"
-    .. "Window,Locked apps,Widths,Heights,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
+    .. "Window,Lift,Locked apps,Widths,Heights,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
   check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
     .. "Size and move,Displays,Custom sizes,Organize", titles(folder("Window")))
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
@@ -3535,6 +3546,179 @@ tests[#tests + 1] = function()
   world.poll()
   local ch = anchors.channel(world.screens[1])
   check("t172 channel kept", ch.w >= 511, "w " .. ch.w)
+end
+
+-- Test 173: A pin moved by hand is released once with an alert, left where it was put,
+-- and re-moored by Restore, by Re-moor app, and by Re-moor now.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  local moved = { x = 900, y = 200, w = 700, h = 600 }
+  -- moveByHand puts slack at moved once the grace has passed and lets moorings look.
+  local function moveByHand()
+    world.clock = world.clock + 3
+    world.poll()
+    slack.f = copy(moved)
+    world.poll()
+  end
+  moveByHand()
+  frameIs("t173 left alone", slack, moved)
+  check("t173 alert", world.alerted ~= nil and world.alerted:find("Slack released", 1, true) ~= nil
+    and world.alerted:find("⌃⌥⌫", 1, true) ~= nil and world.alerted:find("Re-moor Slack", 1, true) ~= nil,
+    tostring(world.alerted))
+  check("t173 logged once", said("moved by hand: released") == 1)
+  world.clock = world.clock + 10
+  world.poll()
+  frameIs("t173 still alone", slack, moved)
+  check("t173 alerted once", world.alerts == 1, "alerts " .. tostring(world.alerts))
+  check("t173 menu item", item("Re-moor Slack") ~= nil)
+  focus(slack)
+  press("ctrl+alt", "delete")
+  frameIs("t173 restore", slack, leftFull)
+  check("t173 item gone", item("Re-moor Slack") == nil)
+  moveByHand()
+  click("Re-moor Slack")
+  frameIs("t173 menu re-moor", slack, leftFull)
+  moveByHand()
+  click("Re-moor now")
+  frameIs("t173 re-moor now", slack, leftFull)
+end
+
+-- Test 174: Width, height and focus changes re-place a pin and never release it, and a
+-- pin settling on its own within the grace is put back.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.config.pins[1].expandPct = 30
+  anchors.start()
+  world.clock = world.clock + 3
+  anchors.setWidths(15, 40)
+  frameIs("t174 widths", slack, { x = 0, y = 25, w = 768, h = 1415 })
+  world.clock = world.clock + 3
+  focus(slack)
+  world.onEvent()
+  frameIs("t174 focus", slack, { x = 0, y = 25, w = 1536, h = 1415 })
+  check("t174 no release", world.alerted == nil, tostring(world.alerted))
+  world.clock = world.clock + 1
+  slack.f.w = 900
+  world.poll()
+  frameIs("t174 settled back", slack, { x = 0, y = 25, w = 1536, h = 1415 })
+  check("t174 still no release", world.alerted == nil)
+end
+
+-- Test 175: Maximize lifts a pin over its strip and the channel at full height, stopping
+-- at the other strip, and lowers it again. Restore also lowers it.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local notes, slack = stackedLeft()
+  local term = addWin("iTerm2", { x = 3000, y = 100, w = 900, h = 700 })
+  anchors.start()
+  frameIs("t175 slot", slack, leftBottom)
+  focus(slack)
+  press("ctrl+alt", "return")
+  frameIs("t175 lifted", slack, { x = 0, y = 25, w = 2816, h = 1415 })
+  check("t175 raised", world.focused == slack)
+  world.clock = world.clock + 5
+  world.poll()
+  frameIs("t175 stays lifted", slack, { x = 0, y = 25, w = 2816, h = 1415 })
+  frameIs("t175 notes kept", notes, leftTop)
+  press("ctrl+alt", "return")
+  frameIs("t175 lowered", slack, leftBottom)
+  focus(term)
+  press("ctrl+alt", "return")
+  frameIs("t175 right lifted", term, { x = 512, y = 25, w = 4608, h = 1415 })
+  press("ctrl+alt", "delete")
+  frameIs("t175 restore lowers", term, rightFull)
+end
+
+-- Test 176: The Lift folder lists each pin, checks the lifted one, and toggles it.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  anchors.start()
+  check("t176 folder", titles(folder("Lift")) == "iTerm2,Slack", titles(folder("Lift")))
+  click("Slack")
+  frameIs("t176 lifted", slack, { x = 0, y = 25, w = 2816, h = 1415 })
+  check("t176 checked", item("Slack").checked == true)
+  click("Slack")
+  frameIs("t176 lowered", slack, leftFull)
+  local other = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  focus(other)
+  click("Slack")
+  check("t176 raised", world.focused == slack)
+  world.clock = world.clock + 3
+  world.poll()
+  slack.f = { x = 900, y = 200, w = 700, h = 600 }
+  world.poll()
+  check("t176 released unchecked", item("Slack").checked == false)
+  click("Slack")
+  frameIs("t176 lift re-moors", slack, { x = 0, y = 25, w = 2816, h = 1415 })
+  install(ultrawide())
+  anchors.start()
+  check("t176 empty", titles(folder("Lift")) == "No pinned windows")
+end
+
+-- Test 177: A click on a pin's green button is swallowed, down and up, and lifts the pin.
+-- Clicks elsewhere pass, and the button rect is asked for only when the frame changes.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  for _ = 1, 4 do
+    world.clock = world.clock + 1
+    world.poll()
+  end
+  check("t177 asked once", slack.zoomAsks == 1, "asks " .. tostring(slack.zoomAsks))
+  -- send fires a mouse event of type t at point p and returns whether it passed on.
+  local function send(t, p)
+    world.mousePos = p
+    return world.tap({ getType = function() return t end, getFlags = function() return {} end })
+  end
+  check("t177 down eaten", send(1, { x = 60, y = 40 }) == true)
+  check("t177 up eaten", send(2, { x = 60, y = 40 }) == true)
+  frameIs("t177 lifted", slack, { x = 0, y = 25, w = 2816, h = 1415 })
+  check("t177 elsewhere passes", send(1, { x = 300, y = 300 }) == false
+    and send(2, { x = 300, y = 300 }) == false)
+  check("t177 new rect", send(1, { x = 60, y = 40 }) == true and send(2, { x = 60, y = 40 }) == true)
+  frameIs("t177 lowered", slack, leftFull)
+  click("⚓ Drop anchor (freeze layout)")
+  check("t177 frozen passes", send(1, { x = 60, y = 40 }) == false)
+end
+
+-- Test 178: Pins moved while frozen or by a display change are re-moored, not released,
+-- and a closed pin leaves no release, lift or green button behind.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", leftFull)
+  anchors.start()
+  world.clock = world.clock + 3
+  world.poll()
+  click("⚓ Drop anchor (freeze layout)")
+  slack.f = { x = 900, y = 200, w = 700, h = 600 }
+  world.clock = world.clock + 3
+  click("⚓ Weigh anchor (resume layout)")
+  frameIs("t178 resume", slack, leftFull)
+  world.clock = world.clock + 3
+  world.poll()
+  slack.f = { x = 900, y = 200, w = 700, h = 600 }
+  world.onScreens()
+  frameIs("t178 display change", slack, leftFull)
+  check("t178 no alert", world.alerted == nil, tostring(world.alerted))
+  focus(slack)
+  press("ctrl+alt", "return")
+  table.remove(world.windows, 1)
+  world.focused = nil
+  world.poll()
+  world.mousePos = { x = 60, y = 40 }
+  check("t178 closed passes", world.tap({ getType = function() return 1 end,
+    getFlags = function() return {} end }) == false)
+  world.tap({ getType = function() return 2 end, getFlags = function() return {} end })
+  table.insert(world.windows, 1, slack)
+  slack.f = copy(leftFull)
+  world.poll()
+  frameIs("t178 back in slot", slack, leftFull)
 end
 
 for i, t in ipairs(tests) do

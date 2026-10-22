@@ -440,9 +440,19 @@ function A.run(name)
 end
 
 -- apply applies action name to win on screen s, which defaults to win's own
--- screen, and reports whether it moved. Nothing runs while the layout is frozen.
+-- screen, and reports whether it moved. Nothing runs while the layout is frozen. On a
+-- pin, Maximize lifts or lowers it and Restore re-moors it.
 function A.apply(win, name, s)
-  if host.paused() or not actionable(win) then
+  if host.paused() then
+    return false
+  end
+  if win and (name == "maximize" or name == "restore") and host.pinned(win) then
+    if name == "maximize" then
+      return host.toggleLift(win)
+    end
+    return host.remoor(win)
+  end
+  if not actionable(win) then
     return false
   end
   local id = win:id()

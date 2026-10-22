@@ -17,7 +17,7 @@ M.config = {
   -- expandPct widens a pin while it has focus, and mainOnly moves only the
   -- app's main window.
   pins = {
-    { bundle = "com.tinyspeck.slackmacgap", side = "left", expandPct = 30, mainOnly = true },
+    { bundle = "com.tinyspeck.slackmacgap", side = "left", mainOnly = true },
     { bundle = "com.googlecode.iterm2", side = "right" },
   },
   -- ignoreBundles lists apps whose windows are never moved. Shortcuts are off
@@ -186,6 +186,10 @@ local heightStep = 5
 -- burstMoves moves of one window inside burstSeconds put it on hold for holdSeconds.
 local burstMoves, burstSeconds, holdSeconds = 4, 10, 60
 
+-- releaseGrace is how many seconds after a move a pin may settle on its own before a
+-- change is taken as the owner moving it.
+local releaseGrace = 2
+
 -- pendingSeconds is how long a window leaving fullscreen waits for its fill.
 local pendingSeconds = 5
 
@@ -216,6 +220,14 @@ local state = {
   minPts = { left = 0, right = 0 },
   -- minBy names the app whose floor sets minPts on each side.
   minBy = {},
+  -- placed maps a pinned window id to its target, the frame moorings left it at, and when.
+  placed = {},
+  -- released holds the pinned window ids the owner moved, which moorings leaves alone.
+  released = {},
+  -- lifted holds the pinned window ids lifted over their strip and the channel.
+  lifted = {},
+  -- zoom maps a pinned window id to its frame and the green button rect at that frame.
+  zoom = {},
 }
 
 -- now returns the current time in seconds.
@@ -624,6 +636,7 @@ end
 
 -- The frame math lives in geometry, re-exported here for callers and tests.
 M.edge, M.slot, M.regions, M.clamp = geometry.edge, geometry.slot, geometry.regions, geometry.clamp
+M.lift = geometry.lift
 
 -- ultrawide returns the widest screen at or above minAspect, or nil.
 function M.ultrawide()
@@ -1065,6 +1078,47 @@ end
 
 M.save = save
 
+-- toggleLift lifts pinned window win over its strip and the channel, or lowers it back
+-- into its slot, and reports whether win is a pin.
+function M.toggleLift(win)
+  if not win or not M.pinned(win) then
+    return false
+  end
+  local id = win:id()
+  local up = not state.lifted[id]
+  state.lifted[id], state.released[id], state.placed[id] = up or nil, nil, nil
+  if up then
+    win:focus()
+  end
+  M.moor()
+  return true
+end
+
+-- remoor puts a released or lifted pin back in its slot.
+function M.remoor(win)
+  local id = win:id()
+  state.lifted[id], state.released[id], state.placed[id] = nil, nil, nil
+  M.moor()
+  return true
+end
+
+-- zoomClick lifts or lowers the pin whose green button holds point p and reports whether
+-- it did, so the click can be kept from starting native fullscreen. The work runs after
+-- the event so the mouse tap never waits on a window.
+function M.zoomClick(p)
+  if not p or paused() then
+    return false
+  end
+  for id, c in pairs(state.zoom) do
+    local r = c.rect
+    if r and p.x >= r.x and p.x < r.x + r.w and p.y >= r.y and p.y < r.y + r.h then
+      hs.timer.doAfter(0, safe(function() M.toggleLift(hs.window.get(id)) end))
+      return true
+    end
+  end
+  return false
+end
+
 -- restore puts win back where it was before the first move moorings made, and
 -- reports whether there was a frame to return to.
 function M.restore(win)
@@ -1100,8 +1154,8 @@ local function settle(win, ch)
   place(win, want)
 end
 
--- appName returns the name of win's app, or its bundle ID when it has no name.
-local function appName(win)
+-- windowApp returns the name of win's app, or its bundle ID when it has no name.
+local function windowApp(win)
   local app = win:application()
   local name = app and app.name and app:name()
   return name or bundleOf(win) or "an app"
@@ -1114,10 +1168,53 @@ local function measure(wins, slots)
     local slot = slots[bundleOf(w)]
     local fl = slot and state.floors[w:id()]
     if fl and fl.w > mins[slot.side] then
-      mins[slot.side], by[slot.side] = fl.w, appName(w)
+      mins[slot.side], by[slot.side] = fl.w, windowApp(w)
     end
   end
   state.minPts, state.minBy = mins, by
+end
+
+-- cacheZoom keeps the green button rect of pinned window w at frame f, asking the window
+-- only when the frame changed.
+local function cacheZoom(w, f)
+  local id = w:id()
+  local c = state.zoom[id]
+  if c and near(c.frame, f) then
+    return
+  end
+  local ok, r = pcall(function() return w.zoomButtonRect and w:zoomButtonRect() end)
+  state.zoom[id] = { frame = rect(f), rect = ok and r and rect(r) or nil }
+end
+
+-- release leaves pinned window w where the owner put it and says how to re-moor it.
+local function release(w)
+  local id, name = w:id(), windowApp(w)
+  state.released[id], state.lifted[id], state.zoom[id] = true, nil, nil
+  local sc = actions.bindings().restore
+  local how = sc and ("press " .. actions.keyText(sc) .. " or ") or ""
+  log("window " .. tostring(id) .. " was moved by hand: released")
+  hs.alert.show(string.format("%s released: moorings leaves it where you put it. "
+    .. "To re-moor it, %schoose Re-moor %s in the sailboat menu.", name, how, name), 4)
+end
+
+-- moorPin places pinned window w at target, or releases it when the owner has moved it
+-- since moorings last left it.
+local function moorPin(w, target, anchor)
+  local id, t = w:id(), M.now()
+  if state.released[id] then
+    return
+  end
+  local last = state.placed[id]
+  if last and t - last.t > releaseGrace and not near(w:frame(), last.at) then
+    release(w)
+    return
+  end
+  place(w, target, anchor)
+  local at = w:frame()
+  if not last or not near(last.at, at) or not near(last.target, target) then
+    state.placed[id] = { target = rect(target), at = rect(at), t = t }
+  end
+  cacheZoom(w, at)
 end
 
 -- moor puts every pin on its edge and every free window in the channel.
@@ -1139,6 +1236,10 @@ function M.moor()
   local leftTop, rightTop = M.heights()
   local topPct = { left = leftTop, right = rightTop }
   local ch = M.regions(frame, leftPct, rightPct).channel
+  local lift = {
+    left = M.lift(frame, "left", leftPct, rightPct),
+    right = M.lift(frame, "right", leftPct, rightPct),
+  }
   local focused = hs.window.focusedWindow()
   local focusedSlot = focused and slots[bundleOf(focused)]
   local t, seen = M.now(), {}
@@ -1156,8 +1257,9 @@ function M.moor()
       elseif pinsWindow(slot.pin, w) then
         state.pendingFill[id] = nil
         local width = (slot == focusedSlot and slot.pin.expandPct) or pct[slot.side]
-        place(w, M.slot(frame, slot.side, slot.row, width, topPct[slot.side]),
-          { right = slot.side == "right", bottom = slot.row == "bottom" })
+        local target = state.lifted[id] and lift[slot.side]
+          or M.slot(frame, slot.side, slot.row, width, topPct[slot.side])
+        moorPin(w, target, { right = slot.side == "right", bottom = slot.row == "bottom" })
       end
     elseif sameScreen(w:screen(), s) then
       local id = w:id()
@@ -1181,7 +1283,8 @@ function M.moor()
       end
     end
   end
-  for _, tbl in ipairs({ state.clamped, state.bursts, state.pendingFill, state.floors }) do
+  for _, tbl in ipairs({ state.clamped, state.bursts, state.pendingFill, state.floors,
+    state.placed, state.released, state.lifted, state.zoom }) do
     for id in pairs(tbl) do
       if not seen[id] then
         tbl[id] = nil
@@ -1867,13 +1970,46 @@ end
 -- menu builds the menu bar menu from current state: the two layout controls,
 -- a folder per job, and Reload. While Accessibility is missing it starts with
 -- the way to grant it.
+-- pinWindows returns the pinned windows on the ultrawide, front-most first.
+local function pinWindows()
+  local list = {}
+  if not M.ultrawide() then
+    return list
+  end
+  for _, w in ipairs(windows()) do
+    if M.pinned(w) then
+      list[#list + 1] = w
+    end
+  end
+  return list
+end
+
+-- liftItems builds the Lift folder: one entry per pinned window, checked while lifted.
+local function liftItems(pins, frozen)
+  local items = {}
+  for _, w in ipairs(pins) do
+    items[#items + 1] = {
+      title = windowApp(w),
+      checked = state.lifted[w:id()] == true,
+      disabled = frozen,
+      fn = safe(function() M.toggleLift(w) end),
+    }
+  end
+  if #items == 0 then
+    items[1] = { title = "No pinned windows", disabled = true }
+  end
+  return items
+end
+
 local function menu()
   local frozen = paused()
+  local pins = pinWindows()
   local items = {
     {
       title = frozen and "⚓ Weigh anchor (resume layout)" or "⚓ Drop anchor (freeze layout)",
       fn = safe(function()
         hs.settings.set(keys.paused, not paused())
+        state.placed = {}
         M.moor()
       end),
     },
@@ -1881,12 +2017,24 @@ local function menu()
       title = "Re-moor now",
       disabled = frozen,
       fn = safe(function()
-        state.bursts, state.floors = {}, {}
+        state.bursts, state.floors, state.placed, state.released, state.lifted = {}, {}, {}, {}, {}
         M.moor()
       end),
     },
+  }
+  for _, w in ipairs(pins) do
+    if state.released[w:id()] then
+      items[#items + 1] = {
+        title = "Re-moor " .. windowApp(w),
+        disabled = frozen,
+        fn = safe(function() M.remoor(w) end),
+      }
+    end
+  end
+  for _, it in ipairs({
     { title = "-" },
     { title = "Window", menu = windowItems() },
+    { title = "Lift", menu = liftItems(pins, frozen) },
     { title = "Locked apps", menu = lockedItems() },
     { title = "Widths", menu = widthItems() },
     { title = "Heights", menu = heightItems() },
@@ -1894,7 +2042,9 @@ local function menu()
     { title = "Settings", menu = settingItems() },
     { title = "-" },
     { title = "Reload", fn = safe(M.reload) },
-  }
+  }) do
+    items[#items + 1] = it
+  end
   if not trusted() then
     table.insert(items, 1, { title = "-" })
     table.insert(items, 1, { title = axGlyph .. " Grant Accessibility access", fn = safe(M.openAccessibility) })
@@ -1942,6 +2092,7 @@ function M.start()
   settings.attach(M, actions, workspaces)
   M.screens = hs.screen.watcher.new(safe(function()
     workspaces.screensChanged()
+    state.placed = {}
     M.moor()
   end)):start()
   M.timer = hs.timer.doEvery(M.config.pollSeconds, safe(M.moor))
