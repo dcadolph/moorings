@@ -39,12 +39,12 @@ brew install --cask hammerspoon
 
 ```sh
 mkdir -p ~/.hammerspoon
-ln -sf ~/src/moorings/anchors.lua ~/.hammerspoon/anchors.lua
+ln -sfn ~/src/moorings ~/.hammerspoon/moorings
 grep -q 'require("anchors")' ~/.hammerspoon/init.lua 2>/dev/null \
   || cat ~/src/moorings/init.lua >> ~/.hammerspoon/init.lua
 ```
 
-The symlink means an edit in the repo takes effect on the next Reload. Copy the file instead of
+The link means an edit in the repo takes effect on the next Reload. Copy the folder instead of
 linking it to pin a version.
 
 **3. Start Hammerspoon and allow it.** Open Hammerspoon from Applications. macOS asks for
@@ -70,7 +70,7 @@ back after every restart and there is nothing to turn on in Preferences.
 ### Update and uninstall
 
 Update with `git -C ~/src/moorings pull`, then Reload from the sailboat menu. To remove moorings,
-delete `~/.hammerspoon/anchors.lua`, delete the `require("anchors")` line from
+delete the `~/.hammerspoon/moorings` link, delete the moorings lines from
 `~/.hammerspoon/init.lua`, and choose Reload Config.
 
 ## Quickstart
@@ -84,9 +84,9 @@ To lock another app, click it, open the sailboat menu, choose Pin frontmost app,
 slot. The wider and narrower items move each strip by 1%, and the Channel label shows what is
 left in the middle.
 
-To test a change before copying it into `~/.hammerspoon`, run `lua tests/anchors_test.lua` from
-the repo root. It drives `anchors.lua` against a fake Hammerspoon and exits non-zero on any
-failure.
+To test a change, run `lua tests/anchors_test.lua` and `lua tests/geometry_test.lua` from the
+repo root. The first drives `anchors.lua` against a fake Hammerspoon, the second checks the frame
+math in `geometry.lua`, and both exit non-zero on any failure.
 
 ## Docs
 

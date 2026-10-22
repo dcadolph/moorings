@@ -237,6 +237,7 @@ local function install(...)
   }
   _G.print = function(msg) world.printed[#world.printed + 1] = msg end
   package.loaded.anchors = nil
+  package.loaded.geometry = nil
   anchors = require("anchors")
 end
 
@@ -493,7 +494,7 @@ tests[#tests + 1] = function()
   install(ultrawide())
   anchors.start()
   click("Edit config")
-  check("t17 edit", world.executed == "open -t '/tmp/hammerspoon/anchors.lua'")
+  check("t17 edit", world.executed == "open -t '/tmp/hammerspoon/moorings/anchors.lua'")
   click("Console")
   check("t17 console", world.console == true)
   anchors.loadfile = function() return function() end end
@@ -519,7 +520,7 @@ tests[#tests + 1] = function()
   hs.configdir = "/tmp/my dir/it's"
   anchors.start()
   click("Edit config")
-  check("t31 quoted", world.executed == "open -t '/tmp/my dir/it'\\''s/anchors.lua'",
+  check("t31 quoted", world.executed == "open -t '/tmp/my dir/it'\\''s/moorings/anchors.lua'",
     tostring(world.executed))
 end
 
@@ -1183,6 +1184,33 @@ tests[#tests + 1] = function()
   world.settings["moorings.widths"] = "junk"
   l, r = anchors.widths()
   check("t63 junk", l == 10 and r == 45)
+end
+
+-- Test 64: The action area is the channel on the ultrawide and the usable frame elsewhere.
+tests[#tests + 1] = function()
+  local laptop = newScreen(2, 5120, 1512, 982)
+  install(ultrawide(), laptop)
+  local a = anchors.area(world.screens[1])
+  check("t64 channel", a.x == 512 and a.y == 25 and a.w == 2304 and a.h == 1415,
+    string.format("{%g,%g,%g,%g}", a.x, a.y, a.w, a.h))
+  a = anchors.area(laptop)
+  check("t64 laptop", a.x == 5120 and a.y == 25 and a.w == 1512 and a.h == 957)
+end
+
+-- Test 65: Reload checks every moorings file and refuses when any one fails.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  local seen = {}
+  anchors.loadfile = function(path)
+    seen[#seen + 1] = path
+    if path:find("geometry.lua", 1, true) then return nil, "geometry.lua:3: oops" end
+    return function() end
+  end
+  click("Reload")
+  check("t65 not reloaded", world.reloaded == nil)
+  check("t65 checked both", seen[1] == "/tmp/hammerspoon/moorings/anchors.lua"
+    and seen[2] == "/tmp/hammerspoon/moorings/geometry.lua")
 end
 
 for i, t in ipairs(tests) do
