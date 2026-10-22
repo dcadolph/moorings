@@ -158,6 +158,7 @@ local function install(...)
   world = {
     screens = { ... }, windows = {}, settings = {}, nextID = 0, printed = {}, apps = {},
     clock = 1000, mouseDown = false, trusted = true, hotkeys = {}, taps = {}, urls = {},
+    dirs = {}, images = {},
   }
   hs = {
     hotkey = {
@@ -242,6 +243,23 @@ local function install(...)
         return c
       end,
     },
+    fs = {
+      attributes = function(path) return world.dirs[path] and "directory" or nil end,
+      dir = function(path)
+        if not world.dirs[path] then error("can't open " .. path) end
+        local files, i = world.dirs[path], 0
+        return function() i = i + 1 return files[i] end, {}
+      end,
+    },
+    image = {
+      imageFromPath = function(path)
+        if not world.images[path] then return nil end
+        local img = { path = path }
+        function img:setSize(size) self.size = size return self end
+        function img:template(on) self.isTemplate = on return self end
+        return img
+      end,
+    },
     openConsole = function() world.console = true end,
     reload = function() world.reloaded = true end,
     execute = function(cmd) world.executed = cmd end,
@@ -316,6 +334,7 @@ local function install(...)
       new = function()
         local bar = {}
         function bar:setTitle(t) self.title = t return self end
+        function bar:setIcon(i, t) self.icon, self.iconTemplate = i, t return self end
         function bar:setMenu(m) self.menu = m return self end
         world.bar = bar
         return bar
@@ -2678,7 +2697,8 @@ tests[#tests + 1] = function()
   anchors.start()
   check("t135 folders", titles(folder("Settings")):find("Icon", 1, true) ~= nil)
   local icons = item("Icon").menu
-  check("t135 groups", titles(icons) == "Boats,Sea life,Tools,Hearts and shapes,-,Custom…", titles(icons))
+  check("t135 groups", titles(icons) == "Boats,Sea life,Tools,Hearts and shapes,-,Custom…,Surprise me,"
+    .. "Default icon,Undo icon change,-,Open icons folder", titles(icons))
   check("t135 count", #anchors.icons >= 40, #anchors.icons)
   local names, glyphs = {}, {}
   for _, icon in ipairs(anchors.icons) do
@@ -2762,6 +2782,135 @@ tests[#tests + 1] = function()
   world.settings["moorings.icon"] = "Gone"
   world.settings["moorings.customIcon"] = nil
   check("t139 unknown name falls back", item("⛵  Sailboat").checked == true)
+end
+
+-- Test 140: Config icons show under Yours, bad entries are logged and skipped, and a pick survives reload.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  world.images["/img/wave.png"] = true
+  anchors.config.icons = {
+    { name = "Mine", glyph = " AB " },
+    { name = "Wavy", image = "/img/wave.png" },
+    { glyph = "X" },
+    { name = "Crab", glyph = "X" },
+    { name = "Long", glyph = "toolong" },
+    { name = "image:sneaky", glyph = "X" },
+    { name = "Both", glyph = "X", image = "/img/wave.png" },
+    { name = "Mine", glyph = "Z" },
+    { name = "Empty", image = "" },
+    "text",
+  }
+  anchors.start()
+  check("t140 yours", titles(item("Yours").menu) == "AB  Mine,Wavy", titles(item("Yours").menu))
+  for _, n in ipairs({ 3, 4, 5, 6, 7, 8, 9, 10 }) do
+    local want = "moorings: icons entry " .. n .. " is skipped: it needs a unique name and a glyph or an image"
+    local found = false
+    for _, line in ipairs(world.printed) do found = found or line == want end
+    check("t140 logged " .. n, found)
+  end
+  click("AB  Mine")
+  check("t140 glyph", world.bar.title == "AB" and world.bar.icon == nil)
+  check("t140 checked", item("AB  Mine").checked == true)
+  click("Wavy")
+  check("t140 image", world.bar.icon and world.bar.icon.path == "/img/wave.png")
+  check("t140 template", world.bar.iconTemplate == true and world.bar.icon.isTemplate == true)
+  check("t140 size", world.bar.icon.size.w == 18 and world.bar.icon.size.h == 18)
+  check("t140 no title", world.bar.title == nil)
+  local settings = world.settings
+  local cfg = anchors.config.icons
+  install(ultrawide())
+  world.settings, world.images["/img/wave.png"] = settings, true
+  anchors.config.icons = cfg
+  anchors.start()
+  check("t140 survives reload", world.bar.icon and world.bar.icon.path == "/img/wave.png")
+  click("🐙  Octopus")
+  check("t140 back to glyph", world.bar.title == "🐙" and world.bar.icon == nil)
+  world.images["/img/wave.png"] = nil
+  world.settings["moorings.icon"] = "Wavy"
+  anchors.start()
+  check("t140 unloadable falls back", world.bar.title == "⛵" and world.bar.icon == nil)
+end
+
+-- Test 141: Image files in the icon folder are listed, sorted, filtered, and loaded as template images.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local dir = anchors.iconDir()
+  check("t141 dir", dir == "/tmp/hammerspoon/moorings/icons", dir)
+  anchors.start()
+  check("t141 no folder no yours", item("Yours") == nil)
+  for _, line in ipairs(world.printed) do
+    check("t141 quiet without folder", not line:find("open", 1, true), line)
+  end
+  world.alerted = nil
+  click("Open icons folder")
+  check("t141 says how", world.alerted == "Create " .. dir .. " and add PNG or SVG files, then reopen the menu.",
+    tostring(world.alerted))
+  check("t141 not created", world.dirs[dir] == nil and world.executed == nil)
+  world.dirs[dir] = { "b.PNG", "A.svg", ".hidden.png", "notes.txt", "noext", "c.jpeg" }
+  for _, f in ipairs({ "b.PNG", "A.svg", "c.jpeg" }) do world.images[dir .. "/" .. f] = true end
+  check("t141 listed", titles(item("Yours").menu) == "A,b,c", titles(item("Yours").menu))
+  click("Open icons folder")
+  check("t141 opens", world.executed == "open '" .. dir .. "'", tostring(world.executed))
+  click("b")
+  check("t141 loaded", world.bar.icon and world.bar.icon.path == dir .. "/b.PNG" and world.bar.title == nil)
+  check("t141 checked", item("b").checked == true and item("A").checked == false)
+  check("t141 saved name", world.settings["moorings.icon"] == "image:b.PNG")
+end
+
+-- Test 142: Surprise me never picks the current icon, and picks from every built-in when text is set.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  local asked
+  anchors.random = function(n) asked = n return 1 end
+  click("Surprise me")
+  check("t142 pool", asked == #anchors.icons - 1, tostring(asked))
+  check("t142 first other", world.bar.title == anchors.icons[2].glyph)
+  anchors.random = function(n) asked = n return n end
+  click("Surprise me")
+  check("t142 last", world.bar.title == anchors.icons[#anchors.icons].glyph)
+  check("t142 pool again", asked == #anchors.icons - 1)
+  anchors.random = function(n) asked = n return 1 end
+  world.settings["moorings.icon"] = "Sailboat"
+  click("Surprise me")
+  check("t142 skips current", world.bar.title == anchors.icons[2].glyph)
+  world.prompt = { "Set", "DCA" }
+  click("Custom…")
+  click("Surprise me")
+  check("t142 from custom", world.bar.title == anchors.icons[1].glyph and asked == #anchors.icons, tostring(asked))
+  check("t142 custom cleared", world.settings["moorings.customIcon"] == nil)
+end
+
+-- Test 143: Default icon resets, and Undo icon change toggles between the last two choices.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  check("t143 undo off", item("Undo icon change").disabled == true)
+  check("t143 undo refused", anchors.undoIcon() == nil and select(2, anchors.undoIcon()) == "There is no icon change to undo.")
+  click("🐙  Octopus")
+  check("t143 undo on", item("Undo icon change").disabled == false)
+  click("Undo icon change")
+  check("t143 undone", world.bar.title == "⛵" and world.settings["moorings.icon"] == nil)
+  click("Undo icon change")
+  check("t143 redone", world.bar.title == "🐙" and world.settings["moorings.icon"] == "Octopus")
+  world.prompt = { "Set", "DCA" }
+  click("Custom…")
+  check("t143 custom", world.bar.title == "DCA")
+  click("Default icon")
+  check("t143 default", world.bar.title == "⛵" and world.settings["moorings.icon"] == nil
+    and world.settings["moorings.customIcon"] == nil)
+  click("Undo icon change")
+  check("t143 custom back", world.bar.title == "DCA" and world.settings["moorings.customIcon"] == "DCA")
+end
+
+-- Test 144: Picking an unknown icon changes nothing and says why.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  local ok, why = anchors.pickIcon("Nope")
+  check("t144 refused", ok == nil and why == "That icon is not available.")
+  check("t144 unchanged", world.bar.title == "⛵" and world.settings["moorings.icon"] == nil)
+  check("t144 no undo", item("Undo icon change").disabled == true)
 end
 
 for i, t in ipairs(tests) do

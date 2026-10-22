@@ -36,6 +36,10 @@ M.config = {
   -- has a title, x, y, w and h as shares of the area from 0 to 1, an optional
   -- width and height in points centered in that share, and an optional shortcut.
   sizes = {},
+  -- icons lists your own menu bar icons for Settings, Icon, Yours. Each has a unique
+  -- name and either a glyph of 1 to 5 characters or an image, the full path of a PNG
+  -- or SVG file. Images are drawn as template images so they follow the menu bar.
+  icons = {},
   -- gapPx is the space in points around and between windows placed by an action.
   gapPx = 0,
   -- leftPct and rightPct are the edge widths until a preset is chosen.
@@ -1009,19 +1013,226 @@ function M.validIcon(text)
   return text
 end
 
--- iconGlyph returns the custom icon when one is saved, else the chosen built-in glyph.
-local function iconGlyph()
-  local custom = hs.settings.get(keys.customIcon)
-  if M.validIcon(custom) then
-    return M.validIcon(custom)
+-- imageExts lists the file extensions loaded as image icons.
+local imageExts = { png = true, svg = true, pdf = true, jpg = true, jpeg = true }
+
+-- iconSize is the width and height in points of an image icon in the menu bar.
+local iconSize = 18
+
+-- M.random picks an integer from 1 to n. Tests replace it.
+M.random = math.random
+
+-- M.iconDir returns the folder of image icons. moorings never creates it.
+function M.iconDir()
+  return M.path("icons")
+end
+
+-- M.imageIcons lists the image files in the icon folder, sorted by name.
+function M.imageIcons()
+  local dir = M.iconDir()
+  if hs.fs.attributes(dir, "mode") ~= "directory" then
+    return {}
   end
-  local name = hs.settings.get(keys.icon)
-  for _, icon in ipairs(M.icons) do
-    if icon.name == name then
-      return icon.glyph
+  local ok, iter, obj = pcall(hs.fs.dir, dir)
+  if not ok then
+    log(iter)
+    return {}
+  end
+  local list = {}
+  for file in iter, obj do
+    local base, ext = file:match("^([^.].*)%.(%w+)$")
+    if base and imageExts[ext:lower()] then
+      list[#list + 1] = { name = "image:" .. file, title = base, image = dir .. "/" .. file }
     end
   end
-  return M.icons[1].glyph
+  table.sort(list, function(a, b) return a.title:lower() < b.title:lower() end)
+  return list
+end
+
+-- M.configIcons returns the valid entries of the config icon list. A bad entry is
+-- logged and skipped.
+function M.configIcons()
+  local list, seen = {}, {}
+  for _, icon in ipairs(M.icons) do
+    seen[icon.name] = true
+  end
+  local entries = type(M.config.icons) == "table" and M.config.icons or {}
+  for i, e in ipairs(entries) do
+    local named = type(e) == "table" and type(e.name) == "string" and e.name ~= ""
+      and not e.name:find("^image:") and not seen[e.name]
+    local glyph = named and e.glyph ~= nil and e.image == nil and M.validIcon(e.glyph)
+    local image = named and e.glyph == nil and type(e.image) == "string" and e.image ~= "" and e.image
+    if glyph or image then
+      seen[e.name] = true
+      list[#list + 1] = { name = e.name, title = e.name, glyph = glyph or nil, image = image or nil }
+    else
+      log("icons entry " .. i .. " is skipped: it needs a unique name and a glyph or an image")
+    end
+  end
+  return list
+end
+
+-- findIcon returns the built-in, config or image icon called name, or nil.
+local function findIcon(name)
+  for _, icon in ipairs(M.icons) do
+    if icon.name == name then
+      return icon
+    end
+  end
+  for _, icon in ipairs(M.configIcons()) do
+    if icon.name == name then
+      return icon
+    end
+  end
+  for _, icon in ipairs(M.imageIcons()) do
+    if icon.name == name then
+      return icon
+    end
+  end
+  return nil
+end
+
+-- currentIcon returns the icon in effect and its name, which is nil for custom text.
+-- A missing or unknown choice gives the default icon.
+local function currentIcon()
+  local custom = M.validIcon(hs.settings.get(keys.customIcon))
+  if custom then
+    return { glyph = custom }, nil
+  end
+  local found = findIcon(hs.settings.get(keys.icon))
+  if found then
+    return found, found.name
+  end
+  return M.icons[1], M.icons[1].name
+end
+
+-- applyIcon puts the icon in effect on the menu bar. An image that does not load
+-- falls back to the default icon.
+local function applyIcon()
+  if not M.bar then
+    return
+  end
+  local icon = currentIcon()
+  if icon.image then
+    local img = hs.image.imageFromPath(icon.image)
+    if img then
+      img = img:setSize({ w = iconSize, h = iconSize })
+      img:template(true)
+      M.bar:setIcon(img, true)
+      M.bar:setTitle(nil)
+      return
+    end
+    log("icon image " .. icon.image .. " did not load: using the default icon")
+    icon = M.icons[1]
+  end
+  M.bar:setIcon(nil)
+  M.bar:setTitle(icon.glyph)
+end
+
+-- assign saves v under key, or clears the key when v is nil.
+local function assign(key, v)
+  if v == nil then
+    hs.settings.clear(key)
+  else
+    hs.settings.set(key, v)
+  end
+end
+
+-- setChoice saves the icon name and custom text, remembers the previous choice for
+-- undo and applies the result.
+local function setChoice(icon, custom)
+  state.prevIcon = { icon = hs.settings.get(keys.icon), custom = hs.settings.get(keys.customIcon) }
+  assign(keys.icon, icon)
+  assign(keys.customIcon, custom)
+  applyIcon()
+end
+
+-- M.pickIcon chooses the icon called name, or returns nil and a reason.
+function M.pickIcon(name)
+  if not findIcon(name) then
+    return nil, "That icon is not available."
+  end
+  setChoice(name, nil)
+  return true
+end
+
+-- M.setCustomIcon chooses custom text, or returns nil and a reason.
+function M.setCustomIcon(text)
+  local valid, problem = M.validIcon(text)
+  if not valid then
+    return nil, problem
+  end
+  setChoice(nil, valid)
+  return true
+end
+
+-- M.defaultIcon returns to the default icon.
+function M.defaultIcon()
+  setChoice(nil, nil)
+  return true
+end
+
+-- M.surpriseIcon picks a built-in icon other than the current one at random.
+function M.surpriseIcon()
+  local _, current = currentIcon()
+  local pool = {}
+  for _, icon in ipairs(M.icons) do
+    if icon.name ~= current then
+      pool[#pool + 1] = icon
+    end
+  end
+  setChoice(pool[M.random(#pool)].name, nil)
+  return true
+end
+
+-- M.undoIcon restores the choice made before the last change, or returns nil and a reason.
+function M.undoIcon()
+  local prev = state.prevIcon
+  if not prev then
+    return nil, "There is no icon change to undo."
+  end
+  setChoice(prev.icon, prev.custom)
+  return true
+end
+
+-- M.openIconDir reveals the icon folder, or says how to create it.
+function M.openIconDir()
+  local dir = M.iconDir()
+  if hs.fs.attributes(dir, "mode") == "directory" then
+    hs.execute("open " .. shellQuote(dir))
+  else
+    hs.alert.show("Create " .. dir .. " and add PNG or SVG files, then reopen the menu.")
+  end
+end
+
+-- M.iconModel describes every icon choice and the current one, for the menu and the
+-- settings window.
+function M.iconModel()
+  local _, name = currentIcon()
+  local custom = M.validIcon(hs.settings.get(keys.customIcon))
+  local groups = {}
+  for _, g in ipairs(M.iconFolders) do
+    local icons = {}
+    for _, icon in ipairs(g.icons) do
+      icons[#icons + 1] = { name = icon.name, title = icon.name, glyph = icon.glyph,
+        checked = icon.name == name }
+    end
+    groups[#groups + 1] = { title = g.name, icons = icons }
+  end
+  local yours = {}
+  for _, list in ipairs({ M.configIcons(), M.imageIcons() }) do
+    for _, icon in ipairs(list) do
+      yours[#yours + 1] = { name = icon.name, title = icon.title, glyph = icon.glyph,
+        image = icon.image ~= nil, checked = icon.name == name }
+    end
+  end
+  return {
+    groups = groups,
+    yours = yours,
+    custom = custom or "",
+    usingCustom = custom ~= nil,
+    canUndo = state.prevIcon ~= nil,
+  }
 end
 
 -- appName returns a display name for bundle, or Empty for an empty slot.
@@ -1188,13 +1399,51 @@ function M.promptIcon()
   if button ~= "Set" then
     return
   end
-  local valid, problem = M.validIcon(text)
-  if not valid then
+  local ok, problem = M.setCustomIcon(text)
+  if not ok then
     hs.alert.show(problem)
-    return
   end
-  hs.settings.set(keys.customIcon, valid)
-  M.bar:setTitle(valid)
+end
+
+-- iconItems builds the Icon submenu: the folders, the user's own icons, then the choices
+-- that are not a single icon.
+local function iconItems()
+  local model = M.iconModel()
+  local items = {}
+  for _, g in ipairs(model.groups) do
+    local entries = {}
+    for _, icon in ipairs(g.icons) do
+      entries[#entries + 1] = {
+        title = icon.glyph .. "  " .. icon.title,
+        checked = icon.checked,
+        fn = safe(function() M.pickIcon(icon.name) end),
+      }
+    end
+    items[#items + 1] = { title = g.title, menu = entries }
+  end
+  if #model.yours > 0 then
+    local entries = {}
+    for _, icon in ipairs(model.yours) do
+      entries[#entries + 1] = {
+        title = (icon.glyph and (icon.glyph .. "  ") or "") .. icon.title,
+        checked = icon.checked,
+        fn = safe(function() M.pickIcon(icon.name) end),
+      }
+    end
+    items[#items + 1] = { title = "Yours", menu = entries }
+  end
+  items[#items + 1] = { title = "-" }
+  items[#items + 1] = {
+    title = model.usingCustom and ("Custom…  " .. model.custom) or "Custom…",
+    checked = model.usingCustom,
+    fn = safe(M.promptIcon),
+  }
+  items[#items + 1] = { title = "Surprise me", fn = safe(M.surpriseIcon) }
+  items[#items + 1] = { title = "Default icon", fn = safe(M.defaultIcon) }
+  items[#items + 1] = { title = "Undo icon change", disabled = not model.canUndo, fn = safe(M.undoIcon) }
+  items[#items + 1] = { title = "-" }
+  items[#items + 1] = { title = "Open icons folder", fn = safe(M.openIconDir) }
+  return items
 end
 
 -- settingItems builds the Settings folder.
@@ -1207,30 +1456,7 @@ local function settingItems()
       fn = safe(function() M.setKeymap(name) end),
     }
   end
-  local icons = {}
-  local glyph = iconGlyph()
-  local usingCustom = M.validIcon(hs.settings.get(keys.customIcon)) ~= nil
-  for _, group in ipairs(M.iconFolders) do
-    local entries = {}
-    for _, icon in ipairs(group.icons) do
-      entries[#entries + 1] = {
-        title = icon.glyph .. "  " .. icon.name,
-        checked = not usingCustom and icon.glyph == glyph,
-        fn = safe(function()
-          hs.settings.set(keys.icon, icon.name)
-          hs.settings.clear(keys.customIcon)
-          M.bar:setTitle(icon.glyph)
-        end),
-      }
-    end
-    icons[#icons + 1] = { title = group.name, menu = entries }
-  end
-  icons[#icons + 1] = { title = "-" }
-  icons[#icons + 1] = {
-    title = usingCustom and ("Custom…  " .. glyph) or "Custom…",
-    checked = usingCustom,
-    fn = safe(M.promptIcon),
-  }
+  local icons = iconItems()
   local front = hs.application.frontmostApplication()
   local frontBundle = front and front:bundleID()
   local ignoreTitle = "Ignore frontmost app"
@@ -1329,7 +1555,7 @@ function M.start()
   tile.attach(M, actions)
   snap.start()
   M.bar = hs.menubar.new()
-  M.bar:setTitle(iconGlyph())
+  applyIcon()
   M.bar:setMenu(menuOrError)
   local wf = hs.window.filter
   M.filter = wf.default:subscribe({
