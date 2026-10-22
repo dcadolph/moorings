@@ -69,8 +69,8 @@ tests[#tests + 1] = function()
   })
   check("t3 rebound", map["left-half"] and A.keyText(map["left-half"]) == "⌥⌘H")
   check("t3 unbound", map.maximize == nil)
-  check("t3 clash keeps first", map["bottom-right"] ~= nil and map.center == nil)
-  check("t3 clash said", has(problems, "bottom-right and center share ⌃⌥K: bottom-right keeps it"))
+  check("t3 config beats default", map.center ~= nil and map["bottom-right"] == nil)
+  check("t3 clash said", has(problems, "center and bottom-right share ⌃⌥K: center keeps it"))
   check("t3 unknown", has(problems, "unknown action sideways"))
   check("t3 malformed", has(problems, "shortcut for top-half needs mods and key"))
   check("t3 malformed keeps default", map["top-half"] ~= nil)
@@ -98,6 +98,59 @@ tests[#tests + 1] = function()
     check("t4 special " .. name, seen[name] == true and A.known(name))
   end
   check("t4 unknown", not A.known("sideways"))
+end
+
+-- Test 5: Two config keys on one key keep it for the first in name order, and defaults that
+-- do not clash stay.
+tests[#tests + 1] = function()
+  local map, problems = A.shortcuts({
+    center = { mods = { "ctrl" }, key = "x" },
+    maximize = { mods = { "ctrl" }, key = "x" },
+  })
+  check("t5 first explicit wins", map.center ~= nil and map.maximize == nil)
+  check("t5 said", has(problems, "center and maximize share ⌃X: center keeps it"))
+  check("t5 default kept", map["left-half"] ~= nil)
+end
+
+-- Test 6: Valid custom sizes come back with action names and invalid ones are reported.
+tests[#tests + 1] = function()
+  local sizes, problems = A.sizes({
+    { title = "Reading", x = 0.25, w = 0.5, shortcut = { mods = { "ctrl", "alt" }, key = "y" } },
+    { title = "Video", width = 1280, height = 720 },
+    { x = 0.1 },
+    { title = "Reading", w = 0.3 },
+    { title = "Wide", x = 0.5, w = 0.6 },
+    { title = "Flat", h = 0 },
+    { title = "Negative", y = -0.1 },
+    { title = "Tiny", width = 0 },
+    { title = "Words", w = "half" },
+    { title = "Thin", w = 0 },
+  })
+  check("t6 count", #sizes == 2, tostring(#sizes))
+  check("t6 names", sizes[1].name == "size:Reading" and sizes[2].name == "size:Video")
+  check("t6 shortcut", sizes[1].shortcut.key == "y" and sizes[2].shortcut == nil)
+  check("t6 no title", has(problems, "sizes entry 3 needs a title"))
+  check("t6 dupe", has(problems, "two entries titled Reading: the first wins"))
+  check("t6 overflow", has(problems, "size Wide needs x, y, w and h between 0 and 1"))
+  check("t6 zero", has(problems, "size Flat needs x, y, w and h"))
+  check("t6 negative", has(problems, "size Negative needs x, y, w and h"))
+  check("t6 pixels", has(problems, "size Tiny needs a width and height above 0"))
+  check("t6 words", has(problems, "size Words needs x, y, w and h"))
+  check("t6 thin", has(problems, "size Thin needs x, y, w and h"))
+  check("t6 problem count", #problems == 8, tostring(#problems))
+  check("t6 not a table", #A.sizes("junk") == 0)
+  check("t6 label", A.label("size:Reading") == "Reading")
+end
+
+-- Test 7: A custom size shortcut beats a default and a malformed one is reported.
+tests[#tests + 1] = function()
+  local map, problems = A.shortcuts({}, {
+    ["size:Reading"] = { mods = { "ctrl", "alt" }, key = "c" },
+    ["size:Bad"] = { key = "b" },
+  })
+  check("t7 size wins", map["size:Reading"] ~= nil and map.center == nil)
+  check("t7 said", has(problems, "size:Reading and center share ⌃⌥C: size:Reading keeps it"))
+  check("t7 malformed", has(problems, "shortcut for size:Bad needs mods and key"))
 end
 
 for i, t in ipairs(tests) do

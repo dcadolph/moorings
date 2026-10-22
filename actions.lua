@@ -110,10 +110,77 @@ function A.known(name)
   return special[name] == true or geometry.position(name, { x = 0, y = 0, w = 100, h = 100 }) ~= nil
 end
 
--- label turns an action name into menu text, so left-half reads Left half.
+-- sizePrefix starts the action name of every custom size.
+local sizePrefix = "size:"
+
+-- label turns an action name into menu text, so left-half reads Left half and
+-- a custom size reads as its title.
 function A.label(name)
+  if name:sub(1, #sizePrefix) == sizePrefix then
+    return name:sub(#sizePrefix + 1)
+  end
   local s = name:gsub("-", " ")
   return s:sub(1, 1):upper() .. s:sub(2)
+end
+
+-- share reports whether v is nil or a number from lo to 1.
+local function share(v, lo)
+  return v == nil or (type(v) == "number" and v >= lo and v <= 1)
+end
+
+-- points reports whether v is nil or a positive number.
+local function points(v)
+  return v == nil or (type(v) == "number" and v > 0)
+end
+
+-- sizes checks the custom sizes from the config and returns the valid ones,
+-- each with its action name, plus the problems found.
+function A.sizes(list)
+  local out, problems, seen = {}, {}, {}
+  for i, e in ipairs(type(list) == "table" and list or {}) do
+    local title = type(e) == "table" and e.title
+    if type(title) ~= "string" or title == "" then
+      problems[#problems + 1] = "sizes entry " .. i .. " needs a title: ignoring it"
+    elseif seen[title] then
+      problems[#problems + 1] = "sizes has two entries titled " .. title .. ": the first wins"
+    elseif not (share(e.x, 0) and share(e.y, 0) and share(e.w, 1e-9) and share(e.h, 1e-9))
+      or (e.x or 0) + (e.w or 1) > 1 + 1e-9 or (e.y or 0) + (e.h or 1) > 1 + 1e-9 then
+      problems[#problems + 1] = "size " .. title
+        .. " needs x, y, w and h between 0 and 1 that fit the area: ignoring it"
+    elseif not (points(e.width) and points(e.height)) then
+      problems[#problems + 1] = "size " .. title .. " needs a width and height above 0: ignoring it"
+    else
+      seen[title] = true
+      out[#out + 1] = { name = sizePrefix .. title, spec = e, shortcut = e.shortcut }
+    end
+  end
+  return out, problems
+end
+
+-- sizeSpec returns the config entry of the custom size action name, or nil.
+local function sizeSpec(name)
+  for _, s in ipairs((A.sizes(host.config.sizes))) do
+    if s.name == name then
+      return s.spec
+    end
+  end
+  return nil
+end
+
+-- maxGap is the widest gap the config may ask for.
+local maxGap = 100
+
+-- gap returns the gap between windows in points from the config.
+local function gap()
+  local g = host.config.gapPx
+  if g == nil then
+    return 0
+  end
+  if type(g) ~= "number" or g < 0 or g > maxGap then
+    host.log("gapPx must be a number from 0 to " .. maxGap .. ": using 0")
+    return 0
+  end
+  return math.floor(g)
 end
 
 -- normalMods returns mods with aliases resolved, in menu order, or nil when one
@@ -147,11 +214,18 @@ function A.keyText(sc)
   return table.concat(out)
 end
 
--- shortcuts merges overrides onto the keymap and returns the binding for each
--- action plus the problems found. An override of false removes a binding. Two
--- actions on one key keep it for the first in name order.
-function A.shortcuts(overrides)
-  local merged, problems = {}, {}
+-- wellFormed reports whether sc has a mods table and a key string.
+local function wellFormed(sc)
+  return type(sc) == "table" and type(sc.mods) == "table" and type(sc.key) == "string"
+end
+
+-- shortcuts merges overrides and extra onto the keymap and returns the binding
+-- for each action plus the problems found. extra maps more action names, such
+-- as custom sizes, to their shortcuts. An override of false removes a binding.
+-- When two actions share a key, one the config set beats a default, and
+-- otherwise the first in name order keeps it.
+function A.shortcuts(overrides, extra)
+  local merged, explicit, problems = {}, {}, {}
   for name, sc in pairs(A.keymap) do
     merged[name] = sc
   end
@@ -160,17 +234,29 @@ function A.shortcuts(overrides)
       problems[#problems + 1] = "shortcuts names unknown action " .. tostring(name) .. ": ignoring it"
     elseif sc == false then
       merged[name] = nil
-    elseif type(sc) ~= "table" or type(sc.mods) ~= "table" or type(sc.key) ~= "string" then
+    elseif not wellFormed(sc) then
       problems[#problems + 1] = "shortcut for " .. name .. " needs mods and key: ignoring it"
     else
-      merged[name] = sc
+      merged[name], explicit[name] = sc, true
+    end
+  end
+  for name, sc in pairs(extra or {}) do
+    if wellFormed(sc) then
+      merged[name], explicit[name] = sc, true
+    else
+      problems[#problems + 1] = "shortcut for " .. name .. " needs mods and key: ignoring it"
     end
   end
   local names = {}
   for name in pairs(merged) do
     names[#names + 1] = name
   end
-  table.sort(names)
+  table.sort(names, function(a, b)
+    if explicit[a] ~= explicit[b] then
+      return explicit[a] == true
+    end
+    return a < b
+  end)
   local out, owner = {}, {}
   for _, name in ipairs(names) do
     local mods = normalMods(merged[name].mods)
@@ -248,15 +334,36 @@ local function frameFor(name, win)
     end
     return geometry.transfer(cur, host.area(s), host.area(to))
   end
-  local area = host.area(s)
+  local area, g = host.area(s), gap()
   if name == "larger" or name == "smaller" then
-    return geometry.resize(area, cur, name == "larger" and A.step or -A.step)
+    return geometry.resize(area, cur, name == "larger" and A.step or -A.step, g)
+  end
+  if name:sub(1, #sizePrefix) == sizePrefix then
+    local spec = sizeSpec(name)
+    return spec and geometry.custom(area, spec, g)
   end
   local last, i = state.last[win:id()], 1
   if last and last.name == name and near(cur, last.frame) then
     i = last.i + 1
   end
-  return geometry.cycle(name, i, area, cur), i
+  return geometry.cycle(name, i, area, cur, g), i
+end
+
+-- bindings returns the shortcut for every action, custom sizes included, and
+-- the problems found in the shortcuts and sizes config.
+local function bindings()
+  local sizes, problems = A.sizes(host.config.sizes)
+  local extra = {}
+  for _, s in ipairs(sizes) do
+    if s.shortcut ~= nil then
+      extra[s.name] = s.shortcut
+    end
+  end
+  local map, more = A.shortcuts(host.config.shortcuts, extra)
+  for _, p in ipairs(more) do
+    problems[#problems + 1] = p
+  end
+  return map, problems, sizes
 end
 
 -- run applies action name to the focused window and reports whether it moved.
@@ -309,7 +416,7 @@ end
 -- and returns the problems found.
 function A.bind()
   A.unbind()
-  local map, problems = A.shortcuts(host.config.shortcuts)
+  local map, problems = bindings()
   for name, sc in pairs(map) do
     local ok, hk = pcall(hs.hotkey.new, sc.mods, sc.key, function()
       local ran, err = pcall(A.run, name)
@@ -358,10 +465,10 @@ local function items(names, map, frozen)
   return out
 end
 
--- menu builds the Window folder: one folder per family, each entry showing its
--- shortcut, so the menu doubles as the cheat sheet.
+-- menu builds the Window folder: one folder per family and one for the custom
+-- sizes, each entry showing its shortcut, so the menu doubles as the cheat sheet.
 function A.menu()
-  local map = A.shortcuts(host.config.shortcuts)
+  local map, _, sizes = bindings()
   local frozen = host.paused()
   local out = {}
   for _, fam in ipairs(A.families) do
@@ -376,6 +483,15 @@ function A.menu()
     end
     out[#out + 1] = { title = fam.title, menu = sub }
   end
+  local names = {}
+  for i, s in ipairs(sizes) do
+    names[i] = s.name
+  end
+  local custom = items(names, map, frozen)
+  if #custom == 0 then
+    custom = { { title = "No sizes in the config", disabled = true } }
+  end
+  out[#out + 1] = { title = "Custom sizes", menu = custom }
   return out
 end
 

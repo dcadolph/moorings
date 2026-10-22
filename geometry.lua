@@ -313,6 +313,35 @@ function G.transfer(cur, from, to)
   return G.clamp(f, to)
 end
 
+-- fspan returns the start and length of the share f0 to f1 of length at origin,
+-- with the outer gap at the area's edges and half the gap between neighbors.
+-- It floors like span, with a little slack so a share such as 2/3 does not
+-- lose a point to float error.
+local function fspan(origin, length, f0, f1, gap)
+  local a = origin + math.floor(length * f0 + 1e-9)
+  local b = origin + math.floor(length * f1 + 1e-9)
+  local half = math.floor(gap / 2)
+  a = a + (f0 < 1e-9 and gap or gap - half)
+  b = b - (f1 > 1 - 1e-9 and gap or half)
+  return a, b - a
+end
+
+-- custom returns the frame of a custom size inside area. spec holds x, y, w and
+-- h as shares of the area, and an optional width and height in points that
+-- center a window of that size in the share, shrunk to fit when larger.
+function G.custom(area, spec, gap)
+  gap = gap or 0
+  local x, w = fspan(area.x, area.w, spec.x or 0, (spec.x or 0) + (spec.w or 1), gap)
+  local y, h = fspan(area.y, area.h, spec.y or 0, (spec.y or 0) + (spec.h or 1), gap)
+  if spec.width and spec.width < w then
+    x, w = x + round((w - spec.width) / 2), spec.width
+  end
+  if spec.height and spec.height < h then
+    y, h = y + round((h - spec.height) / 2), spec.height
+  end
+  return { x = x, y = y, w = w, h = h }
+end
+
 -- names returns every action position knows, sorted.
 function G.names()
   local list = {}
