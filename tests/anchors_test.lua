@@ -1710,7 +1710,7 @@ tests[#tests + 1] = function()
   anchors.start()
   focus(w)
   check("t79 top", titles(world.bar.menu()) == "⚓ Raise anchor (let windows drift),Re-moor now,-,"
-    .. "Window,Lift,Anchored apps,Widths,Heights,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
+    .. "Anchored apps,Window,Lift,Widths,Heights,Workspaces,Settings,-,Reload", titles(world.bar.menu()))
   check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
     .. "Size and move,Displays,Custom sizes,Organize", titles(folder("Window")))
   check("t79 no sizes", titles(item("Custom sizes").menu) == "No sizes in the config"
@@ -3730,22 +3730,23 @@ tests[#tests + 1] = function()
   local slack = addWin("Slack", leftFull)
   addWin("iTerm2", rightFull)
   anchors.start()
+  local function lift() return item("Slack", folder("Lift")) end
   check("t176 folder", titles(folder("Lift")) == "iTerm2,Slack", titles(folder("Lift")))
-  click("Slack")
+  lift().fn({}, lift())
   frameIs("t176 lifted", slack, { x = 0, y = 25, w = 2816, h = 1415 })
-  check("t176 checked", item("Slack").checked == true)
-  click("Slack")
+  check("t176 checked", lift().checked == true)
+  lift().fn({}, lift())
   frameIs("t176 lowered", slack, leftFull)
   local other = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
   focus(other)
-  click("Slack")
+  lift().fn({}, lift())
   check("t176 raised", world.focused == slack)
   world.clock = world.clock + 3
   world.poll()
   slack.f = { x = 900, y = 200, w = 700, h = 600 }
   world.poll()
-  check("t176 released unchecked", item("Slack").checked == false)
-  click("Slack")
+  check("t176 released unchecked", lift().checked == false)
+  lift().fn({}, lift())
   frameIs("t176 lift re-moors", slack, { x = 0, y = 25, w = 2816, h = 1415 })
   install(ultrawide())
   anchors.start()
@@ -4203,6 +4204,18 @@ tests[#tests + 1] = function()
   at(1000, 500)
   check("t188 error ends the drag", #queue == 0)
   fire(2)
+end
+
+-- Test 189: Anchored apps leads the menu folders, ahead of Window and Lift.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  local got = {}
+  for _, it in ipairs(world.bar.menu()) do
+    if it.menu then got[#got + 1] = it.title end
+  end
+  local want = "Anchored apps,Window,Lift,Widths,Heights,Workspaces,Settings"
+  check("t189 folder order", table.concat(got, ",") == want, table.concat(got, ","))
 end
 
 for i, t in ipairs(tests) do

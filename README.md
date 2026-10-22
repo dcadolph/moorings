@@ -144,10 +144,10 @@ The top of the menu holds Raise anchor and Re-moor now, then seven folders, then
 | Raise anchor / Drop anchor | Raise lets every window drift and rests the shortcuts. Drop holds the layout again. Survives a reload.                                       |
 | Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                                                              |
 | Re-moor *app*              | Shown for each anchored window released after you moved it. Puts it back.                                                                    |
+| Anchored apps              | Four slot rows, each with running apps and Choose app…, Anchor frontmost app, Unanchor all, Reset.                                           |
 | Window                     | Every window action by family, each showing its shortcut.                                                                                    |
 | Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                                             |
 | Lift                       | One entry per anchored window. Lifts it over its strip and the channel, or lowers it back.                                                   |
-| Anchored apps              | Four slot rows, each with running apps and Choose app…, Anchor frontmost app, Unanchor all, Reset.                                           |
 | Widths                     | The Channel label, a note for an empty side, the wider and narrower steppers, seven presets.                                                 |
 | Heights                    | A label per side, the taller and shorter steppers, and seven top row presets for each side.                                                  |
 | Workspaces                 | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                                                |

@@ -2384,9 +2384,9 @@ local function menu()
   end
   for _, it in ipairs({
     { title = "-" },
+    { title = "Anchored apps", menu = lockedItems() },
     { title = "Window", menu = windowItems() },
     { title = "Lift", menu = liftItems(pins, frozen) },
-    { title = "Anchored apps", menu = lockedItems() },
     { title = "Widths", menu = widthItems() },
     { title = "Heights", menu = heightItems() },
     { title = "Workspaces", menu = workspaceItems() },
