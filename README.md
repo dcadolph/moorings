@@ -105,16 +105,16 @@ delete the `~/.hammerspoon/moorings` link, delete the moorings lines from
 ## Quickstart
 
 Slack sits at 10% on the left, iTerm at 45% on the right, and everything else stays in the
-channel, the open strip in between. Click Slack to expand it to 30%. Click another app to
-collapse it. An expanded pin overlaps the channel instead of pushing windows aside, so nothing
-in the channel moves when it opens or closes.
+channel, the open strip in between. Click Slack's green button to lift it over the channel at
+full height, and click it again to lower it. Drag a pinned window somewhere else and moorings
+lets it go with a short message. Its green button or Control-Option-Delete brings it home.
 
-To lock another app, click it, open the moorings menu, choose Locked apps, Pin frontmost app,
-then pick a slot. Picking an app from a slot's list opens it the way a Dock click does, and
-the list ends with Choose app…, which browses for any app. The wider and narrower items under Widths move each strip by 1%, and the
-Channel label shows what is left in the middle. When two apps share a side, Heights sets how
-tall the top one is, from 10% to 90%, and the bottom one takes the rest. A calendar at 10% over
-Slack at 90% is Heights, Left side, Top 10%.
+To lock another app, click it, open the moorings menu, choose Locked apps, Pin frontmost app, then
+pick a slot. Picking an app from a slot's list opens it the way a Dock click does, and the list ends
+with Choose app…, which browses for any app. The wider and narrower items under Widths move each
+strip by 1%, and the Channel label shows what is left in the middle. When two apps share a side,
+Heights sets how tall the top one is, from 10% to 90%, and the bottom one takes the rest. A calendar
+at 10% over Slack at 90% is Heights, Left side, Top 10%.
 
 Press Control-Option-Left to put the focused window in the left half of the channel. Press it
 again for two thirds, then one third. The Window folder in the menu lists every action with its
@@ -251,9 +251,9 @@ None has a default shortcut. Bind one in `shortcuts`, such as `["tile-all"] = { 
 ### Workspaces
 
 Workspaces, Save current layout asks for a name and saves the four slots, the strip widths and
-heights, and the frame of every free window on every display. Recall puts them all back. Windows are matched
-by app and then by title, so two Safari windows each go back to their own place. A window whose
-app is not running, or whose display is not attached, stays where it is and the Console says
+heights, and the frame of every free window on every display. Recall puts them all back. Windows are
+matched by app and then by title, so two Safari windows each go back to their own place. A window
+whose app is not running, or whose display is not attached, stays where it is and the Console says
 how many.
 
 Recall when these displays connect ties a workspace to the displays attached now. Plugging the
@@ -347,15 +347,15 @@ expand. Expand on focus widens an app only within its own row of the strip.
 
 ### Pins
 
-Pins, widths and the poll rate live in `M.config` at the top of `anchors.lua`. Each pin names an
-app by bundle ID, the side it sits on, and an optional `expandPct` it grows to while focused. A
-pin holds one window of its app, the main window when it first sees the app, and keeps holding it
-until it closes. The app's other windows are free, so Slack huddles, preference panes and a tab
-torn out of iTerm stay out of the slot. A side holds up to two pins. One pin fills the strip's full height. Two split it into
-top and bottom rows in config order, unless a pin sets `row` to `"top"` or `"bottom"`. A
-third pin on a side, a row other than top or bottom, and two pins asking for the same row are
-each reported in the Console once at load. Pinned windows on other displays are pulled onto the
-ultrawide. Apps listed in `ignoreBundles` are never moved or offered in the menu. This example
+Pins, widths and the poll rate live in `M.config` at the top of `anchors.lua`. Each pin names an app
+by bundle ID, the side it sits on, and an optional `expandPct` it grows to while focused. A pin
+holds one window of its app, the main window when it first sees the app, and keeps holding it until
+it closes. The app's other windows are free, so Slack huddles, preference panes and a tab torn out
+of iTerm stay out of the slot. A side holds up to two pins. One pin fills the strip's full height.
+Two split it into top and bottom rows in config order, unless a pin sets `row` to `"top"` or
+`"bottom"`. A third pin on a side, a row other than top or bottom, and two pins asking for the same
+row are each reported in the Console once at load. Pinned windows on other displays are pulled onto
+the ultrawide. Apps listed in `ignoreBundles` are never moved or offered in the menu. This example
 stacks Slack over Notes on the left:
 
 ```lua
@@ -374,6 +374,26 @@ preset or a step, wins over `leftPct` and `rightPct` in the file. The top row of
 `leftTopPct` and `rightTopPct` percent of the strip's height, 50 by default and 10 to 90, and a
 height chosen from Heights wins over them the same way.
 
+### Lift and release
+
+A pin can rise over its strip and the channel at full height, stopping at the other strip.
+Click its green button, press Maximize (Control-Option-Return) while it is in front, or pick it
+in the Lift folder. The same again lowers it. Moorings keeps the click away from macOS, so the
+green button on a pin never starts native fullscreen.
+
+A pin you drag or resize yourself is released. Moorings leaves it where you put it and shows a
+short message saying how to bring it back: its green button, Restore (Control-Option-Delete), or
+Re-moor *app* at the top of the menu. Re-moor now brings every released pin home at once. The
+macOS window menu on the green button counts as your hand too, since moorings cannot tell which
+entry ran. Pins moved while the anchor is raised, or by a display change, are put back instead
+of released.
+
+Some apps refuse to get narrower than a set width. A pin like that keeps its own width against
+the outer edge, and its strip grows to fit it, so free windows never slide under it. Widths then
+says which app holds the side, such as "Left 13% in use: Slack needs 668 pt", and disables the
+narrower step and the presets below it. The channel always keeps at least 10% of the display.
+Moorings remembers the width until the window closes or you choose Re-moor now.
+
 ### Channel rules
 
 A free window that strays into an edge is pushed back into the channel. One wider than the
@@ -381,9 +401,9 @@ channel is narrowed to fit, and it grows back toward its old width when a preset
 the channel up again, unless it was resized by hand in between. Windows already inside the channel
 are never touched, and windows on other displays are left alone.
 
-A free window that goes native fullscreen on the ultrawide, which the green button does, leaves
-fullscreen and fills the channel instead. A pinned app's window does the same and goes back to
-its strip. Untick Fullscreen fills the channel or Fullscreen fills the pin's strip to get true
+A free window that goes native fullscreen on the ultrawide, which its green button does, leaves
+fullscreen and fills the channel instead. A pinned window that ends up in fullscreen goes back to
+its slot. Untick Fullscreen fills the channel or Fullscreen fills the pin's strip to get true
 fullscreen back for that kind of window, or use Raise anchor for a while.
 
 Hovering over the green button shows a menu that belongs to macOS, not to moorings. Its Move &
