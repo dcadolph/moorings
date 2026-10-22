@@ -283,8 +283,16 @@ local function install(...)
     },
     notify = {
       new = function(fn, attrs)
+        if type(fn) == "table" then fn, attrs = nil, fn end
         local n = { fn = fn, attrs = attrs }
-        function n:send() self.sent = true return self end
+        function n:send()
+          self.sent = true
+          if attrs and attrs.withdrawAfter ~= 0 then
+            world.alertTitle, world.alerted = attrs.title, attrs.informativeText
+            world.alerts = (world.alerts or 0) + 1
+          end
+          return self
+        end
         function n:withdraw() self.withdrawn = true return self end
         world.notices[#world.notices + 1] = n
         return n
@@ -303,7 +311,7 @@ local function install(...)
     openConsole = function() world.console = true end,
     reload = function() world.reloaded = true end,
     execute = function(cmd) world.executed = cmd end,
-    alert = { show = function(msg) world.alerted, world.alerts = msg, (world.alerts or 0) + 1 end },
+    alert = { show = function() error("moorings shows notifications, not on-screen alerts") end },
     settings = {
       get = function(k) return world.settings[k] end,
       set = function(k, v) world.settings[k] = v end,
@@ -3171,7 +3179,8 @@ tests[#tests + 1] = function()
   world.poll()
   check("t150 icon back", markShown())
   check("t150 withdrawn", world.notices[1].withdrawn == true)
-  check("t150 alert", world.alerted == "moorings: Accessibility granted", tostring(world.alerted))
+  check("t150 alert", world.alertTitle == "moorings can move windows" and world.alerted == "Accessibility is on.",
+    tostring(world.alerted))
   check("t150 rebound", #world.hotkeys == 2 * before and oldKey.deleted == true and world.hotkeys[before + 1].enabled)
   local running, stopped = dragTaps()
   check("t150 drag tap replaced", running == 1 and stopped == 1, running .. " " .. stopped)
@@ -3198,7 +3207,11 @@ tests[#tests + 1] = function()
   check("t151 picked shows", world.bar.title == "🐙")
   world.trusted = false
   world.poll()
-  check("t151 no second notice", world.bar.title == "⚠️" and #world.notices == 1)
+  local warnings = 0
+  for _, n in ipairs(world.notices) do
+    if n.attrs.withdrawAfter == 0 then warnings = warnings + 1 end
+  end
+  check("t151 no second notice", world.bar.title == "⚠️" and warnings == 1)
 end
 
 -- Test 152: The grant is picked up while the layout is frozen.
@@ -3641,9 +3654,8 @@ tests[#tests + 1] = function()
   end
   moveByHand()
   frameIs("t173 left alone", slack, moved)
-  check("t173 alert", world.alerted ~= nil and world.alerted:find("Slack released", 1, true) ~= nil
-    and world.alerted:find("⌃⌥⌫", 1, true) ~= nil and world.alerted:find("Re-moor Slack", 1, true) ~= nil,
-    tostring(world.alerted))
+  check("t173 alert", world.alertTitle == "Slack released"
+    and world.alerted == "Click its green button or press ⌃⌥⌫ to put it back.", tostring(world.alerted))
   check("t173 logged once", said("moved by hand: released") == 1)
   world.clock = world.clock + 10
   world.poll()
@@ -3847,8 +3859,7 @@ tests[#tests + 1] = function()
   world.poll()
   slack.f = { x = 0, y = 25, w = 5120, h = 1415 }
   world.poll()
-  check("t181 alert", world.alerted ~= nil
-    and world.alerted:find("click its green button, press ⌃⌥⌫, or choose Re-moor Slack", 1, true) ~= nil,
+  check("t181 alert", world.alerted == "Click its green button or press ⌃⌥⌫ to put it back.",
     tostring(world.alerted))
   world.poll()
   check("t181 home click eaten", send(1, { x = 60, y = 40 }) == true and send(2, { x = 60, y = 40 }) == true)
