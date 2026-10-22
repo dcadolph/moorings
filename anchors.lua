@@ -4,6 +4,7 @@
 local actions = require("actions")
 local geometry = require("geometry")
 local snap = require("snap")
+local tile = require("tile")
 
 local M = {}
 
@@ -140,7 +141,7 @@ M.loadfile = loadfile
 
 -- files lists the moorings source files, which live in the moorings folder
 -- inside the Hammerspoon config directory.
-M.files = { "anchors.lua", "geometry.lua", "actions.lua", "snap.lua" }
+M.files = { "anchors.lua", "geometry.lua", "actions.lua", "snap.lua", "tile.lua" }
 
 -- path returns the full path of a moorings source file.
 function M.path(file)
@@ -182,6 +183,8 @@ local function near(a, b)
   return math.abs(a.x - b.x) <= t and math.abs(a.y - b.y) <= t
     and math.abs(a.w - b.w) <= t and math.abs(a.h - b.h) <= t
 end
+
+M.near = near
 
 -- place moves win to frame unless it is already there. A window that keeps
 -- moving away from the same frame is left alone for holdSeconds.
@@ -588,11 +591,12 @@ local function windows()
   return list
 end
 
--- freeWindows returns the unpinned, windowed windows on screen s, front-most first.
-local function freeWindows(s)
+-- organizable returns the windows on screen s that organize actions may move:
+-- not pinned and not fullscreen, front-most first.
+function M.organizable(s)
   local list = {}
   for _, w in ipairs(windows()) do
-    if not M.slotFor(w) and not w:isFullScreen() and sameScreen(w:screen(), s) then
+    if not M.pinned(w) and not w:isFullScreen() and sameScreen(w:screen(), s) then
       list[#list + 1] = w
     end
   end
@@ -717,35 +721,16 @@ function M.fill()
 end
 
 -- tidy tiles the n front-most free windows into equal columns, left to right
--- in their current order.
+-- in their current order. It works in the channel while the ultrawide is
+-- attached, and on the focused window's screen otherwise.
 function M.tidy(n)
   if paused() then
     return
   end
-  local s = M.ultrawide()
-  if not s then
-    return
-  end
-  local list = {}
-  for i, w in ipairs(freeWindows(s)) do
-    if i > n then
-      break
-    end
-    list[i] = w
-  end
-  if #list == 0 then
-    return
-  end
-  table.sort(list, function(a, b)
-    return a:frame().x < b:frame().x
-  end)
-  local ch = M.channel(s)
-  local colW = math.floor(ch.w / #list)
-  for i, w in ipairs(list) do
-    save(w)
-    local x = ch.x + (i - 1) * colW
-    local width = (i == #list) and (ch.x + ch.w - x) or colW
-    w:setFrame({ x = x, y = ch.y, w = width, h = ch.h })
+  local focused = hs.window.focusedWindow()
+  local s = M.ultrawide() or (focused and focused:screen())
+  if s then
+    tile.tidy(s, n)
   end
 end
 
@@ -846,27 +831,23 @@ local function lockedItems()
   return items
 end
 
--- windowItems builds the Window folder: the action families, then Organize
--- with the channel fill and tidy.
+-- windowItems builds the Window folder, with Fill channel, Tidy channel and
+-- Undo tidy at the end of Organize.
 local function windowItems()
   local frozen = paused()
-  local items = actions.menu()
-  items[#items + 1] = {
-    title = "Organize",
-    menu = {
-      { title = "Fill channel", disabled = frozen, fn = safe(M.fill) },
-      {
-        title = "Tidy channel",
-        disabled = frozen,
-        menu = {
-          { title = "Halves", fn = safe(function() M.tidy(2) end) },
-          { title = "Thirds", fn = safe(function() M.tidy(3) end) },
-        },
+  return actions.menu({
+    { title = "-" },
+    { title = "Fill channel", disabled = frozen, fn = safe(M.fill) },
+    {
+      title = "Tidy channel",
+      disabled = frozen,
+      menu = {
+        { title = "Halves", fn = safe(function() M.tidy(2) end) },
+        { title = "Thirds", fn = safe(function() M.tidy(3) end) },
       },
-      { title = "Undo tidy", fn = safe(M.undo), disabled = frozen or not M.canUndo() },
     },
-  }
-  return items
+    { title = "Undo tidy", fn = safe(M.undo), disabled = frozen or not M.canUndo() },
+  })
 end
 
 -- widthItems builds the Widths folder: the channel label, the steppers and
@@ -1001,6 +982,7 @@ function M.start()
     log(problem)
   end
   snap.attach(M, actions)
+  tile.attach(M, actions)
   snap.start()
   M.bar = hs.menubar.new()
   M.bar:setTitle(iconGlyph())

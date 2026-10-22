@@ -152,6 +152,12 @@ local function fromCell(c, area, gap)
   return { x = x, y = y, w = w, h = h }
 end
 
+-- part returns the frame of columns c0 to c1 of nc and rows r0 to r1 of nr
+-- inside area, with gap points around and between parts.
+function G.part(area, c0, c1, nc, r0, r1, nr, gap)
+  return fromCell(cell(c0, c1, nc, r0, r1, nr), area, gap or 0)
+end
+
 -- round returns n rounded to the nearest whole point.
 local function round(n)
   return math.floor(n + 0.5)

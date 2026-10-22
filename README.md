@@ -88,10 +88,10 @@ Press Control-Option-Left to put the focused window in the left half of the chan
 again for two thirds, then one third. The Window folder in the menu lists every action with its
 shortcut.
 
-To test a change, run `for t in anchors geometry actions snap; do lua tests/${t}_test.lua; done`
+To test a change, run `for t in anchors geometry actions snap tile; do lua tests/${t}_test.lua; done`
 from the repo root. The anchors test drives the whole tool against a fake Hammerspoon, and the
-other three check the frame math, the keymap and menu families, and the drag zones. Each exits
-non-zero on any failure.
+others check the frame math, the keymap and menu families, the drag zones, and the organize
+layouts. Each exits non-zero on any failure.
 
 ## Docs
 
@@ -104,7 +104,7 @@ The top of the menu holds Drop anchor and Re-moor now, then four folders, then R
 | Drop anchor / Weigh anchor | Freezes and releases the layout and the shortcuts. Survives a reload.                             |
 | Re-moor now                | Applies the layout immediately instead of waiting for the poll.                                   |
 | Window                     | Every window action by family, each showing its shortcut.                                         |
-| Window, Organize           | Fill channel, Tidy channel into Halves or Thirds, and Undo tidy.                                  |
+| Window, Organize           | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                  |
 | Locked apps                | Four slot rows, Pin frontmost app, and Reset to defaults.                                         |
 | Widths                     | The Channel label, the wider and narrower steppers, seven presets.                                |
 | Settings                   | Fullscreen fills the channel, Snap by dragging, Ignore frontmost app, Icon, Edit config, Console. |
@@ -167,6 +167,26 @@ gapPx = 10,
 windows side by side, for every action except almost maximize and the display moves. An entry
 without a title, with shares outside 0 to 1 or past the area's edge, or a gap outside 0 to 100
 is reported in the Console and skipped.
+
+### Organize
+
+The Window, Organize folder moves every free window on the focused window's screen at once. On
+the ultrawide that means the windows in the channel, and pins never move.
+
+| Action&nbsp;                   | What it does&nbsp;                                                 |
+|--------------------------------|--------------------------------------------------------------------|
+| Tile columns                   | Side by side columns, in left to right order.                      |
+| Tile rows                      | Stacked rows, in top to bottom order.                              |
+| Tile all                       | A near square grid read left to right, top to bottom.              |
+| Cascade all                    | Steps every window down and right, front-most on top.              |
+| Cascade active app             | The same for the focused app's windows only.                       |
+| Cycle stacked windows          | Brings forward the next window sharing the focused window's frame. |
+| Cycle stacked windows backward | The same, the other way.                                           |
+| Reverse all                    | Mirrors every window left to right.                                |
+| Tidy channel                   | Tile columns for the 2 or 3 front-most windows.                    |
+
+None has a default shortcut. Bind one in `shortcuts`, such as `["tile-all"] = { mods = { "ctrl",
+"alt" }, key = "a" }`. Undo tidy and Restore put tiled and cascaded windows back.
 
 ### Snap by dragging
 
