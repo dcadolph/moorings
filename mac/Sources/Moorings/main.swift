@@ -1,44 +1,198 @@
 import AppKit
+import ServiceManagement
+import os
 
-// AppDelegate starts Moorings and owns its long-lived objects.
+import MooringsCore
+
+// AppDelegate starts Moorings and owns its long-lived objects: the layout, the window reader, the
+// poll timer, and the menu bar item.
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
-    // spike runs the step 0 platform checks.
-    private let spike = Spike()
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    // choicesKey is the defaults key the saved choices live under.
+    static let choicesKey = "choices"
+    // pollSeconds is how often the layout is checked while windows are changing.
+    static let pollSeconds = 0.25
+    // activeSeconds is how long after the last window event the layout counts as changing.
+    static let activeSeconds = 10.0
+    // idleSeconds is how often the layout is checked once windows are still.
+    static let idleSeconds = 2.0
+
+    // logger writes to the unified log under the com.dcadolph.moorings subsystem.
+    let logger = Logger(subsystem: "com.dcadolph.moorings", category: "anchors")
+    // anchors holds the layout and decides every move.
+    let anchors = Anchors(choices: Choices.decode(UserDefaults.standard.data(forKey: AppDelegate.choicesKey) ?? Data()))
+    // windows reads and moves windows.
+    let windows = Windows()
+    // watcher wakes the poll on window events.
+    private lazy var watcher = Watcher { [weak self] in self?.wake() }
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    // timer runs tick every pollSeconds.
+    private var timer: Timer?
+    // woke is when the last window event came.
+    private var woke = 0.0
+    // polled is when the last pass ran.
+    private var polled = 0.0
+    // started reports whether the first pass ran, which opens the anchored apps.
+    private var started = false
 
-    // applicationDidFinishLaunching builds the menu bar item and runs any commands given at launch.
+    // now returns the time in seconds since boot.
+    static var now: Double { ProcessInfo.processInfo.systemUptime }
+
+    // applicationDidFinishLaunching builds the menu, subscribes to events, and starts the poll.
     func applicationDidFinishLaunching(_ notification: Notification) {
         item.button?.image = NSImage(systemSymbolName: "sailboat", accessibilityDescription: "Moorings")
         let menu = NSMenu()
-        for command in Spike.Command.allCases {
-            let entry = NSMenuItem(title: command.title, action: #selector(runMenuCommand(_:)), keyEquivalent: "")
-            entry.target = self
-            entry.representedObject = command.rawValue
-            menu.addItem(entry)
-        }
+        menu.delegate = self
         item.menu = menu
-        if let flag = CommandLine.arguments.firstIndex(of: "--spike") {
-            for name in CommandLine.arguments.dropFirst(flag + 1) {
-                spike.run(name, query: [:])
+        let center = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didActivateApplicationNotification, NSWorkspace.didLaunchApplicationNotification,
+                     NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didUnhideApplicationNotification] {
+            center.addObserver(self, selector: #selector(workspaceChanged(_:)), name: name, object: nil)
+        }
+        center.addObserver(self, selector: #selector(appQuit(_:)), name: NSWorkspace.didTerminateApplicationNotification,
+                           object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(workspaceChanged(_:)),
+                                               name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        if !windows.trusted {
+            logger.notice("Accessibility is not granted: windows will not move")
+        }
+        anchors.launch(now: Self.now)
+        wake()
+        timer = Timer.scheduledTimer(withTimeInterval: Self.pollSeconds, repeats: true) { _ in
+            MainActor.assumeIsolated { self.tick() }
+        }
+        moor()
+    }
+
+    // applicationShouldHandleReopen opens the menu when Moorings is opened again while it runs, so a
+    // second open from Applications shows it is already there.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        item.button?.performClick(nil)
+        return false
+    }
+
+    // application handles moorings:// links: status logs the layout and moor runs a pass.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "moorings" {
+            switch url.host() {
+            case "status": status()
+            case "moor": moor()
+            default: logger.notice("unknown link: \(url.absoluteString, privacy: .public)")
             }
         }
     }
 
-    // application runs a spike command for each moorings:// link, e.g. moorings://move?app=TextEdit.
-    func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls where url.scheme == "moorings" {
-            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-            let query = Dictionary(items.map { ($0.name, $0.value ?? "") }, uniquingKeysWith: { _, last in last })
-            spike.run(url.host() ?? "", query: query)
+    // menuNeedsUpdate rebuilds the menu from the current state each time it opens.
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        for entry in MenuBuilder(app: self).items() {
+            menu.addItem(entry)
         }
     }
 
-    // runMenuCommand runs the spike command a menu item names.
-    @objc private func runMenuCommand(_ sender: NSMenuItem) {
-        guard let name = sender.representedObject as? String else { return }
-        spike.run(name, query: [:])
+    // wake marks windows as changing, so the poll runs every pollSeconds again.
+    func wake() {
+        woke = Self.now
+    }
+
+    // tick runs a pass every pollSeconds while windows are changing and every idleSeconds once they
+    // have been still for activeSeconds.
+    private func tick() {
+        let t = Self.now
+        if t - woke > Self.activeSeconds && t - polled < Self.idleSeconds {
+            return
+        }
+        moor()
+    }
+
+    // moor runs one pass and applies its moves. The first pass after launch opens the anchored apps
+    // that have no window, in the background.
+    func moor() {
+        polled = Self.now
+        guard windows.trusted else { return }
+        let screens = Screens.current()
+        let (list, focused) = windows.scan(screens)
+        watcher.watch(windows.scanned)
+        if anchors.hasCastOff {
+            anchors.prune(alive: Windows.alive())
+        }
+        let scene = Scene(screen: screens.wide, windows: list, focused: focused?.id,
+                          mouseHeld: NSEvent.pressedMouseButtons & 1 != 0, now: Self.now)
+        for move in anchors.moor(scene) {
+            windows.move(move.id, to: move.frame)
+        }
+        if !started {
+            started = true
+            for bundle in anchors.opening() {
+                open(bundle, background: true)
+            }
+        }
+    }
+
+    // save writes the choices to defaults, then runs a pass so the change shows at once.
+    func save() {
+        if let data = try? Choices.encode(anchors.choices) {
+            UserDefaults.standard.set(data, forKey: Self.choicesKey)
+        }
+        wake()
+        moor()
+    }
+
+    // open opens the app with bundle the way a Dock click does, which launches it or asks a running
+    // app with no window for a new one. A background open leaves the front app in front.
+    func open(_ bundle: String, background: Bool) {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        task.arguments = (background ? ["-g"] : []) + ["-b", bundle]
+        do {
+            try task.run()
+        } catch {
+            logger.error("open \(bundle, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    // launchAtLogin reports whether Moorings is registered as a login item.
+    var launchAtLogin: Bool { SMAppService.mainApp.status == .enabled }
+
+    // setLaunchAtLogin registers or unregisters Moorings as a login item.
+    func setLaunchAtLogin(_ on: Bool) {
+        do {
+            if on {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            logger.error("launch at login: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    // status logs the trust state, the screens, the slots, and every window the scan sees.
+    private func status() {
+        let screens = Screens.current()
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        logger.notice("status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.anchors.choices.paused)")
+        for (key, bundle) in anchors.assignments().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            logger.notice("slot \(key.rawValue, privacy: .public): \(bundle, privacy: .public)")
+        }
+        for w in windows.scan(screens).windows {
+            logger.notice("window \(w.id) \(w.bundle, privacy: .public) frame=\(w.frame.description, privacy: .public) wide=\(w.onUltrawide) main=\(w.isMain) panel=\(w.isFilePanel) pinned=\(self.anchors.pinned(w)) castOff=\(self.anchors.isCastOff(w.id))")
+        }
+    }
+
+    // workspaceChanged wakes the poll when an app or screen changes.
+    @objc private func workspaceChanged(_ note: Notification) {
+        wake()
+    }
+
+    // appQuit forgets a quit app's elements and observer and wakes the poll.
+    @objc private func appQuit(_ note: Notification) {
+        if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication {
+            windows.forget(app.processIdentifier)
+            watcher.forget(app.processIdentifier)
+        }
+        wake()
     }
 }
 
