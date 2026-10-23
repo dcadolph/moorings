@@ -1,7 +1,7 @@
 name: ci
 
 # Run every Lua suite on Lua 5.4, the version Hammerspoon embeds, and the moorings command's
-# suite on macOS and Linux shells.
+# suite on macOS and Linux shells, and the native app's Swift suite on macOS.
 on:
   push:
     branches: [main]
@@ -40,3 +40,17 @@ jobs:
 
       - name: Test
         run: sh tests/cli_test.sh
+
+  mac:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: swift build
+
+      - name: Test
+        run: swift test
