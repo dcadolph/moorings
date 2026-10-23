@@ -7,11 +7,13 @@ PLIST := $(APP)/Contents/Info.plist
 ARCHS ?=
 ARCH_FLAGS := $(foreach arch,$(ARCHS),--arch $(arch))
 ZIP ?= .build/Moorings.zip
+NOTARY_PROFILE ?= moorings
+SIGN_FLAGS := --options runtime $(if $(filter-out -,$(SIGN_ID)),--timestamp)
 
 ICONSET := .build/AppIcon.iconset
 ICNS := .build/AppIcon.icns
 
-.PHONY: build test app sandbox zip run clean
+.PHONY: build test app sandbox zip notarize run clean
 
 build:
 	swift build
@@ -37,12 +39,18 @@ app: $(ICNS)
 	cp "$$(swift build -c release $(ARCH_FLAGS) --show-bin-path)/Moorings" $(APP)/Contents/MacOS/Moorings
 	cp Sources/Moorings/Info.plist $(PLIST)
 	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion '$(BUILD)'" $(PLIST)
-	codesign --force --sign "$(SIGN_ID)" $(if $(ENTITLEMENTS),--entitlements $(ENTITLEMENTS)) $(APP)
+	codesign --force --sign "$(SIGN_ID)" $(SIGN_FLAGS) $(if $(ENTITLEMENTS),--entitlements $(ENTITLEMENTS)) $(APP)
 
 sandbox:
 	$(MAKE) app APP=$(SANDBOX_APP) ENTITLEMENTS=sandbox.entitlements
 
 zip: app
+	rm -f $(ZIP)
+	ditto -c -k --keepParent $(APP) $(ZIP)
+
+notarize: zip
+	xcrun notarytool submit $(ZIP) --keychain-profile "$(NOTARY_PROFILE)" --wait
+	xcrun stapler staple $(APP)
 	rm -f $(ZIP)
 	ditto -c -k --keepParent $(APP) $(ZIP)
 
