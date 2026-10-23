@@ -55,6 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var updateTimer: Timer?
     // tap watches the primary mouse button for green button clicks and drags.
     let tap = EventTap()
+    // selftest drives TextEdit windows through the layout from the moorings://selftest link.
+    lazy var selftest = Selftest(app: self)
     // settings is the settings window.
     lazy var settings = SettingsWindow(app: self)
     // organizer lays out several windows at once and keeps the workspaces.
@@ -141,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "moor": moor()
             case "action": runLink(url)
             case "settings": settings.show()
+            case "selftest": selftest.start()
             case "banner":
                 let text = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "text" }?.value
                 notify("Moorings", text ?? "")
