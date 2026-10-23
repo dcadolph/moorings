@@ -520,3 +520,26 @@ public struct Bindings: Equatable, Sendable {
         Dictionary(uniqueKeysWithValues: sizes.map { ($0.name, $0.spec) })
     }
 }
+
+// MouseButtons checks mouse button bindings.
+public enum MouseButtons {
+    // valid returns the bindings in saved whose button is 2 to 31 and whose action is known or one
+    // of sizes, keyed by button number, plus the problems found. Buttons 0 and 1 are the primary
+    // and secondary buttons and cannot be bound.
+    public static func valid(_ saved: [String: String], sizes: Set<String> = []) -> (map: [Int: String], problems: [String]) {
+        var out: [Int: String] = [:]
+        var problems: [String] = []
+        for (key, name) in saved.sorted(by: { $0.key < $1.key }) {
+            guard let button = Int(key), (2...31).contains(button) else {
+                problems.append("mouseButtons has button \(key): use a number from 2 to 31")
+                continue
+            }
+            guard Keymaps.known(name) || sizes.contains(name) else {
+                problems.append("mouseButtons names unknown action \(name) for button \(button): ignoring it")
+                continue
+            }
+            out[button] = name
+        }
+        return (out, problems)
+    }
+}

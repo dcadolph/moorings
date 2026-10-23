@@ -176,3 +176,13 @@ private func has(_ problems: [String], _ text: String) -> Bool {
         #expect(g.problem == "gapPx must be a number from 0 to 100: using 0")
     }
 }
+
+// Lua case 9: mouse buttons 2 to 31 bind known actions and custom sizes, and the rest are refused.
+@Test func testMouseButtons() {
+    let (map, problems) = MouseButtons.valid(["3": "left-half", "4": "size:Reading", "1": "maximize", "5": "nope",
+                                              "x": "center"], sizes: ["size:Reading"])
+    #expect(map == [3: "left-half", 4: "size:Reading"])
+    #expect(problems.count == 3)
+    #expect(problems.contains("mouseButtons names unknown action nope for button 5: ignoring it"))
+    #expect(problems.contains("mouseButtons has button 1: use a number from 2 to 31"))
+}

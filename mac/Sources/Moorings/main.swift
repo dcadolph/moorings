@@ -118,6 +118,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         tap.onDrag = { [weak self] p, option in self?.snap.dragged(p, option: option) }
         tap.onUp = { [weak self] _, _ in self?.snap.released() }
+        tap.onOther = { [weak self] button, down in self?.mouseButton(button, down: down) ?? false }
         tap.start()
         rebind()
         refreshShortcuts()
@@ -231,6 +232,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let got = windows.frame(move.id), let again = anchors.landed(move, got: got) else { return }
         logger.notice("window \(move.id) keeps a size of at least \(Int(got.w))x\(Int(got.h)): leaving it that size")
         windows.move(again.id, to: again.frame)
+    }
+
+    // mouseButton runs the action bound to an extra mouse button when it goes down, and reports
+    // whether the button is bound, so both halves are swallowed. Unbound buttons, and every button
+    // while paused or while an ignored app is in front, pass on.
+    private func mouseButton(_ button: Int, down: Bool) -> Bool {
+        let sizes = Set(Bindings(anchors.choices).sizes.map(\.name))
+        guard !anchors.choices.paused, hotkeys.enabled,
+              let name = MouseButtons.valid(anchors.choices.mouseButtons, sizes: sizes).map[button]
+        else { return false }
+        if down {
+            DispatchQueue.main.async { [weak self] in self?.actions.run(name) }
+        }
+        return true
     }
 
     // zoomDown reports whether a press at p is on a green button moorings handles, and if so runs

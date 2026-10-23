@@ -102,6 +102,15 @@ struct SettingsView: View {
                     in: 0...Keymaps.maxGap, step: 2) {
                 Text("Gap around windows: \(Int(model.choices.gapPx)) pt")
             }
+            Section("Mouse buttons") {
+                ForEach([(2, "Middle"), (3, "Back"), (4, "Forward"), (5, "Button 6")], id: \.0) { button, title in
+                    Picker(title, selection: Binding(get: { model.choices.mouseButtons[String(button)] ?? "" },
+                                                     set: { v in model.change { $0.mouseButtons[String(button)] = v.isEmpty ? nil : v } })) {
+                        Text("Nothing").tag("")
+                        ForEach(actionNames, id: \.self) { Text(Keymaps.label($0)).tag($0) }
+                    }
+                }
+            }
             Toggle("Fullscreen fills the channel", isOn: Binding(get: { model.choices.fullscreenFills },
                                                                   set: { v in model.change { $0.fullscreenFills = v } }))
             Toggle("Fullscreen keeps anchored apps in their slots",
