@@ -71,11 +71,14 @@ on any display unless it says ultrawide. The [README](README.md) has the details
   no notification permission to grant.
 - Hammerspoon starts at login, installs its own updates quietly, and starts again within 30
   seconds if it quits or crashes. Quit moorings stops all of it until the next login.
+- moorings sits in Applications, so Spotlight and Launchpad find it. Opening it starts moorings
+  after a Quit, or shows the settings window while moorings runs.
 - Moorings checks once a day for its own new release and offers it at the top of the menu. One
   click updates a Homebrew install or a clone and reloads, and a message after the reload says
   which version is running. Nothing installs without that click.
-- Installs with `brew install dcadolph/tap/moorings`. `moorings setup` wires it into Hammerspoon,
-  `moorings doctor` checks the wiring and `moorings uninstall` takes it out.
+- Installs with `brew install dcadolph/tap/moorings`. `moorings setup` wires it into Hammerspoon
+  and adds it to Applications, `moorings doctor` checks the wiring and `moorings uninstall` takes
+  it out.
 - `moorings selftest` checks the layout against real TextEdit windows inside Hammerspoon, then
   puts your slots back.
 - The layout is checked four times a second while windows change and every two seconds when

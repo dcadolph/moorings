@@ -7,9 +7,12 @@ usage() {
 Usage: moorings <command>
 
 Commands:
-  setup      Link ~/.hammerspoon/moorings to these files and load moorings from init.lua.
-  doctor     Check Hammerspoon, the link and init.lua. Exits 1 when something is wrong.
-  uninstall  Remove the link, the init.lua lines setup added, and the keep-alive helper.
+  setup      Link ~/.hammerspoon/moorings to these files, load moorings from init.lua, and
+             add moorings.app to ~/Applications.
+  doctor     Check Hammerspoon, the link, init.lua and moorings.app. Exits 1 when something
+             is wrong.
+  uninstall  Remove the link, the init.lua lines setup added, moorings.app, and the keep-alive
+             helper.
   selftest   Check moorings against real TextEdit windows in Hammerspoon. Exits 1 on a failure.
              With --control, plant one failure and exit 0 only when exactly that one fails.
   version    Print the moorings version.
@@ -20,6 +23,8 @@ hs_dir="$HOME/.hammerspoon"
 link="$hs_dir/moorings"
 init="$hs_dir/init.lua"
 agent="$HOME/Library/LaunchAgents/moorings.keepalive.plist"
+launcher="$HOME/Applications/moorings.app"
+launcher_id="com.dcadolph.moorings.launcher"
 launchctl="${MOORINGS_LAUNCHCTL:-/bin/launchctl}"
 apps="${MOORINGS_APPS:-/Applications $HOME/Applications}"
 logs="${MOORINGS_LOGS:-$HOME/Library/Logs/moorings}"
@@ -87,6 +92,69 @@ ours() {
 	return 1
 }
 
+# ours_launcher reports whether $launcher is the bundle setup builds.
+ours_launcher() {
+	[ -f "$launcher/Contents/Info.plist" ] && grep -qF "<string>$launcher_id</string>" \
+		"$launcher/Contents/Info.plist"
+}
+
+# build_launcher writes moorings.app, which starts Hammerspoon or, when it is already running,
+# opens the moorings settings window.
+build_launcher() {
+	if [ -e "$launcher" ] && ! ours_launcher; then
+		echo "Left $launcher alone: it is not the app setup makes."
+		return 0
+	fi
+	contents="$launcher/Contents"
+	rm -rf "$launcher"
+	mkdir -p "$contents/MacOS" "$contents/Resources"
+	cat >"$contents/Info.plist" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>moorings</string>
+	<key>CFBundleIconFile</key>
+	<string>moorings</string>
+	<key>CFBundleIdentifier</key>
+	<string>$launcher_id</string>
+	<key>CFBundleName</key>
+	<string>moorings</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$version</string>
+	<key>LSUIElement</key>
+	<true/>
+</dict>
+</plist>
+PLIST
+	cat >"$contents/MacOS/moorings" <<'LAUNCH'
+#!/bin/sh
+# moorings starts Hammerspoon, which loads moorings, or opens the moorings settings window when
+# Hammerspoon is already running.
+if "${MOORINGS_PGREP:-/usr/bin/pgrep}" -xq Hammerspoon; then
+	exec "${MOORINGS_OPEN:-/usr/bin/open}" "hammerspoon://moorings-open"
+fi
+exec "${MOORINGS_OPEN:-/usr/bin/open}" -a Hammerspoon
+LAUNCH
+	chmod +x "$contents/MacOS/moorings"
+	if command -v sips >/dev/null 2>&1 && command -v iconutil >/dev/null 2>&1; then
+		work="$(mktemp -d)"
+		mkdir "$work/moorings.iconset"
+		for size in 16 32 128 256 512; do
+			sips -z "$size" "$size" "$files/app-icon.png" \
+				--out "$work/moorings.iconset/icon_${size}x${size}.png" >/dev/null
+			sips -z "$((size * 2))" "$((size * 2))" "$files/app-icon.png" \
+				--out "$work/moorings.iconset/icon_${size}x${size}@2x.png" >/dev/null
+		done
+		iconutil -c icns "$work/moorings.iconset" -o "$contents/Resources/moorings.icns"
+		rm -rf "$work"
+	fi
+	echo "Added $launcher"
+}
+
 # backup copies init.lua aside before it changes and prints where.
 backup() {
 	copy="$init.moorings-backup-$(date +%Y%m%d-%H%M%S)"
@@ -128,7 +196,8 @@ setup() {
 		} >>"$init"
 		echo "Added moorings to $init"
 	fi
-	echo "Done. Open Hammerspoon, or choose Reload from its menu if it is running."
+	build_launcher
+	echo "Done. Open moorings from Applications, or choose Reload from its menu if it is running."
 }
 
 doctor() {
@@ -159,7 +228,7 @@ doctor() {
 	if pgrep -xq Hammerspoon 2>/dev/null; then
 		echo "ok    Hammerspoon is running"
 	else
-		echo "warn  Hammerspoon is not running. Open it to start moorings."
+		echo "warn  Hammerspoon is not running. Open moorings from Applications to start it."
 	fi
 
 	if ours; then
@@ -175,6 +244,13 @@ doctor() {
 		echo "ok    init.lua loads moorings"
 	else
 		echo "FAIL  $init does not load moorings. Run: moorings setup"
+		failed=1
+	fi
+
+	if ours_launcher; then
+		echo "ok    $launcher"
+	else
+		echo "FAIL  $launcher is missing. Run: moorings setup"
 		failed=1
 	fi
 
@@ -205,6 +281,11 @@ uninstall() {
 		echo "Removed the moorings lines from $init"
 	elif [ -f "$init" ] && grep -q 'require("anchors")' "$init"; then
 		echo "init.lua loads moorings with lines setup did not add. Delete them by hand."
+	fi
+
+	if ours_launcher; then
+		rm -rf "$launcher"
+		echo "Removed $launcher"
 	fi
 
 	if [ -f "$agent" ]; then

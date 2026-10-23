@@ -2611,7 +2611,8 @@ local function menu()
     },
     {
       title = "Quit moorings",
-      tooltip = "Stop moorings and Hammerspoon until you next log in.",
+      tooltip = "Stop moorings and Hammerspoon until you next log in. "
+        .. "Open moorings from Applications to start it again.",
       fn = safe(M.quit),
     },
   }) do
@@ -2695,6 +2696,8 @@ function M.start()
   M.filter:subscribe(wf.windowMoved, wake)
   workspaces.attach(M)
   settings.attach(M, actions, workspaces)
+  -- moorings.app sends this link when moorings is already running.
+  hs.urlevent.bind("moorings-open", safe(settings.open))
   updates.attach(M)
   selftest.attach(M)
   M.screens = hs.screen.watcher.new(safe(function()

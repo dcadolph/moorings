@@ -75,10 +75,11 @@ git clone https://github.com/dcadolph/moorings.git ~/src/moorings
 **2. Wire moorings into Hammerspoon.** It is safe to run twice. With Homebrew run
 `moorings setup`, from a clone run `~/src/moorings/moorings setup`. Setup links
 `~/.hammerspoon/moorings` to the files and adds three marked lines to
-`~/.hammerspoon/init.lua`, backing it up first. `moorings doctor` checks the result. With a clone
+`~/.hammerspoon/init.lua`, backing it up first. It also adds moorings to `~/Applications`, so
+Spotlight and Launchpad find it. `moorings doctor` checks the result. With a clone
 the link means an edit in the repo takes effect on the next Reload.
 
-**3. Start Hammerspoon and allow it.** Open Hammerspoon from Applications. macOS asks for
+**3. Start moorings and allow it.** Open moorings from Applications or Spotlight. macOS asks for
 Accessibility access. Click Open System Settings, switch Hammerspoon on under Privacy &
 Security, then Accessibility. Quit Rectangle first if you use it, since both apps move windows.
 If the macOS prompt was closed, moorings shows a warning sign in the menu bar and a banner.
@@ -116,14 +117,15 @@ moorings updates. To update by hand, run `brew upgrade moorings` or
 was checked on, the top of the menu says so and offers Hammerspoon's own update check.
 
 To remove moorings, choose Quit moorings, then run `moorings uninstall`. It removes the link, the
-lines setup added to `init.lua` and the restart helper, and leaves anything else alone. With
-Homebrew, `brew uninstall moorings` afterward removes the files.
+lines setup added to `init.lua`, moorings in Applications and the restart helper, and leaves
+anything else alone. With Homebrew, `brew uninstall moorings` afterward removes the files.
 
 Moorings keeps Hammerspoon running. A small helper checks every 30 seconds and starts Hammerspoon
 again if it quit or crashed, without reopening apps you closed. It is a shell command, not an app,
 so System Settings lists it under Login Items as sh. Quit moorings removes the helper and quits
-Hammerspoon until your next login. To stop the restarts and keep Hammerspoon running, untick
-Settings, Restart if it stops. If moorings was deleted without Quit moorings, the helper stops
+Hammerspoon until your next login. Open moorings from Applications to start it sooner. Opening
+it while it runs shows the settings window. To stop the restarts and keep Hammerspoon running,
+untick Settings, Restart if it stops. If moorings was deleted without Quit moorings, the helper stops
 restarting Hammerspoon on its own. Remove its file with:
 
 ```sh
@@ -185,7 +187,7 @@ Reload and Quit moorings. Update moorings shows above them all while a new relea
 | Workspaces                    | Saved layouts, each with Recall, a display tie, Replace and Delete, then Save current layout.                                                                                            |
 | Settings                      | Settings window, the fullscreen and snapping toggles, Keep Hammerspoon up to date, Restart if it stops, the two update checks, Keymap, Ignore frontmost app, Icon, Edit config, Console. |
 | Reload                        | Reloads the Hammerspoon config once every moorings file compiles.                                                                                                                        |
-| Quit moorings                 | Stops moorings and Hammerspoon, and the restart helper with them, until the next login.                                                                                                  |
+| Quit moorings                 | Stops moorings and Hammerspoon, and the restart helper with them, until the next login or until you open moorings from Applications.                                                     |
 
 Tidy keeps the windows in their current left-to-right order and then leaves them alone. Undo
 tidy restores the position each window had before the first Fill, Tidy or window action since

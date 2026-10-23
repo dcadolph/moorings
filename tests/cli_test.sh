@@ -167,7 +167,7 @@ fresh 7
 prefix="$scratch/brew"
 cellar="$prefix/Cellar/moorings/9.9.9"
 mkdir -p "$cellar/bin" "$cellar/share/moorings" "$prefix/bin" "$prefix/opt"
-cp "$repo"/*.lua "$cellar/share/moorings/"
+cp "$repo"/*.lua "$repo"/*.png "$cellar/share/moorings/"
 cp "$cli" "$cellar/bin/moorings"
 ln -s ../Cellar/moorings/9.9.9 "$prefix/opt/moorings"
 ln -s ../Cellar/moorings/9.9.9/bin/moorings "$prefix/bin/moorings"
@@ -284,6 +284,54 @@ EOF
 	"$cli" selftest --bogus >/dev/null 2>&1
 	check "t9 bad flag" [ $? -eq 2 ]
 fi
+
+# Test 10: setup adds moorings.app, a second setup rebuilds it in place, doctor checks it, the
+# app starts Hammerspoon or opens settings when Hammerspoon runs, uninstall removes it, and an
+# app setup did not make is never touched.
+fresh 10
+hammerspoon 1.1.10
+mkdir -p "$HOME/.hammerspoon"
+app="$HOME/Applications/moorings.app"
+"$cli" setup >"$scratch/out10" 2>&1
+check "t10 setup exit" [ $? -eq 0 ]
+check "t10 says added" has "Added $app" "$scratch/out10"
+check "t10 id" has "<string>com.dcadolph.moorings.launcher</string>" "$app/Contents/Info.plist"
+check "t10 no dock" has "<key>LSUIElement</key>" "$app/Contents/Info.plist"
+check "t10 version" has "<string>$want</string>" "$app/Contents/Info.plist"
+check "t10 runnable" test -x "$app/Contents/MacOS/moorings"
+if command -v iconutil >/dev/null 2>&1; then
+	check "t10 icon" test -s "$app/Contents/Resources/moorings.icns"
+fi
+"$cli" setup >/dev/null 2>&1
+check "t10 again exit" [ $? -eq 0 ]
+check "t10 again one app" [ "$(find "$HOME/Applications" -maxdepth 1 -name '*.app' | wc -l)" -eq 1 ]
+"$cli" doctor >"$scratch/out10b" 2>&1
+check "t10 doctor ok" has "ok    $app" "$scratch/out10b"
+
+printf '#!/bin/sh\necho "$@" >>"%s/open.log"\n' "$HOME" >"$HOME/open"
+printf '#!/bin/sh\nexit 1\n' >"$HOME/pgrep-none"
+printf '#!/bin/sh\nexit 0\n' >"$HOME/pgrep-some"
+chmod +x "$HOME/open" "$HOME/pgrep-none" "$HOME/pgrep-some"
+MOORINGS_OPEN="$HOME/open" MOORINGS_PGREP="$HOME/pgrep-none" "$app/Contents/MacOS/moorings"
+check "t10 starts hammerspoon" [ "$(tail -n 1 "$HOME/open.log")" = "-a Hammerspoon" ]
+MOORINGS_OPEN="$HOME/open" MOORINGS_PGREP="$HOME/pgrep-some" "$app/Contents/MacOS/moorings"
+check "t10 opens settings" [ "$(tail -n 1 "$HOME/open.log")" = "hammerspoon://moorings-open" ]
+
+"$cli" uninstall >"$scratch/out10c" 2>&1
+check "t10 uninstall exit" [ $? -eq 0 ]
+check "t10 removed" test ! -e "$app"
+check "t10 says removed" has "Removed $app" "$scratch/out10c"
+"$cli" doctor >"$scratch/out10d" 2>&1
+check "t10 doctor fails" has "FAIL  $app is missing. Run: moorings setup" "$scratch/out10d"
+
+mkdir -p "$app/Contents"
+printf '<string>com.example.other</string>\n' >"$app/Contents/Info.plist"
+"$cli" setup >"$scratch/out10e" 2>&1
+check "t10 foreign setup exit" [ $? -eq 0 ]
+check "t10 foreign kept" [ "$(cat "$app/Contents/Info.plist")" = "<string>com.example.other</string>" ]
+check "t10 foreign says" has "Left $app alone" "$scratch/out10e"
+"$cli" uninstall >/dev/null 2>&1
+check "t10 foreign survives uninstall" test -f "$app/Contents/Info.plist"
 
 echo "$passes checks passed, $failures failed"
 [ "$failures" -eq 0 ]

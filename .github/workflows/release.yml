@@ -49,7 +49,7 @@ jobs:
             depends_on :macos
 
             def install
-              pkgshare.install Dir["*.lua", "*.svg", "*.html"], "README.md", "FEATURES.md", "LICENSE"
+              pkgshare.install Dir["*.lua", "*.svg", "*.html", "*.png"], "README.md", "FEATURES.md", "LICENSE"
               bin.install "moorings"
             end
 

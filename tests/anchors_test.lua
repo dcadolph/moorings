@@ -4766,6 +4766,21 @@ tests[#tests + 1] = function()
   check("t200 once in menu", select(2, titles(items):gsub("harbormaster", "")) == 1)
 end
 
+-- Test 201: The moorings-open link from moorings.app opens the settings window, a second link
+-- brings that window forward without a second one, and Quit moorings says how to start again.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  anchors.start()
+  anchors.path = function(file) return "./" .. file end
+  check("t201 bound", type(world.urls["moorings-open"]) == "function")
+  world.urls["moorings-open"]("moorings-open", {})
+  check("t201 opens", world.views == 1 and world.view.showCalls == 1, tostring(world.views))
+  world.urls["moorings-open"]("moorings-open", {})
+  check("t201 one window", world.views == 1 and world.view.showCalls == 2, tostring(world.views))
+  check("t201 quit tooltip", item("Quit moorings").tooltip == "Stop moorings and Hammerspoon "
+    .. "until you next log in. Open moorings from Applications to start it again.")
+end
+
 for i, t in ipairs(tests) do
   local ok, err = pcall(t)
   if not ok then
