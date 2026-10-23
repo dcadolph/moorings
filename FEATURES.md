@@ -1,7 +1,8 @@
 # What you get
 
-Moorings is free and runs inside [Hammerspoon](https://www.hammerspoon.org). Everything here works
-on any display unless it says ultrawide. The [README](README.md) has the details for each part.
+Moorings is a free, native menu bar app for macOS 14 or later, signed and notarized. Everything
+here works on any display unless it says ultrawide. The [README](README.md) has the details for
+each part.
 
 ## Window actions on every display
 
@@ -10,10 +11,10 @@ on any display unless it says ultrawide. The [README](README.md) has the details
   and next display. Spectacle's keymap is one menu choice away.
 - Fourths, sixths, eighths, ninths, corner thirds, almost maximize and center prominently in the
   Window folder, each ready for a key of your choice.
-- Your own sizes, as shares of the screen or in points, each with its own shortcut.
+- Your own sizes, as shares of the screen, each with its own shortcut.
 - A gap around and between the windows an action places.
-- Any action from a link such as `hammerspoon://moorings?action=left-half`, so a script, a
-  launcher or a Stream Deck can run it.
+- Any action from a link such as `moorings://action?name=left-half`, so a script, a launcher or a
+  Stream Deck can run it.
 - Extra mouse buttons bound to actions.
 - Shortcuts that switch off while an app you name is in front.
 
@@ -45,10 +46,10 @@ on any display unless it says ultrawide. The [README](README.md) has the details
 - Width and height presets and steppers, with a label that says how wide the channel is.
 - Click an anchored window's green button to lift it over the channel at full height, and click
   again to lower it.
-- Drag an anchored window away and moorings lets it go, with a message that says how to bring it
+- Drag an anchored window away and Moorings lets it go, with a message that says how to bring it
   back.
 - An app with a minimum width keeps it, and its strip grows to fit.
-- Anchored apps that are not running open in the background at login.
+- Anchored apps that are not running open in the background at launch.
 - A side with nothing anchored gives its space to the channel.
 
 ## The channel
@@ -63,31 +64,25 @@ on any display unless it says ultrawide. The [README](README.md) has the details
 
 ## Settings window
 
-- Record shortcuts, edit custom sizes, manage workspaces, and pick the icon, keymap, snapping and
-  gap without touching the Lua file.
+- Record shortcuts, edit custom sizes, manage workspaces, bind mouse buttons, and pick the keymap,
+  snapping, gap, fullscreen handling and one of twelve themes.
+- Export every choice to one JSON file and import it on another Mac.
 
 ## Out of sight
 
-- One mark in the menu bar. Hammerspoon's own menu bar and Dock icons stay hidden.
-- Messages appear in a moorings banner at the top right, not in macOS notifications, so there is
-  no notification permission to grant.
-- Hammerspoon starts at login, installs its own updates quietly, and starts again within 30
-  seconds if it quits or crashes. Quit moorings stops all of it until the next login.
-- moorings sits in Applications, so Spotlight and Launchpad find it. Opening it starts moorings
-  after a Quit, or shows the settings window while moorings runs.
-- Moorings checks once a day for its own new release and offers it at the top of the menu. One
-  click updates a Homebrew install or a clone and reloads, and a message after the reload says
-  which version is running. Nothing installs without that click.
-- Installs with `brew install dcadolph/tap/moorings`. `moorings setup` wires it into Hammerspoon
-  and adds it to Applications, `moorings doctor` checks the wiring and `moorings uninstall` takes
-  it out.
-- `moorings selftest` checks the layout against real TextEdit windows inside Hammerspoon, then
-  puts your slots back.
+- One sailboat in the menu bar and no Dock icon.
+- Messages appear in a themed banner at the top right, not in macOS notifications, so there is no
+  notification permission to grant.
+- Launch at login is one menu switch. Opening Moorings while it runs shows the settings window.
+- Moorings checks once a day for a new release and offers it at the top of the menu. The offer
+  opens the release page, and Homebrew or the zip installs it. Nothing installs on its own.
+- Installs with `brew install --cask dcadolph/tap/moorings`, or from the signed and notarized zip
+  on each release.
+- `moorings://selftest` checks the layout against real TextEdit windows, then puts your slots back.
 - The layout is checked four times a second while windows change and every two seconds when
   nothing is moving.
 - Nothing moves while the mouse button is down, and a window that keeps fighting its place is
   left alone for a minute.
 - Without Accessibility access, a warning sign and one banner lead to the right settings page.
-- Reload refuses a config with an error, so a typo cannot stop the layout.
-- Tip the harbormaster, just above Quit moorings, opens the GitHub Sponsors page. Nothing asks
-  for a tip, and an empty tipUrl in the config hides the entry.
+- Tip the harbormaster, just above Quit Moorings, opens the GitHub Sponsors page. Nothing asks for
+  a tip.
