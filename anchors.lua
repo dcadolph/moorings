@@ -63,6 +63,9 @@ M.config = {
   minAspect = 2.2,
   -- tolerance is how many points a frame may drift before it is corrected.
   tolerance = 2,
+  -- tipUrl is the page the Tip the harbormaster entry opens. The entry is hidden while it
+  -- is empty.
+  tipUrl = "https://github.com/sponsors/dcadolph",
 }
 
 -- presets are the width pairs offered in the menu.
@@ -2554,8 +2557,9 @@ local function liftItems(pins, frozen)
 end
 
 -- menu builds the menu bar menu from current state: the two layout controls, a Re-moor entry
--- per released pin, the frontmost app's entry, a folder per job, and Reload. An update and an
--- old Hammerspoon show first. While Accessibility is missing it starts with the way to grant it.
+-- per released pin, the frontmost app's entry, a folder per job, Reload, and the tip entry when
+-- the config names a page. An update and an old Hammerspoon show first. While Accessibility is
+-- missing it starts with the way to grant it.
 local function menu()
   local frozen = paused()
   local pins = pinWindows()
@@ -2612,6 +2616,15 @@ local function menu()
     },
   }) do
     items[#items + 1] = it
+  end
+  local tip = M.config.tipUrl
+  if type(tip) == "string" and tip ~= "" then
+    table.insert(items, #items, {
+      title = "Tip the harbormaster…",
+      tooltip = "Keeping moorings working as macOS and Hammerspoon change takes time. "
+        .. "Tips help support that work.",
+      fn = safe(function() hs.urlevent.openURL(tip) end),
+    })
   end
   local top = updates.menuItems()
   if #top > 0 then

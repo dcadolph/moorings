@@ -43,6 +43,7 @@ to my ultrawide way of working.
 - [Install](#install)
 - [Quickstart](#quickstart)
 - [Docs](#docs)
+- [Support](#support)
 - [License](#license)
 
 ## Requirements
@@ -515,6 +516,13 @@ clone, then cut the release:
 ./moorings selftest --control
 gh release create vX.Y.Z --generate-notes --title "vX.Y.Z: Short Description"
 ```
+
+## Support
+
+moorings is free and will stay free. If I ever stop maintaining it, I'll archive it, and the code
+stays open. Keeping it working as macOS and Hammerspoon change takes time. If you want to support
+that work, you can [tip the harbormaster](https://github.com/sponsors/dcadolph) through GitHub
+Sponsors.
 
 ## License
 

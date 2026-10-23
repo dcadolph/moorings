@@ -229,7 +229,10 @@ local function install(...)
         return tap
       end,
     },
-    urlevent = { bind = function(name, fn) world.urls[name] = fn end },
+    urlevent = {
+      bind = function(name, fn) world.urls[name] = fn end,
+      openURL = function(u) world.openedURL = u end,
+    },
     focus = function() world.hsFocused = true end,
     json = { encode = function(t) world.model = t return "{}" end },
     webview = {
@@ -1766,7 +1769,8 @@ tests[#tests + 1] = function()
   anchors.start()
   focus(w)
   check("t79 top", titles(world.bar.menu()) == "⚓ Weigh anchor (let windows drift),Re-moor now,Anchor Safari,-,"
-    .. "Anchored apps,Window,Lift,Widths,Heights,Workspaces,Settings,-,Reload,Quit moorings",
+    .. "Anchored apps,Window,Lift,Widths,Heights,Workspaces,Settings,-,Reload,Tip the harbormaster…,"
+    .. "Quit moorings",
     titles(world.bar.menu()))
   check("t79 families", titles(folder("Window")) == "Halves,Quarters,Thirds,Fourths,Grids,"
     .. "Size and move,Displays,Custom sizes,Organize", titles(folder("Window")))
@@ -4732,6 +4736,34 @@ tests[#tests + 1] = function()
   world.trusted = true
   world.poll()
   check("t199 after grant", world.alertTitle == hint and world.alerts == 2, tostring(world.alertTitle))
+end
+
+-- Test 200: The shipped config names the sponsor page. The tip entry stays hidden while the
+-- config names no page. Once it names one, the entry sits just above Quit moorings, says what
+-- a tip supports, and opens that page.
+tests[#tests + 1] = function()
+  local tip = "Tip the harbormaster…"
+  install(ultrawide())
+  package.loaded.anchors = nil
+  anchors = require("anchors")
+  check("t200 shipped page", anchors.config.tipUrl == "https://github.com/sponsors/dcadolph")
+
+  install(ultrawide())
+  anchors.config.tipUrl = ""
+  anchors.start()
+  check("t200 hidden", item(tip) == nil, titles(world.bar.menu()))
+
+  install(ultrawide())
+  anchors.config.tipUrl = "https://example.test/tip/"
+  anchors.start()
+  local items = world.bar.menu()
+  check("t200 above quit", items[#items - 1].title == tip and items[#items].title == "Quit moorings"
+    and items[#items - 2].title == "Reload", titles(items))
+  check("t200 tooltip", item(tip).tooltip == "Keeping moorings working as macOS and Hammerspoon "
+    .. "change takes time. Tips help support that work.")
+  click(tip)
+  check("t200 opens page", world.openedURL == "https://example.test/tip/", tostring(world.openedURL))
+  check("t200 once in menu", select(2, titles(items):gsub("harbormaster", "")) == 1)
 end
 
 for i, t in ipairs(tests) do

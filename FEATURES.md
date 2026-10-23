@@ -84,3 +84,5 @@ on any display unless it says ultrawide. The [README](README.md) has the details
   left alone for a minute.
 - Without Accessibility access, a warning sign and one banner lead to the right settings page.
 - Reload refuses a config with an error, so a typo cannot stop the layout.
+- Tip the harbormaster, just above Quit moorings, opens the GitHub Sponsors page. Nothing asks
+  for a tip, and an empty tipUrl in the config hides the entry.
