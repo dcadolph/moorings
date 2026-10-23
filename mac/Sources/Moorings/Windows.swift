@@ -113,6 +113,48 @@ final class Windows {
         return (found, found.first { $0.id == focusedID })
     }
 
+    // explain returns one line per app with on-screen windows saying what the scan reads from it,
+    // and why each of its windows is kept or dropped.
+    func explain(_ screens: Screens) -> [String] {
+        let order = Self.onScreen()
+        let rank = Set(order.map(\.id))
+        let pids = Set(order.map(\.pid))
+        var out: [String] = []
+        for running in NSWorkspace.shared.runningApplications where pids.contains(running.processIdentifier) {
+            let bundle = running.bundleIdentifier ?? "?"
+            let app = appElement(running.processIdentifier)
+            let start = Date()
+            var raw: CFTypeRef?
+            let err = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw)
+            let ms = Int(Date().timeIntervalSince(start) * 1000)
+            let els = raw as? [AXUIElement] ?? []
+            let cg = order.filter { $0.pid == running.processIdentifier }.map(\.id)
+            out.append("app \(bundle) pid=\(running.processIdentifier) hidden=\(running.isHidden) ax=\(err.rawValue) \(ms)ms axWindows=\(els.count) cgWindows=\(cg)")
+            for el in els {
+                guard let id = Self.id(el) else {
+                    out.append("  drop: no window id")
+                    continue
+                }
+                let why: String
+                if !rank.contains(id) {
+                    why = "drop: not on screen"
+                } else if Self.string(el, kAXRoleAttribute) != kAXWindowRole {
+                    why = "drop: role \(Self.string(el, kAXRoleAttribute) ?? "nil")"
+                } else if !Self.document(el) {
+                    why = "drop: subrole \(Self.string(el, kAXSubroleAttribute) ?? "nil")"
+                } else if Self.bool(el, kAXMinimizedAttribute) {
+                    why = "drop: minimized"
+                } else if Self.frame(el) == nil {
+                    why = "drop: no frame"
+                } else {
+                    why = "keep"
+                }
+                out.append("  window \(id) \(why)")
+            }
+        }
+        return out
+    }
+
     // move puts the window with id at frame. Size goes first and again last, so a window crossing
     // displays lands at the size asked for.
     func move(_ id: WindowID, to frame: Frame) {

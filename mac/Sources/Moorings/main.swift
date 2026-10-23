@@ -304,6 +304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // notify shows a banner in the chosen theme. A click on it runs action.
     func notify(_ title: String, _ body: String, action: (@MainActor () -> Void)? = nil) {
+        logger.notice("banner: \(body, privacy: .public)")
         banner.show(title, body, palette: anchors.choices.theme.palette, action: action)
     }
 
@@ -419,6 +420,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         for w in windows.scan(screens).windows {
             logger.notice("window \(w.id) \(w.bundle, privacy: .public) frame=\(w.frame.description, privacy: .public) wide=\(w.onUltrawide) main=\(w.isMain) panel=\(w.isFilePanel) pinned=\(self.anchors.pinned(w)) castOff=\(self.anchors.isCastOff(w.id))")
+        }
+        for line in windows.explain(screens) {
+            logger.notice("scan \(line, privacy: .public)")
         }
     }
 
