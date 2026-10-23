@@ -3,6 +3,8 @@ SANDBOX_APP := .build/sandbox/Moorings.app
 SIGN_ID ?= -
 ENTITLEMENTS ?=
 BUILD ?= 1
+VERSION ?=
+MOORINGS_SUPPORT_URL ?=
 PLIST := $(APP)/Contents/Info.plist
 ARCHS ?=
 ARCH_FLAGS := $(foreach arch,$(ARCHS),--arch $(arch))
@@ -39,6 +41,8 @@ app: $(ICNS)
 	cp "$$(swift build -c release $(ARCH_FLAGS) --show-bin-path)/Moorings" $(APP)/Contents/MacOS/Moorings
 	cp Sources/Moorings/Info.plist $(PLIST)
 	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion '$(BUILD)'" $(PLIST)
+	$(if $(VERSION),/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString '$(VERSION)'" $(PLIST))
+	/usr/libexec/PlistBuddy -c "Set :MooringsSupportURL '$(MOORINGS_SUPPORT_URL)'" $(PLIST)
 	codesign --force --sign "$(SIGN_ID)" $(SIGN_FLAGS) $(if $(ENTITLEMENTS),--entitlements $(ENTITLEMENTS)) $(APP)
 
 sandbox:

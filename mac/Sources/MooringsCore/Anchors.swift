@@ -72,6 +72,8 @@ public struct Choices: Equatable, Sendable, Codable {
     public var theme: ThemeName = .harborDark
     // workspaces holds the saved workspaces by name.
     public var workspaces: [String: Workspace] = [:]
+    // checkUpdates reports whether moorings looks for a new release once a day.
+    public var checkUpdates: Bool = true
 
     // init builds a set of choices.
     public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
@@ -87,7 +89,7 @@ public struct Choices: Equatable, Sendable, Codable {
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
-        case ignores, snap, theme, workspaces
+        case ignores, snap, theme, workspaces, checkUpdates
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -108,6 +110,7 @@ public struct Choices: Equatable, Sendable, Codable {
         snap = (try? c.decodeIfPresent(Bool.self, forKey: .snap)) ?? true
         theme = (try? c.decodeIfPresent(ThemeName.self, forKey: .theme)) ?? .harborDark
         workspaces = (try? c.decodeIfPresent([String: Workspace].self, forKey: .workspaces)) ?? [:]
+        checkUpdates = (try? c.decodeIfPresent(Bool.self, forKey: .checkUpdates)) ?? true
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -127,6 +130,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(snap, forKey: .snap)
         try c.encode(theme, forKey: .theme)
         try c.encode(workspaces, forKey: .workspaces)
+        try c.encode(checkUpdates, forKey: .checkUpdates)
     }
 
     // encode returns choices as sorted JSON for saving.

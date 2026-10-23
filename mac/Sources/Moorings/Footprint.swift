@@ -148,7 +148,8 @@ final class DragSnap {
             case let .park(key):
                 guard let slot = SlotKey(rawValue: key) else { return }
                 app.anchors.assign(slot, w.bundle)
-                app.logger.notice("TODO banner: \(w.bundle, privacy: .public) anchored by an Option drop")
+                app.notify("\(app.appName(w.bundle)) anchored", "It holds the \(slot.title.lowercased()) slot now. "
+                    + "Unanchor it from the Moorings menu to free the slot.")
                 app.save()
             case let .zone(name):
                 let screens = Screens.current()

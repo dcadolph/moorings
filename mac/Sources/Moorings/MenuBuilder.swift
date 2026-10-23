@@ -47,11 +47,17 @@ struct MenuBuilder {
     // items returns the top-level entries.
     func items() -> [NSMenuItem] {
         var out: [NSMenuItem] = []
+        if let update = app.update {
+            out.append(ActionItem("Update available: \(update.tag)", tip: "Open the release page to download it.") {
+                NSWorkspace.shared.open(update.page)
+            })
+            out.append(.separator())
+        }
         if !app.windows.trusted {
-            out.append(ActionItem("Grant Accessibility access",
-                                  tip: "Moorings needs Accessibility access before it can move windows.") {
-                let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-                _ = AXIsProcessTrustedWithOptions(options)
+            out.append(ActionItem("⚠ Grant Accessibility access",
+                                  tip: "Moorings needs Accessibility access before it can move windows. This opens "
+                                      + "Privacy & Security.") {
+                NSWorkspace.shared.open(AppDelegate.accessibilityPane)
             })
             out.append(.separator())
         }
@@ -95,6 +101,16 @@ struct MenuBuilder {
         out.append(ActionItem("Launch at login", tip: "Open Moorings when you log in.", checked: app.launchAtLogin) {
             app.setLaunchAtLogin(!app.launchAtLogin)
         })
+        out.append(ActionItem("Check for updates", tip: "Look for a new release once a day and offer it here.",
+                              checked: anchors.choices.checkUpdates) {
+            anchors.choices.checkUpdates.toggle()
+            app.save()
+        })
+        if let tip = AppDelegate.supportURL {
+            out.append(ActionItem("Tip the harbormaster", tip: "Moorings is free. A tip keeps the harbor running.") {
+                NSWorkspace.shared.open(tip)
+            })
+        }
         out.append(ActionItem("Quit Moorings", tip: "Stop Moorings until you open it again from Applications or "
                 + "next log in. Your slots, widths and heights are kept.") {
             NSApp.terminate(nil)

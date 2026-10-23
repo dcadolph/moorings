@@ -27,6 +27,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var watcher = Watcher { [weak self] in self?.wake() }
     // actions applies window actions to the focused window.
     lazy var actions = ActionRunner(app: self)
+    // accessibilityPane is the Privacy and Security pane that grants Accessibility.
+    static let accessibilityPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+    // releasesPage is the project's releases page.
+    static let releasesPage = URL(string: "https://github.com/dcadolph/moorings/releases")!
+    // checkedKey and versionKey are the defaults keys for the last update check and the version
+    // that last ran.
+    static let checkedKey = "updateChecked"
+    static let versionKey = "lastVersion"
+    // supportURL is the https tip link baked into the bundle, nil when the build has none.
+    static let supportURL: URL? = {
+        guard let text = (Bundle.main.object(forInfoDictionaryKey: "MooringsSupportURL") as? String)?
+            .trimmingCharacters(in: .whitespaces), let url = URL(string: text), url.scheme == "https", url.host != nil
+        else { return nil }
+        return url
+    }()
+
+    // banner shows what moorings did.
+    let banner = BannerPanel()
+    // update is a newer release found by the daily check, nil when none.
+    var update: ReleaseInfo?
+    // launched is when moorings started.
+    private let launched = Date()
+    // wasTrusted is the Accessibility state at the last tick, to catch the grant.
+    private var wasTrusted = true
+    // updateTimer runs the daily update check.
+    private var updateTimer: Timer?
     // tap watches the primary mouse button for green button clicks and drags.
     let tap = EventTap()
     // organizer lays out several windows at once and keeps the workspaces.
@@ -64,8 +90,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                            object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(workspaceChanged(_:)),
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        if !windows.trusted {
+        wasTrusted = windows.trusted
+        showTrust()
+        if !wasTrusted {
             logger.notice("Accessibility is not granted: windows will not move")
+            notify("Moorings needs Accessibility", "Click here to open Privacy & Security, then turn on Moorings so it "
+                + "can move windows.") { NSWorkspace.shared.open(Self.accessibilityPane) }
+        } else {
+            releaseMessage()
+        }
+        updateTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
+            MainActor.assumeIsolated { self.checkUpdate() }
         }
         anchors.launch(now: Self.now)
         _ = organizer
@@ -103,6 +138,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "status": status()
             case "moor": moor()
             case "action": runLink(url)
+            case "banner":
+                let text = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "text" }?.value
+                notify("Moorings", text ?? "")
             case "workspace":
                 let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "name" }?.value
                 organizer.recall(name ?? "")
@@ -127,6 +165,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // tick runs a pass every pollSeconds while windows are changing and every idleSeconds once they
     // have been still for activeSeconds.
     private func tick() {
+        if windows.trusted != wasTrusted {
+            wasTrusted = windows.trusted
+            showTrust()
+            if wasTrusted {
+                tap.start()
+                notify("Moorings is ready", "Accessibility is on. Anchored apps take their slots now.")
+            }
+        }
         let t = Self.now
         if t - woke > Self.activeSeconds && t - polled < Self.idleSeconds {
             return
@@ -154,8 +200,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             apply(move)
         }
         for id in anchors.justReleased {
-            logger.notice("TODO banner: window \(id) was moved by hand: released")
+            logger.notice("window \(id) was moved by hand: released")
+            let name = list.first { $0.id == id }.map { appName($0.bundle) } ?? "The window"
+            let how = Bindings(anchors.choices).map["restore"].map { ",\nor press \($0.spelled)" } ?? ""
+            notify("\(name) released", "Click its green button to put it back\(how).")
         }
+        hintAnchor(screens)
         if !started {
             started = true
             for bundle in anchors.opening() {
@@ -211,6 +261,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         wake()
         moor()
+    }
+
+    // hintKey is the defaults key that records the first anchor hint was shown.
+    static let hintKey = "anchorHint"
+
+    // appName returns the display name of the running app with bundle, the bundle when not found.
+    func appName(_ bundle: String) -> String {
+        NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first?.localizedName ?? bundle
+    }
+
+    // hintAnchor says once how to anchor an app, while an ultrawide is attached and nothing is
+    // anchored. Emptied slots count as a choice.
+    private func hintAnchor(_ screens: Screens) {
+        let defaults = UserDefaults.standard
+        guard screens.wide != nil, anchors.choices.slots.isEmpty, !defaults.bool(forKey: Self.hintKey) else { return }
+        defaults.set(true, forKey: Self.hintKey)
+        notify("Anchor an app to an edge", "Click the app, then choose Anchor and its name near the top of the "
+            + "Moorings menu and pick a slot.")
+    }
+
+    // notify shows a banner in the chosen theme. A click on it runs action.
+    func notify(_ title: String, _ body: String, action: (@MainActor () -> Void)? = nil) {
+        banner.show(title, body, palette: anchors.choices.theme.palette, action: action)
+    }
+
+    // showTrust shows a warning mark on the menu bar icon while Accessibility is missing.
+    private func showTrust() {
+        let name = windows.trusted ? "sailboat" : "exclamationmark.triangle"
+        item.button?.image = NSImage(systemSymbolName: name, accessibilityDescription: "Moorings")
+    }
+
+    // releaseMessage says once that moorings was updated, on the first launch of a new version.
+    private func releaseMessage() {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        let last = UserDefaults.standard.string(forKey: Self.versionKey)
+        UserDefaults.standard.set(version, forKey: Self.versionKey)
+        guard let last, last != version, !version.isEmpty else { return }
+        notify("Moorings \(version)", "Updated from \(last). Click to see what is new.") {
+            NSWorkspace.shared.open(Self.releasesPage.appendingPathComponent("tag/v\(version)"))
+        }
+    }
+
+    // checkUpdate looks for a newer release once a day, a minute after launch at the earliest.
+    private func checkUpdate() {
+        guard anchors.choices.checkUpdates, update == nil else { return }
+        let defaults = UserDefaults.standard
+        let last = defaults.object(forKey: Self.checkedKey) as? Date
+        guard UpdateSchedule.isDue(lastChecked: last, launched: launched, now: Date()),
+              let current = ReleaseVersion(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")
+        else { return }
+        defaults.set(Date(), forKey: Self.checkedKey)
+        let checker = UpdateChecker(client: URLSessionClient(), current: current)
+        Task { @MainActor in
+            do {
+                self.update = try await checker.check()
+            } catch {
+                self.logger.notice("update check failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 
     // save writes the choices to defaults, binds the shortcuts again, then runs a pass so the change

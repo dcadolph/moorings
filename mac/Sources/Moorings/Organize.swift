@@ -123,7 +123,7 @@ final class Organizer {
         for (id, f) in anchors.undo() {
             app.windows.move(id, to: f)
         }
-        app.logger.notice("TODO banner: tidy undone")
+        app.notify("Tidy undone", "Every window is back where it was before it was tidied or moved.")
         app.wake()
     }
 
@@ -180,7 +180,8 @@ final class Organizer {
         if missed > 0 {
             logger.notice("workspace \(name, privacy: .public): \(missed) windows had no running app or display")
         }
-        app.logger.notice("TODO banner: workspace \(name, privacy: .public) recalled")
+        app.notify("Workspace \(name)", missed > 0 ? "Recalled. \(missed) windows had no running app or display."
+            : "Recalled.")
         app.save()
         return true
     }
