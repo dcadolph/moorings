@@ -95,3 +95,12 @@ func testSettingsBackupDecode(test: BackupDecodeCase) {
     #expect(text.contains(#""app" : "moorings""#))
     #expect(text.contains(#""version" : 1"#))
 }
+
+// Swift only: workspaces import untied, since the file may come from another set of displays.
+@Test func testSettingsBackupUntiesWorkspaces() throws {
+    var c = Choices()
+    c.workspaces["Desk"] = Workspace(name: "Desk", setup: "abc")
+    let back = try SettingsBackup.decode(try SettingsBackup.encode(c, exported: Date(timeIntervalSince1970: 0)))
+    #expect(back.workspaces["Desk"] != nil)
+    #expect(back.workspaces["Desk"]?.setup == nil)
+}

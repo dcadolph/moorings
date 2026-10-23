@@ -38,6 +38,7 @@ public struct SettingsBackup: Sendable, Codable, Equatable {
     }
 
     // decode reads a backup file and returns its settings, refusing other apps and newer formats.
+    // Workspaces come back untied, since the file may come from another set of displays.
     public static func decode(_ data: Data) throws -> Choices {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -53,7 +54,11 @@ public struct SettingsBackup: Sendable, Codable, Equatable {
         guard let backup = try? decoder.decode(SettingsBackup.self, from: data) else {
             throw BackupError.unreadable
         }
-        return backup.settings
+        var settings = backup.settings
+        for name in settings.workspaces.keys {
+            settings.workspaces[name]?.setup = nil
+        }
+        return settings
     }
 
     // Header is the part of the file read before trusting the rest.
