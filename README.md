@@ -378,7 +378,8 @@ Run `defaults write com.googlecode.iterm2 DisableWindowSizeSnap -integer 1` to t
 Anchored apps need an ultrawide display, one at least 2.2 times wider than it is tall. Each strip
 holds up to two anchored apps, so there are four slots: Left top, Left bottom, Right top and Right
 bottom. One app on a side fills the strip's full height. Two split it 50/50. Each slot row in the
-menu shows its app and opens a list of running apps plus Empty. Picking an app that already sits
+menu shows its app and opens a list of running apps plus Empty. Menu bar apps without a Dock
+icon are listed while they show a window. Picking an app that already sits
 in another slot moves it, so an app is never in two slots. An app that is anchored but not running
 leaves its half empty, and the other app keeps its half.
 

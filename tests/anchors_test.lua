@@ -320,7 +320,7 @@ local function install(...)
         for _, w in ipairs(world.windows) do
           if not seen[w.app] then
             seen[w.app] = true
-            list[#list + 1] = newApp(w.app)
+            list[#list + 1] = newApp(w.app, world.kinds and world.kinds[w.app])
           end
         end
         for _, app in ipairs(world.apps) do list[#list + 1] = app end
@@ -4944,6 +4944,18 @@ tests[#tests + 1] = function()
   frameIs("t207 parked frame", w, rightBottom)
   frameIs("t207 iterm top", term, rightTop)
   check("t207 cast off ended", anchors.castOff(w) == false)
+end
+
+-- Test 208: An app without a Dock icon that shows a standard window, as Bitwarden does in its
+-- menu bar mode, is offered for a slot, and one with no window is not.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  world.kinds = { Bitwarden = 0 }
+  world.apps = { newApp("Helper", 0) }
+  addWin("Bitwarden", { x = 1000, y = 100, w = 800, h = 600 })
+  anchors.start()
+  local choices = item("Left bottom: Empty").menu
+  check("t208 choices", titles(choices) == "Empty,Bitwarden,-,Choose app…", titles(choices))
 end
 
 for i, t in ipairs(tests) do

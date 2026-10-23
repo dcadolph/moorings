@@ -2092,12 +2092,19 @@ local function appName(bundle)
   return ok and name or bundle
 end
 
--- runningApps returns the running Dock apps that can be locked, sorted by name.
+-- runningApps returns the running apps that can be locked, sorted by name: Dock apps, and apps
+-- without a Dock icon that show a standard window, as menu bar apps such as Bitwarden do.
 local function runningApps()
-  local list, seen = {}, {}
+  local list, seen, shows = {}, {}, {}
+  for _, w in ipairs(M.filter and M.filter:getWindows() or {}) do
+    local bundle = bundleOf(w)
+    if bundle and w:isStandard() then
+      shows[bundle] = true
+    end
+  end
   for _, app in ipairs(hs.application.runningApplications()) do
     local bundle = app:bundleID()
-    if app:kind() == 1 and not ignoredBundle(bundle) and not seen[bundle] then
+    if (app:kind() == 1 or shows[bundle]) and not ignoredBundle(bundle) and not seen[bundle] then
       seen[bundle] = true
       list[#list + 1] = { bundle = bundle, name = app:name() or bundle }
     end
