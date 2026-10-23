@@ -75,9 +75,19 @@ struct MenuBuilder {
             out.append(front)
         }
         out.append(castItem(focused, wide: screens.wide))
+        let pinned = scan.windows.filter { anchors.pinned($0) }
+        for w in pinned where anchors.isReleased(w.id) {
+            out.append(ActionItem("Re-moor \(appName(w.bundle))", tip: "Put \(appName(w.bundle)) back in its slot. It was "
+                    + "let go when you moved it by hand.", enabled: !paused) {
+                anchors.remoor(w.id)
+                app.wake()
+                app.moor()
+            })
+        }
         out.append(.separator())
         out.append(folder("Anchored apps", anchoredItems(shows: Set(scan.windows.map(\.bundle)))))
         out.append(folder("Window", windowItems()))
+        out.append(folder("Lift", liftItems(pinned)))
         out.append(folder("Widths", widthItems(screens.wide)))
         out.append(folder("Heights", heightItems()))
         out.append(.separator())
@@ -237,6 +247,38 @@ struct MenuBuilder {
             return
         }
         lock(key, bundle)
+    }
+
+    // liftItems builds the Lift folder: an entry per pin with a window, checked while lifted, then
+    // the two fullscreen switches.
+    private func liftItems(_ pinned: [WindowInfo]) -> [NSMenuItem] {
+        var out: [NSMenuItem] = pinned.map { w in
+            ActionItem(appName(w.bundle), tip: "Lift this app over its strip and the channel, or lower it back. Its "
+                    + "green button does the same.", checked: anchors.isLifted(w.id),
+                       enabled: !anchors.choices.paused) {
+                anchors.toggleLift(id: w.id)
+                if anchors.isLifted(w.id) {
+                    app.windows.raise(w.id)
+                }
+                app.wake()
+                app.moor()
+            }
+        }
+        if out.isEmpty {
+            out.append(label("No anchored app has a window", tip: "Anchor an app to lift it here."))
+        }
+        out.append(.separator())
+        out.append(ActionItem("Fullscreen fills the channel", tip: "Turn native fullscreen on a free window into a "
+                + "channel fill, so the strips stay in view.", checked: anchors.choices.fullscreenFills) {
+            anchors.choices.fullscreenFills.toggle()
+            app.save()
+        })
+        out.append(ActionItem("Fullscreen keeps anchored apps in their slots", tip: "Send an anchored app that goes "
+                + "native fullscreen back to its slot.", checked: anchors.choices.pinFullscreenFills) {
+            anchors.choices.pinFullscreenFills.toggle()
+            app.save()
+        })
+        return out
     }
 
     // gapPresets lists the gaps in points the Gap folder offers.

@@ -55,6 +55,9 @@ final class Windows {
     private(set) var elements: [WindowID: AXUIElement] = [:]
     // panels caches whether a window is an open or save panel, read once per window.
     private var panels: [WindowID: Bool] = [:]
+    // zooms caches each window's green button rect with the frame it was read at, so it is asked
+    // for again only when the window moves.
+    private var zooms: [WindowID: (frame: Frame, rect: Frame?)] = [:]
     // apps caches the app element for each process.
     private var apps: [pid_t: AXUIElement] = [:]
     // scanned holds the processes the last scan read windows from.
@@ -91,6 +94,7 @@ final class Windows {
         }
         elements = seen
         panels = panels.filter { seen[$0.key] != nil }
+        zooms = zooms.filter { seen[$0.key] != nil }
         found.sort { rank[$0.id, default: .max] < rank[$1.id, default: .max] }
         if let focusedID, let i = found.firstIndex(where: { $0.id == focusedID }) {
             found.insert(found.remove(at: i), at: 0)
@@ -115,6 +119,26 @@ final class Windows {
     // frame reads where the window with id is now, nil when it cannot be read.
     func frame(_ id: WindowID) -> Frame? {
         elements[id].flatMap { Self.frame($0) }
+    }
+
+    // exitFullScreen asks the window with id to leave native fullscreen.
+    func exitFullScreen(_ id: WindowID) {
+        guard let el = elements[id] else { return }
+        AXUIElementSetAttributeValue(el, "AXFullScreen" as CFString, kCFBooleanFalse)
+    }
+
+    // front returns the on-screen windows at the normal layer with their frames, front-most first.
+    static func front() -> [(id: WindowID, frame: Frame)] {
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        return list.compactMap { entry in
+            guard entry[kCGWindowLayer as String] as? Int == 0,
+                  let id = entry[kCGWindowNumber as String] as? WindowID,
+                  let bounds = entry[kCGWindowBounds as String] as? [String: Double],
+                  let x = bounds["X"], let y = bounds["Y"], let w = bounds["Width"], let h = bounds["Height"]
+            else { return nil }
+            return (id, Frame(x: x, y: y, w: w, h: h))
+        }
     }
 
     // raise brings the window with id to the front and activates its app.
@@ -157,6 +181,11 @@ final class Windows {
         else { return nil }
         let panel = panels[id] ?? Self.filePanel(el)
         panels[id] = panel
+        var zoom = zooms[id]
+        if zoom == nil || zoom!.frame != frame {
+            zoom = (frame, Self.element(el, kAXZoomButtonAttribute).flatMap { Self.frame($0) })
+            zooms[id] = zoom
+        }
         return WindowInfo(
             id: id,
             bundle: bundle,
@@ -164,7 +193,8 @@ final class Windows {
             onUltrawide: screens.ultrawide != nil && screens.index(frame) == screens.ultrawide,
             isMain: Self.bool(el, kAXMainAttribute),
             isFilePanel: panel,
-            isFullScreen: Self.bool(el, "AXFullScreen")
+            isFullScreen: Self.bool(el, "AXFullScreen"),
+            zoomRect: zoom?.rect
         )
     }
 

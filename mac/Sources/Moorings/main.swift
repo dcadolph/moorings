@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private lazy var watcher = Watcher { [weak self] in self?.wake() }
     // actions applies window actions to the focused window.
     lazy var actions = ActionRunner(app: self)
+    // tap watches the primary mouse button for green button clicks and drags.
+    let tap = EventTap()
     // hotkeys runs a window action when its shortcut is pressed.
     lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
     // item is the menu bar status item.
@@ -62,6 +64,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             logger.notice("Accessibility is not granted: windows will not move")
         }
         anchors.launch(now: Self.now)
+        tap.onDown = { [weak self] p, option in self?.zoomDown(p, option: option) ?? false }
+        tap.start()
         rebind()
         refreshShortcuts()
         wake()
@@ -118,6 +122,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func moor() {
         polled = Self.now
         guard windows.trusted else { return }
+        if !tap.running {
+            tap.start()
+        }
         let screens = Screens.current()
         let (list, focused) = windows.scan(screens)
         watcher.watch(windows.scanned)
@@ -126,8 +133,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let scene = Scene(screen: screens.wide, windows: list, focused: focused?.id,
                           mouseHeld: NSEvent.pressedMouseButtons & 1 != 0, now: Self.now)
-        for move in anchors.moor(scene) where !move.exitFullScreen {
-            windows.move(move.id, to: move.frame)
+        for move in anchors.moor(scene) {
+            apply(move)
+        }
+        for id in anchors.justReleased {
+            logger.notice("TODO banner: window \(id) was moved by hand: released")
         }
         if !started {
             started = true
@@ -135,6 +145,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 open(bundle, background: true)
             }
         }
+    }
+
+    // apply carries out one move: it takes a window out of native fullscreen, or moves it, reads
+    // where it landed, and moves it once more when it kept a larger size than it was given.
+    private func apply(_ move: Move) {
+        if move.exitFullScreen {
+            windows.exitFullScreen(move.id)
+            return
+        }
+        windows.move(move.id, to: move.frame)
+        guard let got = windows.frame(move.id), let again = anchors.landed(move, got: got) else { return }
+        logger.notice("window \(move.id) keeps a size of at least \(Int(got.w))x\(Int(got.h)): leaving it that size")
+        windows.move(again.id, to: again.frame)
+    }
+
+    // zoomDown reports whether a press at p is on a green button moorings handles, and if so runs
+    // the lift, fill or re-moor after the event, so the tap never waits on it.
+    private func zoomDown(_ p: CGPoint, option: Bool) -> Bool {
+        guard windows.trusted,
+              let action = anchors.zoomClick(Point(x: p.x, y: p.y), option: option, front: Windows.front())
+        else { return false }
+        DispatchQueue.main.async { [weak self] in self?.zoom(action) }
+        return true
+    }
+
+    // zoom carries out a green button action.
+    private func zoom(_ action: ZoomAction) {
+        switch action {
+        case let .lift(id), let .lower(id):
+            anchors.toggleLift(id: id)
+            if anchors.isLifted(id) {
+                windows.raise(id)
+            }
+        case let .remoor(id):
+            anchors.remoor(id)
+        case let .fill(id), let .restore(id):
+            let screens = Screens.current()
+            guard let w = windows.scan(screens).windows.first(where: { $0.id == id }) else { return }
+            if case .fill = action {
+                if actions.apply("maximize", to: w, screens: screens) {
+                    anchors.markFilled(id, windows.frame(id))
+                }
+            } else {
+                anchors.markFilled(id, nil)
+                actions.apply("restore", to: w, screens: screens)
+            }
+        }
+        wake()
+        moor()
     }
 
     // save writes the choices to defaults, binds the shortcuts again, then runs a pass so the change
