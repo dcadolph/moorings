@@ -481,6 +481,36 @@ Moorings acts on the widest display whose aspect ratio is at least `minAspect`. 
 display attached the layout does nothing, so a laptop screen or a 16:9 monitor is safe. Window
 actions still work there, and nothing moves until one is pressed.
 
+### Selftest
+
+The test suites run moorings against a fake Hammerspoon. `moorings selftest` checks the real
+thing: it asks the running Hammerspoon to drive moorings against throwaway TextEdit documents
+and prints each check. It needs the ultrawide attached, Accessibility granted, TextEdit quit and
+one empty slot, and it moves your windows for about 30 seconds, so keep your hands off the mouse.
+
+The run borrows an empty slot for TextEdit, preferring a side no other app uses. It checks that
+the anchored window lands in its slot, a second window stays free in the channel, the next window
+takes the slot when the first closes, an app with no window frees its side, the open picker is
+never held, moving the anchored window releases it and its green button puts it back, Weigh
+anchor leaves windows alone and Drop anchor puts them back, and the restart helper is loaded and
+current. Afterward it closes the documents, quits TextEdit and puts your slots and anchor back,
+even when a check fails or the run stops halfway. If Hammerspoon quits or reloads during a run,
+moorings puts them back the next time it starts. A pin you released by hand stays released.
+
+The command exits 1 when any check fails and writes the full result to
+`~/Library/Logs/moorings/`. `moorings selftest --control` plants one wrong expectation and exits
+0 only when exactly that check fails, which shows the selftest can still catch a failure.
+GitHub's macOS runners cannot grant Accessibility, so this runs on a real Mac only.
+
+Before a release, choose Reload so Hammerspoon runs the code being released, run both from the
+clone, then cut the release:
+
+```sh
+./moorings selftest
+./moorings selftest --control
+gh release create vX.Y.Z --generate-notes --title "vX.Y.Z: Short Description"
+```
+
 ## License
 
 Apache-2.0. See `LICENSE`.
