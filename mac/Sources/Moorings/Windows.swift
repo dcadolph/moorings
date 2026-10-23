@@ -82,8 +82,10 @@ final class Windows {
             else { continue }
             let app = appElement(running.processIdentifier)
             scanned.insert(running.processIdentifier)
+            let main = Self.element(app, kAXMainWindowAttribute).flatMap { Self.id($0) }
             for el in Self.array(app, kAXWindowsAttribute) {
-                guard let id = Self.id(el), rank[id] != nil, let info = info(el, id: id, bundle: bundle, screens: screens)
+                guard let id = Self.id(el), rank[id] != nil,
+                      let info = info(el, id: id, bundle: bundle, isMain: id == main, screens: screens)
                 else { continue }
                 seen[id] = el
                 found.append(info)
@@ -185,8 +187,9 @@ final class Windows {
     }
 
     // info describes window el, or returns nil when moorings may not move it: it is not a document
-    // window, it is minimized, or its frame cannot be read.
-    private func info(_ el: AXUIElement, id: WindowID, bundle: String, screens: Screens) -> WindowInfo? {
+    // window, it is minimized, or its frame cannot be read. isMain is whether the app names el its
+    // main window, which an app reports even while it is not active.
+    private func info(_ el: AXUIElement, id: WindowID, bundle: String, isMain: Bool, screens: Screens) -> WindowInfo? {
         guard Self.string(el, kAXRoleAttribute) == kAXWindowRole, Self.document(el),
               !Self.bool(el, kAXMinimizedAttribute), let frame = Self.frame(el)
         else { return nil }
@@ -202,7 +205,7 @@ final class Windows {
             bundle: bundle,
             frame: frame,
             onUltrawide: screens.ultrawide != nil && screens.index(frame) == screens.ultrawide,
-            isMain: Self.bool(el, kAXMainAttribute),
+            isMain: isMain,
             isFilePanel: panel,
             isFullScreen: Self.bool(el, "AXFullScreen"),
             zoomRect: zoom?.rect
