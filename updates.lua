@@ -30,6 +30,7 @@ local keys = {
   on = "moorings.updateChecks",
   checkedAt = "moorings.updateCheckedAt",
   latest = "moorings.latestRelease",
+  updatedFrom = "moorings.updatedFrom",
 }
 
 local host
@@ -178,8 +179,9 @@ function U.checkNow()
   end)
 end
 
--- install updates moorings the way it was installed and reloads when that worked. A download
--- install opens the release page instead.
+-- install updates moorings the way it was installed and reloads when that worked. Before the
+-- reload it remembers the running version and forgets the last check, so the next start can
+-- say what changed and ask GitHub again. A download install opens the release page instead.
 function U.install()
   local kind, where = U.source(hs.configdir .. "/moorings")
   if kind == "download" then
@@ -187,9 +189,13 @@ function U.install()
     return
   end
   state.running = true
+  host.notify("Updating moorings…", "moorings reloads when the update finishes.")
   hs.task.new("/bin/sh", function(code, out, err)
     state.running = false
     if code == 0 then
+      hs.settings.set(keys.updatedFrom, U.version)
+      hs.settings.clear(keys.latest)
+      hs.settings.clear(keys.checkedAt)
       host.reload()
       return
     end
@@ -250,10 +256,31 @@ function U.settingItems()
   }
 end
 
--- attach gives updates the anchors module, logs an old Hammerspoon once and starts the timers.
+-- reportUpdate says how an update that just reloaded moorings turned out. When it brought no
+-- newer version it asks GitHub again at once, so the menu shows the real latest release.
+local function reportUpdate()
+  local from = hs.settings.get(keys.updatedFrom)
+  if from == nil then
+    return
+  end
+  hs.settings.clear(keys.updatedFrom)
+  if type(from) ~= "string" then
+    return
+  end
+  if U.newer(U.version, from) then
+    host.notify("moorings updated to v" .. U.version, "You had v" .. from .. ".")
+    return
+  end
+  host.notify("No newer moorings was installed", "You have v" .. U.version .. ".")
+  U.check()
+end
+
+-- attach gives updates the anchors module, reports an update that just reloaded it, logs an
+-- old Hammerspoon once and starts the timers.
 function U.attach(m)
   host = m
   state.running = false
+  reportUpdate()
   local old = U.hammerspoonOld()
   if old then
     host.log("Hammerspoon " .. old .. " is older than " .. U.minHammerspoon

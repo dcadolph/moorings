@@ -16,10 +16,11 @@ local function check(name, cond, msg)
   end
 end
 
--- install loads a fresh updates module into a fake world. hsVersion is Hammerspoon's version.
-local function install(hsVersion)
+-- install loads a fresh updates module into a fake world. hsVersion is Hammerspoon's version and
+-- saved holds the settings already stored when moorings starts.
+local function install(hsVersion, saved)
   world = {
-    settings = {}, gets = {}, tasks = {}, logs = {}, notices = {}, urls = {}, clock = 1000000,
+    settings = saved or {}, gets = {}, tasks = {}, logs = {}, notices = {}, urls = {}, clock = 1000000,
     paths = {}, attrs = {}, reloads = 0, timers = {},
   }
   hs = {
@@ -28,6 +29,7 @@ local function install(hsVersion)
     settings = {
       get = function(k) return world.settings[k] end,
       set = function(k, v) world.settings[k] = v end,
+      clear = function(k) world.settings[k] = nil end,
     },
     http = {
       asyncGet = function(url, headers, fn)
@@ -265,14 +267,21 @@ tests[#tests + 1] = function()
     and t.args[2] == U.command("brew", "/opt/homebrew/bin/brew"))
   local items = U.menuItems()
   check("t10 running", titles(items) == "Updating moorings…" and items[1].disabled == true)
+  check("t10 says updating", world.notices[1].title == "Updating moorings…")
   t.fn(1, "Error: no such formula", "")
   check("t10 no reload", world.reloads == 0)
-  check("t10 failed", world.notices[1].title == "moorings did not update"
+  check("t10 failed", world.notices[2].title == "moorings did not update"
     and world.logs[1]:find("no such formula", 1, true) ~= nil)
   check("t10 offered again", titles(U.menuItems()) == "Update moorings (v9.0.0)")
+  check("t10 failure remembers nothing", world.settings["moorings.updatedFrom"] == nil)
+  world.settings["moorings.updateCheckedAt"] = world.clock
   U.menuItems()[1].fn()
   world.tasks[2].fn(0, "", "")
   check("t10 reloaded", world.reloads == 1)
+  check("t10 remembers version", world.settings["moorings.updatedFrom"] == U.version)
+  check("t10 forgets check", world.settings["moorings.latestRelease"] == nil
+    and world.settings["moorings.updateCheckedAt"] == nil)
+  check("t10 entry gone", #U.menuItems() == 0)
 end
 
 -- Test 11: A git install pulls, and a download install opens the release page and runs nothing.
@@ -329,6 +338,32 @@ tests[#tests + 1] = function()
   local wf = f and f:read("a") or ""
   if f then f:close() end
   check("t14 workflow checks tag", wf:find("updates.lua", 1, true) ~= nil)
+end
+
+-- Test 15: A start after an update says how it went. A newer version says updated. The same
+-- version says nothing newer came and asks GitHub at once. Either way it says so only once, and
+-- a start with no update behind it says nothing.
+tests[#tests + 1] = function()
+  install(nil, { ["moorings.updatedFrom"] = "1.0.0" })
+  check("t15 updated", #world.notices == 1
+    and world.notices[1].title == "moorings updated to v" .. U.version
+    and world.notices[1].text == "You had v1.0.0.", world.notices[1] and world.notices[1].title)
+  check("t15 updated asks later", #world.gets == 0)
+  check("t15 forgotten", world.settings["moorings.updatedFrom"] == nil)
+  install(nil, { ["moorings.updatedFrom"] = U.version })
+  check("t15 same", #world.notices == 1
+    and world.notices[1].title == "No newer moorings was installed"
+    and world.notices[1].text == "You have v" .. U.version .. ".")
+  check("t15 same asks now", #world.gets == 1)
+  answer(200, '{"tag_name": "v9.0.0"}')
+  check("t15 same offers real", titles(U.menuItems()) == "Update moorings (v9.0.0)")
+  install(nil, { ["moorings.updatedFrom"] = "9.9.9" })
+  check("t15 older running", world.notices[1].title == "No newer moorings was installed")
+  install(nil, { ["moorings.updatedFrom"] = 5 })
+  check("t15 junk quiet", #world.notices == 0 and #world.gets == 0
+    and world.settings["moorings.updatedFrom"] == nil)
+  install()
+  check("t15 plain start", #world.notices == 0 and #world.gets == 0)
 end
 
 for i, t in ipairs(tests) do
