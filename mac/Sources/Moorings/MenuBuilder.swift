@@ -98,6 +98,10 @@ struct MenuBuilder {
         out.append(folder("Widths", widthItems(screens.wide)))
         out.append(folder("Heights", heightItems()))
         out.append(.separator())
+        out.append(ActionItem("Settings…", tip: "Shortcuts, custom sizes, workspaces, layout, theme, and settings "
+                + "export and import.") {
+            app.settings.show()
+        })
         out.append(ActionItem("Launch at login", tip: "Open Moorings when you log in.", checked: app.launchAtLogin) {
             app.setLaunchAtLogin(!app.launchAtLogin)
         })

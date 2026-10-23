@@ -55,6 +55,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var updateTimer: Timer?
     // tap watches the primary mouse button for green button clicks and drags.
     let tap = EventTap()
+    // settings is the settings window.
+    lazy var settings = SettingsWindow(app: self)
     // organizer lays out several windows at once and keeps the workspaces.
     lazy var organizer = Organizer(app: self)
     // snap follows drags and snaps the dragged window to the zone under the cursor.
@@ -124,10 +126,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         moor()
     }
 
-    // applicationShouldHandleReopen opens the menu when Moorings is opened again while it runs, so a
-    // second open from Applications shows it is already there.
+    // applicationShouldHandleReopen opens the settings window when Moorings is opened again while it
+    // runs, so a second open from Applications shows it is already there.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        item.button?.performClick(nil)
+        settings.show()
         return false
     }
 
@@ -138,6 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "status": status()
             case "moor": moor()
             case "action": runLink(url)
+            case "settings": settings.show()
             case "banner":
                 let text = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "text" }?.value
                 notify("Moorings", text ?? "")
