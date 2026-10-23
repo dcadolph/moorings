@@ -10,6 +10,8 @@ Commands:
   setup      Link ~/.hammerspoon/moorings to these files and load moorings from init.lua.
   doctor     Check Hammerspoon, the link and init.lua. Exits 1 when something is wrong.
   uninstall  Remove the link, the init.lua lines setup added, and the keep-alive helper.
+  selftest   Check moorings against real TextEdit windows in Hammerspoon. Exits 1 on a failure.
+             With --control, plant one failure and exit 0 only when exactly that one fails.
   version    Print the moorings version.
 EOF
 }
@@ -20,6 +22,10 @@ init="$hs_dir/init.lua"
 agent="$HOME/Library/LaunchAgents/moorings.keepalive.plist"
 launchctl="${MOORINGS_LAUNCHCTL:-/bin/launchctl}"
 apps="${MOORINGS_APPS:-/Applications $HOME/Applications}"
+logs="${MOORINGS_LOGS:-$HOME/Library/Logs/moorings}"
+opener="${MOORINGS_OPEN:-/usr/bin/open}"
+pgrep_cmd="${MOORINGS_PGREP:-pgrep}"
+selftest_seconds="${MOORINGS_SELFTEST_SECONDS:-120}"
 begin_mark='-- moorings: added by moorings setup, removed by moorings uninstall.'
 end_mark='-- moorings: end'
 
@@ -209,10 +215,95 @@ uninstall() {
 	echo "Done. Reload or quit Hammerspoon to stop moorings."
 }
 
+# field prints field $1 of the result file $2, or nothing when it is missing.
+field() {
+	plutil -extract "$1" raw -o - "$2" 2>/dev/null || true
+}
+
+selftest() {
+	control=0
+	case "${1:-}" in
+	"") ;;
+	--control) control=1 ;;
+	*)
+		usage >&2
+		exit 2
+		;;
+	esac
+	id="$(date +%Y%m%d-%H%M%S)-$$"
+	out="$logs/selftest-$id.json"
+	url="hammerspoon://moorings-selftest?run=$id"
+	if [ "$control" = 1 ]; then
+		url="$url&control=1"
+	fi
+	hs_pid="$("$pgrep_cmd" -x Hammerspoon 2>/dev/null | head -n 1)"
+	if [ -z "$hs_pid" ]; then
+		echo "FAIL  Hammerspoon is not running. Open it, then run the selftest again."
+		return 1
+	fi
+	echo "Running the selftest in Hammerspoon. It moves windows for about 30 seconds."
+	"$opener" -g "$url"
+	waited=0
+	while [ ! -f "$out" ]; do
+		if ! "$pgrep_cmd" -x Hammerspoon 2>/dev/null | grep -qx "$hs_pid"; then
+			echo "FAIL  Hammerspoon quit during the run. A crash report, if any, is in" \
+				"$HOME/Library/Logs/DiagnosticReports. moorings puts the layout back when it starts."
+			return 1
+		fi
+		if [ "$waited" -ge "$selftest_seconds" ]; then
+			echo "FAIL  no result after $selftest_seconds seconds." \
+				"Run moorings doctor and check the Console."
+			return 1
+		fi
+		sleep 1
+		waited=$((waited + 1))
+	done
+
+	failed=0
+	failed_name=""
+	n="$(field checks "$out")"
+	case "$n" in
+	"" | *[!0-9]*) n=0 ;;
+	esac
+	i=0
+	while [ "$i" -lt "$n" ]; do
+		name="$(field "checks.$i.name" "$out")"
+		detail="$(field "checks.$i.detail" "$out")"
+		if [ "$(field "checks.$i.ok" "$out")" != true ]; then
+			echo "FAIL  $name: $detail"
+			failed=$((failed + 1))
+			failed_name="$name"
+		elif [ "$(field "checks.$i.skipped" "$out")" = true ]; then
+			echo "skip  $name: $detail"
+		else
+			echo "ok    $name"
+		fi
+		i=$((i + 1))
+	done
+	echo "Result: $out"
+
+	stopped="$(field error "$out")"
+	if [ -n "$stopped" ]; then
+		echo "FAIL  the run stopped: $stopped"
+		return 1
+	fi
+	if [ "$control" = 1 ]; then
+		planted="$(field planted "$out")"
+		if [ "$failed" = 1 ] && [ -n "$planted" ] && [ "$failed_name" = "$planted" ]; then
+			echo "Control run failed only the planted check, so the selftest can fail."
+			return 0
+		fi
+		echo "FAIL  the control run should fail only \"$planted\", but $failed checks failed."
+		return 1
+	fi
+	[ "$failed" = 0 ]
+}
+
 case "${1:-}" in
 setup) setup ;;
 doctor) doctor ;;
 uninstall) uninstall ;;
+selftest) selftest "${2:-}" ;;
 version | --version | -v) echo "$version" ;;
 help | --help | -h) usage ;;
 *)

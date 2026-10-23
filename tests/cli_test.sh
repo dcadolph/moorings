@@ -186,5 +186,104 @@ cp "$cli" "$scratch/lonely/moorings"
 check "t8 exit" [ $? -eq 1 ]
 check "t8 says" has "cannot find the moorings files" "$scratch/out8"
 
+# Test 9: selftest opens the run URL, reads the result Hammerspoon writes, prints each check
+# and exits 0 only on a clean run, and --control exits 0 only when the planted check alone
+# fails. It needs plutil, so it runs on macOS only.
+if command -v plutil >/dev/null 2>&1; then
+	fresh 9
+	MOORINGS_LOGS="$HOME/logs"
+	MOORINGS_OPEN="$HOME/open"
+	MOORINGS_PGREP="$HOME/pgrep"
+	MOORINGS_SELFTEST_SECONDS=2
+	export MOORINGS_LOGS MOORINGS_OPEN MOORINGS_PGREP MOORINGS_SELFTEST_SECONDS
+	mkdir -p "$MOORINGS_LOGS"
+	# The fake pgrep reports the pid in $HOME/hs.pid as Hammerspoon's, and nothing without it.
+	cat >"$MOORINGS_PGREP" <<'EOF'
+#!/bin/sh
+cat "$HOME/hs.pid" 2>/dev/null
+EOF
+	chmod +x "$MOORINGS_PGREP"
+	echo 500 >"$HOME/hs.pid"
+	# The fake open records the URL and answers with $HOME/answer.json as the run's result.
+	cat >"$MOORINGS_OPEN" <<'EOF'
+#!/bin/sh
+echo "$@" >>"$HOME/open.log"
+if [ -f "$HOME/crash" ]; then
+	echo 501 >"$HOME/hs.pid"
+fi
+id="${2#*run=}"
+id="${id%%&*}"
+if [ -f "$HOME/answer.json" ]; then
+	cp "$HOME/answer.json" "$MOORINGS_LOGS/selftest-$id.json"
+fi
+EOF
+	chmod +x "$MOORINGS_OPEN"
+	ok='{"name":"anchored window lands in its slot","ok":true,"detail":""}'
+	skipped='{"name":"restart helper is loaded and current","ok":true,"skipped":true,"detail":"off"}'
+	bad='{"name":"anchored window lands in its slot","ok":false,"detail":"at {40,25,512,1415}"}'
+	other='{"name":"open picker is not held","ok":false,"detail":"anchored"}'
+	planted='"planted":"anchored window lands in its slot"'
+
+	printf '{"run":"x","pass":true,"checks":[%s,%s]}' "$ok" "$skipped" >"$HOME/answer.json"
+	"$cli" selftest >"$scratch/out9" 2>&1
+	check "t9 pass exit" [ $? -eq 0 ]
+	check "t9 url" grep -Eq '^-g hammerspoon://moorings-selftest\?run=[0-9]{8}-[0-9]{6}-[0-9]+$' \
+		"$HOME/open.log"
+	check "t9 ok line" has "ok    anchored window lands in its slot" "$scratch/out9"
+	check "t9 skip line" has "skip  restart helper is loaded and current: off" "$scratch/out9"
+	check "t9 result path" has "Result: $MOORINGS_LOGS/selftest-" "$scratch/out9"
+
+	printf '{"run":"x","pass":false,"checks":[%s,%s]}' "$bad" "$skipped" >"$HOME/answer.json"
+	"$cli" selftest >"$scratch/out9b" 2>&1
+	check "t9 fail exit" [ $? -eq 1 ]
+	check "t9 fail line" has "FAIL  anchored window lands in its slot: at {40,25,512,1415}" \
+		"$scratch/out9b"
+
+	printf '{"run":"x","pass":false,"error":"TextEdit is open","checks":[]}' >"$HOME/answer.json"
+	"$cli" selftest >"$scratch/out9c" 2>&1
+	check "t9 stopped exit" [ $? -eq 1 ]
+	check "t9 stopped line" has "FAIL  the run stopped: TextEdit is open" "$scratch/out9c"
+
+	printf '{"run":"x","pass":false,%s,"checks":[%s,%s]}' "$planted" "$bad" "$skipped" \
+		>"$HOME/answer.json"
+	"$cli" selftest --control >"$scratch/out9d" 2>&1
+	check "t9 control exit" [ $? -eq 0 ]
+	check "t9 control url" [ "$(tail -n 1 "$HOME/open.log" | grep -c '&control=1$')" -eq 1 ]
+	check "t9 control says" has "failed only the planted check" "$scratch/out9d"
+
+	printf '{"run":"x","pass":true,%s,"checks":[%s]}' "$planted" "$ok" >"$HOME/answer.json"
+	"$cli" selftest --control >"$scratch/out9e" 2>&1
+	check "t9 control never failed" [ $? -eq 1 ]
+	printf '{"run":"x","pass":false,%s,"checks":[%s,%s]}' "$planted" "$other" "$bad" \
+		>"$HOME/answer.json"
+	"$cli" selftest --control >"$scratch/out9f" 2>&1
+	check "t9 control extra failure" [ $? -eq 1 ]
+	check "t9 control says count" has "but 2 checks failed" "$scratch/out9f"
+	printf '{"run":"x","pass":false,"checks":[%s]}' "$bad" >"$HOME/answer.json"
+	"$cli" selftest --control >/dev/null 2>&1
+	check "t9 control without planted" [ $? -eq 1 ]
+
+	rm "$HOME/answer.json"
+	"$cli" selftest >"$scratch/out9g" 2>&1
+	check "t9 no answer exit" [ $? -eq 1 ]
+	check "t9 no answer says" has "no result after 2 seconds" "$scratch/out9g"
+
+	touch "$HOME/crash"
+	"$cli" selftest >"$scratch/out9h" 2>&1
+	check "t9 crash exit" [ $? -eq 1 ]
+	check "t9 crash says" has "Hammerspoon quit during the run" "$scratch/out9h"
+	check "t9 crash no wait" [ "$(grep -c 'no result after' "$scratch/out9h")" -eq 0 ]
+
+	rm "$HOME/hs.pid" "$HOME/crash"
+	lines="$(wc -l <"$HOME/open.log")"
+	"$cli" selftest >"$scratch/out9i" 2>&1
+	check "t9 not running exit" [ $? -eq 1 ]
+	check "t9 not running says" has "Hammerspoon is not running" "$scratch/out9i"
+	check "t9 not running sends nothing" [ "$(wc -l <"$HOME/open.log")" -eq "$lines" ]
+
+	"$cli" selftest --bogus >/dev/null 2>&1
+	check "t9 bad flag" [ $? -eq 2 ]
+fi
+
 echo "$passes checks passed, $failures failed"
 [ "$failures" -eq 0 ]
