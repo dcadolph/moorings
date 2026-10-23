@@ -29,6 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var actions = ActionRunner(app: self)
     // tap watches the primary mouse button for green button clicks and drags.
     let tap = EventTap()
+    // organizer lays out several windows at once and keeps the workspaces.
+    lazy var organizer = Organizer(app: self)
     // snap follows drags and snaps the dragged window to the zone under the cursor.
     lazy var snap = DragSnap(app: self)
     // hotkeys runs a window action when its shortcut is pressed.
@@ -66,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             logger.notice("Accessibility is not granted: windows will not move")
         }
         anchors.launch(now: Self.now)
+        _ = organizer
         tap.onDown = { [weak self] p, option in
             guard let self else { return false }
             if self.zoomDown(p, option: option) {
@@ -100,6 +103,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "status": status()
             case "moor": moor()
             case "action": runLink(url)
+            case "workspace":
+                let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "name" }?.value
+                organizer.recall(name ?? "")
             default: logger.notice("unknown link: \(url.absoluteString, privacy: .public)")
             }
         }
@@ -294,6 +300,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         if note.name == NSApplication.didChangeScreenParametersNotification {
             anchors.screensChanged()
+            organizer.screensChanged()
         }
         wake()
     }

@@ -88,6 +88,7 @@ struct MenuBuilder {
         out.append(folder("Anchored apps", anchoredItems(shows: Set(scan.windows.map(\.bundle)))))
         out.append(folder("Window", windowItems()))
         out.append(folder("Lift", liftItems(pinned)))
+        out.append(folder("Workspaces", workspaceItems()))
         out.append(folder("Widths", widthItems(screens.wide)))
         out.append(folder("Heights", heightItems()))
         out.append(.separator())
@@ -249,6 +250,37 @@ struct MenuBuilder {
         lock(key, bundle)
     }
 
+    // workspaceItems builds the Workspaces folder: Save workspace, then a folder per saved workspace
+    // to recall, tie to the displays attached now, or delete it.
+    private func workspaceItems() -> [NSMenuItem] {
+        var out: [NSMenuItem] = [ActionItem("Save workspace…", tip: "Save the slots, widths, heights and where each free "
+                + "window sits under a name.") {
+            if let name = Organizer.askName() {
+                app.organizer.saveWorkspace(name)
+            }
+        }]
+        let names = anchors.choices.workspaces.keys.sorted()
+        if !names.isEmpty {
+            out.append(.separator())
+        }
+        for name in names {
+            let tied = app.organizer.tied(name)
+            out.append(folder(name, [
+                ActionItem("Recall", tip: "Put this workspace's layout back.", enabled: !anchors.choices.paused) {
+                    app.organizer.recall(name)
+                },
+                ActionItem("Recall with these displays", tip: "Recall this workspace whenever the displays attached now "
+                        + "are plugged in.", checked: tied) {
+                    app.organizer.tie(name)
+                },
+                ActionItem("Delete", tip: "Forget this workspace.") {
+                    app.organizer.delete(name)
+                },
+            ]))
+        }
+        return out
+    }
+
     // liftItems builds the Lift folder: an entry per pin with a window, checked while lifted, then
     // the two fullscreen switches.
     private func liftItems(_ pinned: [WindowInfo]) -> [NSMenuItem] {
@@ -314,6 +346,19 @@ struct MenuBuilder {
             custom = [label("No custom sizes", tip: "Add sizes in Settings to list them here.")]
         }
         out.append(folder("Custom sizes", custom))
+        var organize = entries(Tile.names, nil)
+        organize.append(.separator())
+        for n in Organizer.tidyCounts {
+            organize.append(ActionItem("Tidy channel: \(n) front windows", tip: "Line up the \(n) front-most free windows "
+                    + "side by side in the channel, keeping their order.", enabled: !paused) {
+                app.organizer.tidy(n)
+            })
+        }
+        organize.append(ActionItem("Undo tidy", tip: "Put back every window a fill, tidy or window action moved, where it "
+                + "was before the first move.", enabled: !paused && anchors.canUndo) {
+            app.organizer.undo()
+        })
+        out.append(folder("Organize", organize))
         out.append(.separator())
         out.append(ActionItem("Snap windows by dragging", tip: "Drag a window to a display edge or corner to snap it "
                 + "there. Hold Option over a strip on the ultrawide to anchor its app.", checked: anchors.choices.snap) {

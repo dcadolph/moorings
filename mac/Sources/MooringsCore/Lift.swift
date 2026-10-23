@@ -218,6 +218,18 @@ extension Anchors {
         return f
     }
 
+    // canUndo reports whether a fill, tidy or window action has moved anything since the last undo.
+    public var canUndo: Bool { !saved.isEmpty }
+
+    // undo returns where every window a fill, tidy or window action moved was before its first move,
+    // and forgets them all.
+    public func undo() -> [WindowID: Frame] {
+        let out = saved
+        saved = [:]
+        clamped = clamped.filter { out[$0.key] == nil }
+        return out
+    }
+
     // markFilled records that a green button click filled the channel with the window with id, now
     // at frame, or forgets the fill when frame is nil.
     public func markFilled(_ id: WindowID, _ frame: Frame?) {

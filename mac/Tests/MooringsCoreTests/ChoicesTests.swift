@@ -43,3 +43,30 @@ import Testing
     c.keymap = "nonsense"
     #expect(Bindings(c).map["left-half"]?.text == "⌃⌥←")
 }
+
+// Swift only: a saved workspace survives a save and reload with its slots, widths and windows.
+@Test func testChoicesWorkspaceRoundTrip() throws {
+    var c = Choices()
+    c.workspaces["Desk"] = Workspace(name: "Desk", slots: [.leftTop: "com.tinyspeck.slackmacgap"],
+                                     widths: Widths(left: 15, right: 40), heights: nil,
+                                     windows: [SavedWindow(bundle: "com.apple.Safari", title: "Docs",
+                                                           frame: Frame(x: 800, y: 100, w: 900, h: 700))],
+                                     setup: "abc")
+    let data = try Choices.encode(c)
+    #expect(Choices.decode(data).workspaces == c.workspaces)
+}
+
+// Swift only: undo returns every saved frame once and clears them.
+@Test func testAnchorsUndo() {
+    let anchors = Anchors()
+    let w = WindowInfo(id: 7, bundle: "com.apple.Safari", frame: Frame(x: 1, y: 2, w: 3, h: 4), onUltrawide: false,
+                       isMain: true)
+    #expect(!anchors.canUndo)
+    anchors.save(w)
+    var moved = w
+    moved.frame = Frame(x: 9, y: 9, w: 9, h: 9)
+    anchors.save(moved)
+    #expect(anchors.canUndo)
+    #expect(anchors.undo() == [7: Frame(x: 1, y: 2, w: 3, h: 4)])
+    #expect(!anchors.canUndo && anchors.undo().isEmpty)
+}

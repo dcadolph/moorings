@@ -121,6 +121,11 @@ final class Windows {
         elements[id].flatMap { Self.frame($0) }
     }
 
+    // title returns the title of the window with id, empty when it has none.
+    func title(_ id: WindowID) -> String {
+        elements[id].flatMap { Self.string($0, kAXTitleAttribute) } ?? ""
+    }
+
     // exitFullScreen asks the window with id to leave native fullscreen.
     func exitFullScreen(_ id: WindowID) {
         guard let el = elements[id] else { return }

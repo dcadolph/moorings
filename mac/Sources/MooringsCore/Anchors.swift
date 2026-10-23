@@ -70,6 +70,8 @@ public struct Choices: Equatable, Sendable, Codable {
     public var snap: Bool = true
     // theme names the color theme for the footprint, banners and settings.
     public var theme: ThemeName = .harborDark
+    // workspaces holds the saved workspaces by name.
+    public var workspaces: [String: Workspace] = [:]
 
     // init builds a set of choices.
     public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
@@ -85,7 +87,7 @@ public struct Choices: Equatable, Sendable, Codable {
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
-        case ignores, snap, theme
+        case ignores, snap, theme, workspaces
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -105,6 +107,7 @@ public struct Choices: Equatable, Sendable, Codable {
         ignores = (try? c.decodeIfPresent([String].self, forKey: .ignores)) ?? []
         snap = (try? c.decodeIfPresent(Bool.self, forKey: .snap)) ?? true
         theme = (try? c.decodeIfPresent(ThemeName.self, forKey: .theme)) ?? .harborDark
+        workspaces = (try? c.decodeIfPresent([String: Workspace].self, forKey: .workspaces)) ?? [:]
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -123,6 +126,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(ignores, forKey: .ignores)
         try c.encode(snap, forKey: .snap)
         try c.encode(theme, forKey: .theme)
+        try c.encode(workspaces, forKey: .workspaces)
     }
 
     // encode returns choices as sorted JSON for saving.

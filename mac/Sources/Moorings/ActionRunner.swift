@@ -78,6 +78,12 @@ final class ActionRunner {
     @discardableResult
     func run(_ name: String) -> Bool {
         guard !anchors.choices.paused, app.windows.trusted else { return false }
+        if Tile.handles(name) {
+            return app.organizer.run(name)
+        }
+        if name.hasPrefix(Keymaps.workspacePrefix) {
+            return app.organizer.recall(String(name.dropFirst(Keymaps.workspacePrefix.count)))
+        }
         let screens = Screens.current()
         guard let w = app.windows.scan(screens).focused else {
             logger.notice("\(name, privacy: .public): no focused window")
