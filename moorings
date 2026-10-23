@@ -217,7 +217,10 @@ uninstall() {
 
 # field prints field $1 of the result file $2, or nothing when it is missing.
 field() {
-	plutil -extract "$1" raw -o - "$2" 2>/dev/null || true
+	# Some plutil versions print the missing-key error on stdout, so trust only the exit status.
+	if value="$(plutil -extract "$1" raw -o - "$2" 2>/dev/null)"; then
+		printf '%s\n' "$value"
+	fi
 }
 
 selftest() {
