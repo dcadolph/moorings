@@ -57,8 +57,8 @@ jobs:
 
       - name: Build universal app
         env:
-          # Tip link for the menu. Unset, the app shows no tip entry.
-          MOORINGS_SUPPORT_URL: ${{ vars.MOORINGS_SUPPORT_URL }}
+          # Tip link for the menu. A repository variable overrides the Sponsors page.
+          MOORINGS_SUPPORT_URL: ${{ vars.MOORINGS_SUPPORT_URL || 'https://github.com/sponsors/dcadolph' }}
           SIGN_ID: "Developer ID Application: Douglas Adolph (U7L4P2YHWJ)"
           TAG: ${{ github.event.release.tag_name }}
         run: |
