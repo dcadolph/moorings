@@ -112,6 +112,21 @@ final class Windows {
         AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
     }
 
+    // frame reads where the window with id is now, nil when it cannot be read.
+    func frame(_ id: WindowID) -> Frame? {
+        elements[id].flatMap { Self.frame($0) }
+    }
+
+    // raise brings the window with id to the front and activates its app.
+    func raise(_ id: WindowID) {
+        guard let el = elements[id] else { return }
+        AXUIElementPerformAction(el, kAXRaiseAction as CFString)
+        var pid: pid_t = 0
+        if AXUIElementGetPid(el, &pid) == .success {
+            NSRunningApplication(processIdentifier: pid)?.activate()
+        }
+    }
+
     // alive returns the ids of every window that exists, on any Space.
     static func alive() -> Set<WindowID> {
         let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]

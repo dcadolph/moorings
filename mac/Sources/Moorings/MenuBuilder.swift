@@ -77,6 +77,7 @@ struct MenuBuilder {
         out.append(castItem(focused, wide: screens.wide))
         out.append(.separator())
         out.append(folder("Anchored apps", anchoredItems(shows: Set(scan.windows.map(\.bundle)))))
+        out.append(folder("Window", windowItems()))
         out.append(folder("Widths", widthItems(screens.wide)))
         out.append(folder("Heights", heightItems()))
         out.append(.separator())
@@ -236,6 +237,73 @@ struct MenuBuilder {
             return
         }
         lock(key, bundle)
+    }
+
+    // gapPresets lists the gaps in points the Gap folder offers.
+    static let gapPresets: [Double] = [0, 4, 8, 12, 16]
+
+    // windowItems builds the Window folder: a folder per action family, the custom sizes, the keymap,
+    // the gap, and the switch that turns the shortcuts off in the front app. Each entry shows its
+    // shortcut, so the menu doubles as the cheat sheet.
+    private func windowItems() -> [NSMenuItem] {
+        let bindings = Bindings(anchors.choices)
+        let paused = anchors.choices.paused
+        let entries = { (names: [String], hint: String?) -> [NSMenuItem] in
+            names.map { name in
+                var title = Keymaps.label(name)
+                if let sc = bindings.map[name] {
+                    title += "  " + sc.text
+                }
+                return ActionItem(title, tip: hint ?? ActionRunner.hints[name] ?? "", enabled: !paused) {
+                    app.actions.run(name)
+                } as NSMenuItem
+            }
+        }
+        var out: [NSMenuItem] = []
+        for fam in ActionRunner.families {
+            if fam.groups.isEmpty {
+                out.append(folder(fam.title, entries(fam.names, fam.hint)))
+            } else {
+                out.append(folder(fam.title, fam.groups.map { folder($0.title, entries($0.names, fam.hint)) }))
+            }
+        }
+        var custom = entries(bindings.sizes.map(\.name), "Resize the front window to this size.")
+        if custom.isEmpty {
+            custom = [label("No custom sizes", tip: "Add sizes in Settings to list them here.")]
+        }
+        out.append(folder("Custom sizes", custom))
+        out.append(.separator())
+        out.append(folder("Keymap", Keymap.allCases.map { km in
+            ActionItem(km.rawValue.capitalized, tip: "Use \(km.rawValue.capitalized)'s shortcuts for the window actions.",
+                       checked: anchors.choices.keymap == km.rawValue) {
+                anchors.choices.keymap = km.rawValue
+                anchors.choices.shortcuts = [:]
+                app.save()
+            } as NSMenuItem
+        }))
+        out.append(folder("Gap", Self.gapPresets.map { px in
+            ActionItem(px == 0 ? "No gap" : String(format: "%.0f pt", px),
+                       tip: "Leave this many points around a window a window action places.",
+                       checked: anchors.choices.gapPx == px) {
+                anchors.choices.gapPx = px
+                app.save()
+            } as NSMenuItem
+        }))
+        if let front = NSWorkspace.shared.frontmostApplication, let bundle = front.bundleIdentifier,
+           bundle != Bundle.main.bundleIdentifier {
+            let name = front.localizedName ?? bundle
+            let on = anchors.choices.ignores.contains(bundle)
+            out.append(ActionItem("Ignore shortcuts in \(name)", tip: "Turn the window shortcuts off while \(name) is in "
+                    + "front, so its own shortcuts work.", checked: on) {
+                if on {
+                    anchors.choices.ignores.removeAll { $0 == bundle }
+                } else {
+                    anchors.choices.ignores.append(bundle)
+                }
+                app.save()
+            })
+        }
+        return out
     }
 
     // widthItems builds the Widths folder: the channel label, a label per empty side, the steppers

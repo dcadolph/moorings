@@ -25,6 +25,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let windows = Windows()
     // watcher wakes the poll on window events.
     private lazy var watcher = Watcher { [weak self] in self?.wake() }
+    // actions applies window actions to the focused window.
+    lazy var actions = ActionRunner(app: self)
+    // hotkeys runs a window action when its shortcut is pressed.
+    lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     // timer runs tick every pollSeconds.
@@ -58,6 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             logger.notice("Accessibility is not granted: windows will not move")
         }
         anchors.launch(now: Self.now)
+        rebind()
+        refreshShortcuts()
         wake()
         timer = Timer.scheduledTimer(withTimeInterval: Self.pollSeconds, repeats: true) { _ in
             MainActor.assumeIsolated { self.tick() }
@@ -78,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             switch url.host() {
             case "status": status()
             case "moor": moor()
+            case "action": runLink(url)
             default: logger.notice("unknown link: \(url.absoluteString, privacy: .public)")
             }
         }
@@ -130,13 +137,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // save writes the choices to defaults, then runs a pass so the change shows at once.
+    // save writes the choices to defaults, binds the shortcuts again, then runs a pass so the change
+    // shows at once.
     func save() {
         if let data = try? Choices.encode(anchors.choices) {
             UserDefaults.standard.set(data, forKey: Self.choicesKey)
         }
+        rebind()
+        refreshShortcuts()
         wake()
         moor()
+    }
+
+    // rebind registers every shortcut in effect and logs the problems with the saved ones.
+    func rebind() {
+        let bindings = Bindings(anchors.choices)
+        for p in bindings.problems {
+            logger.notice("\(p, privacy: .public)")
+        }
+        hotkeys.bind(bindings.map)
+    }
+
+    // refreshShortcuts turns the shortcuts off while an app in the ignore list is in front.
+    func refreshShortcuts() {
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        hotkeys.setEnabled(front.map { !anchors.choices.ignores.contains($0) } ?? true)
+    }
+
+    // runLink runs the action a moorings://action?name= link asks for.
+    private func runLink(_ url: URL) {
+        let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "name" }?.value
+        guard let name, actions.runnable(name) else {
+            logger.notice("a moorings link asked for unknown action \(name ?? "none", privacy: .public)")
+            return
+        }
+        actions.run(name)
     }
 
     // open opens the app with bundle the way a Dock click does, which launches it or asks a running
@@ -181,8 +216,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // workspaceChanged wakes the poll when an app or screen changes.
+    // workspaceChanged wakes the poll when an app or screen changes, and turns the shortcuts off or
+    // on when the front app changes.
     @objc private func workspaceChanged(_ note: Notification) {
+        if note.name == NSWorkspace.didActivateApplicationNotification {
+            refreshShortcuts()
+        }
+        if note.name == NSApplication.didChangeScreenParametersNotification {
+            anchors.screensChanged()
+        }
         wake()
     }
 

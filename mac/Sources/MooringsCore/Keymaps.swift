@@ -434,3 +434,89 @@ public enum Keymaps {
         return ShortcutsResult(map: out, problems: problems)
     }
 }
+
+// StoredShortcut is a shortcut as the choices save it.
+public struct StoredShortcut: Codable, Equatable, Sendable {
+    // mods names the modifier keys.
+    public var mods: [String]
+    // key names the key.
+    public var key: String
+
+    // init builds a saved shortcut.
+    public init(mods: [String], key: String) {
+        self.mods = mods
+        self.key = key
+    }
+
+    // input returns the shortcut in the form Keymaps checks.
+    public var input: ShortcutInput { ShortcutInput(mods: mods, key: key) }
+}
+
+// StoredSize is a custom size as the choices save it: shares of the area, or points.
+public struct StoredSize: Codable, Equatable, Sendable {
+    // title names the size in the menu.
+    public var title: String
+    // x is the share of the width before the left edge.
+    public var x: Double?
+    // y is the share of the height above the top edge.
+    public var y: Double?
+    // w is the share of the width.
+    public var w: Double?
+    // h is the share of the height.
+    public var h: Double?
+    // width is a width in points.
+    public var width: Double?
+    // height is a height in points.
+    public var height: Double?
+    // shortcut is the size's shortcut, nil when it has none.
+    public var shortcut: StoredShortcut?
+
+    // init builds a saved size.
+    public init(title: String, x: Double? = nil, y: Double? = nil, w: Double? = nil, h: Double? = nil,
+                width: Double? = nil, height: Double? = nil, shortcut: StoredShortcut? = nil) {
+        self.title = title
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+        self.width = width
+        self.height = height
+        self.shortcut = shortcut
+    }
+
+    // entry returns the size in the form Keymaps checks.
+    public var entry: SizeEntry {
+        let n = { (v: Double?) -> ConfigNumber in v.map { .number($0) } ?? .absent }
+        return SizeEntry(title: title, x: n(x), y: n(y), w: n(w), h: n(h), width: n(width), height: n(height),
+                         shortcut: shortcut?.input)
+    }
+}
+
+// Bindings is every shortcut and custom size in effect for a set of choices.
+public struct Bindings: Equatable, Sendable {
+    // map is the shortcut for each action.
+    public var map: [String: Shortcut]
+    // sizes lists the valid custom sizes in menu order.
+    public var sizes: [CustomSize]
+    // problems lists what was wrong with the saved shortcuts and sizes.
+    public var problems: [String]
+
+    // init works out the bindings for choices.
+    public init(_ choices: Choices) {
+        let sized = Keymaps.sizes(choices.sizes.map(\.entry))
+        var extra: [String: Binding] = [:]
+        for s in sized.sizes {
+            extra[s.name] = s.shortcut.map { .set($0) } ?? .remove
+        }
+        let overrides = choices.shortcuts.mapValues { sc -> Binding in sc.map { .set($0.input) } ?? .remove }
+        let merged = Keymaps.shortcuts(overrides, extra: extra, keymap: Keymap(rawValue: choices.keymap) ?? .rectangle)
+        map = merged.map
+        sizes = sized.sizes
+        problems = sized.problems + merged.problems
+    }
+
+    // specs maps each custom size's action name to its spec.
+    public var specs: [String: CustomSpec] {
+        Dictionary(uniqueKeysWithValues: sizes.map { ($0.name, $0.spec) })
+    }
+}

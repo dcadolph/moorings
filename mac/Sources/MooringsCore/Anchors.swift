@@ -56,6 +56,18 @@ public struct Choices: Equatable, Sendable, Codable {
     public var fullscreenFills: Bool
     // pinFullscreenFills reports whether native fullscreen on a pinned window is sent back to its slot.
     public var pinFullscreenFills: Bool
+    // keymap names the built-in shortcut set.
+    public var keymap: String = Keymap.rectangle.rawValue
+    // shortcuts maps an action to the shortcut chosen for it, nil to turn its shortcut off.
+    public var shortcuts: [String: StoredShortcut?] = [:]
+    // sizes lists the custom sizes, each with an optional shortcut.
+    public var sizes: [StoredSize] = []
+    // gapPx is the gap in points window actions leave around a window.
+    public var gapPx: Double = 0
+    // ignores lists the apps whose windows the shortcuts leave alone while they are in front.
+    public var ignores: [String] = []
+    // snap reports whether dragging a window to an edge snaps it.
+    public var snap: Bool = true
 
     // init builds a set of choices.
     public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
@@ -70,7 +82,8 @@ public struct Choices: Equatable, Sendable, Codable {
 
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
-        case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills
+        case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
+        case ignores, snap
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -83,6 +96,12 @@ public struct Choices: Equatable, Sendable, Codable {
         paused = (try? c.decodeIfPresent(Bool.self, forKey: .paused)) ?? false
         fullscreenFills = (try? c.decodeIfPresent(Bool.self, forKey: .fullscreenFills)) ?? true
         pinFullscreenFills = (try? c.decodeIfPresent(Bool.self, forKey: .pinFullscreenFills)) ?? true
+        keymap = (try? c.decodeIfPresent(String.self, forKey: .keymap)) ?? Keymap.rectangle.rawValue
+        shortcuts = (try? c.decodeIfPresent([String: StoredShortcut?].self, forKey: .shortcuts)) ?? [:]
+        sizes = (try? c.decodeIfPresent([StoredSize].self, forKey: .sizes)) ?? []
+        gapPx = (try? c.decodeIfPresent(Double.self, forKey: .gapPx)) ?? 0
+        ignores = (try? c.decodeIfPresent([String].self, forKey: .ignores)) ?? []
+        snap = (try? c.decodeIfPresent(Bool.self, forKey: .snap)) ?? true
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -94,6 +113,12 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(paused, forKey: .paused)
         try c.encode(fullscreenFills, forKey: .fullscreenFills)
         try c.encode(pinFullscreenFills, forKey: .pinFullscreenFills)
+        try c.encode(keymap, forKey: .keymap)
+        try c.encode(shortcuts, forKey: .shortcuts)
+        try c.encode(sizes, forKey: .sizes)
+        try c.encode(gapPx, forKey: .gapPx)
+        try c.encode(ignores, forKey: .ignores)
+        try c.encode(snap, forKey: .snap)
     }
 
     // encode returns choices as sorted JSON for saving.
