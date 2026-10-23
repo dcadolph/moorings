@@ -55,6 +55,8 @@ on any display unless it says ultrawide. The [README](README.md) has the details
 
 - A free window that strays into a strip is pushed back. One that is too wide is narrowed and
   grows back when the channel widens.
+- Cast off this window lets one window cover the strips, even an anchored app, until it closes
+  or you click again.
 - A free window's green button fills the channel, and a second click puts it back. Native
   fullscreen fills the channel instead of covering the anchored apps. Each kind of window has its
   own switch.

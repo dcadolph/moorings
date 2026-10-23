@@ -379,14 +379,18 @@ local function install(...)
         windowFullscreened = "windowFullscreened",
         windowUnfullscreened = "windowUnfullscreened",
         windowMoved = "windowMoved",
+        windowDestroyed = "windowDestroyed",
         new = function(all)
           world.filterAll = all
           return {
             subscribe = function(self, events, fn)
               if type(events) == "table" then
                 world.events, world.onEvent = events, fn
-              else
+              elseif events == "windowMoved" then
                 world.onMoved = fn
+              else
+                world.handlers = world.handlers or {}
+                world.handlers[events] = fn
               end
               return self
             end,
@@ -1768,7 +1772,8 @@ tests[#tests + 1] = function()
   local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
   anchors.start()
   focus(w)
-  check("t79 top", titles(world.bar.menu()) == "⚓ Weigh anchor (let windows drift),Re-moor now,Anchor Safari,-,"
+  check("t79 top", titles(world.bar.menu()) == "⚓ Weigh anchor (let windows drift),Re-moor now,Anchor Safari,"
+    .. "Cast off this window,-,"
     .. "Anchored apps,Window,Lift,Widths,Heights,Workspaces,Settings,-,Reload,Tip the harbormaster…,"
     .. "Quit moorings",
     titles(world.bar.menu()))
@@ -4299,7 +4304,7 @@ tests[#tests + 1] = function()
   world.poll()
   world.front = "TextEdit"
   local top = titles(world.bar.menu())
-  check("t190 placed", top:find("Re%-moor now,Re%-moor Slack,Anchor TextEdit,%-,Anchored apps") ~= nil, top)
+  check("t190 placed", top:find("Re%-moor now,Re%-moor Slack,Anchor TextEdit,Cast off this window,%-,Anchored apps") ~= nil, top)
   local slots = item("Anchor TextEdit").menu
   check("t190 slot titles", titles(slots) == "Left top,Left bottom,Right top,Right bottom", titles(slots))
   check("t190 replace hint", slots[1].tooltip == "Anchor TextEdit here in place of Slack.", slots[1].tooltip)
@@ -4779,6 +4784,166 @@ tests[#tests + 1] = function()
   check("t201 one window", world.views == 1 and world.view.showCalls == 2, tostring(world.views))
   check("t201 quit tooltip", item("Quit moorings").tooltip == "Stop moorings and Hammerspoon "
     .. "until you next log in. Open moorings from Applications to start it again.")
+end
+
+-- castTip is the hover hint on Cast off this window.
+local castTip = "Let this window cover the strips, even a pinned app. It stays free until you "
+  .. "close it or click again, then it returns to the channel."
+
+-- inChannel reports whether win lies inside the default channel.
+local function inChannel(win)
+  local f = win.f
+  return f.x >= 512 and f.x + f.w <= 2816 and f.w <= 2304
+end
+
+-- Test 202: A cast-off window stays over a strip and keeps a width wider than the channel
+-- through ten polls, while a free window that is not cast off is still pushed and narrowed,
+-- and unchecking settles it on the next poll.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  local other = addWin("Chrome", { x = 1000, y = 100, w = 800, h = 600 })
+  local w = addWin("Safari", { x = 1000, y = 100, w = 800, h = 600 })
+  anchors.start()
+  focus(w)
+  local it = item("Cast off this window")
+  check("t202 item", it ~= nil and it.checked == false and not it.disabled)
+  check("t202 tooltip", it and it.tooltip == castTip, it and it.tooltip)
+  click("Cast off this window")
+  check("t202 cast off", anchors.castOff(w) == true)
+  check("t202 checked", item("Cast off this window").checked == true)
+  local over = { x = 3000, y = 100, w = 3000, h = 900 }
+  w.f = copy(over)
+  other.f = { x = 3000, y = 100, w = 3000, h = 900 }
+  local moves = w.moves
+  for _ = 1, 10 do anchors.moor() end
+  frameIs("t202 stays put", w, over)
+  check("t202 not moved", w.moves == moves, "moves " .. w.moves)
+  check("t202 other settled", inChannel(other), string.format("%g %g", other.f.x, other.f.w))
+  click("Cast off this window")
+  check("t202 unchecked", anchors.castOff(w) == false and item("Cast off this window").checked == false)
+  anchors.moor()
+  check("t202 settled after", inChannel(w), string.format("%g %g", w.f.x, w.f.w))
+end
+
+-- Test 203: Cast off drops the record of a window the channel narrowed, so it does not grow
+-- back when the channel widens after the cast off ends.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  local w = addWin("Safari", { x = 512, y = 25, w = 3000, h = 1000 })
+  anchors.start()
+  check("t203 narrowed", w.f.w == 2304, tostring(w.f.w))
+  focus(w)
+  anchors.toggleCastOff(w)
+  anchors.moor()
+  anchors.toggleCastOff(w)
+  anchors.moor()
+  anchors.setWidths(10, 20)
+  check("t203 no regrow", w.f.w == 2304, tostring(w.f.w))
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  local plain = addWin("Safari", { x = 512, y = 25, w = 3000, h = 1000 })
+  anchors.start()
+  anchors.setWidths(10, 20)
+  check("t203 control regrows", plain.f.w == 3000, tostring(plain.f.w))
+end
+
+-- Test 204: Closing a cast-off window clears it, so a new window with the same id is held in
+-- the channel again.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  local w = addWin("Safari", { x = 1000, y = 100, w = 800, h = 600 })
+  anchors.start()
+  check("t204 destroy subscribed", world.handlers and world.handlers.windowDestroyed ~= nil)
+  anchors.toggleCastOff(w)
+  check("t204 cast off", anchors.castOff(w) == true)
+  table.remove(world.windows, 1)
+  world.handlers.windowDestroyed(w, "Safari", "windowDestroyed")
+  world.nextID = w.wid - 1
+  local again = addWin("Safari", { x = 3000, y = 100, w = 800, h = 600 })
+  check("t204 same id", again.wid == w.wid)
+  anchors.moor()
+  check("t204 not cast off", anchors.castOff(again) == false)
+  check("t204 settled", inChannel(again), string.format("%g", again.f.x))
+end
+
+-- Test 205: The item is disabled with its reason when there is no focused window, when the
+-- focused window is pinned, when it is not on the ultrawide, and when its app is ignored, and
+-- a pinned window cannot be cast off.
+tests[#tests + 1] = function()
+  install(ultrawide(), newScreen(2, 5120, 1512, 982))
+  local slack = addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  local side = addWin("Notes", { x = 5300, y = 100, w = 600, h = 400 })
+  local zoom = addWin("Zoom", { x = 1000, y = 100, w = 800, h = 600 })
+  anchors.config.ignoreBundles = { "test.Zoom" }
+  anchors.start()
+  local function state(win, tip)
+    world.focused = win
+    local it = item("Cast off this window")
+    check("t205 " .. tip .. " disabled", it ~= nil and it.disabled == true and it.checked == false)
+    check("t205 " .. tip .. " tooltip", it and it.tooltip == tip, it and it.tooltip)
+  end
+  state(nil, "There is no focused window to cast off.")
+  state(slack, "Pinned windows stay in their slot.")
+  state(side, "Only windows on the ultrawide are held in the channel.")
+  state(zoom, "This app is in ignoreBundles, so moorings never moves it.")
+  local moves = slack.moves
+  check("t205 pin refused", anchors.toggleCastOff(slack) == false and anchors.castOff(slack) == false)
+  anchors.moor()
+  frameIs("t205 pin stays", slack, leftFull)
+  check("t205 pin not moved", slack.moves == moves)
+end
+
+-- Test 206: A cast-off window that becomes pinned is no longer cast off, and cast off writes
+-- nothing to settings, so workspaces never see it.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  addWin("iTerm2", rightFull)
+  local w = addWin("Safari", { x = 1000, y = 100, w = 800, h = 600 })
+  anchors.start()
+  local before = {}
+  for k in pairs(world.settings) do before[#before + 1] = k end
+  anchors.toggleCastOff(w)
+  local after = {}
+  for k in pairs(world.settings) do after[#after + 1] = k end
+  check("t206 no settings", #before == #after, #before .. " vs " .. #after)
+  anchors.assign("left-bottom", "test.Safari")
+  check("t206 pinned", anchors.pinned(w))
+  check("t206 cleared", anchors.castOff(w) == false)
+end
+
+-- Test 207: Dragging a cast-off window over a strip shows no footprint and drops it where it
+-- lands, and an Option-drop anchors it and ends the cast off.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  addWin("Slack", leftFull)
+  local term = addWin("iTerm2", rightFull)
+  local w = addWin("Safari", { x = 1000, y = 200, w = 800, h = 600 })
+  anchors.start()
+  anchors.toggleCastOff(w)
+  drag(w, { { x = 1300, y = 300 }, { x = 4000, y = 700 } })
+  check("t207 no footprint", world.canvas == nil)
+  local moves = w.moves
+  fire(2)
+  check("t207 dropped in place", w.moves == moves, "moves " .. w.moves)
+  check("t207 still cast off", anchors.castOff(w) == true)
+  world.flags = { alt = true }
+  drag(w, { { x = 1300, y = 300 }, { x = 4000, y = 1000 } })
+  frameIs("t207 park footprint", { f = world.canvas.f }, rightBottom)
+  fire(2)
+  world.flags = nil
+  check("t207 parked", anchors.assignments()["right-bottom"] == "test.Safari")
+  frameIs("t207 parked frame", w, rightBottom)
+  frameIs("t207 iterm top", term, rightTop)
+  check("t207 cast off ended", anchors.castOff(w) == false)
 end
 
 for i, t in ipairs(tests) do

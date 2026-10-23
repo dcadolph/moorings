@@ -193,6 +193,7 @@ local function look()
   elseif f.x ~= s.x or f.y ~= s.y then
     state.moving = true
     state.pinned, state.parkable = host.pinned(state.win), host.parkable(state.win)
+    state.cast = host.castOff(state.win)
   else
     state.checks = state.checks + 1
     state.done = state.checks >= maxChecks
@@ -227,14 +228,14 @@ local function moving(p)
 end
 
 -- zoneAt returns the zone under p on screen s. With Option held over a strip
--- it is a park zone, and a pinned window has no other zones.
+-- it is a park zone, and a pinned or cast-off window has no other zones.
 local function zoneAt(p, s, alt)
   local ch = channelOf(s)
   if ch and alt then
     local key = state.parkable and S.park(p, s:fullFrame(), ch)
     return key and parkPrefix .. key or nil
   end
-  if state.pinned then
+  if state.pinned or state.cast then
     return nil
   end
   return S.zone(p, s:fullFrame(), ch, state.zone)

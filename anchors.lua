@@ -234,6 +234,8 @@ local state = {
   axNotice = nil,
   -- clamped maps a window id to the width it had before the channel narrowed it.
   clamped = {},
+  -- castOff holds the ids of free windows the owner let cover the strips until they close.
+  castOff = {},
   -- floors maps a window id to the smallest width and height it was seen to keep.
   floors = {},
   -- minPts holds the widest floor among the pinned windows on each side.
@@ -1446,6 +1448,54 @@ function M.restore(win)
   return true
 end
 
+-- castTip is the hover hint on Cast off this window.
+local castTip = "Let this window cover the strips, even a pinned app. It stays free until you "
+  .. "close it or click again, then it returns to the channel."
+
+-- castReason returns why win cannot be cast off, or nil when it can.
+local function castReason(win)
+  if not win then
+    return "There is no focused window to cast off."
+  elseif ignored(win) then
+    return "This app is in ignoreBundles, so moorings never moves it."
+  end
+  local s = M.ultrawide()
+  if not s or not sameScreen(win:screen(), s) then
+    return "Only windows on the ultrawide are held in the channel."
+  elseif M.pinned(win) then
+    return "Pinned windows stay in their slot."
+  end
+  return nil
+end
+
+-- castOff reports whether win is cast off.
+function M.castOff(win)
+  return state.castOff[win:id()] == true
+end
+
+-- toggleCastOff lets free window win cover the strips, or puts it back in the channel at once,
+-- and reports whether it changed.
+function M.toggleCastOff(win)
+  if win and state.castOff[win:id()] then
+    state.castOff[win:id()] = nil
+    M.moor()
+    return true
+  end
+  if castReason(win) then
+    return false
+  end
+  state.castOff[win:id()] = true
+  return true
+end
+
+-- closed forgets a window that closed, so a later window with its id is not cast off.
+local function closed(win)
+  local id = win and win:id()
+  if id then
+    state.castOff[id] = nil
+  end
+end
+
 -- settle keeps a free window inside the channel and lets a window the channel
 -- once narrowed grow back toward its old width when the channel widens. It returns the
 -- window's frame when it left the window where it was.
@@ -1601,7 +1651,7 @@ function M.moor()
           w:setFullScreen(false)
         end
       elseif pinsWindow(slot.pin, w) then
-        state.pendingFill[id] = nil
+        state.pendingFill[id], state.castOff[id] = nil, nil
         local width = (slot == focusedSlot and slot.pin.expandPct) or pct[slot.side]
         local row = rows[slot.pin.bundle] and rows[slot.pin.bundle].row
         local target = state.lifted[id] and lift[slot.side]
@@ -1625,6 +1675,10 @@ function M.moor()
         else
           settle(w, ch)
         end
+      elseif state.castOff[id] then
+        -- A cast-off window loses its clamped width, so it never grows back to it later.
+        state.clamped[id] = nil
+        cacheZoom(w, w:frame(), true)
       else
         local at = settle(w, ch)
         if at then
@@ -2093,6 +2147,21 @@ local function frontItem()
   return { title = "Anchor " .. name, disabled = ignoredBundle(bundle), menu = targets }
 end
 
+-- castItem builds the Cast off entry for the focused window, checked while it is cast off and
+-- disabled with the reason when it cannot be.
+local function castItem()
+  local win = hs.window.focusedWindow()
+  local on = win ~= nil and M.castOff(win)
+  local why = not on and castReason(win) or nil
+  return {
+    title = "Cast off this window",
+    tooltip = why or castTip,
+    checked = on,
+    disabled = why ~= nil,
+    fn = safe(function() M.toggleCastOff(win) end),
+  }
+end
+
 -- lockedItems builds the Anchored apps folder: a row per slot that opens a list of running
 -- apps and a file browser, then Unanchor all apps and a reset.
 local function lockedItems()
@@ -2557,7 +2626,7 @@ local function liftItems(pins, frozen)
 end
 
 -- menu builds the menu bar menu from current state: the two layout controls, a Re-moor entry
--- per released pin, the frontmost app's entry, a folder per job, Reload, and the tip entry when
+-- per released pin, the frontmost app's entry, Cast off, a folder per job, Reload, and the tip entry when
 -- the config names a page. An update and an old Hammerspoon show first. While Accessibility is
 -- missing it starts with the way to grant it.
 local function menu()
@@ -2594,6 +2663,7 @@ local function menu()
     end
   end
   items[#items + 1] = frontItem()
+  items[#items + 1] = castItem()
   for _, it in ipairs({
     { title = "-" },
     { title = "Anchored apps", menu = lockedItems() },
@@ -2694,6 +2764,7 @@ function M.start()
   end))
   -- Moves and resizes only wake the poll, so a burst of them costs one pass per tick at most.
   M.filter:subscribe(wf.windowMoved, wake)
+  M.filter:subscribe(wf.windowDestroyed, safe(closed))
   workspaces.attach(M)
   settings.attach(M, actions, workspaces)
   -- moorings.app sends this link when moorings is already running.

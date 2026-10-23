@@ -168,8 +168,8 @@ non-zero on any failure.
 
 ### Menu
 
-The top of the menu holds Weigh anchor, Re-moor now and Anchor *app*, then seven folders, then
-Reload and Quit moorings. Update moorings shows above them all while a new release is out.
+The top of the menu holds Weigh anchor, Re-moor now, Anchor *app* and Cast off this window, then
+seven folders, then Reload and Quit moorings. Update moorings shows above them all while a new release is out.
 
 | Item                          | What it holds&nbsp;                                                                                                                                                                      |
 |-------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -178,6 +178,7 @@ Reload and Quit moorings. Update moorings shows above them all while a new relea
 | Re-moor now                   | Applies the layout immediately instead of waiting for the poll.                                                                                                                          |
 | Re-moor *app*                 | Shown for each anchored window released after you moved it. Puts it back.                                                                                                                |
 | Anchor *app* / Unanchor *app* | The app you were just using. Anchor picks one of the four slots. Unanchor frees its slot and leaves the window.                                                                          |
+| Cast off this window           | Lets the focused window cover the strips, even an anchored app, until it closes or you click again.                                                                                     |
 | Anchored apps                 | Four slot rows, each with running apps and Choose app…, then Unanchor all apps and Reset to defaults.                                                                                    |
 | Window                        | Every window action by family, each showing its shortcut.                                                                                                                                |
 | Window, Organize              | Tile, cascade, cycle and reverse, then Fill channel, Tidy channel and Undo tidy.                                                                                                         |
@@ -465,6 +466,14 @@ Resize, Fill & Arrange, Full Screen and Move to display entries are macOS window
 cannot add to that menu. It only reacts after macOS moves the window: Full Screen behaves as
 described above, and a window that macOS tiles into an edge on the ultrawide is pushed back into
 the channel like any other free window.
+
+Cast off this window, near the top of the menu, exempts the focused window from these rules. It
+can cover a strip, even an anchored app, and keep any width, and dragging it snaps nowhere, so it
+drops where you let go. Option-drop on a strip still anchors it, which ends the cast off. Window
+actions still work on it. It stays free until it closes or you click the entry again, which puts
+it back in the channel at once. Nothing is saved, so a reload ends every cast off. The entry is
+disabled, with the reason as its hover hint, for an anchored window, for a window on another
+display, and for an ignored app.
 
 ### Guards
 
