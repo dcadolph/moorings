@@ -119,7 +119,7 @@ final class Organizer {
     // move.
     func undo() {
         guard !anchors.choices.paused else { return }
-        app.windows.scan(Screens.current())
+        _ = app.windows.scan(Screens.current())
         for (id, f) in anchors.undo() {
             app.windows.move(id, to: f)
         }
