@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="moorings.jpg" alt="Three boats on moorings in a calm cove" width="640">
+  <img src="moorings.jpg" alt="Three boats on moorings in a calm cove" width="100%">
 </p>
 
 <h1 align="center">moorings</h1>
