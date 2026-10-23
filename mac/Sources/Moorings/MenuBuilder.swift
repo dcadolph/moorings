@@ -429,9 +429,20 @@ struct MenuBuilder {
             out.append(label("\(side == .left ? "Left" : "Right") side empty: part of the channel",
                              tip: "Nothing is anchored on this side, so free windows use it until an app is."))
         }
+        for side in [Side.left, .right] where anchors.minWidth(side) > 0 && wide != nil {
+            let name = anchors.minBy[side].map { appName($0) } ?? "An app"
+            out.append(label(String(format: "%@ %.0f%% in use: %@ needs %.0f pt", side == .left ? "Left" : "Right",
+                                    side == .left ? use.left : use.right, name, anchors.minWidth(side)),
+                             tip: "This app will not shrink to the chosen width, so its strip is wider."))
+        }
+        let held = { (side: Side, pct: Double) -> Bool in
+            guard let wide else { return false }
+            return Layout.held(minPoints: anchors.minWidth(side), screenWidth: wide.w, pct: pct)
+        }
         for (title, side, delta) in [("Left wider", Side.left, 1.0), ("Left narrower", .left, -1),
                                      ("Right wider", .right, 1), ("Right narrower", .right, -1)] {
-            let (next, ok) = Layout.stepped(w, side, delta * Layout.widthStep)
+            let (next, ok) = Layout.stepped(w, side, delta * Layout.widthStep, minPoints: anchors.minWidth(side),
+                                            screenWidth: wide?.w)
             out.append(ActionItem(title, tip: "Move the strip's inner edge by one percent of the display.", enabled: ok) {
                 anchors.setWidths(next)
                 app.save()
@@ -439,7 +450,8 @@ struct MenuBuilder {
         }
         for preset in Layout.presets {
             out.append(ActionItem(String(format: "Left %.0f%%, right %.0f%%", preset.left, preset.right),
-                                  tip: "Set both strips to these shares of the display.", checked: preset == w) {
+                                  tip: "Set both strips to these shares of the display.", checked: preset == w,
+                                  enabled: !held(.left, preset.left) && !held(.right, preset.right)) {
                 anchors.setWidths(preset)
                 app.save()
             })
