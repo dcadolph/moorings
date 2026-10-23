@@ -81,7 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // applicationDidFinishLaunching builds the menu, subscribes to events, and starts the poll.
     func applicationDidFinishLaunching(_ notification: Notification) {
-        item.button?.image = NSImage(systemSymbolName: "sailboat", accessibilityDescription: "Moorings")
+        item.button?.image = Mark.image()
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
@@ -310,8 +310,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // showTrust shows a warning mark on the menu bar icon while Accessibility is missing.
     private func showTrust() {
-        let name = windows.trusted ? "sailboat" : "exclamationmark.triangle"
-        item.button?.image = NSImage(systemSymbolName: name, accessibilityDescription: "Moorings")
+        item.button?.image = windows.trusted ? Mark.image()
+            : NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "Moorings")
     }
 
     // releaseMessage says once that moorings was updated, on the first launch of a new version.

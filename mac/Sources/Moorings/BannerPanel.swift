@@ -73,7 +73,7 @@ final class BannerPanel {
         view.layer?.backgroundColor = Self.color(palette.surface).cgColor
         view.layer?.borderColor = Self.color(palette.accent, alpha: 0.6).cgColor
         let mark = NSImageView(frame: NSRect(x: 12, y: rect.height - 32, width: 20, height: 20))
-        mark.image = NSImage(systemSymbolName: "sailboat", accessibilityDescription: nil)
+        mark.image = Mark.image(size: 20)
         mark.contentTintColor = Self.color(palette.accent)
         view.addSubview(mark)
         let head = NSTextField(labelWithString: title)
