@@ -63,6 +63,15 @@ final class Windows {
     // scanned holds the processes the last scan read windows from.
     private(set) var scanned: Set<pid_t> = []
 
+    // lastFront is the last app other than moorings to come to the front.
+    var lastFront: pid_t?
+
+    // front returns the front app, or the one before moorings when a link brought moorings forward.
+    private var front: pid_t? {
+        let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        return pid == ProcessInfo.processInfo.processIdentifier ? lastFront : pid
+    }
+
     // trusted reports whether moorings has Accessibility access.
     var trusted: Bool { AXIsProcessTrusted() }
 
@@ -75,7 +84,7 @@ final class Windows {
         var seen: [WindowID: AXUIElement] = [:]
         var focusedID: WindowID?
         scanned = []
-        let front = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let front = front
         for running in NSWorkspace.shared.runningApplications where pids.contains(running.processIdentifier) {
             guard let bundle = running.bundleIdentifier, !running.isHidden,
                   running.processIdentifier != ProcessInfo.processInfo.processIdentifier

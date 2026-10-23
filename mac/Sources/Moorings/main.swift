@@ -426,6 +426,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // on when the front app changes.
     @objc private func workspaceChanged(_ note: Notification) {
         if note.name == NSWorkspace.didActivateApplicationNotification {
+            if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+               app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+                windows.lastFront = app.processIdentifier
+            }
             refreshShortcuts()
         }
         if note.name == NSApplication.didChangeScreenParametersNotification {
