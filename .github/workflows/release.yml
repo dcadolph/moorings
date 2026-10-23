@@ -1,33 +1,128 @@
 name: release
 
-# On a published release, check the tag names the version in updates.lua, write the Homebrew
-# formula into dcadolph/homebrew-tap, then install moorings from the tap on macOS and test it
-# the way a user would get it.
+# On a published release, build the universal app, sign it with Developer ID, notarize and staple
+# it, attach the zip, write the cask into dcadolph/homebrew-tap in place of the old formula, then
+# install from the tap on macOS and check it the way a user would get it.
 on:
   release:
     types: [published]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  build:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Test
+        run: swift test
+
+      - name: Require signing secrets
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          for name in MACOS_CERT_P12 MACOS_CERT_PASSWORD NOTARY_KEY_P8 NOTARY_KEY_ID NOTARY_ISSUER_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Secret $name is not set. A release must be signed and notarized."
+              exit 1
+            fi
+          done
+
+      - name: Import signing certificate
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password="$(uuidgen)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security import "$RUNNER_TEMP/cert.p12" -k "$keychain" -P "$MACOS_CERT_PASSWORD" \
+            -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/cert.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain" login.keychain-db
+
+      - name: Build universal app
+        env:
+          # Tip link for the menu. Unset, the app shows no tip entry.
+          MOORINGS_SUPPORT_URL: ${{ vars.MOORINGS_SUPPORT_URL }}
+          SIGN_ID: "Developer ID Application: Douglas Adolph (U7L4P2YHWJ)"
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p ../dist
+          make zip ARCHS="arm64 x86_64" SIGN_ID="$SIGN_ID" VERSION="${TAG#v}" BUILD="${GITHUB_RUN_NUMBER}" \
+            ZIP="../dist/moorings_${TAG}_macos_universal.zip"
+          codesign -dv .build/Moorings.app 2>&1 | tee "$RUNNER_TEMP/sign.txt"
+          grep -q "TeamIdentifier=U7L4P2YHWJ" "$RUNNER_TEMP/sign.txt"
+          grep -q "flags=0x10000(runtime)" "$RUNNER_TEMP/sign.txt"
+
+      - name: Notarize and staple
+        env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          zip="../dist/moorings_${TAG}_macos_universal.zip"
+          key="$RUNNER_TEMP/notary.p8"
+          printf '%s' "$NOTARY_KEY_P8" > "$key"
+          xcrun notarytool submit "$zip" --key "$key" --key-id "$NOTARY_KEY_ID" \
+            --issuer "$NOTARY_ISSUER_ID" --wait --timeout 90m --output-format json > "$RUNNER_TEMP/notary.json"
+          rm -f "$key"
+          cat "$RUNNER_TEMP/notary.json"
+          test "$(jq -r .status "$RUNNER_TEMP/notary.json")" = "Accepted"
+          xcrun stapler staple .build/Moorings.app
+          rm -f "$zip"
+          ditto -c -k --keepParent .build/Moorings.app "$zip"
+
+      - name: Verify as a user would
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          check="$RUNNER_TEMP/verify"
+          mkdir -p "$check"
+          ditto -x -k "../dist/moorings_${TAG}_macos_universal.zip" "$check"
+          xcrun stapler validate "$check/Moorings.app"
+          spctl --assess --type execute --verbose=4 "$check/Moorings.app"
+          codesign --verify --deep --strict --verbose=2 "$check/Moorings.app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$check/Moorings.app/Contents/Info.plist")" = "${TAG#v}"
+          cd ../dist
+          shasum -a 256 -- *.zip > SHA256SUMS
+
+      - name: Remove signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+
   tap:
+    needs: build
     runs-on: ubuntu-24.04
     env:
       TAG: ${{ github.event.release.tag_name }}
       TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v5
-
-      - name: Check the tag names the version in updates.lua
-        run: |
-          want="v$(sed -n 's/^U\.version = "\(.*\)"$/\1/p' updates.lua)"
-          if [ "$TAG" != "$want" ]; then
-            echo "::error::tag $TAG does not match updates.lua, which says $want"
-            exit 1
-          fi
-
-      - name: Write the formula into the tap
+      - name: Write the cask into the tap
         run: |
           set -euo pipefail
           if [ -z "${TAP_TOKEN:-}" ]; then
@@ -35,46 +130,44 @@ jobs:
             exit 1
           fi
           VER="${TAG#v}"
-          url="https://github.com/dcadolph/moorings/archive/refs/tags/${TAG}.tar.gz"
-          sha="$(curl -fsSL "$url" | sha256sum | cut -d' ' -f1)"
+          zip="moorings_${TAG}_macos_universal.zip"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$zip"
+          sha="$(sha256sum "$zip" | cut -d' ' -f1)"
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/dcadolph/homebrew-tap.git" tap
-          cat > tap/Formula/moorings.rb <<EOF
-          class Moorings < Formula
-            desc "Pin apps to the edges of an ultrawide Mac screen with Hammerspoon"
-            homepage "https://github.com/dcadolph/moorings"
-            url "${url}"
+          mkdir -p tap/Casks
+          cat > tap/Casks/moorings.rb <<EOF
+          cask "moorings" do
+            version "${VER}"
             sha256 "${sha}"
-            license "Apache-2.0"
 
-            depends_on :macos
+            url "https://github.com/dcadolph/moorings/releases/download/v#{version}/moorings_v#{version}_macos_universal.zip"
+            name "Moorings"
+            desc "Anchor apps to the edges of an ultrawide display"
+            homepage "https://github.com/dcadolph/moorings"
 
-            def install
-              pkgshare.install Dir["*.lua", "*.svg", "*.html", "*.png"], "README.md", "FEATURES.md", "LICENSE"
-              bin.install "moorings"
+            livecheck do
+              url :url
+              strategy :github_latest
             end
 
-            def caveats
-              <<~EOS
-                moorings runs inside Hammerspoon. Install it, then wire moorings in:
-                  brew install --cask hammerspoon
-                  moorings setup
-                moorings doctor checks the setup. Run moorings uninstall before brew uninstall.
-              EOS
-            end
+            depends_on macos: :sonoma
 
-            test do
-              assert_equal version.to_s, shell_output("#{bin}/moorings version").strip
-              assert_path_exists pkgshare/"anchors.lua"
-            end
+            app "Moorings.app"
+
+            zap trash: "~/Library/Preferences/com.dcadolph.moorings.plist"
           end
           EOF
           cd tap
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/moorings.rb
-          # A re-run of a tag that already shipped writes the same formula and has nothing to push.
+          # The app replaces the Hammerspoon formula.
+          if [ -f Formula/moorings.rb ]; then
+            git rm -q Formula/moorings.rb
+          fi
+          git add Casks/moorings.rb
+          # A re-run of a tag that already shipped writes the same cask and has nothing to push.
           if git diff --cached --quiet; then
-            echo "the formula already holds ${VER}; nothing to bump"
+            echo "the cask already holds ${VER}; nothing to bump"
             exit 0
           fi
           git commit -m "Update moorings to ${VER}"
@@ -83,18 +176,14 @@ jobs:
   verify:
     needs: tap
     runs-on: macos-15
-    env:
-      TAG: ${{ github.event.release.tag_name }}
     steps:
-      - name: Install from the tap and test it as a user
+      - name: Install from the tap and check it as a user would
         run: |
           set -euo pipefail
           brew tap dcadolph/tap
-          brew install dcadolph/tap/moorings
-          test "$(moorings version)" = "${TAG#v}"
-          brew test dcadolph/tap/moorings
-          brew audit --strict --online dcadolph/tap/moorings
-          brew install --cask hammerspoon
-          moorings setup
-          moorings doctor
-          moorings uninstall
+          brew install --cask dcadolph/tap/moorings
+          spctl --assess --type execute --verbose=4 /Applications/Moorings.app
+          xcrun stapler validate /Applications/Moorings.app
+          codesign -dv /Applications/Moorings.app 2>&1 | grep -q "TeamIdentifier=U7L4P2YHWJ"
+          brew audit --cask --strict --online dcadolph/tap/moorings
+          brew uninstall --cask moorings
