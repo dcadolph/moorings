@@ -5,7 +5,7 @@
 local U = {}
 
 -- version is this moorings release. The release workflow refuses a tag that differs.
-U.version = "1.3.0"
+U.version = "1.4.0"
 
 -- minHammerspoon is the oldest Hammerspoon moorings has been checked on.
 U.minHammerspoon = "1.1.1"
