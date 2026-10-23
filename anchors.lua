@@ -19,11 +19,11 @@ M.config = {
   -- anchored lists the apps held at an edge, by bundle ID. A side holds at most two.
   -- row is "top" or "bottom" and only matters when two pins share a side.
   -- expandPct widens a pin while it has focus. A pin holds one window of its app and
-  -- leaves the app's other windows free.
-  anchored = {
-    { bundle = "com.tinyspeck.slackmacgap", side = "left" },
-    { bundle = "com.googlecode.iterm2", side = "right" },
-  },
+  -- leaves the app's other windows free. Nothing is anchored until you choose an app, here or
+  -- from the menu. This pair holds Slack on the left and iTerm on the right:
+  --   { bundle = "com.tinyspeck.slackmacgap", side = "left" },
+  --   { bundle = "com.googlecode.iterm2", side = "right" },
+  anchored = {},
   -- ignoreBundles lists apps whose windows are never moved. Shortcuts are off
   -- while one of them is frontmost.
   ignoreBundles = {},
@@ -184,6 +184,7 @@ local keys = {
   sizes = "moorings.sizes",
   launchedPID = "moorings.launchedPID",
   gap = "moorings.gapPx",
+  anchorHint = "moorings.anchorHint",
 }
 
 -- minChannelPct is the narrowest channel a width pair may leave.
@@ -1001,6 +1002,20 @@ function M.pins()
     end
   end
   return list
+end
+
+-- hintAnchor says once how to anchor an app, while an ultrawide is attached, nothing is
+-- anchored by the config or a choice, and windows can move. Emptied slots count as a choice.
+local function hintAnchor()
+  if hs.settings.get(keys.anchorHint) or chosen() ~= nil or #M.config.anchored > 0 then
+    return
+  end
+  if not M.ultrawide() or not hs.accessibilityState(false) then
+    return
+  end
+  hs.settings.set(keys.anchorHint, true)
+  notify("Anchor an app to an edge", "Click the app, then choose Anchor and its name near the top "
+    .. "of the moorings menu and pick a slot.")
 end
 
 -- assignments returns the bundle in each slot of the layout in effect, with ""
@@ -1966,6 +1981,7 @@ accessChanged = function(granted)
   end
   snap.start()
   notify("moorings can move windows", "Accessibility is on.")
+  hs.timer.doAfter(banner.seconds + 1, safe(hintAnchor))
 end
 
 -- M.openIconDir reveals the icon folder, or says how to create it.
@@ -2673,6 +2689,7 @@ function M.start()
     workspaces.screensChanged()
     state.placed = {}
     M.moor()
+    hintAnchor()
   end)):start()
   -- A fresh start opens the anchored apps, so they keep their space through the first poll and
   -- a reload, which opens nothing, leaves a closed app closed. A start the keep-alive agent made
@@ -2689,6 +2706,7 @@ function M.start()
   if fresh then
     safe(openAnchored)()
   end
+  safe(hintAnchor)()
   return M
 end
 

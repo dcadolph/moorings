@@ -429,6 +429,7 @@ local function install(...)
   end
   -- The banner is faked here and drawn for real in banner_test.lua.
   package.loaded.banner = {
+    seconds = 5,
     show = function(opts)
       local n = { opts = opts }
       function n.withdraw() n.withdrawn = true end
@@ -479,6 +480,11 @@ local function install(...)
   -- The selftest is faked here and run for real in selftest_test.lua.
   package.loaded.selftest = { attach = function(m) world.selftestHost = m end }
   anchors = require("anchors")
+  -- The shipped config anchors nothing. Most tests run against Slack left and iTerm right.
+  anchors.config.anchored = {
+    { bundle = "com.tinyspeck.slackmacgap", side = "left" },
+    { bundle = "com.googlecode.iterm2", side = "right" },
+  }
 end
 
 -- item finds a menu entry by title, searching submenus.
@@ -4669,6 +4675,63 @@ tests[#tests + 1] = function()
   anchors.setPaused(false)
   anchors.restoreLayout(frozen)
   check("t198 weighed comes back", anchors.paused())
+end
+
+-- Test 199: The shipped config anchors nothing. A start on an ultrawide moves no window, opens no
+-- app, and says once how to anchor one. The hint waits for an ultrawide and for Accessibility,
+-- and never shows once a slot was chosen or emptied, or when the config anchors an app.
+tests[#tests + 1] = function()
+  local hint = "Anchor an app to an edge"
+  install(ultrawide())
+  package.loaded.anchors = nil
+  anchors = require("anchors")
+  check("t199 shipped empty", #anchors.config.anchored == 0)
+  local slack = addWin("Slack", { x = 2000, y = 100, w = 900, h = 700 })
+  local term = addWin("iTerm2", { x = 100, y = 100, w = 900, h = 700 })
+  anchors.start()
+  for _ = 1, 3 do world.poll() end
+  frameIs("t199 slack free", slack, { x = 2000, y = 100, w = 900, h = 700 })
+  frameIs("t199 iterm free", term, { x = 100, y = 100, w = 900, h = 700 })
+  check("t199 opens nothing", #world.opened == 0, table.concat(world.opened, ","))
+  check("t199 hint", world.alertTitle == hint and world.alerts == 1, tostring(world.alertTitle))
+  check("t199 hint names menu", world.alerted:find("Anchor and its name", 1, true) ~= nil)
+  check("t199 remembered", world.settings["moorings.anchorHint"] == true)
+  world.onScreens()
+  check("t199 once", world.alerts == 1)
+
+  install(ultrawide())
+  anchors.config.anchored = {}
+  world.settings["moorings.anchorHint"] = true
+  anchors.start()
+  check("t199 seen before", world.alerts == nil)
+
+  install(laptop())
+  anchors.config.anchored = {}
+  anchors.start()
+  check("t199 laptop quiet", world.alerts == nil)
+  world.screens = { laptop(), newScreen(2, 1920, 5120, 1440) }
+  world.onScreens()
+  check("t199 ultrawide arrives", world.alertTitle == hint, tostring(world.alertTitle))
+
+  install(ultrawide())
+  anchors.config.anchored = {}
+  world.settings["moorings.slots"] = { ["left-top"] = "", ["left-bottom"] = "", ["right-top"] = "",
+    ["right-bottom"] = "" }
+  anchors.start()
+  check("t199 emptied slots quiet", world.alerts == nil)
+
+  install(ultrawide())
+  anchors.start()
+  check("t199 config pins quiet", world.alerts == nil)
+
+  install(ultrawide())
+  anchors.config.anchored = {}
+  world.trusted = false
+  anchors.start()
+  check("t199 no access quiet", world.alerts == nil and world.settings["moorings.anchorHint"] == nil)
+  world.trusted = true
+  world.poll()
+  check("t199 after grant", world.alertTitle == hint and world.alerts == 2, tostring(world.alertTitle))
 end
 
 for i, t in ipairs(tests) do

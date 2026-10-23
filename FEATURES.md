@@ -39,6 +39,8 @@ on any display unless it says ultrawide. The [README](README.md) has the details
 
 - Up to four apps held at the screen edges, a top and bottom slot on each side, with the open
   middle, the channel, left for everything else.
+- Nothing is anchored until you choose an app, so a first start moves no window. On an ultrawide,
+  one message says how to anchor the first app.
 - Anchor *app* at the top of the menu holds the app you were just using.
 - Width and height presets and steppers, with a label that says how wide the channel is.
 - Click an anchored window's green button to lift it over the channel at full height, and click
@@ -70,7 +72,8 @@ on any display unless it says ultrawide. The [README](README.md) has the details
 - Hammerspoon starts at login, installs its own updates quietly, and starts again within 30
   seconds if it quits or crashes. Quit moorings stops all of it until the next login.
 - Moorings checks once a day for its own new release and offers it at the top of the menu. One
-  click updates a Homebrew install or a clone and reloads. Nothing installs without that click.
+  click updates a Homebrew install or a clone and reloads, and a message after the reload says
+  which version is running. Nothing installs without that click.
 - Installs with `brew install dcadolph/tap/moorings`. `moorings setup` wires it into Hammerspoon,
   `moorings doctor` checks the wiring and `moorings uninstall` takes it out.
 - `moorings selftest` checks the layout against real TextEdit windows inside Hammerspoon, then

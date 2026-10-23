@@ -100,13 +100,15 @@ every restart and there is nothing to turn on in Preferences.
 - The mark shows but no apps park at the edges. That is expected on a display that is not
   ultrawide. Parked apps only act on a screen at least 2.2 times wider than it is tall.
 - A warning sign shows in place of the mark. Accessibility is missing. See step 3.
-- Slack and iTerm are the defaults. See Anchored apps below to choose other apps.
+- Nothing is anchored until you choose an app. See Quickstart below.
 
 ### Update and uninstall
 
 Moorings checks GitHub once a day for a new release. When one is out, Update moorings and its
 version show at the top of the menu. Choosing it runs `brew upgrade moorings` for a Homebrew
-install or `git pull --ff-only` for a clone, then reloads. Nothing installs until you choose it.
+install or `git pull --ff-only` for a clone, then reloads, and a message says which version is
+now running. When no newer version arrived, the message says so and moorings checks GitHub again
+at once. Nothing installs until you choose it.
 Settings, Check for updates now asks at once. To stop the daily check, untick Settings, Check for
 moorings updates. To update by hand, run `brew upgrade moorings` or
 `git -C ~/src/moorings pull`, then Reload. When Hammerspoon is older than the version moorings
@@ -135,14 +137,16 @@ untick Settings, Keep Hammerspoon up to date.
 
 ## Quickstart
 
-Slack sits at 10% on the left, iTerm at 45% on the right, and everything else stays in the
-channel, the open strip in between. Click Slack's green button to lift it over the channel at
-full height, and click it again to lower it. Drag an anchored window somewhere else and moorings
-lets it go with a short message. Its green button or Control-Option-Delete brings it home.
+Moorings starts with nothing anchored, so no window moves until you choose an app. On an
+ultrawide, a message the first time says how. To anchor an app, click it, open the moorings menu,
+choose Anchor *app* near the top, then pick a slot. Picking an app from a slot's list opens it the
+way a Dock click does, and the list ends with Choose app…, which browses for any app.
 
-To anchor another app, click it, open the moorings menu, choose Anchor *app* near the top, then
-pick a slot. Picking an app from a slot's list opens it the way a Dock click does, and the list
-ends with Choose app…, which browses for any app. The wider and narrower items under Widths move
+With Slack in Left top and iTerm in Right top, Slack sits at 10% on the left, iTerm at 45% on the
+right, and everything else stays in the channel, the open strip in between. Click Slack's green
+button to lift it over the channel at full height, and click it again to lower it. Drag an
+anchored window somewhere else and moorings lets it go with a short message. Its green button or
+Control-Option-Delete brings it home. The wider and narrower items under Widths move
 each strip by 1%, and the Channel label shows what is left in the middle. When two apps share a
 side, Heights sets how tall the top one is, from 10% to 90%, and the bottom one takes the rest. A
 calendar at 10% over Slack at 90% is Heights, Left side, Top 10%.
@@ -383,7 +387,8 @@ Anchor *app* near the top of the menu is the fast path. The menu bar does not ta
 names the app you were just using, and turns into Unanchor *app* once that app holds a slot. Choices are saved in Hammerspoon settings and win over the anchors
 in the config file. Unanchor all apps empties every slot, so every window is free until you pick
 an app again. Weigh anchor is the pause: it keeps your choices and only stops holding windows.
-Reset to defaults goes back to the anchors in the config file.
+Reset to defaults goes back to the anchors in the config file, which anchors nothing unless you
+add apps there.
 
 An anchored app keeps the `expandPct` the config gives it. Apps the config does not name get no
 expand. Expand on focus widens an app only within its own row of the strip.
