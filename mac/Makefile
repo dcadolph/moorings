@@ -1,0 +1,54 @@
+APP := .build/Moorings.app
+SANDBOX_APP := .build/sandbox/Moorings.app
+SIGN_ID ?= -
+ENTITLEMENTS ?=
+BUILD ?= 1
+PLIST := $(APP)/Contents/Info.plist
+ARCHS ?=
+ARCH_FLAGS := $(foreach arch,$(ARCHS),--arch $(arch))
+ZIP ?= .build/Moorings.zip
+
+ICONSET := .build/AppIcon.iconset
+ICNS := .build/AppIcon.icns
+
+.PHONY: build test app sandbox zip run clean
+
+build:
+	swift build
+
+test:
+	swift build
+	swift test
+
+$(ICNS): ../app-icon.png
+	rm -rf $(ICONSET)
+	mkdir -p $(ICONSET)
+	for size in 16 32 128 256 512; do \
+		sips -z $$size $$size ../app-icon.png --out $(ICONSET)/icon_$${size}x$${size}.png >/dev/null; \
+		sips -z $$((size * 2)) $$((size * 2)) ../app-icon.png --out $(ICONSET)/icon_$${size}x$${size}@2x.png >/dev/null; \
+	done
+	iconutil -c icns $(ICONSET) -o $(ICNS)
+
+app: $(ICNS)
+	swift build -c release $(ARCH_FLAGS)
+	rm -rf $(APP)
+	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources
+	cp $(ICNS) $(APP)/Contents/Resources/AppIcon.icns
+	cp "$$(swift build -c release $(ARCH_FLAGS) --show-bin-path)/Moorings" $(APP)/Contents/MacOS/Moorings
+	cp Sources/Moorings/Info.plist $(PLIST)
+	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion '$(BUILD)'" $(PLIST)
+	codesign --force --sign "$(SIGN_ID)" $(if $(ENTITLEMENTS),--entitlements $(ENTITLEMENTS)) $(APP)
+
+sandbox:
+	$(MAKE) app APP=$(SANDBOX_APP) ENTITLEMENTS=sandbox.entitlements
+
+zip: app
+	rm -f $(ZIP)
+	ditto -c -k --keepParent $(APP) $(ZIP)
+
+run: app
+	-pkill -x Moorings
+	open $(APP)
+
+clean:
+	rm -rf .build
