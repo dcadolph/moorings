@@ -315,6 +315,11 @@ struct MenuBuilder {
         }
         out.append(folder("Custom sizes", custom))
         out.append(.separator())
+        out.append(ActionItem("Snap windows by dragging", tip: "Drag a window to a display edge or corner to snap it "
+                + "there. Hold Option over a strip on the ultrawide to anchor its app.", checked: anchors.choices.snap) {
+            anchors.choices.snap.toggle()
+            app.save()
+        })
         out.append(folder("Keymap", Keymap.allCases.map { km in
             ActionItem(km.rawValue.capitalized, tip: "Use \(km.rawValue.capitalized)'s shortcuts for the window actions.",
                        checked: anchors.choices.keymap == km.rawValue) {

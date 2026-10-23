@@ -29,6 +29,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var actions = ActionRunner(app: self)
     // tap watches the primary mouse button for green button clicks and drags.
     let tap = EventTap()
+    // snap follows drags and snaps the dragged window to the zone under the cursor.
+    lazy var snap = DragSnap(app: self)
     // hotkeys runs a window action when its shortcut is pressed.
     lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
     // item is the menu bar status item.
@@ -64,7 +66,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             logger.notice("Accessibility is not granted: windows will not move")
         }
         anchors.launch(now: Self.now)
-        tap.onDown = { [weak self] p, option in self?.zoomDown(p, option: option) ?? false }
+        tap.onDown = { [weak self] p, option in
+            guard let self else { return false }
+            if self.zoomDown(p, option: option) {
+                return true
+            }
+            self.snap.pressed()
+            return false
+        }
+        tap.onDrag = { [weak self] p, option in self?.snap.dragged(p, option: option) }
+        tap.onUp = { [weak self] _, _ in self?.snap.released() }
         tap.start()
         rebind()
         refreshShortcuts()

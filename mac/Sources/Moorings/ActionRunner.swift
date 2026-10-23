@@ -86,9 +86,10 @@ final class ActionRunner {
         return apply(name, to: w, screens: screens)
     }
 
-    // apply applies action name to window w and reports whether it moved.
+    // apply applies action name to window w on the screen at index, its own screen when nil, and
+    // reports whether it moved.
     @discardableResult
-    func apply(_ name: String, to w: WindowInfo, screens: Screens) -> Bool {
+    func apply(_ name: String, to w: WindowInfo, screens: Screens, index: Int? = nil) -> Bool {
         if anchors.pinned(w) {
             switch name {
             case "maximize":
@@ -119,18 +120,24 @@ final class ActionRunner {
             app.wake()
             return true
         }
-        let areas = screens.usable.indices.map { i in
-            i == screens.ultrawide ? anchors.channel(screens.usable[i]) : screens.usable[i]
-        }
-        let target = ActionTarget(screens: screens.full, areas: areas, index: screens.index(w.frame) ?? 0)
-        let (frame, press) = Actions.frame(name, cur: w.frame, target: target, gap: anchors.choices.gapPx,
-                                           sizes: Bindings(anchors.choices).specs, last: last[w.id])
+        let (frame, press) = frame(name, for: w, screens: screens, index: index)
         guard let frame else { return false }
         anchors.save(w)
         app.windows.move(w.id, to: frame)
         last[w.id] = LastPress(name: name, press: press, frame: app.windows.frame(w.id) ?? frame)
         app.wake()
         return true
+    }
+
+    // frame returns the frame action name gives w on the screen at index, its own screen when nil,
+    // and the press count, without moving it.
+    func frame(_ name: String, for w: WindowInfo, screens: Screens, index: Int? = nil) -> (Frame?, press: Int) {
+        let areas = screens.usable.indices.map { i in
+            i == screens.ultrawide ? anchors.channel(screens.usable[i]) : screens.usable[i]
+        }
+        let target = ActionTarget(screens: screens.full, areas: areas, index: index ?? screens.index(w.frame) ?? 0)
+        return Actions.frame(name, cur: w.frame, target: target, gap: anchors.choices.gapPx,
+                             sizes: Bindings(anchors.choices).specs, last: last[w.id])
     }
 
     // runnable reports whether name is an action or a custom size in the choices.

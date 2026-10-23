@@ -14,8 +14,8 @@ final class EventTap {
     // onDown is asked about each press with its point and whether Option is held, and returns true
     // to swallow the click.
     var onDown: (CGPoint, Bool) -> Bool = { _, _ in false }
-    // onDrag is told where the mouse is while the primary button is held.
-    var onDrag: (CGPoint) -> Void = { _ in }
+    // onDrag is told where the mouse is while the primary button is held, and whether Option is held.
+    var onDrag: (CGPoint, Bool) -> Void = { _, _ in }
     // onUp is told where the primary button came up, for a click that was not swallowed.
     var onUp: (CGPoint, Bool) -> Void = { _, _ in }
     // port is the tap, nil until it starts.
@@ -77,7 +77,7 @@ final class EventTap {
             onUp(event.location, option)
             return true
         case .leftMouseDragged:
-            onDrag(event.location)
+            onDrag(event.location, option)
             return true
         default:
             return true
