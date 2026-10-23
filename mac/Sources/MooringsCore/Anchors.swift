@@ -52,18 +52,25 @@ public struct Choices: Equatable, Sendable, Codable {
     public var heights: Heights?
     // paused reports whether the anchor is weighed, so nothing is held.
     public var paused: Bool
+    // fullscreenFills reports whether native fullscreen on a free window is turned into a channel fill.
+    public var fullscreenFills: Bool
+    // pinFullscreenFills reports whether native fullscreen on a pinned window is sent back to its slot.
+    public var pinFullscreenFills: Bool
 
     // init builds a set of choices.
-    public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false) {
+    public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
+                fullscreenFills: Bool = true, pinFullscreenFills: Bool = true) {
         self.slots = slots
         self.widths = widths
         self.heights = heights
         self.paused = paused
+        self.fullscreenFills = fullscreenFills
+        self.pinFullscreenFills = pinFullscreenFills
     }
 
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
-        case slots, widths, heights, paused
+        case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -74,6 +81,8 @@ public struct Choices: Equatable, Sendable, Codable {
         widths = try? c.decodeIfPresent(Widths.self, forKey: .widths)
         heights = try? c.decodeIfPresent(Heights.self, forKey: .heights)
         paused = (try? c.decodeIfPresent(Bool.self, forKey: .paused)) ?? false
+        fullscreenFills = (try? c.decodeIfPresent(Bool.self, forKey: .fullscreenFills)) ?? true
+        pinFullscreenFills = (try? c.decodeIfPresent(Bool.self, forKey: .pinFullscreenFills)) ?? true
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -83,6 +92,8 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encodeIfPresent(widths, forKey: .widths)
         try c.encodeIfPresent(heights, forKey: .heights)
         try c.encode(paused, forKey: .paused)
+        try c.encode(fullscreenFills, forKey: .fullscreenFills)
+        try c.encode(pinFullscreenFills, forKey: .pinFullscreenFills)
     }
 
     // encode returns choices as sorted JSON for saving.
@@ -114,10 +125,12 @@ public struct WindowInfo: Equatable, Sendable {
     public var isFilePanel: Bool
     // isFullScreen reports whether the window is in native fullscreen.
     public var isFullScreen: Bool
+    // zoomRect is the window's green button rect, nil when the window did not report one.
+    public var zoomRect: Frame?
 
     // init builds a window description.
     public init(id: WindowID, bundle: String, frame: Frame, onUltrawide: Bool, isMain: Bool,
-                isFilePanel: Bool = false, isFullScreen: Bool = false) {
+                isFilePanel: Bool = false, isFullScreen: Bool = false, zoomRect: Frame? = nil) {
         self.id = id
         self.bundle = bundle
         self.frame = frame
@@ -125,6 +138,7 @@ public struct WindowInfo: Equatable, Sendable {
         self.isMain = isMain
         self.isFilePanel = isFilePanel
         self.isFullScreen = isFullScreen
+        self.zoomRect = zoomRect
     }
 }
 
@@ -151,12 +165,41 @@ public struct Scene: Sendable {
     }
 }
 
-// Move is one window frame change a pass asks for.
+// Edges names the edges a move keeps in place when a window will not shrink to fit.
+public struct Edges: Equatable, Sendable {
+    // right keeps the right edge instead of the left.
+    public var right = false
+    // bottom keeps the bottom edge instead of the top.
+    public var bottom = false
+
+    // init builds a set of edges.
+    public init(right: Bool = false, bottom: Bool = false) {
+        self.right = right
+        self.bottom = bottom
+    }
+}
+
+// Move is one window change a pass asks for.
 public struct Move: Equatable, Sendable {
     // id is the window to move.
     public var id: WindowID
-    // frame is where it goes.
+    // frame is where it goes, grown to any size the window is known to keep.
     public var frame: Frame
+    // target is the frame the layout wants before any known minimum size is applied.
+    public var target: Frame
+    // anchor is the edges kept in place when the window will not shrink.
+    public var anchor: Edges
+    // exitFullScreen asks for the window to leave native fullscreen instead of a frame change.
+    public var exitFullScreen: Bool
+
+    // init builds a move.
+    public init(id: WindowID, frame: Frame, target: Frame? = nil, anchor: Edges = Edges(), exitFullScreen: Bool = false) {
+        self.id = id
+        self.frame = frame
+        self.target = target ?? frame
+        self.anchor = anchor
+        self.exitFullScreen = exitFullScreen
+    }
 }
 
 // Anchors holds the chosen layout and decides where each window belongs: pins in their slots on
@@ -209,6 +252,28 @@ public final class Anchors {
     var present: Set<String>?
     // now is the time of the last pass.
     var now = 0.0
+    // lifted holds the pins lifted over their strip and the channel.
+    var lifted: Set<WindowID> = []
+    // released holds the pins let go after the owner moved them by hand.
+    var released: Set<WindowID> = []
+    // placed records where each pin was last put and when.
+    var placed: [WindowID: PinPlacement] = [:]
+    // zoom holds each window's green button rect as of the last pass.
+    var zoom: [WindowID: ZoomSpot] = [:]
+    // filled records where a free window's green button click filled the channel.
+    var filled: [WindowID: Frame] = [:]
+    // saved records each window's frame before moorings first moved it with an action.
+    var saved: [WindowID: Frame] = [:]
+    // floors records the smallest size each window was seen to keep.
+    var floors: [WindowID: Floor] = [:]
+    // pendingFill records when each window was asked to leave native fullscreen.
+    var pendingFill: [WindowID: Double] = [:]
+    // minPoints is the widest floor among the pins on each side.
+    var minPoints: [Side: Double] = [:]
+    // minBy names the bundle whose floor sets minPoints on each side.
+    public internal(set) var minBy: [Side: String] = [:]
+    // justReleased lists the pins the last pass let go, for the app to tell the owner.
+    public internal(set) var justReleased: [WindowID] = []
 
     // init builds Anchors from saved choices.
     public init(choices: Choices = Choices()) {
@@ -292,9 +357,14 @@ public final class Anchors {
         pins().map(\.bundle).filter { openedAt[$0] != nil }
     }
 
-    // remoorNow forgets the windows on hold, so the next pass places everything again.
+    // remoorNow forgets the windows on hold, the learned sizes, the releases and the lifts, so the
+    // next pass places everything again.
     public func remoorNow() {
         bursts = [:]
+        floors = [:]
+        placed = [:]
+        released = []
+        lifted = []
     }
 
     // holdsSpace reports whether bundle's pin keeps its strip: its window showed, no pass ran yet,
@@ -313,23 +383,39 @@ public final class Anchors {
         return [Side.left, .right].filter { !held.contains($0) }
     }
 
-    // inUse returns the strip widths in use: the chosen widths, with 0 for an empty side.
-    public func inUse() -> Widths {
+    // inUse returns the strip widths in use: the chosen widths, with 0 for an empty side. On screen,
+    // each held side grows to fit the widest pin there that will not shrink, while the channel keeps
+    // at least Layout.minChannelPct.
+    public func inUse(_ screen: Frame? = nil) -> Widths {
         let w = widths
         let empty = emptySides()
-        return Widths(left: empty.contains(.left) ? 0 : w.left, right: empty.contains(.right) ? 0 : w.right)
+        let left = empty.contains(.left) ? 0 : w.left
+        let right = empty.contains(.right) ? 0 : w.right
+        guard let screen, screen.w > 0 else { return Widths(left: left, right: right) }
+        let grow = { (side: Side, pct: Double) -> Double in
+            pct > 0 ? max(0, ((self.minPoints[side] ?? 0) + 0.5) * 100 / screen.w - pct) : 0
+        }
+        var gl = grow(.left, left)
+        var gr = grow(.right, right)
+        let room = 100 - Layout.minChannelPct - left - right
+        if gl + gr > room {
+            let total = gl + gr
+            gl = gl * room / total
+            gr = gr * room / total
+        }
+        return Widths(left: left + gl, right: right + gr)
     }
 
     // channel returns the channel on screen, the ultrawide's usable frame.
     public func channel(_ screen: Frame) -> Frame {
-        let w = inUse()
+        let w = inUse(screen)
         return Geometry.regions(screen, w.left, w.right).channel
     }
 
     // slotFrame returns where the slot key sits on screen at its side's width, the chosen width when
     // the side is empty.
     public func slotFrame(_ screen: Frame, _ key: SlotKey) -> Frame {
-        let use = inUse()
+        let use = inUse(screen)
         let pct = key.side == .left ? (use.left > 0 ? use.left : widths.left) : (use.right > 0 ? use.right : widths.right)
         return Geometry.slot(screen, key.side, key.row, pct, topPct: heights[key.side])
     }
@@ -411,7 +497,8 @@ public final class Anchors {
 
     // place returns a move of w to frame unless it is already there. A window that keeps moving
     // away from the same frame is left alone for holdSeconds.
-    func place(_ w: WindowInfo, _ frame: Frame) -> Move? {
+    func place(_ w: WindowInfo, _ target: Frame, _ anchor: Edges = Edges()) -> Move? {
+        let frame = fit(w.id, target, anchor)
         var b = bursts[w.id]
         if let current = b, !Actions.near(current.target, frame, tolerance: Self.tolerance) {
             b = nil
@@ -435,7 +522,7 @@ public final class Anchors {
             burst.holdUntil = now + Self.holdSeconds
         }
         bursts[w.id] = burst
-        return Move(id: w.id, frame: frame)
+        return Move(id: w.id, frame: frame, target: target, anchor: anchor)
     }
 
     // settle keeps free window w inside channel ch, and lets a window the channel once narrowed grow
@@ -454,11 +541,18 @@ public final class Anchors {
         return place(w, want)
     }
 
-    // moor returns the moves that put every pin in its slot and every free window on the ultrawide
-    // in the channel. Nothing moves while paused, while the mouse button is down, or without an
+    // moor returns the moves that put every pin in its slot, or over the channel while lifted, and
+    // every free window on the ultrawide in the channel. A pin the owner moved by hand is released
+    // and left alone. Native fullscreen is turned back into a slot or a channel fill when the
+    // choices say so. Nothing moves while paused, while the mouse button is down, or without an
     // ultrawide.
     public func moor(_ scene: Scene) -> [Move] {
-        guard !choices.paused, !scene.mouseHeld, let screen = scene.screen else { return [] }
+        justReleased = []
+        if choices.paused {
+            placed = [:]
+            return []
+        }
+        guard !scene.mouseHeld, let screen = scene.screen else { return [] }
         now = scene.now
         let pins = pins()
         var shown: Set<String> = []
@@ -472,38 +566,65 @@ public final class Anchors {
             openedAt[bundle] = nil
         }
         let rows = rows(pins.filter { holdsSpace($0.bundle) })
-        let use = inUse()
+        measure(scene.windows, pins)
+        let use = inUse(screen)
         let h = heights
         let ch = Geometry.regions(screen, use.left, use.right).channel
         var moves: [Move] = []
         var seen: Set<WindowID> = []
         for w in scene.windows {
             seen.insert(w.id)
-            if w.isFullScreen {
-                continue
-            }
             if let pin = pin(w.bundle, in: pins) {
                 guard pinsWindow(pin, w) else { continue }
+                if w.isFullScreen {
+                    if choices.pinFullscreenFills, let exit = leaveFullScreen(w) {
+                        moves.append(exit)
+                    }
+                    continue
+                }
+                pendingFill[w.id] = nil
                 castOff.remove(w.id)
                 clamped[w.id] = nil
                 let side = pin.slot.side
                 let row = rows[pin.bundle] ?? nil
-                let target = Geometry.slot(screen, side, row, side == .left ? use.left : use.right, topPct: h[side])
-                if let move = place(w, target) {
+                let pct = side == .left ? use.left : use.right
+                let target = lifted.contains(w.id) ? Geometry.lift(screen, side, use.left, use.right)
+                    : Geometry.slot(screen, side, row, pct, topPct: h[side])
+                if let move = moorPin(w, target, Edges(right: side == .right, bottom: row == .bottom)) {
                     moves.append(move)
                 }
             } else if w.onUltrawide {
-                if castOff.contains(w.id) {
+                if w.isFullScreen {
+                    if choices.fullscreenFills, let exit = leaveFullScreen(w) {
+                        moves.append(exit)
+                    }
+                } else if let started = pendingFill[w.id] {
+                    pendingFill[w.id] = nil
+                    clamped[w.id] = nil
+                    if let move = now - started <= Self.pendingSeconds ? place(w, ch) : settle(w, ch) {
+                        moves.append(move)
+                    }
+                } else if castOff.contains(w.id) {
                     // A cast-off window loses its clamped width, so it never grows back to it later.
                     clamped[w.id] = nil
+                    cacheZoom(w, w.frame, free: true)
                 } else if let move = settle(w, ch) {
                     moves.append(move)
+                } else {
+                    cacheZoom(w, w.frame, free: true)
                 }
             }
         }
         clamped = clamped.filter { seen.contains($0.key) }
         bursts = bursts.filter { seen.contains($0.key) }
         holders = holders.filter { seen.contains($0.value) }
+        pendingFill = pendingFill.filter { seen.contains($0.key) }
+        floors = floors.filter { seen.contains($0.key) }
+        placed = placed.filter { seen.contains($0.key) }
+        zoom = zoom.filter { seen.contains($0.key) }
+        filled = filled.filter { seen.contains($0.key) }
+        released.formIntersection(seen)
+        lifted.formIntersection(seen)
         return moves
     }
 

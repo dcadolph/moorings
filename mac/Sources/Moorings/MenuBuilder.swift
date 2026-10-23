@@ -242,7 +242,7 @@ struct MenuBuilder {
     // and the presets.
     private func widthItems(_ wide: Frame?) -> [NSMenuItem] {
         let w = anchors.widths
-        let use = wide != nil ? anchors.inUse() : w
+        let use = wide != nil ? anchors.inUse(wide) : w
         var out = [label(String(format: "Channel %.0f%%", 100 - use.left - use.right),
                          tip: "The share of the display left between the strips for free windows.")]
         for side in anchors.emptySides() {

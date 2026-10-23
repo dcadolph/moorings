@@ -119,7 +119,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let scene = Scene(screen: screens.wide, windows: list, focused: focused?.id,
                           mouseHeld: NSEvent.pressedMouseButtons & 1 != 0, now: Self.now)
-        for move in anchors.moor(scene) {
+        for move in anchors.moor(scene) where !move.exitFullScreen {
             windows.move(move.id, to: move.frame)
         }
         if !started {
