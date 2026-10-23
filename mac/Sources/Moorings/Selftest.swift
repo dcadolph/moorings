@@ -190,6 +190,25 @@ final class Selftest {
             check(green, (false, "the window reported no green button"))
         }
 
+        try await Task.sleep(for: .seconds(Self.graceSeconds))
+        guard let pinned = app.windows.frame(c) else { throw Stop(reason: "lost the window") }
+        let grab = CGPoint(x: pinned.x + pinned.w / 2, y: pinned.y + 12)
+        let drop = CGPoint(x: ch.x + ch.w / 2, y: ch.y + ch.h / 3)
+        await drag(from: grab, to: drop)
+        let dropped = app.windows.frame(c) ?? pinned
+        check("dragging the anchored window by its title bar releases it", await settled {
+            (self.anchors.isReleased(c), "not released, at \(self.app.windows.frame(c) ?? pinned)")
+        })
+        check("a dragged window stays where it was dropped", await steady { self.at(c, dropped) })
+        app.windows.raise(c)
+        let greenDrag = "green button puts a dragged window back"
+        if let w = info(c), let r = w.zoomRect {
+            click(CGPoint(x: r.x + r.w / 2, y: r.y + r.h / 2))
+            check(greenDrag, await settled { self.landed(c) })
+        } else {
+            check(greenDrag, (false, "the window reported no green button"))
+        }
+
         anchors.choices.paused = true
         app.save()
         app.windows.move(c, to: moved)
@@ -353,6 +372,24 @@ final class Selftest {
             e?.flags = flags
             e?.postToPid(pid)
         }
+    }
+
+    // drag presses the primary button at from, moves to to in steps, and lets go, through the mouse
+    // tap like a real drag.
+    private func drag(from: CGPoint, to: CGPoint) async {
+        let post = { (type: CGEventType, p: CGPoint) in
+            CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+        }
+        post(.leftMouseDown, from)
+        try? await Task.sleep(for: .seconds(0.1))
+        let steps = 20
+        for i in 1...steps {
+            let t = CGFloat(i) / CGFloat(steps)
+            post(.leftMouseDragged, CGPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t))
+            try? await Task.sleep(for: .seconds(0.02))
+        }
+        try? await Task.sleep(for: .seconds(0.1))
+        post(.leftMouseUp, to)
     }
 
     // click clicks the primary button at p, through the mouse tap like a real click.
