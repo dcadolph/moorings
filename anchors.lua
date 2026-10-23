@@ -5,6 +5,7 @@ local actions = require("actions")
 local banner = require("banner")
 local geometry = require("geometry")
 local keepalive = require("keepalive")
+local selftest = require("selftest")
 local snap = require("snap")
 local tile = require("tile")
 local updates = require("updates")
@@ -302,7 +303,7 @@ M.loadfile = loadfile
 -- inside the Hammerspoon config directory.
 M.files = {
   "anchors.lua", "geometry.lua", "actions.lua", "snap.lua", "tile.lua", "workspaces.lua",
-  "settings.lua", "banner.lua", "keepalive.lua", "updates.lua",
+  "settings.lua", "banner.lua", "keepalive.lua", "updates.lua", "selftest.lua",
 }
 
 -- path returns the full path of a moorings source file.
@@ -434,6 +435,13 @@ local function paused()
 end
 
 M.paused = paused
+
+-- setPaused weighs anchor when on, so windows drift, or drops it when off, and re-moors.
+function M.setPaused(on)
+  hs.settings.set(keys.paused, on == true)
+  state.placed = {}
+  M.moor()
+end
 
 -- keymap returns the name of the shortcut set in effect. A choice from the
 -- menu wins over the config, and an unknown name falls back to rectangle.
@@ -1100,6 +1108,22 @@ function M.chooseApp(key)
   end
 end
 
+-- snapshotLayout returns the slot choices and whether the anchor is weighed, for
+-- restoreLayout to put back.
+function M.snapshotLayout()
+  return { slots = hs.settings.get(keys.slots), paused = paused() }
+end
+
+-- restoreLayout puts back the slot choices and anchor that saved holds and re-moors.
+function M.restoreLayout(saved)
+  if saved.slots == nil then
+    hs.settings.clear(keys.slots)
+  else
+    hs.settings.set(keys.slots, saved.slots)
+  end
+  M.setPaused(saved.paused)
+end
+
 -- resetSlots drops the switcher choices so the config is in effect again.
 function M.resetSlots()
   hs.settings.clear(keys.slots)
@@ -1469,6 +1493,17 @@ local function release(w)
   local how = sc and (",\nor press " .. actions.keySpelled(sc)) or ""
   log("window " .. tostring(id) .. " was moved by hand: released")
   notify(name .. " released", "Click its green button to put it back" .. how .. ".")
+end
+
+-- target returns the frame moorings last gave pinned window win, or nil.
+function M.target(win)
+  local p = state.placed[win:id()]
+  return p and p.target
+end
+
+-- released reports whether moorings let pinned window win go after the owner moved it.
+function M.released(win)
+  return state.released[win:id()] == true
 end
 
 -- moorPin places pinned window w at target, or releases it when the owner has moved it
@@ -2515,11 +2550,7 @@ local function menu()
       tooltip = frozen
         and "Hold anchored apps in their slots and free windows in the channel again."
         or "Stop holding windows so you can arrange them freely. The shortcuts rest too.",
-      fn = safe(function()
-        hs.settings.set(keys.paused, not paused())
-        state.placed = {}
-        M.moor()
-      end),
+      fn = safe(function() M.setPaused(not paused()) end),
     },
     {
       title = "Re-moor now",
@@ -2636,6 +2667,7 @@ function M.start()
   workspaces.attach(M)
   settings.attach(M, actions, workspaces)
   updates.attach(M)
+  selftest.attach(M)
   M.screens = hs.screen.watcher.new(safe(function()
     wake()
     workspaces.screensChanged()

@@ -476,6 +476,8 @@ local function install(...)
       }
     end,
   }
+  -- The selftest is faked here and run for real in selftest_test.lua.
+  package.loaded.selftest = { attach = function(m) world.selftestHost = m end }
   anchors = require("anchors")
 end
 
@@ -4629,6 +4631,44 @@ tests[#tests + 1] = function()
   world.poll()
   check("t197 failed read pinned", anchors.pinned(odd))
   frameIs("t197 failed read placed", odd, leftFull)
+end
+
+-- Test 198: Start hands the selftest the module. setPaused freezes and resumes like the menu,
+-- restoreLayout puts back the slots and anchor snapshotLayout saw and leaves a released pin
+-- alone, target names the frame a pin was given, and released turns on once the owner moves a
+-- pin.
+tests[#tests + 1] = function()
+  install(ultrawide())
+  local slack = addWin("Slack", { x = 900, y = 200, w = 700, h = 600 })
+  anchors.start()
+  check("t198 attached", world.selftestHost == anchors)
+  local saved = anchors.snapshotLayout()
+  check("t198 snapshot", saved.slots == nil and saved.paused == false)
+  frameIs("t198 pinned", slack, leftFull)
+  frameIs("t198 target", { f = anchors.target(slack) }, leftFull)
+  check("t198 not released", not anchors.released(slack))
+  world.clock = world.clock + 3
+  slack.f = { x = 900, y = 200, w = 700, h = 600 }
+  world.poll()
+  check("t198 released", anchors.released(slack))
+
+  anchors.assign("left-bottom", "test.Notes")
+  anchors.setPaused(true)
+  check("t198 paused", anchors.paused() and item("⚓ Drop anchor (hold the layout)") ~= nil)
+  local free = addWin("Safari", { x = 0, y = 25, w = 800, h = 600 })
+  world.poll()
+  check("t198 frozen", free.moves == 0)
+  anchors.restoreLayout(saved)
+  check("t198 slots back", world.settings["moorings.slots"] == nil)
+  check("t198 anchor back", not anchors.paused())
+  frameIs("t198 free moored", free, { x = 512, y = 25, w = 800, h = 600 })
+  check("t198 released pin left alone", anchors.released(slack) and slack.f.x == 900)
+
+  anchors.setPaused(true)
+  local frozen = anchors.snapshotLayout()
+  anchors.setPaused(false)
+  anchors.restoreLayout(frozen)
+  check("t198 weighed comes back", anchors.paused())
 end
 
 for i, t in ipairs(tests) do

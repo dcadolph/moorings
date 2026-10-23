@@ -120,7 +120,7 @@ function K.plist(sentinel)
 end
 
 -- loaded reports whether launchd has the agent.
-local function loaded()
+function K.loaded()
   local _, ok = K.run("/bin/launchctl print " .. domain .. "/" .. K.label .. " >/dev/null 2>&1")
   return ok
 end
@@ -131,7 +131,7 @@ end
 function K.install(sentinel)
   local path, text = K.plistPath(), K.plist(sentinel)
   local same = K.readFile(path) == text
-  if same and loaded() then
+  if same and K.loaded() then
     return true
   end
   if not same then
