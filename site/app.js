@@ -1,20 +1,21 @@
 (function () {
   "use strict";
 
-  // Themes mirror mac/Sources/MooringsCore/Theme.swift: bg, surface, text, muted, accent.
+  // Themes mirror mac/Sources/MooringsCore/Theme.swift: bg, surface, text, muted, accent. Harbor
+  // is first and the style.css dark default, Concierge is last and the light default.
   var themes = [
-    ["Harbor dark", "#1c1c1e", "#2a2a2d", "#f2f2f2", "#a1a1a6", "#4fb3bb"],
-    ["Harbor light", "#f6f6f4", "#ffffff", "#1d1d1f", "#6e6e73", "#2b8a92"],
-    ["Dragonsgale", "#0d0a08", "#1a1310", "#f4e6d8", "#b89c86", "#ff7a1a"],
-    ["Greek Fire", "#120805", "#24100a", "#ffe9c2", "#c99a6b", "#ffb000"],
-    ["Phosphor", "#050a05", "#0b160b", "#b8ffb0", "#5fae5a", "#33ff33"],
-    ["Redcoat", "#0e0c0c", "#1c1919", "#f4f1ee", "#a9a3a0", "#d6282f"],
-    ["Hussar", "#1a0608", "#2b0c10", "#f3e3c0", "#c2a272", "#d4a63a"],
+    ["Harbor", "#0f1012", "#0f1012", "#ffffff", "#aaa59b", "#f3e3b8"],
+    ["Dragonfire", "#0d0a08", "#1a1310", "#f4e6d8", "#b89c86", "#ff7a1a"],
+    ["Wildfire", "#120805", "#24100a", "#ffe9c2", "#c99a6b", "#ffb000"],
+    ["Neo", "#050a05", "#0b160b", "#b8ffb0", "#5fae5a", "#33ff33"],
+    ["Rose", "#0e0c0c", "#1c1919", "#f4f1ee", "#a9a3a0", "#d6282f"],
+    ["Lannister", "#1a0608", "#2b0c10", "#f3e3c0", "#c2a272", "#d4a63a"],
     ["Tyrian", "#140816", "#231027", "#f0e2f5", "#b597bf", "#b04cc8"],
-    ["Ultramarine", "#060b1f", "#0e1736", "#e3e9ff", "#8e9cc9", "#4f78ff"],
+    ["Dunder", "#060b1f", "#0e1736", "#e3e9ff", "#8e9cc9", "#4f78ff"],
     ["Verdigris", "#0a1614", "#12241f", "#dff3ec", "#86b3a5", "#43b39a"],
-    ["Old Ironsides", "#0c0c0d", "#18181a", "#f5f5f2", "#a8a8a3", "#c07a44"],
-    ["Bletchley", "#ece4cf", "#f6f0dd", "#1a1a17", "#5c5748", "#7a2e12"]
+    ["Arrakis", "#0c0c0d", "#18181a", "#f5f5f2", "#a8a8a3", "#c07a44"],
+    ["Baby Blue", "#0a1218", "#13212a", "#eaf6fc", "#8fa9b8", "#89cff0"],
+    ["Concierge", "#ece4cf", "#f6f0dd", "#1a1a17", "#5c5748", "#7a2e12"]
   ];
 
   function lum(hex) {
@@ -66,7 +67,7 @@
   });
   var saved = null;
   try { saved = localStorage.getItem("theme"); } catch (e) {}
-  var pick = window.matchMedia("(prefers-color-scheme: light)").matches ? 1 : 0;
+  var pick = window.matchMedia("(prefers-color-scheme: light)").matches ? themes.length - 1 : 0;
   themes.forEach(function (t, i) { if (t[0] === saved) pick = i; });
   if (saved) apply(themes[pick]);
   buttons[pick].setAttribute("aria-pressed", "true");
