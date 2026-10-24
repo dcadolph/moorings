@@ -43,6 +43,10 @@ final class ActionRunner {
         Family(title: "Size and move", hint: nil,
                names: ["maximize", "almost-maximize", "maximize-height", "center", "center-prominently", "larger",
                        "smaller", "move-left", "move-right", "move-up", "move-down", "restore"], groups: []),
+        Family(title: "One axis", hint: nil,
+               names: ["larger-width", "smaller-width", "larger-height", "smaller-height", "double-width-left",
+                       "double-width-right", "double-height-up", "double-height-down", "halve-width-left",
+                       "halve-width-right", "halve-height-up", "halve-height-down"], groups: []),
         Family(title: "Displays", hint: "Send the front window to this display, keeping its place in the layout.",
                names: ["previous-display", "next-display"], groups: []),
     ]
@@ -61,6 +65,18 @@ final class ActionRunner {
         "move-up": "Move the front window to the top edge, keeping its size.",
         "move-down": "Move the front window to the bottom edge, keeping its size.",
         "restore": "Put the front window back where it was before moorings first moved it.",
+        "larger-width": "Widen the front window, keeping its height.",
+        "smaller-width": "Narrow the front window, keeping its height.",
+        "larger-height": "Make the front window taller, keeping its width.",
+        "smaller-height": "Make the front window shorter, keeping its width.",
+        "double-width-left": "Double the front window's width toward the left edge.",
+        "double-width-right": "Double the front window's width toward the right edge.",
+        "double-height-up": "Double the front window's height toward the top.",
+        "double-height-down": "Double the front window's height toward the bottom.",
+        "halve-width-left": "Halve the front window's width, keeping its left half.",
+        "halve-width-right": "Halve the front window's width, keeping its right half.",
+        "halve-height-up": "Halve the front window's height, keeping its top half.",
+        "halve-height-down": "Halve the front window's height, keeping its bottom half.",
     ]
 
     // app is the running app delegate.

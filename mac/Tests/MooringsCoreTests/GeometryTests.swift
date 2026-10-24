@@ -261,7 +261,7 @@ func testFinerCover(family: String, wantCount: Int) throws {
         #expect(f.map { inside($0, channel) } == true, "\(name) \(String(describing: f))")
     }
     #expect(Geometry.position("sideways", channel, window) == nil)
-    #expect(Geometry.names().count == 105)
+    #expect(Geometry.names().count == 117)
 }
 
 // Test 13: Edge, slot, regions and clamp keep their v2 results.
@@ -320,6 +320,55 @@ let resizeCases: [ResizeCase] = [
 @Test(arguments: resizeCases)
 func testResize(test: ResizeCase) {
     #expect(Geometry.resize(channel, test.cur, test.d) == test.wantFrame)
+}
+
+// AxisCase is one expectation of a one-axis size action.
+struct AxisCase: Sendable, CustomTestStringConvertible {
+    // Name is the action name.
+    let name: String
+    // Cur is the window's current frame.
+    let cur: Frame
+    // WantFrame is the expected frame.
+    let wantFrame: Frame
+
+    // testDescription labels the case in test output.
+    var testDescription: String { "\(name) \(cur)" }
+}
+
+let broad = F(600, 100, 1400, 800)
+
+// axisCases covers larger, smaller, double and halve on one axis, including the clamp at an edge.
+let axisCases: [AxisCase] = [
+    AxisCase(name: "larger-width", cur: window, wantFrame: F(570, 100, 1060, 800)), // Test 23: Larger width.
+    AxisCase(name: "larger-width", cur: F(520, 100, 1000, 800), wantFrame: F(512, 100, 1038, 800)), // Test 23: Larger width clamp.
+    AxisCase(name: "larger-width", cur: F(512, 100, 1000, 800), wantFrame: F(512, 100, 1030, 800)), // Test 23: Larger width curtain.
+    AxisCase(name: "smaller-width", cur: window, wantFrame: F(630, 100, 940, 800)), // Test 23: Smaller width.
+    AxisCase(name: "smaller-width", cur: F(512, 100, 1000, 800), wantFrame: F(512, 100, 970, 800)), // Test 23: Smaller width curtain.
+    AxisCase(name: "smaller-width", cur: F(600, 100, 600, 800), wantFrame: F(600, 100, 600, 800)), // Test 23: Smaller width floor.
+    AxisCase(name: "larger-height", cur: window, wantFrame: F(600, 70, 1000, 860)), // Test 23: Larger height.
+    AxisCase(name: "larger-height", cur: F(600, 35, 1000, 800), wantFrame: F(600, 25, 1000, 840)), // Test 23: Larger height clamp.
+    AxisCase(name: "smaller-height", cur: window, wantFrame: F(600, 130, 1000, 740)), // Test 23: Smaller height.
+    AxisCase(name: "smaller-height", cur: F(600, 25, 1000, 1415), wantFrame: F(600, 55, 1000, 1355)), // Test 23: Smaller height full.
+    AxisCase(name: "double-width-right", cur: window, wantFrame: F(600, 100, 2000, 800)), // Test 23: Double width right.
+    AxisCase(name: "double-width-right", cur: F(2200, 100, 500, 800), wantFrame: F(2200, 100, 616, 800)), // Test 23: Double width right clamp.
+    AxisCase(name: "double-width-left", cur: F(1500, 100, 400, 800), wantFrame: F(1100, 100, 800, 800)), // Test 23: Double width left.
+    AxisCase(name: "double-width-left", cur: window, wantFrame: F(512, 100, 1088, 800)), // Test 23: Double width left clamp.
+    AxisCase(name: "double-height-up", cur: F(600, 900, 1000, 300), wantFrame: F(600, 600, 1000, 600)), // Test 23: Double height up.
+    AxisCase(name: "double-height-up", cur: window, wantFrame: F(600, 25, 1000, 875)), // Test 23: Double height up clamp.
+    AxisCase(name: "double-height-down", cur: F(600, 100, 1000, 300), wantFrame: F(600, 100, 1000, 600)), // Test 23: Double height down.
+    AxisCase(name: "double-height-down", cur: window, wantFrame: F(600, 100, 1000, 1340)), // Test 23: Double height down clamp.
+    AxisCase(name: "halve-width-left", cur: broad, wantFrame: F(600, 100, 700, 800)), // Test 23: Halve width left.
+    AxisCase(name: "halve-width-right", cur: broad, wantFrame: F(1300, 100, 700, 800)), // Test 23: Halve width right.
+    AxisCase(name: "halve-height-up", cur: broad, wantFrame: F(600, 100, 1400, 400)), // Test 23: Halve height up.
+    AxisCase(name: "halve-height-down", cur: broad, wantFrame: F(600, 500, 1400, 400)), // Test 23: Halve height down.
+    AxisCase(name: "halve-width-left", cur: window, wantFrame: window), // Test 23: Halve width too small.
+    AxisCase(name: "halve-height-down", cur: F(600, 100, 1000, 600), wantFrame: F(600, 100, 1000, 600)), // Test 23: Halve height too small.
+]
+
+// testAxisActions checks the one-axis size actions.
+@Test(arguments: axisCases)
+func testAxisActions(test: AxisCase) {
+    #expect(Geometry.position(test.name, channel, test.cur) == test.wantFrame)
 }
 
 // Test 16: Transfer keeps the relative frame across areas of different sizes.

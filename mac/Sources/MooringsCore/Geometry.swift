@@ -393,7 +393,65 @@ public enum Geometry {
         "move-right": { area, cur, gap in slide(inset(area, gap), cur, .right) },
         "move-up": { area, cur, gap in slide(inset(area, gap), cur, .up) },
         "move-down": { area, cur, gap in slide(inset(area, gap), cur, .down) },
+        "larger-width": { area, cur, gap in axis(area, cur, gap, .horizontal) { grow($0, $1, $2, $3, Actions.step) } },
+        "smaller-width": { area, cur, gap in axis(area, cur, gap, .horizontal) { grow($0, $1, $2, $3, -Actions.step) } },
+        "larger-height": { area, cur, gap in axis(area, cur, gap, .vertical) { grow($0, $1, $2, $3, Actions.step) } },
+        "smaller-height": { area, cur, gap in axis(area, cur, gap, .vertical) { grow($0, $1, $2, $3, -Actions.step) } },
+        "double-width-left": { area, cur, gap in axis(area, cur, gap, .horizontal) { double($0, $1, $2, $3, atStart: false) } },
+        "double-width-right": { area, cur, gap in axis(area, cur, gap, .horizontal) { double($0, $1, $2, $3, atStart: true) } },
+        "double-height-up": { area, cur, gap in axis(area, cur, gap, .vertical) { double($0, $1, $2, $3, atStart: false) } },
+        "double-height-down": { area, cur, gap in axis(area, cur, gap, .vertical) { double($0, $1, $2, $3, atStart: true) } },
+        "halve-width-left": { area, cur, gap in axis(area, cur, gap, .horizontal) { halve($0, $1, $2, $3, keepStart: true) } },
+        "halve-width-right": { area, cur, gap in axis(area, cur, gap, .horizontal) { halve($0, $1, $2, $3, keepStart: false) } },
+        "halve-height-up": { area, cur, gap in axis(area, cur, gap, .vertical) { halve($0, $1, $2, $3, keepStart: true) } },
+        "halve-height-down": { area, cur, gap in axis(area, cur, gap, .vertical) { halve($0, $1, $2, $3, keepStart: false) } },
     ]
+
+    // Axis names the dimension a one-axis action changes.
+    private enum Axis {
+        case horizontal
+        case vertical
+    }
+
+    // axis clamps cur into the inset area, then replaces the span on one axis with the result of
+    // change, which takes the span start, its length, and the area start and length.
+    private static func axis(
+        _ area: Frame, _ cur: Frame, _ gap: Double, _ which: Axis,
+        _ change: (Double, Double, Double, Double) -> (Double, Double)
+    ) -> Frame {
+        let a = inset(area, gap)
+        var f = clamp(cur, a)
+        switch which {
+        case .horizontal:
+            (f.x, f.w) = change(f.x, f.w, a.x, a.w)
+        case .vertical:
+            (f.y, f.h) = change(f.y, f.h, a.y, a.h)
+        }
+        return f
+    }
+
+    // double doubles the span lo to lo+len. It grows toward the end when atStart is true, so the
+    // start edge stays, and toward the start otherwise. The grown edge stops at the area edge.
+    private static func double(_ lo: Double, _ len: Double, _ alo: Double, _ alen: Double, atStart: Bool)
+        -> (Double, Double) {
+        if atStart {
+            let hi = min(alo + alen, lo + 2 * len)
+            return (lo, hi - lo)
+        }
+        let nlo = max(alo, lo - len)
+        return (nlo, lo + len - nlo)
+    }
+
+    // halve halves the span lo to lo+len and keeps the start half when keepStart is true, the end
+    // half otherwise. A span that would fall under the minimum share of the area is left alone.
+    private static func halve(_ lo: Double, _ len: Double, _ alo: Double, _ alen: Double, keepStart: Bool)
+        -> (Double, Double) {
+        let half = floor(len / 2)
+        if half < max(1, floor(alen * minShare)) {
+            return (lo, len)
+        }
+        return (keepStart ? lo : lo + len - half, half)
+    }
 
     // position returns the frame action name gives a window at cur inside area, leaving gap points
     // around and between windows. It returns nil for a name it does not know.
