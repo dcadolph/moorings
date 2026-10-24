@@ -103,6 +103,8 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$check/Moorings.app"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$check/Moorings.app/Contents/Info.plist")" = "${TAG#v}"
           cd ../dist
+          # A fixed name lets releases/latest/download/moorings_macos_universal.zip always work.
+          cp -- "moorings_${TAG}_macos_universal.zip" moorings_macos_universal.zip
           shasum -a 256 -- *.zip > SHA256SUMS
 
       - name: Remove signing keychain
