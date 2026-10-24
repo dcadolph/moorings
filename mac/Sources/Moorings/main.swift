@@ -43,6 +43,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return url
     }()
 
+    // installer puts a downloaded copy into Applications and tidies the disk image after.
+    let installer = Installer()
     // banner shows what moorings did.
     let banner = BannerPanel()
     // update is a newer release found by the daily check, nil when none.
@@ -81,6 +83,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // applicationDidFinishLaunching builds the menu, subscribes to events, and starts the poll.
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if installer.offerMove() {
+            return
+        }
+        installer.offerTrash()
         item.button?.image = Mark.image()
         let menu = NSMenu()
         menu.delegate = self
