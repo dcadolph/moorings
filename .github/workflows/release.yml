@@ -86,7 +86,12 @@ jobs:
           rm -f "$key"
           cat "$RUNNER_TEMP/notary.json"
           test "$(jq -r .status "$RUNNER_TEMP/notary.json")" = "Accepted"
-          xcrun stapler staple .build/Moorings.app
+          # stapler staple fetches the ticket from Apple, so retry a dropped connection.
+          for try in 1 2 3; do
+            xcrun stapler staple .build/Moorings.app && break
+            test "$try" -lt 3
+            sleep 30
+          done
           rm -f "$zip"
           ditto -c -k --keepParent .build/Moorings.app "$zip"
 
@@ -98,7 +103,12 @@ jobs:
           check="$RUNNER_TEMP/verify"
           mkdir -p "$check"
           ditto -x -k "../dist/moorings_${TAG}_macos_universal.zip" "$check"
-          xcrun stapler validate "$check/Moorings.app"
+          # stapler validate asks Apple's ticket service, so retry a dropped connection.
+          for try in 1 2 3; do
+            xcrun stapler validate "$check/Moorings.app" && break
+            test "$try" -lt 3
+            sleep 30
+          done
           spctl --assess --type execute --verbose=4 "$check/Moorings.app"
           codesign --verify --deep --strict --verbose=2 "$check/Moorings.app"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$check/Moorings.app/Contents/Info.plist")" = "${TAG#v}"
