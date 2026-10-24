@@ -206,11 +206,43 @@ public enum Geometry {
     private static let ninths = grid(3, 3, ["left", "center", "right"], ["top", "middle", "bottom"], "ninth")
     private static let eighths = grid(4, 2, ["left", "center-left", "center-right", "right"], ["top", "bottom"], "eighth")
 
+    // verticalStrips returns the full-height columns of an n-column grid, named by ordinals.
+    private static func verticalStrips(_ n: Int, _ ordinals: [String], _ suffix: String) -> [(String, Placement)] {
+        ordinals.enumerated().map { ("\($0.element)-vertical-\(suffix)", .cell(Cell($0.offset, $0.offset + 1, n, 0, 1, 1))) }
+    }
+
+    // verticalSixths and verticalEighths are the full-height column families on a landscape area.
+    private static let verticalSixths = verticalStrips(
+        6, ["first", "second", "third", "fourth", "fifth", "last"], "sixth")
+    private static let verticalEighths = verticalStrips(
+        8, ["first", "second", "third", "fourth", "fifth", "sixth", "seventh", "last"], "eighth")
+
+    // twelfths and sixteenths are the 4 by 3 and 4 by 4 grid families in reading order.
+    private static let twelfths = grid(
+        4, 3, ["left", "center-left", "center-right", "right"], ["top", "middle", "bottom"], "twelfth")
+    private static let sixteenths = grid(
+        4, 4, ["left", "center-left", "center-right", "right"],
+        ["top", "upper-middle", "lower-middle", "bottom"], "sixteenth")
+
+    // verticalThirds are the row-based thirds and two thirds, named after Rectangle's.
+    private static let verticalThirds: [(String, Placement)] = [
+        ("top-vertical-third", .cell(Cell(0, 1, 1, 0, 1, 3))),
+        ("middle-vertical-third", .cell(Cell(0, 1, 1, 1, 2, 3))),
+        ("bottom-vertical-third", .cell(Cell(0, 1, 1, 2, 3, 3))),
+        ("top-vertical-two-thirds", .cell(Cell(0, 1, 1, 0, 2, 3))),
+        ("bottom-vertical-two-thirds", .cell(Cell(0, 1, 1, 1, 3, 3))),
+    ]
+
     // grids lists the grid position names by family, in reading order.
     public static let grids: [String: [String]] = [
         "sixths": sixths.map(\.0),
         "ninths": ninths.map(\.0),
         "eighths": eighths.map(\.0),
+        "verticalSixths": verticalSixths.map(\.0),
+        "verticalEighths": verticalEighths.map(\.0),
+        "twelfths": twelfths.map(\.0),
+        "sixteenths": sixteenths.map(\.0),
+        "verticalThirds": verticalThirds.map(\.0),
         "cornerThirds": ["top-left-third", "top-right-third", "bottom-left-third", "bottom-right-third"],
     ]
 
@@ -244,7 +276,8 @@ public enum Geometry {
             "bottom-left-third": cornerThird(right: false, bottom: true),
             "bottom-right-third": cornerThird(right: true, bottom: true),
         ]
-        for (name, placement) in sixths + ninths + eighths {
+        for (name, placement) in sixths + ninths + eighths + verticalSixths + verticalEighths + twelfths
+            + sixteenths + verticalThirds {
             cells[name] = placement
         }
         return cells
