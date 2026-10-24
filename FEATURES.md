@@ -7,11 +7,15 @@ each part.
 ## Window actions on every display
 
 - Rectangle's keymap out of the box: halves that cycle through 1/2, 2/3 and 1/3, quarters,
-  thirds, two thirds, maximize, maximize height, center, larger, smaller, restore, previous
-  and next display, display one to nine, a specified size and side aliases. Larger, smaller, double and halve on one axis are named actions. Spectacle's keymap is one menu choice away.
-- Fourths, sixths, eighths, ninths, twelfths, sixteenths, vertical thirds, sixths and eighths, corner
-  thirds, almost maximize and center prominently in the
-  Window folder, each ready for a key of your choice.
+  thirds, two thirds, maximize, maximize height, center, larger, smaller, restore, and previous
+  and next display. Spectacle's keymap is one menu choice away.
+- Every other Rectangle action by Rectangle's name: display one to nine, a specified size of
+  1680 by 1050 points, and the side and center-section names, so a Rectangle link or script
+  works with `moorings://action?name=`.
+- Larger, smaller, double and halve on one axis, each toward the edge you pick.
+- Fourths, sixths, eighths, ninths, twelfths, sixteenths, vertical thirds, sixths and eighths,
+  corner thirds, almost maximize and center prominently in the Window folder, each ready for a
+  key of your choice.
 - Your own sizes, as shares of the screen, each with its own shortcut.
 - A gap around and between the windows an action places.
 - Any action from a link such as `moorings://action?name=left-half`, so a script, a launcher or a
@@ -28,7 +32,8 @@ each part.
 
 ## Organize
 
-- Tile columns, tile rows, tile all, cascade all or one app, cycle stacked windows, and reverse.
+- Tile columns, tile rows, tile all or one app, cascade all or one app, cycle stacked windows,
+  and reverse.
 - Tidy channel lines up the two or three front windows, and Undo tidy puts everything back.
 
 ## Workspaces

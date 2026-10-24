@@ -123,9 +123,16 @@ cheat sheet. The default keymap is Rectangle's:
 | Restore                   | ⌃⌥⌫             | Control + Option + Delete                        |
 | Previous, next display    | ⌃⌥⌘← ⌃⌥⌘→       | Control + Option + Command + Left or Right Arrow |
 
-Window > Keymap switches to Spectacle's set. Fourths, sixths, eighths, ninths, corner thirds,
-almost maximize, center prominently and the move actions have no key until you record one in
-Settings. On an anchored window, Maximize lifts it and Restore puts it back in its slot. Window >
+Window > Keymap switches to Spectacle's set. Fourths, sixths, eighths, ninths, twelfths,
+sixteenths, vertical thirds, sixths and eighths, corner thirds, almost maximize, center
+prominently and the move actions have no key until you record one in Settings.
+
+Every other Rectangle action is here under Rectangle's name, so its links and scripts carry
+over. Window > Displays sends the front window to display one through nine, counted left to
+right. Specified sizes it to 1680 by 1050 points, centered and shrunk to fit. Window > One axis
+makes it wider, narrower, taller or shorter in 30 point steps, or doubles or halves one side
+toward the edge you pick. The side names such as `left-side` and `center-section` are aliases of
+the halves, as in Rectangle. On an anchored window, Maximize lifts it and Restore puts it back in its slot. Window >
 Ignore shortcuts in *app* turns the shortcuts off while that app is in front, so its own keys
 work.
 
@@ -156,7 +163,7 @@ action.
 ### Organize
 
 Window > Organize tiles the free windows on the front window's display in columns, rows or a
-grid, cascades them all or one app's, cycles windows stacked on the same frame, and mirrors them
+grid, tiles one app's windows in a grid, cascades them all or one app's, cycles windows stacked on the same frame, and mirrors them
 left to right. Tidy channel lines up the two or three front windows side by side. Undo tidy puts
 back every window a fill, tidy or action moved.
 
