@@ -185,7 +185,12 @@ jobs:
           brew tap dcadolph/tap
           brew install --cask dcadolph/tap/moorings
           spctl --assess --type execute --verbose=4 /Applications/Moorings.app
-          xcrun stapler validate /Applications/Moorings.app
+          # stapler validate asks Apple's ticket service, so retry a dropped connection.
+          for try in 1 2 3; do
+            xcrun stapler validate /Applications/Moorings.app && break
+            test "$try" -lt 3
+            sleep 30
+          done
           codesign -dv /Applications/Moorings.app 2>&1 | grep -q "TeamIdentifier=U7L4P2YHWJ"
           brew audit --cask --strict --online dcadolph/tap/moorings
           brew uninstall --cask moorings
