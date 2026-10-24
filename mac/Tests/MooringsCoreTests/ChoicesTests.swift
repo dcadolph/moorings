@@ -70,3 +70,44 @@ import Testing
     #expect(anchors.undo() == [7: Frame(x: 1, y: 2, w: 3, h: 4)])
     #expect(!anchors.canUndo && anchors.undo().isEmpty)
 }
+
+// Swift only: a choices file with the current key set and no behavior field loads with every behavior at its
+// default.
+@Test func testChoicesDecodeWithoutBehavior() {
+    let json = Data(
+        #"""
+        {"slots":{"left-top":"com.tinyspeck.slackmacgap","right-top":"com.googlecode.iterm2"},
+         "widths":{"left":0.2,"right":0.2},"heights":{"left":0.5,"right":0.5},"paused":false,
+         "fullscreenFills":true,"pinFullscreenFills":true,"keymap":"rectangle","shortcuts":{},"sizes":[],
+         "gapPx":4,"ignores":["com.apple.Terminal"],"snap":true,"theme":"harbor","workspaces":{},
+         "checkUpdates":true,"mouseButtons":{"3":"maximize"}}
+        """#.utf8)
+    let c = Choices.decode(json)
+    #expect(c.slots[.leftTop] == "com.tinyspeck.slackmacgap")
+    #expect(c.gapPx == 4 && c.ignores == ["com.apple.Terminal"] && c.mouseButtons == ["3": "maximize"])
+    #expect(c.behavior == Behaviors())
+    #expect(c.behavior.subsequentExecution == .cycleSizes)
+    #expect(c.behavior.minimumWindowWidth == 0.25 && c.behavior.minimumWindowHeight == 0.25)
+    #expect(c.behavior.screenEdgeGapTopNotch == -1 && c.behavior.stageSize == 190)
+    #expect(c.behavior.specifiedWidth == 1680 && c.behavior.specifiedHeight == 1050)
+    #expect(c.behavior.unsnapRestore && c.behavior.applyGapsToMaximize)
+    #expect(c.behavior.enhancedUI == .automatic && c.behavior.screensOrderedByX == .yThenMinX)
+}
+
+// Swift only: changed behaviors survive a save and reload.
+@Test func testChoicesBehaviorRoundTrip() throws {
+    var c = Choices()
+    c.behavior.subsequentExecution = .traverseDisplays
+    c.behavior.screenEdgeGapTop = 12
+    c.behavior.doubleClickIgnoredApps = ["com.apple.Terminal"]
+    c.behavior.enhancedUI = .disableOnly
+    #expect(Choices.decode(try Choices.encode(c)) == c)
+}
+
+// Swift only: a behavior object with no fields, or unreadable ones, decodes to the defaults.
+@Test func testBehaviorsDecodeEmpty() throws {
+    #expect(try JSONDecoder().decode(Behaviors.self, from: Data("{}".utf8)) == Behaviors())
+    let bad = Data(#"{"subsequentExecution":"nonsense","stageSize":"wide"}"#.utf8)
+    #expect(try JSONDecoder().decode(Behaviors.self, from: bad) == Behaviors())
+    #expect(Choices.decode(Data(#"{"behavior":{}}"#.utf8)).behavior.specifiedWidth == 1680)
+}

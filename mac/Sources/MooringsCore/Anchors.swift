@@ -76,6 +76,8 @@ public struct Choices: Equatable, Sendable, Codable {
     public var checkUpdates: Bool = true
     // mouseButtons maps an extra mouse button, numbered from 2, to the action it runs.
     public var mouseButtons: [String: String] = [:]
+    // behavior holds the window action behavior choices.
+    public var behavior: Behaviors = Behaviors()
 
     // init builds a set of choices.
     public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
@@ -91,7 +93,7 @@ public struct Choices: Equatable, Sendable, Codable {
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
-        case ignores, snap, theme, workspaces, checkUpdates, mouseButtons
+        case ignores, snap, theme, workspaces, checkUpdates, mouseButtons, behavior
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -114,6 +116,7 @@ public struct Choices: Equatable, Sendable, Codable {
         workspaces = (try? c.decodeIfPresent([String: Workspace].self, forKey: .workspaces)) ?? [:]
         checkUpdates = (try? c.decodeIfPresent(Bool.self, forKey: .checkUpdates)) ?? true
         mouseButtons = (try? c.decodeIfPresent([String: String].self, forKey: .mouseButtons)) ?? [:]
+        behavior = (try? c.decodeIfPresent(Behaviors.self, forKey: .behavior)) ?? Behaviors()
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -135,6 +138,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(workspaces, forKey: .workspaces)
         try c.encode(checkUpdates, forKey: .checkUpdates)
         try c.encode(mouseButtons, forKey: .mouseButtons)
+        try c.encode(behavior, forKey: .behavior)
     }
 
     // encode returns choices as sorted JSON for saving.
