@@ -42,13 +42,13 @@ final class ActionRunner {
                         ("Corner thirds", Geometry.grids["cornerThirds"] ?? [])]),
         Family(title: "Size and move", hint: nil,
                names: ["maximize", "almost-maximize", "maximize-height", "center", "center-prominently", "larger",
-                       "smaller", "move-left", "move-right", "move-up", "move-down", "restore"], groups: []),
+                       "smaller", "move-left", "move-right", "move-up", "move-down", "specified", "restore"], groups: []),
         Family(title: "One axis", hint: nil,
                names: ["larger-width", "smaller-width", "larger-height", "smaller-height", "double-width-left",
                        "double-width-right", "double-height-up", "double-height-down", "halve-width-left",
                        "halve-width-right", "halve-height-up", "halve-height-down"], groups: []),
         Family(title: "Displays", hint: "Send the front window to this display, keeping its place in the layout.",
-               names: ["previous-display", "next-display"], groups: []),
+               names: ["previous-display", "next-display"] + Actions.displayNames, groups: []),
     ]
 
     // hints holds the hover hints of the actions whose family has no shared hint.
@@ -64,6 +64,7 @@ final class ActionRunner {
         "move-right": "Move the front window to the right edge, keeping its size.",
         "move-up": "Move the front window to the top edge, keeping its size.",
         "move-down": "Move the front window to the bottom edge, keeping its size.",
+        "specified": "Size the front window to 1680 by 1050 points, centered, shrunk to fit.",
         "restore": "Put the front window back where it was before moorings first moved it.",
         "larger-width": "Widen the front window, keeping its height.",
         "smaller-width": "Narrow the front window, keeping its height.",

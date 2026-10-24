@@ -456,6 +456,7 @@ public enum Geometry {
     // position returns the frame action name gives a window at cur inside area, leaving gap points
     // around and between windows. It returns nil for a name it does not know.
     public static func position(_ name: String, _ area: Frame, _ cur: Frame? = nil, gap: Double = 0) -> Frame? {
+        let name = aliases[name] ?? name
         if let placement = cells[name] {
             return fromPlacement(placement, area, gap)
         }
@@ -464,6 +465,13 @@ public enum Geometry {
         }
         return nil
     }
+
+    // aliases maps each side and center-section name to the half it resolves to. They stay out of
+    // names so a menu built from names lists each position once.
+    public static let aliases: [String: String] = [
+        "left-side": "left-half", "right-side": "right-half", "bottom-side": "bottom-half",
+        "top-side": "top-half", "center-section": "center-half",
+    ]
 
     // cycles maps each action that changes on a repeat press to the positions it steps through. A
     // cell step ignores orientation, so a half cycles its width on a tall area as well.
@@ -477,6 +485,7 @@ public enum Geometry {
     // cycle returns the frame of press i, counted from 1, of action name, wrapping after the last
     // step. A name without a cycle returns its plain position.
     public static func cycle(_ name: String, _ i: Int, _ area: Frame, _ cur: Frame? = nil, gap: Double = 0) -> Frame? {
+        let name = aliases[name] ?? name
         guard let steps = cycles[name] else {
             return position(name, area, cur, gap: gap)
         }

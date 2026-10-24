@@ -57,3 +57,32 @@ let desk = ActionTarget(screens: [F(0, 0, 5120, 1440), F(5120, 0, 1512, 982)], a
 @Test func testActionGap() {
     #expect(Actions.frame("left-half", cur: window, target: desk, gap: 10).0 == F(522, 35, 1137, 1395))
 }
+
+// Test 6: Specified centers 1680 by 1050 points, shrinks to fit a smaller area, and honors the gap.
+@Test func testSpecified() {
+    #expect(Actions.specifiedSpec == CustomSpec(width: 1680, height: 1050))
+    #expect(Actions.frame("specified", cur: window, target: desk).0 == F(824, 208, 1680, 1050))
+    let small = ActionTarget(screens: [F(0, 0, 1500, 900)], areas: [F(0, 25, 1500, 875)], index: 0)
+    #expect(Actions.frame("specified", cur: window, target: small).0 == F(0, 25, 1500, 875))
+    let mid = ActionTarget(screens: [F(0, 0, 1600, 1000)], areas: [F(0, 0, 1600, 1000)], index: 0)
+    #expect(Actions.frame("specified", cur: window, target: mid).0 == F(0, 0, 1600, 1000))
+    #expect(Actions.frame("specified", cur: window, target: desk, gap: 10).0 == F(824, 208, 1680, 1050))
+    #expect(Actions.frame("specified", cur: window, target: mid, gap: 10).0 == F(10, 10, 1580, 980))
+}
+
+// Test 7: Display-N picks the Nth screen in left to right order, and is nil for a missing or
+// current display.
+@Test func testSpecificDisplay() throws {
+    let screens = [F(5120, 0, 1920, 1080), F(0, 0, 5120, 1440), F(6000, 0, 1000, 800)]
+    let areas = [F(5120, 25, 1920, 1055), channel, F(6000, 0, 1000, 800)]
+    let from = ActionTarget(screens: screens, areas: areas, index: 1)
+    let half = try #require(Geometry.position("left-half", channel))
+    #expect(Actions.frame("display-two", cur: half, target: from).0
+        == Geometry.transfer(half, from: channel, to: areas[0]))
+    #expect(Actions.frame("display-two", cur: half, target: from).0 != nil)
+    #expect(Actions.frame("display-three", cur: half, target: from).0
+        == Geometry.transfer(half, from: channel, to: areas[2]))
+    #expect(Actions.frame("display-one", cur: half, target: from).0 == nil)
+    #expect(Actions.frame("display-four", cur: half, target: from).0 == nil)
+    #expect(Actions.frame("display-nine", cur: half, target: from).0 == nil)
+}

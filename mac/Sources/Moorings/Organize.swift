@@ -76,6 +76,9 @@ final class Organizer {
         case "tile-all":
             let l = sorted(list, Tile.byY)
             return place(l, Tile.grid(a, l.count, gap: gap))
+        case "tile-active-app":
+            let l = sorted(list.filter { $0.bundle == win.bundle }, Tile.byY)
+            return place(l, Tile.grid(a, l.count, gap: gap))
         case "cascade-all":
             return cascade(list, a)
         case "cascade-active-app":

@@ -44,6 +44,16 @@ public enum Actions {
     // tolerance is how many points a frame may drift and still count as the last action's result.
     public static let tolerance = 2.0
 
+    // specifiedName is the action that sizes a window to specifiedSpec.
+    public static let specifiedName = "specified"
+    // specifiedSpec is the size specified gives a window: 1680 by 1050 points, centered.
+    public static let specifiedSpec = CustomSpec(width: 1680, height: 1050)
+    // displayNames lists display-one to display-nine, which send a window to that screen in order.
+    public static let displayNames = [
+        "display-one", "display-two", "display-three", "display-four", "display-five",
+        "display-six", "display-seven", "display-eight", "display-nine",
+    ]
+
     // near reports whether two frames match within tolerance.
     public static func near(_ a: Frame, _ b: Frame, tolerance: Double = tolerance) -> Bool {
         abs(a.x - b.x) <= tolerance && abs(a.y - b.y) <= tolerance
@@ -82,7 +92,16 @@ public enum Actions {
             }
             return (Geometry.transfer(cur, from: target.areas[target.index], to: target.areas[to]), 1)
         }
+        if let n = displayNames.firstIndex(of: name) {
+            let list = order(target.screens)
+            guard n < list.count, list[n] != target.index else { return (nil, 1) }
+            let to = list[n]
+            return (Geometry.transfer(cur, from: target.areas[target.index], to: target.areas[to]), 1)
+        }
         let area = target.areas[target.index]
+        if name == specifiedName {
+            return (Geometry.custom(area, specifiedSpec, gap: gap), 1)
+        }
         if name == "larger" || name == "smaller" {
             return (Geometry.resize(area, cur, name == "larger" ? step : -step, gap: gap), 1)
         }

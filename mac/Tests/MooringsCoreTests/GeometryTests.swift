@@ -447,3 +447,24 @@ func testAxisActions(test: AxisCase) {
     let r = Geometry.regions(offset, 13.05, 45)
     #expect(Geometry.lift(offset, .right, 13.05, 45).x == r.left.x + r.left.w)
 }
+
+// Test 23: Each side and center-section alias equals its half and stays out of the names.
+@Test func testSideAliases() throws {
+    let pairs = [
+        ("left-side", "left-half"), ("right-side", "right-half"), ("bottom-side", "bottom-half"),
+        ("top-side", "top-half"), ("center-section", "center-half"),
+    ]
+    for (alias, half) in pairs {
+        let want = try #require(Geometry.position(half, channel, window, gap: 10))
+        #expect(Geometry.position(alias, channel, window, gap: 10) == want, "\(alias)")
+        #expect(Geometry.cycle(alias, 1, channel, window) == Geometry.cycle(half, 1, channel, window))
+        #expect(!Geometry.names().contains(alias))
+    }
+}
+
+// Test 24: A points-sized spec centers in the area and shrinks to fit.
+@Test func testPointsSpec() {
+    let spec = CustomSpec(width: 1680, height: 1050)
+    #expect(Geometry.custom(channel, spec) == F(824, 208, 1680, 1050))
+    #expect(Geometry.custom(F(0, 0, 1000, 800), spec) == F(0, 0, 1000, 800))
+}

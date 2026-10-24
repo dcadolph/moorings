@@ -279,7 +279,7 @@ public enum Keymaps {
 
     // organizeNames returns the organize actions in menu order.
     public static let organizeNames = [
-        "tile-columns", "tile-rows", "tile-all", "cascade-all", "cascade-active-app",
+        "tile-columns", "tile-rows", "tile-all", "tile-active-app", "cascade-all", "cascade-active-app",
         "cycle-stacked-windows", "cycle-stacked-windows-backward", "reverse-all",
     ]
 
@@ -287,6 +287,7 @@ public enum Keymaps {
     // workspaces are saved after the shortcuts are bound.
     public static func known(_ name: String) -> Bool {
         special.contains(name) || organizeNames.contains(name)
+            || name == Actions.specifiedName || Actions.displayNames.contains(name)
             || (name.hasPrefix(workspacePrefix) && name.count > workspacePrefix.count)
             || Geometry.position(name, Frame(x: 0, y: 0, w: 100, h: 100)) != nil
     }

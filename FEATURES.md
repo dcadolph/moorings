@@ -7,8 +7,8 @@ each part.
 ## Window actions on every display
 
 - Rectangle's keymap out of the box: halves that cycle through 1/2, 2/3 and 1/3, quarters,
-  thirds, two thirds, maximize, maximize height, center, larger, smaller, restore, and previous
-  and next display. Larger, smaller, double and halve on one axis are named actions. Spectacle's keymap is one menu choice away.
+  thirds, two thirds, maximize, maximize height, center, larger, smaller, restore, previous
+  and next display, display one to nine, a specified size and side aliases. Larger, smaller, double and halve on one axis are named actions. Spectacle's keymap is one menu choice away.
 - Fourths, sixths, eighths, ninths, twelfths, sixteenths, vertical thirds, sixths and eighths, corner
   thirds, almost maximize and center prominently in the
   Window folder, each ready for a key of your choice.

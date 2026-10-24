@@ -72,6 +72,10 @@ private func has(_ problems: [String], _ text: String) -> Bool {
     }
     #expect(Keymaps.known("workspace:Day"))
     #expect(!Keymaps.known("workspace:"))
+    for name in [Actions.specifiedName, "left-side", "center-section"] + Actions.displayNames {
+        #expect(Keymaps.known(name), "rectangle \(name)")
+    }
+    #expect(!Keymaps.known("display-ten"))
 }
 
 // Lua case 5: Two config keys on one key keep it for the first in name order, and defaults that

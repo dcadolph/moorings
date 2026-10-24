@@ -66,7 +66,7 @@ extension Frame: Codable {
 public enum Tile {
     // names lists the organize actions in menu order.
     public static let names = [
-        "tile-columns", "tile-rows", "tile-all", "cascade-all", "cascade-active-app",
+        "tile-columns", "tile-rows", "tile-all", "tile-active-app", "cascade-all", "cascade-active-app",
         "cycle-stacked-windows", "cycle-stacked-windows-backward", "reverse-all",
     ]
 
