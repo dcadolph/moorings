@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import MooringsCore
@@ -16,12 +17,12 @@ import Testing
     }
 }
 
-// Theme case 1: Redcoat labels an accent fill in white and Tyrian in black, and both fall back to
+// Theme case 1: Rose labels an accent fill in white and Tyrian in black, and both fall back to
 // the text color for small accent text.
 @Test func testThemeAccentRules() {
-    let redcoat = ThemeName.redcoat.palette
-    #expect(redcoat.onAccent == .white)
-    #expect(redcoat.accentText == redcoat.text)
+    let rose = ThemeName.rose.palette
+    #expect(rose.onAccent == .white)
+    #expect(rose.accentText == rose.text)
     let tyrian = ThemeName.tyrian.palette
     #expect(tyrian.onAccent == .black)
     #expect(tyrian.accentText == tyrian.text)
@@ -30,14 +31,14 @@ import Testing
 // Theme case 2: A theme whose background reaches 4.5 on the accent labels with the background, and
 // a theme whose accent passes as small text keeps it.
 @Test func testThemeOnAccentBackground() {
-    let phosphor = ThemeName.phosphor.palette
-    #expect(phosphor.onAccent == phosphor.background)
-    #expect(phosphor.accentText == phosphor.accent)
+    let neo = ThemeName.neo.palette
+    #expect(neo.onAccent == neo.background)
+    #expect(neo.accentText == neo.accent)
 }
 
 // Theme case 3: The footprint is the accent at 20% fill and 70% stroke.
 @Test func testThemeFootprint() {
-    let p = ThemeName.dragonsgale.palette
+    let p = ThemeName.dragonfire.palette
     #expect(p.footprintFill == Tint(color: p.accent, alpha: 0.20))
     #expect(p.footprintStroke == Tint(color: p.accent, alpha: 0.70))
 }
@@ -54,4 +55,18 @@ import Testing
     #expect(RGB(hex: "000000") == .black)
     #expect(RGB(hex: "#fff") == nil)
     #expect(RGB(hex: "#gggggg") == nil)
+}
+
+// Theme case 6: A saved theme name the app no longer has falls back to Harbor and keeps the other
+// choices, so a renamed theme never resets the layout.
+@Test func testThemeUnknownName() throws {
+    var c = Choices()
+    c.paused = true
+    c.theme = .rose
+    let saved = String(decoding: try Choices.encode(c), as: UTF8.self)
+    #expect(saved.contains(#""rose""#))
+    let old = Data(saved.replacingOccurrences(of: #""rose""#, with: #""redcoat""#).utf8)
+    let got = Choices.decode(old)
+    #expect(got.theme == .harbor)
+    #expect(got.paused)
 }

@@ -69,7 +69,7 @@ public struct Choices: Equatable, Sendable, Codable {
     // snap reports whether dragging a window to an edge snaps it.
     public var snap: Bool = true
     // theme names the color theme for the footprint, banners and settings.
-    public var theme: ThemeName = .harborDark
+    public var theme: ThemeName = .harbor
     // workspaces holds the saved workspaces by name.
     public var workspaces: [String: Workspace] = [:]
     // checkUpdates reports whether moorings looks for a new release once a day.
@@ -110,7 +110,7 @@ public struct Choices: Equatable, Sendable, Codable {
         gapPx = (try? c.decodeIfPresent(Double.self, forKey: .gapPx)) ?? 0
         ignores = (try? c.decodeIfPresent([String].self, forKey: .ignores)) ?? []
         snap = (try? c.decodeIfPresent(Bool.self, forKey: .snap)) ?? true
-        theme = (try? c.decodeIfPresent(ThemeName.self, forKey: .theme)) ?? .harborDark
+        theme = (try? c.decodeIfPresent(ThemeName.self, forKey: .theme)) ?? .harbor
         workspaces = (try? c.decodeIfPresent([String: Workspace].self, forKey: .workspaces)) ?? [:]
         checkUpdates = (try? c.decodeIfPresent(Bool.self, forKey: .checkUpdates)) ?? true
         mouseButtons = (try? c.decodeIfPresent([String: String].self, forKey: .mouseButtons)) ?? [:]
