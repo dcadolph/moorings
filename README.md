@@ -60,10 +60,12 @@ With Homebrew:
 brew install --cask dcadolph/tap/moorings
 ```
 
-Or download `moorings_vX.Y.Z_macos_universal.zip` from the
-[latest release](https://github.com/dcadolph/moorings/releases/latest), unzip it, and drag
-Moorings into Applications. Each zip is signed with a Developer ID and notarized by Apple, and
-`SHA256SUMS` on the release lists its checksum.
+Or download `moorings_vX.Y.Z_macos_universal.dmg` from the
+[latest release](https://github.com/dcadolph/moorings/releases/latest), open it, and drag
+Moorings onto Applications. Opened straight from the disk image, Moorings offers to copy itself
+into Applications, and once it runs from there it ejects the disk image and offers to move it to
+the Trash. The zip is still attached for scripts and Homebrew. Both are signed with a Developer ID
+and notarized by Apple, and `SHA256SUMS` on the release lists their checksums.
 
 Open Moorings. A small sailboat appears in the menu bar. The first time, a banner asks for
 Accessibility access: click it, turn on Moorings in Privacy & Security, and the sailboat is

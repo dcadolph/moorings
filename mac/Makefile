@@ -9,13 +9,15 @@ PLIST := $(APP)/Contents/Info.plist
 ARCHS ?=
 ARCH_FLAGS := $(foreach arch,$(ARCHS),--arch $(arch))
 ZIP ?= .build/Moorings.zip
+DMG ?= .build/Moorings.dmg
+DMGBUILD ?= dmgbuild
 NOTARY_PROFILE ?= moorings
 SIGN_FLAGS := --options runtime $(if $(filter-out -,$(SIGN_ID)),--timestamp)
 
 ICONSET := .build/AppIcon.iconset
 ICNS := .build/AppIcon.icns
 
-.PHONY: build test app sandbox zip notarize run clean
+.PHONY: build test app sandbox zip dmg notarize run clean
 
 build:
 	swift build
@@ -51,6 +53,11 @@ sandbox:
 zip: app
 	rm -f $(ZIP)
 	ditto -c -k --keepParent $(APP) $(ZIP)
+
+dmg:
+	rm -f $(DMG)
+	$(DMGBUILD) -s dmg.py -D app=$(APP) "Moorings" $(DMG)
+	$(if $(filter-out -,$(SIGN_ID)),codesign --force --sign "$(SIGN_ID)" --timestamp $(DMG))
 
 notarize: zip
 	xcrun notarytool submit $(ZIP) --keychain-profile "$(NOTARY_PROFILE)" --wait

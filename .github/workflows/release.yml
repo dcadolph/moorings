@@ -1,7 +1,7 @@
 name: release
 
 # On a published release, build the universal app, sign it with Developer ID, notarize and staple
-# it, attach the zip, write the cask into dcadolph/homebrew-tap in place of the old formula, then
+# it, wrap it in a signed, notarized disk image, attach the zip and the disk image, write the cask into dcadolph/homebrew-tap in place of the old formula, then
 # install from the tap on macOS and check it the way a user would get it.
 on:
   release:
@@ -95,6 +95,33 @@ jobs:
           rm -f "$zip"
           ditto -c -k --keepParent .build/Moorings.app "$zip"
 
+      - name: Build, notarize and staple the disk image
+        env:
+          NOTARY_KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+          SIGN_ID: "Developer ID Application: Douglas Adolph (U7L4P2YHWJ)"
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/dmgbuild"
+          "$RUNNER_TEMP/dmgbuild/bin/pip" install --quiet dmgbuild==1.6.6
+          dmg="../dist/moorings_${TAG}_macos_universal.dmg"
+          make dmg DMGBUILD="$RUNNER_TEMP/dmgbuild/bin/dmgbuild" DMG="$dmg" SIGN_ID="$SIGN_ID"
+          codesign -dv "$dmg" 2>&1 | grep -q "TeamIdentifier=U7L4P2YHWJ"
+          key="$RUNNER_TEMP/notary.p8"
+          printf '%s' "$NOTARY_KEY_P8" > "$key"
+          xcrun notarytool submit "$dmg" --key "$key" --key-id "$NOTARY_KEY_ID" \
+            --issuer "$NOTARY_ISSUER_ID" --wait --timeout 180m --output-format json > "$RUNNER_TEMP/notary-dmg.json"
+          rm -f "$key"
+          cat "$RUNNER_TEMP/notary-dmg.json"
+          test "$(jq -r .status "$RUNNER_TEMP/notary-dmg.json")" = "Accepted"
+          for try in 1 2 3; do
+            xcrun stapler staple "$dmg" && break
+            test "$try" -lt 3
+            sleep 30
+          done
+
       - name: Verify as a user would
         env:
           TAG: ${{ github.event.release.tag_name }}
@@ -112,10 +139,24 @@ jobs:
           spctl --assess --type execute --verbose=4 "$check/Moorings.app"
           codesign --verify --deep --strict --verbose=2 "$check/Moorings.app"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$check/Moorings.app/Contents/Info.plist")" = "${TAG#v}"
+          dmg="../dist/moorings_${TAG}_macos_universal.dmg"
+          for try in 1 2 3; do
+            xcrun stapler validate "$dmg" && break
+            test "$try" -lt 3
+            sleep 30
+          done
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg"
+          mount="$RUNNER_TEMP/dmg-mount"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mount" "$dmg"
+          spctl --assess --type execute --verbose=4 "$mount/Moorings.app"
+          test "$(readlink "$mount/Applications")" = "/Applications"
+          test -f "$mount/.DS_Store"
+          hdiutil detach "$mount"
           cd ../dist
-          # A fixed name lets releases/latest/download/moorings_macos_universal.zip always work.
+          # Fixed names let releases/latest/download/moorings_macos_universal.{zip,dmg} always work.
           cp -- "moorings_${TAG}_macos_universal.zip" moorings_macos_universal.zip
-          shasum -a 256 -- *.zip > SHA256SUMS
+          cp -- "moorings_${TAG}_macos_universal.dmg" moorings_macos_universal.dmg
+          shasum -a 256 -- *.zip *.dmg > SHA256SUMS
 
       - name: Remove signing keychain
         if: always()
