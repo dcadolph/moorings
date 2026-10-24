@@ -103,19 +103,19 @@ other display inside the usable screen. Halves, quarters and thirds cycle throug
 1/3 on repeat presses. The Window folder lists every action with its shortcut, so it doubles as a
 cheat sheet. The default keymap is Rectangle's:
 
-| Action&nbsp;              | Shortcut&nbsp;  |
-|---------------------------|-----------------|
-| Left, right half          | ⌃⌥← ⌃⌥→         |
-| Top, bottom half          | ⌃⌥↑ ⌃⌥↓         |
-| Quarters                  | ⌃⌥U ⌃⌥I ⌃⌥J ⌃⌥K |
-| First, center, last third | ⌃⌥D ⌃⌥F ⌃⌥G     |
-| Two thirds                | ⌃⌥E ⌃⌥R ⌃⌥T     |
-| Maximize                  | ⌃⌥↩             |
-| Maximize height           | ⌃⌥⇧↑            |
-| Center                    | ⌃⌥C             |
-| Larger, smaller           | ⌃⌥= ⌃⌥-         |
-| Restore                   | ⌃⌥⌫             |
-| Previous, next display    | ⌃⌥⌘← ⌃⌥⌘→       |
+| Action&nbsp;              | Shortcut&nbsp;  | In plain English&nbsp;                           |
+|---------------------------|-----------------|--------------------------------------------------|
+| Left, right half          | ⌃⌥← ⌃⌥→         | Control + Option + Left Arrow or Right Arrow     |
+| Top, bottom half          | ⌃⌥↑ ⌃⌥↓         | Control + Option + Up Arrow or Down Arrow        |
+| Quarters                  | ⌃⌥U ⌃⌥I ⌃⌥J ⌃⌥K | Control + Option + U, I, J or K                  |
+| First, center, last third | ⌃⌥D ⌃⌥F ⌃⌥G     | Control + Option + D, F or G                     |
+| Two thirds                | ⌃⌥E ⌃⌥R ⌃⌥T     | Control + Option + E, R or T                     |
+| Maximize                  | ⌃⌥↩             | Control + Option + Return                        |
+| Maximize height           | ⌃⌥⇧↑            | Control + Option + Shift + Up Arrow              |
+| Center                    | ⌃⌥C             | Control + Option + C                             |
+| Larger, smaller           | ⌃⌥= ⌃⌥-         | Control + Option + Equals or Minus               |
+| Restore                   | ⌃⌥⌫             | Control + Option + Delete                        |
+| Previous, next display    | ⌃⌥⌘← ⌃⌥⌘→       | Control + Option + Command + Left or Right Arrow |
 
 Window > Keymap switches to Spectacle's set. Fourths, sixths, eighths, ninths, corner thirds,
 almost maximize, center prominently and the move actions have no key until you record one in
