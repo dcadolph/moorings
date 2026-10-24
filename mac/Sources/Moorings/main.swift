@@ -230,7 +230,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         windows.move(move.id, to: move.frame)
         guard let got = windows.frame(move.id), let again = anchors.landed(move, got: got) else { return }
-        logger.notice("window \(move.id) keeps a size of at least \(Int(got.w))x\(Int(got.h)): leaving it that size")
+        logger.notice("window \(move.id) read back at \(Int(got.w))x\(Int(got.h)) after a move: holding that size for now")
         windows.move(again.id, to: again.frame)
     }
 
