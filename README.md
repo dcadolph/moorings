@@ -5,6 +5,10 @@
 <h1 align="center">moorings</h1>
 
 <p align="center">
+  <a href="https://macmoorings.com"><img src="https://img.shields.io/badge/macmoorings.com-Download_for_Mac-0a6c74?style=for-the-badge&logo=apple&logoColor=white" alt="macmoorings.com: Download for Mac"></a>
+</p>
+
+<p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-0a6c74" alt="License: Apache-2.0"></a>
   <img src="https://img.shields.io/badge/swift-6-F05138?logo=swift&logoColor=white" alt="Swift 6">
   <img src="https://img.shields.io/badge/platform-macOS_14+-lightgrey?logo=apple&logoColor=white" alt="Platform: macOS 14 or later">
