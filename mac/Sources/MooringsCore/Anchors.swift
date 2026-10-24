@@ -86,6 +86,8 @@ public struct Choices: Equatable, Sendable, Codable {
     public var chains: [Chain] = []
     // menu holds the menu order and the hidden actions.
     public var menu: MenuChoices = MenuChoices()
+    // appRules holds the per-app rules applied when an app's first window appears.
+    public var appRules: [AppRule] = []
 
     // init builds a set of choices.
     public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
@@ -102,7 +104,7 @@ public struct Choices: Equatable, Sendable, Codable {
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
         case ignores, snap, theme, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
-        case chains, menu
+        case chains, menu, appRules
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -130,6 +132,7 @@ public struct Choices: Equatable, Sendable, Codable {
         stacking = (try? c.decodeIfPresent(StackChoices.self, forKey: .stacking)) ?? StackChoices()
         chains = (try? c.decodeIfPresent([Chain].self, forKey: .chains)) ?? []
         menu = (try? c.decodeIfPresent(MenuChoices.self, forKey: .menu)) ?? MenuChoices()
+        appRules = (try? c.decodeIfPresent([AppRule].self, forKey: .appRules)) ?? []
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -156,6 +159,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(stacking, forKey: .stacking)
         try c.encode(chains, forKey: .chains)
         try c.encode(menu, forKey: .menu)
+        try c.encode(appRules, forKey: .appRules)
     }
 
     // encode returns choices as sorted JSON for saving.

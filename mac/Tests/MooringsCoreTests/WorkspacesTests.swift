@@ -52,3 +52,53 @@ import Testing
     let back = try JSONDecoder().decode(Workspace.self, from: JSONEncoder().encode(ws))
     #expect(back == ws)
 }
+
+// Swift only: a workspace saved without the new keys decodes unchanged, and the new fields round trip.
+@Test func testWorkspaceLaunchFieldsDecodeAndRoundTrip() throws {
+    let old = Data(#"{"name":"A","windows":[{"bundle":"b","title":"t","frame":{"x":0,"y":0,"w":1,"h":1}}]}"#.utf8)
+    let ws = try JSONDecoder().decode(Workspace.self, from: old)
+    #expect(ws.recallOnDisplayChange == false)
+    #expect(ws.windows[0].launchBundle == nil && ws.windows[0].openTarget == nil)
+    var w = ws
+    w.recallOnDisplayChange = true
+    w.windows[0].launchBundle = "b"
+    w.windows[0].openTarget = "https://example.com"
+    #expect(try JSONDecoder().decode(Workspace.self, from: JSONEncoder().encode(w)) == w)
+}
+
+// Swift only: only unmatched entries with a launch bundle are launched, with their target.
+@Test func testWorkspacesLaunches() {
+    let z = F(0, 0, 1, 1)
+    let ws = Workspace(name: "W", windows: [
+        SavedWindow(bundle: "safari", title: "a", frame: z, launchBundle: "safari", openTarget: "https://x.test"),
+        SavedWindow(bundle: "notes", title: "b", frame: z, launchBundle: "notes"),
+        SavedWindow(bundle: "mail", title: "c", frame: z),
+    ])
+    let live = [WorkspaceWindow(id: 1, bundle: "notes", title: "b", frame: z)]
+    #expect(Workspaces.launches(ws, live) == [LaunchRequest(bundle: "safari", target: "https://x.test")])
+    #expect(Workspaces.launches(ws, []).count == 2)
+}
+
+// Swift only: a rule matches its bundle, skips invalid rules and rejects unknown actions.
+@Test func testWorkspacesAppRule() {
+    let rules = [
+        AppRule(bundle: "a", action: "nonsense-action"),
+        AppRule(bundle: "a", action: "left-half"),
+        AppRule(bundle: "b", frame: F(1, 2, 3, 4)),
+        AppRule(bundle: "c", action: "maximize", frame: F(1, 2, 3, 4)),
+    ]
+    #expect(Workspaces.rule("a", rules)?.action == "left-half")
+    #expect(Workspaces.rule("b", rules)?.frame == F(1, 2, 3, 4))
+    #expect(Workspaces.rule("c", rules) == nil)
+    #expect(Workspaces.rule("d", rules) == nil)
+}
+
+// Swift only: recalling returns only the marked workspaces, sorted by name.
+@Test func testWorkspacesRecalling() {
+    let all = [
+        "z": Workspace(name: "Z", recallOnDisplayChange: true),
+        "m": Workspace(name: "M"),
+        "a": Workspace(name: "A", recallOnDisplayChange: true),
+    ]
+    #expect(Workspaces.recalling(all).map(\.name) == ["A", "Z"])
+}

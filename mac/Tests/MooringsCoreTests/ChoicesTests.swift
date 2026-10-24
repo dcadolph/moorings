@@ -140,3 +140,11 @@ import Testing
     c.menu.hidden = ["center"]
     #expect(Choices.decode(try Choices.encode(c)) == c)
 }
+
+// Swift only: choices saved without appRules load empty, and rules round trip.
+@Test func testChoicesAppRules() throws {
+    #expect(Choices.decode(Data(#"{"paused":false}"#.utf8)).appRules.isEmpty)
+    var c = Choices()
+    c.appRules = [AppRule(bundle: "a", action: "left-half"), AppRule(bundle: "b", frame: F(1, 2, 3, 4))]
+    #expect(Choices.decode(try Choices.encode(c)) == c)
+}
