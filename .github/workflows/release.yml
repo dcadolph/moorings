@@ -195,7 +195,7 @@ jobs:
 
             url "https://github.com/dcadolph/moorings/releases/download/v#{version}/moorings_v#{version}_macos_universal.zip"
             name "Moorings"
-            desc "Anchor apps to the edges of an ultrawide display"
+            desc "Snap windows with a key or a drag, and pin apps to ultrawide edges"
             homepage "https://github.com/dcadolph/moorings"
 
             livecheck do
