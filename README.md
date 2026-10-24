@@ -61,10 +61,11 @@ brew install --cask dcadolph/tap/moorings
 ```
 
 Or download `moorings_vX.Y.Z_macos_universal.dmg` from the
-[latest release](https://github.com/dcadolph/moorings/releases/latest), open it, and drag
-Moorings onto Applications. Opened straight from the disk image, Moorings offers to copy itself
-into Applications, and once it runs from there it ejects the disk image and offers to move it to
-the Trash. The zip is still attached for scripts and Homebrew. Both are signed with a Developer ID
+[latest release](https://github.com/dcadolph/moorings/releases/latest), open it, and
+double-click Moorings. After one okay it copies itself into Applications, starts from there,
+ejects the disk image, and moves it to the Trash. Dragging Moorings onto Applications works too,
+and then it asks once before trashing the disk image. The zip is still attached for scripts and
+Homebrew. Both are signed with a Developer ID
 and notarized by Apple, and `SHA256SUMS` on the release lists their checksums.
 
 Open Moorings. A small sailboat appears in the menu bar. The first time, a banner asks for

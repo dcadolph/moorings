@@ -38,13 +38,19 @@ final class Installer {
         }
         NSApp.activate()
         let alert = NSAlert()
-        alert.messageText = "Move Moorings to Applications?"
-        alert.informativeText = image == nil
-            ? "Moorings is running from \(bundle.deletingLastPathComponent().lastPathComponent). "
+        if let image {
+            let name = URL(fileURLWithPath: image.image).lastPathComponent
+            alert.messageText = "Install Moorings?"
+            alert.informativeText = "Moorings will copy itself to Applications, start from there, "
+                + "eject the disk image, and move \(name) to the Trash."
+            alert.addButton(withTitle: "Install")
+        } else {
+            let folder = bundle.deletingLastPathComponent().lastPathComponent
+            alert.messageText = "Move Moorings to Applications?"
+            alert.informativeText = "Moorings is running from \(folder). "
                 + "In Applications it is easy to find and starts at login."
-            : "Moorings is running from its disk image. It will copy itself to Applications, start from "
-                + "there, and eject the disk image."
-        alert.addButton(withTitle: "Move to Applications")
+            alert.addButton(withTitle: "Move to Applications")
+        }
         alert.addButton(withTitle: "Not Now")
         guard alert.runModal() == .alertFirstButtonReturn else {
             if image == nil {
@@ -64,16 +70,20 @@ final class Installer {
         return true
     }
 
-    // offerTrash ejects a disk image that still holds Moorings once the installed copy runs, and asks
-    // once per image whether to move it to the Trash.
+    // offerTrash ejects a disk image that still holds Moorings once the installed copy runs. It
+    // trashes the image the install was okayed from without asking again, and asks once per image
+    // about any other.
     func offerTrash() {
         let bundle = Self.originalURL(Bundle.main.bundleURL)
         guard Install.inApplications(bundle: bundle.path, home: NSHomeDirectory()) else { return }
         var targets = Install.holding(Self.mountedImages()) { FileManager.default.fileExists(atPath: $0) }
         let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: Self.installedFromFlag), i + 1 < args.count,
-           !targets.contains(where: { $0.image == args[i + 1] }) {
-            targets.append(MountedImage(image: args[i + 1], mount: ""))
+        var okayed: String?
+        if let i = args.firstIndex(of: Self.installedFromFlag), i + 1 < args.count {
+            okayed = args[i + 1]
+            if !targets.contains(where: { $0.image == args[i + 1] }) {
+                targets.append(MountedImage(image: args[i + 1], mount: ""))
+            }
         }
         var asked = UserDefaults.standard.stringArray(forKey: Self.askedKey) ?? []
         for target in targets where !asked.contains(target.image) {
@@ -84,17 +94,22 @@ final class Installer {
             }
             let file = URL(fileURLWithPath: target.image)
             guard FileManager.default.fileExists(atPath: file.path) else { continue }
-            NSApp.activate()
-            let alert = NSAlert()
-            alert.messageText = "Moorings is installed"
-            alert.informativeText = "Move the installer \(file.lastPathComponent) to the Trash? You will not need it again."
-            alert.addButton(withTitle: "Move to Trash")
-            alert.addButton(withTitle: "Keep")
-            if alert.runModal() == .alertFirstButtonReturn {
-                NSWorkspace.shared.recycle([file]) { [logger] _, error in
-                    if let error {
-                        logger.error("trash of the installer failed: \(error.localizedDescription, privacy: .public)")
-                    }
+            if target.image != okayed {
+                NSApp.activate()
+                let alert = NSAlert()
+                alert.messageText = "Moorings is installed"
+                alert.informativeText = "Move the installer \(file.lastPathComponent) to the "
+                    + "Trash? You will not need it again."
+                alert.addButton(withTitle: "Move to Trash")
+                alert.addButton(withTitle: "Keep")
+                guard alert.runModal() == .alertFirstButtonReturn else { continue }
+            }
+            NSWorkspace.shared.recycle([file]) { [logger] _, error in
+                if let error {
+                    let reason = error.localizedDescription
+                    logger.error("trash of the installer failed: \(reason, privacy: .public)")
+                } else {
+                    logger.notice("moved the installer \(file.path, privacy: .public) to the Trash")
                 }
             }
         }
