@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>moorings: every window finds its mooring</title>
+<meta name="description" content="A free macOS menu bar app that puts windows where you want them. Shortcuts, drag snapping, tiling and saved layouts on any display, and anchored apps on an ultrawide.">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="/favicon.png">
+<meta property="og:title" content="moorings">
+<meta property="og:description" content="Every window finds its mooring. Free for macOS.">
+<meta property="og:image" content="https://macmoorings.com/photo.jpg">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="boat" viewBox="8.4 9.5 43 43">
+    <rect x="29.2" y="10.75" width="3.1" height="29" rx="1.55"/>
+    <path d="M26 14.25V36.2H11.4ZM35.4 19V36.2H48.4ZM11.6 39.75H46.6L40.6 50.4C40.1 51.25 40.1 51.25 39 51.25H19.3C18.2 51.25 18.2 51.25 17.7 50.4Z"/>
+  </symbol>
+</svg>
+
+<header class="top">
+  <div class="w">
+    <a class="brand" href="/"><svg class="mark"><use href="#boat"/></svg>moorings</a>
+    <nav>
+      <a class="keep" href="https://github.com/dcadolph/moorings">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="w">
+    <p class="small">Free for macOS 14 and later</p>
+    <h1>Every window finds<br class="wide"> its <em>mooring.</em></h1>
+    <div class="sub grid">
+      <p class="lede">Moorings is a menu bar app that puts windows where you want them. Shortcuts,
+        drag snapping, tiling and saved layouts work on any display. <b>On an ultrawide it also
+        pins your apps to the edges.</b></p>
+      <div class="cta">
+        <div class="getit">
+          <a class="btn" id="dl" href="https://github.com/dcadolph/moorings/releases/latest/download/moorings_macos_universal.zip">Download for Mac</a>
+          <div class="cmd"><span>brew install --cask dcadolph/tap/moorings</span><button data-copy="brew install --cask dcadolph/tap/moorings">Copy</button></div>
+        </div>
+        <p class="fine" id="ver">Signed and notarized. Open source under Apache 2.0.</p>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="displays" id="displays" role="group" aria-label="Display">
+        <button type="button" data-display="laptop">Laptop</button>
+        <button type="button" data-display="monitor">Monitor</button>
+        <button type="button" data-display="ultrawide">Ultrawide</button>
+      </div>
+      <div class="screen" id="screen" data-display="monitor" aria-label="Animated demo: moorings moving windows on a Mac display">
+        <div class="menubar"><svg class="mark"><use href="#boat"/></svg><span>Mon 10:24 AM</span></div>
+        <div class="desk" id="desk">
+          <div class="channel" id="channel"><span>channel</span></div>
+          <div class="fp" id="fp"></div>
+
+          <div class="win" data-app="safari"><div class="bar"><i></i><i></i><i></i><span>Safari</span></div>
+            <div class="body"><div class="url">developer.apple.com/documentation/appkit</div><p>AppKit</p><p class="t">Construct and manage a graphical, event-driven user interface for your macOS app.</p><s style="width:58%"></s><s style="width:82%"></s><s style="width:70%"></s><s style="width:44%"></s><s style="width:76%"></s><s style="width:62%"></s><s style="width:80%"></s><s style="width:36%"></s></div></div>
+          <div class="win" data-app="textedit"><div class="bar"><i></i><i></i><i></i><span>Packing list.rtf</span></div>
+            <div class="body"><p>Packing list</p><p class="t">Passport and boarding pass</p><p class="t">Laptop charger</p><p class="t">Rain jacket</p><p class="t">Sunscreen</p></div></div>
+          <div class="win" data-app="mail"><div class="bar"><i></i><i></i><i></i><span>Inbox (3)</span></div>
+            <div class="body"><p class="t"><b>Delta</b> Your trip confirmation</p><p class="t"><b>GitHub</b> [dcadolph/moorings] CI passed</p><p class="t"><b>Library</b> Two holds are ready</p></div></div>
+          <div class="win" data-app="slack"><div class="bar"><i></i><i></i><i></i><span>Slack</span></div>
+            <div class="body"><p class="ch"># platform</p><p class="t"><b>GitHub</b> CI passed on main</p><p class="t"><b>Deploys</b> Rolling to prod at 11:00</p><p class="t"><b>Deploys</b> Prod is done, change closed</p></div></div>
+          <div class="win term" data-app="iterm"><div class="bar"><i></i><i></i><i></i><span>~/src/moorings</span></div>
+            <div class="body"><p>% swift test</p><p class="t">Building for debugging...</p><p class="t">Executed 130 tests, with 0 failures</p><p>% <u></u></p></div></div>
+
+          <svg class="cursor" id="cursor" viewBox="0 0 12 18" aria-hidden="true"><path d="M1 1v14l3.6-3.4 2.6 5.6 2.2-1-2.6-5.4H12Z"/></svg>
+          <div class="banner" id="banner"><svg class="mark"><use href="#boat"/></svg><div><b>Slack released</b><span>Click its green button to put it back.</span></div></div>
+          <div class="key" id="key"></div>
+        </div>
+      </div>
+      <div class="rail" id="rail"></div>
+    </div>
+  </div>
+</section>
+
+<section class="band lift compat">
+  <div class="w grid">
+    <div class="head">
+      <p class="small">Works with what you already use</p>
+      <h2>Your displays. Your habits.</h2>
+      <p>Moorings starts with Rectangle's shortcuts, so your hands already know them. Every action
+        is also a <b>moorings://</b> link, so anything that opens a URL can run it.</p>
+    </div>
+    <div class="lists">
+      <div class="lst"><p class="small">Displays</p><ul>
+        <li><b>MacBook screen</b><span>Shortcuts, snap, organize</span></li>
+        <li><b>External monitor</b><span>Shortcuts, snap, organize</span></li>
+        <li><b>Ultrawide</b><span>All of that, plus anchored apps</span></li>
+        <li><b>Several at once</b><span>Next display, workspaces</span></li>
+      </ul></div>
+      <div class="lst"><p class="small">Habits</p><ul>
+        <li><b>Rectangle shortcuts</b><span>The default</span></li>
+        <li><b>Spectacle shortcuts</b><span>One menu choice</span></li>
+        <li><b>Raycast and Alfred</b><span>Through links</span></li>
+        <li><b>Stream Deck</b><span>Through links</span></li>
+        <li><b>Extra mouse buttons</b><span>Bound to actions</span></li>
+      </ul></div>
+    </div>
+  </div>
+</section>
+
+<section class="band feat">
+  <div class="w grid">
+    <div class="txt">
+      <p class="small">Snap by dragging</p>
+      <h2>Drag to an edge. Let go.</h2>
+      <p>Drag a window to an edge or a corner and a footprint shows where it will land. Let go and
+        it snaps. Hold Option while dropping on an ultrawide strip and the app is anchored there.</p>
+    </div>
+    <div class="vis">
+      <div class="mock mini"><div class="mscreen"><div class="mfp"></div><div class="mwin"><i></i><i></i><i></i></div>
+        <svg class="mcur" viewBox="0 0 12 18" aria-hidden="true"><path d="M1 1v14l3.6-3.4 2.6 5.6 2.2-1-2.6-5.4H12Z"/></svg></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="band feat flip">
+  <div class="w grid">
+    <div class="txt">
+      <p class="small">Workspaces</p>
+      <h2>Save a layout. Get it back.</h2>
+      <p>Save where every window sits on every display under a name, then recall it from the menu,
+        a shortcut or a link. Tie one to a set of displays and plugging into that desk recalls it.</p>
+    </div>
+    <div class="vis">
+      <div class="mock menu">
+        <div class="mh">Workspaces</div>
+        <div class="mi">Writing</div>
+        <div class="mi on">Home desk<em>Tied to these displays</em></div>
+        <div class="mi">Travel, laptop only</div>
+        <div class="sep"></div>
+        <div class="mi">Save workspace...</div>
+        <div class="mi">Tie to these displays</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band lift">
+  <div class="w grid">
+    <div class="head" style="grid-column:1 / span 8">
+      <p class="small">On an ultrawide</p>
+      <h2 style="margin:16px 0 22px">Pin the edges. Work in the middle.</h2>
+      <p>Anchor up to four apps to the sides of the screen, a top and a bottom slot on each side.
+        Everything else stays in the open middle, the channel. <b>Nothing is anchored until you pick
+        an app,</b> so a first start moves no window.</p>
+    </div>
+    <div class="three">
+      <div class="mock"><h3>Four slots</h3>
+        <div class="slots"><div class="side"><span>Slack</span><span>Mail</span></div><div class="mid">Channel 52%</div><div class="side"><span>iTerm</span><span class="empty">Empty</span></div></div>
+        <p>Pick widths and heights from presets or steppers. A side with nothing anchored gives its space to the channel.</p></div>
+      <div class="mock"><h3>Green button</h3>
+        <div class="dots"><i></i><i></i><i class="g"></i><span>Lift Slack over the channel</span></div>
+        <p>Click an anchored app's green button to lift it over the channel, and again to lower it. A free window's green button fills the channel.</p></div>
+      <div class="mock"><h3>Let it go</h3>
+        <div class="mban"><svg class="mark"><use href="#boat"/></svg><div><b>Slack released</b><span>Click its green button to put it back.</span></div></div>
+        <p>Drag an anchored window away and Moorings lets it go. Cast off this window lets one window cover the strips until it closes.</p></div>
+    </div>
+  </div>
+</section>
+
+<div class="photo"><img src="/photo.jpg" alt="Boats on moorings in a calm cove" width="1280" height="640" loading="lazy"></div>
+
+<section class="band themes slim">
+  <div class="w grid">
+    <div class="head">
+      <p class="small">Themes</p>
+      <h2>Twelve themes.</h2>
+      <p>Every theme is a color set checked for contrast. Pick one and this whole page changes,
+        including the screen above. The app uses the same names.</p>
+    </div>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</section>
+
+<section class="band lift get">
+  <div class="w grid">
+    <div class="txt">
+      <p class="small">Get moorings</p>
+      <h2>It moves windows. Nothing else.</h2>
+      <p>Moorings needs Accessibility access to move windows. No account, no server, no analytics.
+        Once a day it checks GitHub for a new release and offers it in the menu. Nothing installs
+        on its own.</p>
+      <div class="getit">
+        <a class="btn" id="dl2" href="https://github.com/dcadolph/moorings/releases/latest/download/moorings_macos_universal.zip">Download for Mac</a>
+        <div class="cmd"><span>brew install --cask dcadolph/tap/moorings</span><button data-copy="brew install --cask dcadolph/tap/moorings">Copy</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="w">
+    <span><a href="https://github.com/dcadolph/moorings">Source</a> &nbsp;&middot;&nbsp; <a href="https://github.com/dcadolph/moorings/issues">Issues</a></span>
+    <span>moorings is free and open source under the Apache 2.0 license.</span>
+  </div>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
