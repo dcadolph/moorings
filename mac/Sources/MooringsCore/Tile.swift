@@ -61,6 +61,38 @@ extension Frame: Codable {
     }
 }
 
+// StackChoices holds the stacked window choices, each at Rectangle's default.
+public struct StackChoices: Equatable, Sendable, Codable {
+    // overlapOffset reports whether a window landing on another window's corner shifts clear of it.
+    public var overlapOffset: Bool = false
+    // overlapOffsetSize is the shift in points per step.
+    public var overlapOffsetSize: Double = 11
+    // overlapMaxCascade is the most steps a window shifts.
+    public var overlapMaxCascade: Int = 1
+    // badge reports whether a badge lists the windows stacked at a corner.
+    public var badge: Bool = false
+    // sameSizeOnly reports whether only windows of the same size count as stacked.
+    public var sameSizeOnly: Bool = false
+
+    // init builds stack choices at the defaults.
+    public init() {}
+
+    // CodingKeys names the saved fields.
+    private enum CodingKeys: String, CodingKey {
+        case overlapOffset, overlapOffsetSize, overlapMaxCascade, badge, sameSizeOnly
+    }
+
+    // init decodes stack choices, keeping the default for any field missing or unreadable.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        overlapOffset = (try? c.decodeIfPresent(Bool.self, forKey: .overlapOffset)) ?? false
+        overlapOffsetSize = (try? c.decodeIfPresent(Double.self, forKey: .overlapOffsetSize)) ?? 11
+        overlapMaxCascade = (try? c.decodeIfPresent(Int.self, forKey: .overlapMaxCascade)) ?? 1
+        badge = (try? c.decodeIfPresent(Bool.self, forKey: .badge)) ?? false
+        sameSizeOnly = (try? c.decodeIfPresent(Bool.self, forKey: .sameSizeOnly)) ?? false
+    }
+}
+
 // Tile holds the organize frame math: columns, rows, a grid, a cascade and a mirror. Every function
 // is pure.
 public enum Tile {
@@ -144,5 +176,24 @@ public enum Tile {
         -> [(TileWindow, Frame)] {
         let list = Array(front.prefix(max(n, 0))).sorted(by: byX)
         return Array(zip(list, columns(area, list.count, gap: gap)))
+    }
+
+    // overlapOffset shifts a frame down and right while another window's top-left corner sits at its own, up to
+    // maxCascade steps of size points, never past the area's far edges. Windows are matched by top-left corner.
+    public static func overlapOffset(
+        _ frame: Frame, others: [Frame], area: Frame, size: Double, maxCascade: Int, tolerance: Double = 4
+    ) -> Frame {
+        guard size > 0 else { return frame }
+        var f = frame
+        for _ in 0..<max(0, min(5, maxCascade)) {
+            let hit = others.contains { abs($0.x - f.x) < tolerance && abs($0.y - f.y) < tolerance }
+            guard hit else { break }
+            let dx = f.x + f.w + size <= area.x + area.w ? size : 0
+            let dy = f.y + f.h + size <= area.y + area.h ? size : 0
+            guard dx != 0 || dy != 0 else { break }
+            f.x += dx
+            f.y += dy
+        }
+        return f
     }
 }

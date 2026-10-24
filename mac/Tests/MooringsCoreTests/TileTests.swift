@@ -94,3 +94,31 @@ func covered(_ frames: [Frame]) -> Double {
     #expect(undo.restore([2, 9, 3]).map(\.0) == [2, 3])
     #expect(undo.frames[2] == c.frame)
 }
+
+// Swift only: an overlapping frame shifts by the offset size, and a clear one stays put.
+@Test func testOverlapOffsetShifts() {
+    let area = F(0, 0, 1000, 800)
+    let f = F(0, 0, 500, 400)
+    #expect(Tile.overlapOffset(f, others: [F(0, 0, 300, 300)], area: area, size: 11, maxCascade: 1) == F(11, 11, 500, 400))
+    #expect(Tile.overlapOffset(f, others: [F(200, 200, 300, 300)], area: area, size: 11, maxCascade: 1) == f)
+    #expect(Tile.overlapOffset(f, others: [F(0, 0, 300, 300)], area: area, size: 0, maxCascade: 1) == f)
+}
+
+// Swift only: the cascade stops at max cascade steps, following stacked windows.
+@Test func testOverlapOffsetCascade() {
+    let area = F(0, 0, 1000, 800)
+    let f = F(0, 0, 500, 400)
+    let others = [F(0, 0, 300, 300), F(11, 11, 300, 300), F(22, 22, 300, 300)]
+    #expect(Tile.overlapOffset(f, others: others, area: area, size: 11, maxCascade: 2) == F(22, 22, 500, 400))
+    #expect(Tile.overlapOffset(f, others: others, area: area, size: 11, maxCascade: 5) == F(33, 33, 500, 400))
+    #expect(Tile.overlapOffset(f, others: others, area: area, size: 11, maxCascade: 0) == f)
+}
+
+// Swift only: the offset never pushes a frame past the area's far edge, per axis.
+@Test func testOverlapOffsetStaysInside() {
+    let area = F(0, 0, 1000, 800)
+    let full = F(0, 0, 1000, 800)
+    #expect(Tile.overlapOffset(full, others: [full], area: area, size: 11, maxCascade: 3) == full)
+    let wide = F(0, 0, 1000, 400)
+    #expect(Tile.overlapOffset(wide, others: [wide], area: area, size: 11, maxCascade: 1) == F(0, 11, 1000, 400))
+}

@@ -119,3 +119,11 @@ import Testing
     let s = try JSONDecoder().decode(SnapChoices.self, from: Data("{}".utf8))
     #expect(s == SnapChoices())
 }
+
+// Swift only: choices with no stacking key load with default stack choices, and an empty object decodes to them.
+@Test func testChoicesDecodeWithoutStacking() throws {
+    let c = Choices.decode(Data(#"{"snap":true}"#.utf8))
+    #expect(c.stacking == StackChoices())
+    let s = try JSONDecoder().decode(StackChoices.self, from: Data("{}".utf8))
+    #expect(s == StackChoices())
+}

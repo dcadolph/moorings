@@ -80,6 +80,8 @@ public struct Choices: Equatable, Sendable, Codable {
     public var behavior: Behaviors = Behaviors()
     // snapping holds the drag snap configuration and footprint style.
     public var snapping: SnapChoices = SnapChoices()
+    // stacking holds the cycling overlap offset and stack badge choices.
+    public var stacking: StackChoices = StackChoices()
 
     // init builds a set of choices.
     public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
@@ -95,7 +97,7 @@ public struct Choices: Equatable, Sendable, Codable {
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
-        case ignores, snap, theme, workspaces, checkUpdates, mouseButtons, behavior, snapping
+        case ignores, snap, theme, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -120,6 +122,7 @@ public struct Choices: Equatable, Sendable, Codable {
         mouseButtons = (try? c.decodeIfPresent([String: String].self, forKey: .mouseButtons)) ?? [:]
         behavior = (try? c.decodeIfPresent(Behaviors.self, forKey: .behavior)) ?? Behaviors()
         snapping = (try? c.decodeIfPresent(SnapChoices.self, forKey: .snapping)) ?? SnapChoices()
+        stacking = (try? c.decodeIfPresent(StackChoices.self, forKey: .stacking)) ?? StackChoices()
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -143,6 +146,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(mouseButtons, forKey: .mouseButtons)
         try c.encode(behavior, forKey: .behavior)
         try c.encode(snapping, forKey: .snapping)
+        try c.encode(stacking, forKey: .stacking)
     }
 
     // encode returns choices as sorted JSON for saving.
