@@ -127,3 +127,16 @@ import Testing
     let s = try JSONDecoder().decode(StackChoices.self, from: Data("{}".utf8))
     #expect(s == StackChoices())
 }
+
+// Swift only: choices saved without chains or menu keys load the defaults, and both round trip.
+@Test func testChoicesChainsAndMenu() throws {
+    let old = Data(#"{"paused":false}"#.utf8)
+    let loaded = Choices.decode(old)
+    #expect(loaded.chains.isEmpty && loaded.menu == MenuChoices())
+    var c = Choices()
+    c.chains = [Chain(name: "Focus", steps: ["left-half", "maximize"], loops: true)]
+    c.menu = MenuChoices()
+    c.menu.order = ["maximize", "left-half"]
+    c.menu.hidden = ["center"]
+    #expect(Choices.decode(try Choices.encode(c)) == c)
+}
