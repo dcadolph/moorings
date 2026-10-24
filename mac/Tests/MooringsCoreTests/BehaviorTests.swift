@@ -66,20 +66,25 @@ private let behaviorScreen = Frame(x: 0, y: 0, w: 1000, h: 800)
     #expect(Behavior.repeatOutcome(.none, press: 3, displayIndex: 0, displayCount: 2, direction: 1) == .place)
 }
 
-// Swift only: traverse moves a side action to the adjacent display and stops at the last one.
+// Swift only: traverse moves a side action to the adjacent display and wraps past the last one.
 @Test func testRepeatOutcomeTraverse() {
     let m = SubsequentExecution.traverseDisplays
     #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 0, displayCount: 2, direction: 1) == .moveToDisplay(1))
-    #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 1, displayCount: 2, direction: 1) == .place)
+    #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 1, displayCount: 2, direction: 1) == .moveToDisplay(0))
     #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 1, displayCount: 2, direction: -1) == .moveToDisplay(0))
+    #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 0, displayCount: 3, direction: -1) == .moveToDisplay(2))
     #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 0, displayCount: 1, direction: 1) == .place)
     #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 0, displayCount: 2) == .place)
 }
 
-// Swift only: traverse and cycle moves sides across displays and cycles sizes elsewhere.
+// Swift only: traverse and cycle moves sides across displays, and cycles sizes where it would wrap,
+// on one display, and on every other action.
 @Test func testRepeatOutcomeTraverseAndCycle() {
     let m = SubsequentExecution.traverseAndCycle
     #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 0, displayCount: 2, direction: 1) == .moveToDisplay(1))
+    #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 1, displayCount: 2, direction: 1) == .cycleSize)
+    #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 0, displayCount: 2, direction: -1) == .cycleSize)
+    #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 0, displayCount: 1, direction: 1) == .cycleSize)
     #expect(Behavior.repeatOutcome(m, press: 2, displayIndex: 0, displayCount: 2) == .cycleSize)
 }
 
@@ -98,7 +103,35 @@ private let behaviorScreen = Frame(x: 0, y: 0, w: 1000, h: 800)
     #expect(Behavior.repeatOutcome(q, press: 2, displayIndex: 0, displayCount: 1) == .cycleSize)
     let s = SubsequentExecution.switchSides
     #expect(Behavior.repeatOutcome(s, press: 2, displayIndex: 0, displayCount: 1, direction: -1) == .switchSide)
+    #expect(Behavior.repeatOutcome(s, press: 2, displayIndex: 0, displayCount: 1, half: true) == .switchSide)
     #expect(Behavior.repeatOutcome(s, press: 2, displayIndex: 0, displayCount: 1) == .place)
+}
+
+// Swift only: Chromium browsers and their channels are known, and nothing else is.
+@Test func testChromium() {
+    #expect(Behavior.chromium("com.google.Chrome"))
+    #expect(Behavior.chromium("com.google.Chrome.canary"))
+    #expect(Behavior.chromium("company.thebrowser.Browser"))
+    #expect(!Behavior.chromium("com.google.Chromecast"))
+    #expect(!Behavior.chromium("com.tinyspeck.slackmacgap"))
+    #expect(!Behavior.chromium(nil))
+}
+
+// Swift only: Enhanced UI comes back after a move except where the mode leaves it off, and
+// automatic leaves it off for Chromium unless VoiceOver is on.
+@Test func testEnhancedUIPolicy() {
+    let chrome = "com.google.Chrome", slack = "com.tinyspeck.slackmacgap"
+    #expect(Behavior.restoresEnhancedUI(.disableEnable, bundle: chrome, assistive: false))
+    #expect(!Behavior.restoresEnhancedUI(.disableOnly, bundle: slack, assistive: false))
+    #expect(!Behavior.restoresEnhancedUI(.frontmostDisable, bundle: slack, assistive: false))
+    #expect(Behavior.restoresEnhancedUI(.automatic, bundle: slack, assistive: false))
+    #expect(!Behavior.restoresEnhancedUI(.automatic, bundle: chrome, assistive: false))
+    #expect(Behavior.restoresEnhancedUI(.automatic, bundle: chrome, assistive: true))
+    #expect(Behavior.disablesEnhancedUIOnActivation(.frontmostDisable, bundle: slack, assistive: false))
+    #expect(Behavior.disablesEnhancedUIOnActivation(.automatic, bundle: chrome, assistive: false))
+    #expect(!Behavior.disablesEnhancedUIOnActivation(.automatic, bundle: chrome, assistive: true))
+    #expect(!Behavior.disablesEnhancedUIOnActivation(.automatic, bundle: slack, assistive: false))
+    #expect(!Behavior.disablesEnhancedUIOnActivation(.disableEnable, bundle: chrome, assistive: false))
 }
 
 // Swift only: unsnap restores the saved size only when enabled, snapped and different from the current size.

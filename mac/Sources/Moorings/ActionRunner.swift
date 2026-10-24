@@ -64,7 +64,8 @@ final class ActionRunner {
         "move-right": "Move the front window to the right edge, keeping its size.",
         "move-up": "Move the front window to the top edge, keeping its size.",
         "move-down": "Move the front window to the bottom edge, keeping its size.",
-        "specified": "Size the front window to 1680 by 1050 points, centered, shrunk to fit.",
+        "specified": "Size the front window to the specified size, 1680 by 1050 points unless changed, centered, "
+            + "shrunk to fit.",
         "restore": "Put the front window back where it was before moorings first moved it.",
         "larger-width": "Widen the front window, keeping its height.",
         "smaller-width": "Narrow the front window, keeping its height.",
@@ -111,7 +112,11 @@ final class ActionRunner {
             logger.notice("\(name, privacy: .public): no focused window")
             return false
         }
-        return apply(name, to: w, screens: screens)
+        guard apply(name, to: w, screens: screens) else { return false }
+        if anchors.choices.behavior.moveCursor, let f = app.windows.frame(w.id) {
+            CGWarpMouseCursorPosition(CGPoint(x: f.x + f.w / 2, y: f.y + f.h / 2))
+        }
+        return true
     }
 
     // apply applies action name to window w on the screen at index, its own screen when nil, and
@@ -148,24 +153,65 @@ final class ActionRunner {
             app.wake()
             return true
         }
-        let (frame, press) = frame(name, for: w, screens: screens, index: index)
+        let (frame, press, result) = frame(name, for: w, screens: screens, index: index)
         guard let frame else { return false }
         anchors.save(w)
-        app.windows.move(w.id, to: frame)
-        last[w.id] = LastPress(name: name, press: press, frame: app.windows.frame(w.id) ?? frame)
+        app.windows.move(w.id, to: frame, enhancedUI: anchors.choices.behavior.enhancedUI)
+        last[w.id] = LastPress(name: result, press: press, frame: app.windows.frame(w.id) ?? frame)
         app.wake()
         return true
     }
 
     // frame returns the frame action name gives w on the screen at index, its own screen when nil,
-    // and the press count, without moving it.
-    func frame(_ name: String, for w: WindowInfo, screens: Screens, index: Int? = nil) -> (Frame?, press: Int) {
+    // the press count, and the action the result counts as, without moving it.
+    func frame(
+        _ name: String, for w: WindowInfo, screens: Screens, index: Int? = nil
+    ) -> (Frame?, press: Int, name: String) {
         let areas = screens.usable.indices.map { i in
             i == screens.ultrawide ? anchors.channel(screens.usable[i]) : screens.usable[i]
         }
-        let target = ActionTarget(screens: screens.full, areas: areas, index: index ?? screens.index(w.frame) ?? 0)
+        let right = Self.stageOnRight()
+        let notched = Set(NSScreen.screens.indices.filter { NSScreen.screens[$0].safeAreaInsets.top > 0 })
+        let target = ActionTarget(screens: screens.full, areas: areas, index: index ?? screens.index(w.frame) ?? 0,
+                                  notched: notched, staged: Self.staged(screens.full, right: right),
+                                  stageOnRight: right)
         return Actions.frame(name, cur: w.frame, target: target, gap: anchors.choices.gapPx,
-                             sizes: Bindings(anchors.choices).specs, last: last[w.id])
+                             sizes: Bindings(anchors.choices).specs, last: last[w.id],
+                             behavior: anchors.choices.behavior)
+    }
+
+    // windowManager reads a Stage Manager setting from the WindowManager defaults.
+    private static func windowManager(_ key: String) -> Bool? {
+        UserDefaults(suiteName: "com.apple.WindowManager")?.object(forKey: key) as? Bool
+    }
+
+    // stageOnRight reports whether the Stage Manager strip sits on the right: with the Dock on the
+    // left, or with the Dock at the bottom in a right-to-left language.
+    private static func stageOnRight() -> Bool {
+        switch UserDefaults(suiteName: "com.apple.dock")?.string(forKey: "orientation") {
+        case "left": true
+        case "right": false
+        default: Locale.current.language.characterDirection == .rightToLeft
+        }
+    }
+
+    // staged lists the screens showing the Stage Manager strip: Stage Manager is on, the strip is not
+    // set to hide, and at least two WindowManager windows sit at the screen's strip edge. One alone
+    // can be the window being dragged.
+    private static func staged(_ full: [Frame], right: Bool) -> Set<Int> {
+        guard windowManager("GloballyEnabled") == true, windowManager("AutoHide") != true else { return [] }
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        var counts: [Int: Int] = [:]
+        for entry in list where entry[kCGWindowOwnerName as String] as? String == "WindowManager" {
+            guard let b = entry[kCGWindowBounds as String] as? [String: Double],
+                  let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"] else { continue }
+            let rows = full.indices.filter { full[$0].y <= y && y + h <= full[$0].y + full[$0].h }
+            let edge = { (i: Int) in right ? abs(full[i].x + full[i].w - (x + w)) : abs(x - full[i].x) }
+            if let i = rows.min(by: { edge($0) < edge($1) }) {
+                counts[i, default: 0] += 1
+            }
+        }
+        return Set(counts.filter { $0.value >= 2 }.keys)
     }
 
     // runnable reports whether name is an action or a custom size in the choices.

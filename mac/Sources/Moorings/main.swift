@@ -88,6 +88,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         installer.offerTrash()
         item.button?.image = Mark.image()
+        showIcon()
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
@@ -357,8 +358,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         rebind()
         refreshShortcuts()
+        showIcon()
         wake()
         moor()
+    }
+
+    // showIcon shows the menu bar icon unless the choices hide it. Opening Moorings again while it
+    // runs opens the settings, where the icon can be turned back on.
+    private func showIcon() {
+        item.isVisible = !anchors.choices.behavior.hideMenuBarIcon
     }
 
     // rebind registers every shortcut in effect and logs the problems with the saved ones.
@@ -438,6 +446,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
                 windows.lastFront = app.processIdentifier
+                if windows.trusted, Behavior.disablesEnhancedUIOnActivation(
+                    anchors.choices.behavior.enhancedUI, bundle: app.bundleIdentifier,
+                    assistive: NSWorkspace.shared.isVoiceOverEnabled) {
+                    Windows.dropEnhancedUI(app.processIdentifier)
+                }
             }
             refreshShortcuts()
         }

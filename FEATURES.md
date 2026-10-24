@@ -10,7 +10,7 @@ each part.
   thirds, two thirds, maximize, maximize height, center, larger, smaller, restore, and previous
   and next display. Spectacle's keymap is one menu choice away.
 - Every other Rectangle action by Rectangle's name: display one to nine, a specified size of
-  1680 by 1050 points, and the side and center-section names, so a Rectangle link or script
+  1680 by 1050 points that you can change, and the side and center-section names, so a Rectangle link or script
   works with `moorings://action?name=`.
 - Larger, smaller, double and halve on one axis, each toward the edge you pick.
 - Fourths, sixths, eighths, ninths, twelfths, sixteenths, vertical thirds, sixths and eighths,
@@ -22,6 +22,10 @@ each part.
   Stream Deck can run it.
 - Extra mouse buttons bound to actions.
 - Shortcuts that switch off while an app you name is in front.
+- Rectangle's behavior preferences at Rectangle's defaults: repeat presses that cycle sizes,
+  traverse or cycle displays, cycle quadrants or switch sides, screen edge gaps, room for the
+  Stage Manager strip, Enhanced UI handling, a cursor that follows the window, a hidden menu bar
+  icon and display ordering.
 
 ## Snap by dragging
 

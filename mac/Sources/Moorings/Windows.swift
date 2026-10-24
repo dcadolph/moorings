@@ -169,6 +169,37 @@ final class Windows {
         AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
     }
 
+    // enhancedUIKey is the app attribute VoiceOver and some apps set, which makes an app animate its
+    // own resizing and land off the frame asked for.
+    static let enhancedUIKey = "AXEnhancedUserInterface" as CFString
+
+    // move puts the window with id at frame with its app's Enhanced UI off for the move, and turns it
+    // back on afterward when mode says to.
+    func move(_ id: WindowID, to frame: Frame, enhancedUI mode: EnhancedUIMode) {
+        var pid: pid_t = 0
+        guard let el = elements[id], AXUIElementGetPid(el, &pid) == .success else {
+            move(id, to: frame)
+            return
+        }
+        let app = AXUIElementCreateApplication(pid)
+        var value: CFTypeRef?
+        let on = AXUIElementCopyAttributeValue(app, Self.enhancedUIKey, &value) == .success
+            && (value as? Bool) == true
+        if on {
+            AXUIElementSetAttributeValue(app, Self.enhancedUIKey, kCFBooleanFalse)
+        }
+        move(id, to: frame)
+        let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
+        if on, Behavior.restoresEnhancedUI(mode, bundle: bundle, assistive: NSWorkspace.shared.isVoiceOverEnabled) {
+            AXUIElementSetAttributeValue(app, Self.enhancedUIKey, kCFBooleanTrue)
+        }
+    }
+
+    // dropEnhancedUI turns off the Enhanced UI of the app with pid.
+    static func dropEnhancedUI(_ pid: pid_t) {
+        AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid), enhancedUIKey, kCFBooleanFalse)
+    }
+
     // frame reads where the window with id is now, nil when it cannot be read.
     func frame(_ id: WindowID) -> Frame? {
         elements[id].flatMap { Self.frame($0) }

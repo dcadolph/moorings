@@ -129,7 +129,8 @@ prominently and the move actions have no key until you record one in Settings.
 
 Every other Rectangle action is here under Rectangle's name, so its links and scripts carry
 over. Window > Displays sends the front window to display one through nine, counted left to
-right. Specified sizes it to 1680 by 1050 points, centered and shrunk to fit. Window > One axis
+right with a row of displays above another counted first. Specified sizes it to 1680 by 1050
+points unless you change it, centered and shrunk to fit. Window > One axis
 makes it wider, narrower, taller or shorter in 30 point steps, or doubles or halves one side
 toward the edge you pick. The side names such as `left-side` and `center-section` are aliases of
 the halves, as in Rectangle. On an anchored window, Maximize lifts it and Restore puts it back in its slot. Window >
@@ -159,6 +160,32 @@ the size, from 0 to 1. Each size can take a shortcut and shows in Window > Custo
 Gap leaves 4 to 16 points around each window an action places, and Settings > Layout sets any gap
 up to 100. Settings > Layout > Mouse buttons binds the middle, back and forward buttons to any
 action.
+
+### Behavior choices
+
+Rectangle keeps its finer behaviors as hidden preferences. Moorings keeps them under `settings.behavior`
+in the JSON file Settings exports, at Rectangle's defaults. Edit the file and import it again.
+
+- `subsequentExecution`: what pressing the same shortcut again does. `cycle-sizes` (the default)
+  steps a half through 1/2, 2/3 and 1/3. `traverse-displays` sends a left or right half on to the
+  next display, and `traverse-and-cycle` does that until it would wrap, then cycles sizes.
+  `cycle-displays` places the same action on the next display, `cycle-quadrants` steps a corner
+  across the four quarters, `switch-sides` flips a half to the other side, and `none` stays put.
+- `screenEdgeGapTop`, `screenEdgeGapBottom`, `screenEdgeGapLeft`, `screenEdgeGapRight` and
+  `screenEdgeGapTopNotch` keep points free at the screen edges. `gapsOnMainOnly` limits them to the
+  main display and `applyGapsToMaximize` set to false lets maximize ignore them.
+- `stageSize` is the width the Stage Manager strip takes when it shows, and
+  `alwaysAccountForStage` keeps it free even when it does not. On the ultrawide the strip only
+  comes off a channel that reaches the screen edge.
+- `enhancedUI` turns an app's Enhanced UI off while an action or a drag snap moves its window, so
+  apps such as Slack land on the exact frame. `automatic` (the default) turns it back on afterward except in Chromium
+  browsers.
+- `moveCursor` moves the pointer to the middle of a window that a shortcut, the menu or a link
+  moved.
+- `hideMenuBarIcon` hides the icon. Open Moorings again to reach Settings.
+- `screensOrderedByX` orders displays for the display actions: `y-then-min-x` (the default),
+  `min-x` or `mid-x`.
+- `specifiedWidth` and `specifiedHeight` set the Specified size in points.
 
 ### Organize
 

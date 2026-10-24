@@ -7,6 +7,8 @@ public enum SubsequentExecution: String, CaseIterable, Codable, Sendable {
     case none
     case traverseAndCycle = "traverse-and-cycle"
     case cycleDisplays = "cycle-displays"
+    // cycleQuadrants is Rectangle's resizeAndCycleQuadrants: corners step through the four
+    // quadrants and every other action cycles sizes.
     case cycleQuadrants = "cycle-quadrants"
     case switchSides = "switch-sides"
 }
@@ -157,24 +159,62 @@ public enum Behavior {
     }
 
     // repeatOutcome decides what a shortcut does from its press count, the display it is on and the
-    // display count. direction is -1 or 1 for a left or right half, 0 otherwise, and corner marks a
-    // corner action.
+    // display count. direction is -1 or 1 for a left or right half, 0 otherwise, half marks any half
+    // action, and corner marks a corner action. Traverse wraps around the displays, and traverse and
+    // cycle cycles sizes instead of wrapping or on one display, as Rectangle does.
     public static func repeatOutcome(
         _ mode: SubsequentExecution, press: Int, displayIndex: Int, displayCount: Int, direction: Int = 0,
-        corner: Bool = false
+        half: Bool = false, corner: Bool = false
     ) -> RepeatOutcome {
         guard press > 1 else { return .place }
-        let next = displayIndex + direction
-        let traverse: RepeatOutcome = direction != 0 && displayCount > 1 && next >= 0 && next < displayCount
-            ? .moveToDisplay(next) : .place
+        let n = max(displayCount, 1)
+        let step = displayIndex + direction
+        let next = (step % n + n) % n
+        let sideways = direction != 0 && displayCount > 1
         switch mode {
         case .none: return .place
         case .cycleSizes: return .cycleSize
-        case .traverseDisplays: return traverse
-        case .traverseAndCycle: return direction != 0 ? traverse : .cycleSize
+        case .traverseDisplays: return sideways ? .moveToDisplay(next) : .place
+        case .traverseAndCycle: return sideways && step == next ? .moveToDisplay(next) : .cycleSize
         case .cycleDisplays: return displayCount > 1 ? .moveToDisplay((displayIndex + 1) % displayCount) : .place
         case .cycleQuadrants: return corner ? .cycleQuadrant : .cycleSize
-        case .switchSides: return direction != 0 ? .switchSide : .place
+        case .switchSides: return direction != 0 || half ? .switchSide : .place
+        }
+    }
+
+    // chromiumBrowsers lists the bundle id families of the Chromium browsers, whose Enhanced UI is
+    // left off because turning it back on slows them.
+    public static let chromiumBrowsers = [
+        "com.google.Chrome", "org.chromium.Chromium", "com.microsoft.edgemac", "com.brave.Browser",
+        "com.vivaldi.Vivaldi", "com.operasoftware.Opera", "com.operasoftware.OperaNext",
+        "com.operasoftware.OperaDeveloper", "com.operasoftware.OperaNightly", "com.operasoftware.OperaGX",
+        "com.operasoftware.OperaGXNext", "com.operasoftware.OperaGXDeveloper", "com.operasoftware.OperaGXNightly",
+        "company.thebrowser.Browser", "company.thebrowser.dia", "ai.perplexity.comet", "com.openai.atlas",
+    ]
+
+    // chromium reports whether bundle is a Chromium browser or one of its channels.
+    public static func chromium(_ bundle: String?) -> Bool {
+        guard let bundle else { return false }
+        return chromiumBrowsers.contains { bundle == $0 || bundle.hasPrefix($0 + ".") }
+    }
+
+    // restoresEnhancedUI reports whether an app's Enhanced UI, turned off for a move, is turned back on
+    // after it. assistive reports whether VoiceOver is on.
+    public static func restoresEnhancedUI(_ mode: EnhancedUIMode, bundle: String?, assistive: Bool) -> Bool {
+        switch mode {
+        case .disableEnable: return true
+        case .disableOnly, .frontmostDisable: return false
+        case .automatic: return assistive || !chromium(bundle)
+        }
+    }
+
+    // disablesEnhancedUIOnActivation reports whether an app's Enhanced UI is turned off when it comes to
+    // the front.
+    public static func disablesEnhancedUIOnActivation(_ mode: EnhancedUIMode, bundle: String?, assistive: Bool) -> Bool {
+        switch mode {
+        case .frontmostDisable: return true
+        case .automatic: return !assistive && chromium(bundle)
+        case .disableEnable, .disableOnly: return false
         }
     }
 
