@@ -110,8 +110,9 @@ struct MenuBuilder {
             anchors.choices.checkUpdates.toggle()
             app.save()
         })
+        out.append(.separator())
         if let tip = AppDelegate.supportURL {
-            out.append(ActionItem("Tip the harbormaster", tip: "Moorings is free. A tip keeps the harbor running.") {
+            out.append(ActionItem("Tip the harbormaster…", tip: "Moorings is free. A tip keeps the harbor running.") {
                 NSWorkspace.shared.open(tip)
             })
         }

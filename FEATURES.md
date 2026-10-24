@@ -84,5 +84,5 @@ each part.
 - Nothing moves while the mouse button is down, and a window that keeps fighting its place is
   left alone for a minute.
 - Without Accessibility access, a warning sign and one banner lead to the right settings page.
-- Tip the harbormaster, just above Quit Moorings, opens the GitHub Sponsors page. Nothing asks for
-  a tip.
+- Tip the harbormaster, below a separator just above Quit Moorings, opens the GitHub Sponsors
+  page. Nothing asks for a tip.

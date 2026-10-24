@@ -218,8 +218,7 @@ your anchored apps once from the menu.
 ## Support
 
 moorings is free and will stay free. If I ever stop maintaining it, I'll archive it, and the code
-stays open. Keeping it working as macOS changes takes time. If you want to support that work, you
-can [tip the harbormaster](https://github.com/sponsors/dcadolph) through GitHub Sponsors.
+stays open.
 
 ## License
 
