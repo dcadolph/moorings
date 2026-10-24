@@ -226,8 +226,8 @@
   fetch("https://api.github.com/repos/dcadolph/moorings/releases/latest")
     .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
     .then(function (rel) {
-      document.getElementById("ver").textContent =
-        rel.tag_name + ". Signed and notarized. Open source under Apache 2.0.";
+      var ver = document.getElementById("ver");
+      ver.textContent = rel.tag_name + ". " + ver.textContent;
     })
     .catch(function () {});
 })();
