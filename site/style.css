@@ -144,7 +144,7 @@ p b { color: var(--text); font-weight: 600; }
 .key.on { opacity: 1; transform: translate(-50%, 0); }
 .key kbd { font: 600 calc(1.5 * var(--u))/1 var(--mono); color: var(--accent); margin-right: calc(.9 * var(--u)); }
 
-.rail { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 18px; }
+.rail { display: grid; grid-template-columns: repeat(var(--n, 4), 1fr); gap: 12px; margin-top: 18px; }
 .rail button { text-align: left; align-self: start; background: transparent; border: 0; border-top: 2px solid var(--line); color: var(--muted);
   padding: 14px 4px 0; cursor: pointer; font: 600 15px/1.4 var(--sans); transition: color .3s, border-color .3s; }
 .rail button b { display: block; font: 700 12px var(--mono); letter-spacing: .1em; color: var(--muted); margin-bottom: 2px; }

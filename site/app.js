@@ -107,9 +107,11 @@
       { win: { iterm: [76, 0, 24, 100] }, z: ["slack", "iterm"], hot: "iterm", key: ["", "Anchor iTerm, right"] }
     ] },
     { go: "channel", label: "Channel", text: "Everything else lands in the channel", beats: [
-      { win: { slack: [0, 0, 24, 100], iterm: [76, 0, 24, 100], safari: [12, 12, 36, 72] }, z: ["slack", "iterm", "safari"], hot: "safari", strips: true },
-      { win: { safari: [24, 12, 36, 72] }, key: ["", "Pushed back into the channel"] },
-      { win: { safari: [24, 0, 52, 100] }, zoom: "safari", key: ["", "Green button fills the channel"] }
+      { win: { slack: [0, 0, 24, 100], iterm: [76, 0, 24, 100], safari: [12, 12, 30, 72], textedit: [56, 18, 30, 64] },
+        z: ["slack", "iterm", "textedit", "safari"], hot: "safari", strips: true },
+      { win: { safari: [24, 12, 30, 72], textedit: [46, 18, 30, 64] }, key: ["", "Pushed back into the channel"] },
+      { win: { safari: [24, 0, 26, 100], textedit: [50, 0, 26, 100] }, key: ["", "Tile columns"] },
+      { win: { safari: [24, 0, 52, 100] }, z: ["slack", "iterm", "textedit", "safari"], zoom: "safari", key: ["", "Green button fills the channel"] }
     ] },
     { go: "lift", label: "Green button", text: "Lift an anchored app over the channel", beats: [
       { win: { slack: [0, 0, 24, 100], iterm: [76, 0, 24, 100], safari: [24, 0, 52, 100] }, z: ["iterm", "safari", "slack"], hot: "slack", strips: true },
@@ -120,6 +122,13 @@
       { win: { slack: [0, 0, 24, 100], iterm: [76, 0, 24, 100], safari: [24, 0, 52, 100] }, z: ["iterm", "safari", "slack"], hot: "slack", strips: true, cur: [10, 2] },
       { win: { slack: [18, 14, 26, 70] }, cur: [28, 16] },
       { ban: true }
+    ] },
+    { go: "more", label: "Anchor more", text: "Stack a second app on either side", beats: [
+      { win: { slack: [0, 0, 24, 100], iterm: [76, 0, 24, 100], safari: [24, 0, 52, 100], mail: [30, 16, 32, 60] },
+        z: ["slack", "iterm", "safari", "mail"], hot: "mail", strips: true },
+      { win: { slack: [0, 0, 24, 50], mail: [0, 50, 24, 50] }, key: ["", "Anchor Mail, left bottom"] },
+      { win: { calendar: [42, 18, 30, 58] }, z: ["slack", "iterm", "safari", "mail", "calendar"], hot: "calendar" },
+      { win: { calendar: [76, 0, 24, 50], iterm: [76, 50, 24, 50] }, key: ["", "Anchor Calendar, right top"] }
     ] }
   ];
   var scenes = { laptop: normal, monitor: normal, ultrawide: wide };
@@ -193,6 +202,7 @@
   }
   function buildRail() {
     rail.innerHTML = "";
+    rail.style.setProperty("--n", String(steps.length));
     steps.forEach(function (s, i) {
       var b = document.createElement("button");
       b.type = "button";
