@@ -82,7 +82,7 @@ jobs:
           key="$RUNNER_TEMP/notary.p8"
           printf '%s' "$NOTARY_KEY_P8" > "$key"
           xcrun notarytool submit "$zip" --key "$key" --key-id "$NOTARY_KEY_ID" \
-            --issuer "$NOTARY_ISSUER_ID" --wait --timeout 90m --output-format json > "$RUNNER_TEMP/notary.json"
+            --issuer "$NOTARY_ISSUER_ID" --wait --timeout 180m --output-format json > "$RUNNER_TEMP/notary.json"
           rm -f "$key"
           cat "$RUNNER_TEMP/notary.json"
           test "$(jq -r .status "$RUNNER_TEMP/notary.json")" = "Accepted"
