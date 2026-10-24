@@ -129,3 +129,22 @@ func snapZone(_ f: Frame, _ ch: Frame?, _ x: Double, _ y: Double, _ prev: String
     #expect(Snap.drop(strip, snapWide, channel, castOff: true) == nil)
     #expect(Snap.drop(SnapPoint(0, 540), snapScreen, option: true, parkable: true) == .zone("left-half"))
 }
+
+// Swift only: a custom map changes what an area resolves to, and an ignored area resolves to nothing.
+@Test func testSnapCustomMapAndIgnoredArea() {
+    var m = SnapChoices()
+    m.landscapeSnapAreas["top"] = "top-half"
+    #expect(Snap.zone(SnapPoint(960, 0), snapScreen, nil, nil, snapping: m) == "top-half")
+    #expect(Snap.zone(SnapPoint(960, 0), snapScreen) == "maximize")
+    m.ignoredSnapAreas = ["left"]
+    #expect(Snap.zone(SnapPoint(0, 540), snapScreen, nil, nil, snapping: m) == nil)
+    #expect(Snap.zone(SnapPoint(0, 0), snapScreen, nil, nil, snapping: m) == "top-left")
+}
+
+// Swift only: snap modifiers gate the zone until every named key is held.
+@Test func testSnapModifiersGate() {
+    var m = SnapChoices()
+    m.snapModifiers = ["shift"]
+    #expect(Snap.zone(SnapPoint(0, 540), snapScreen, nil, nil, snapping: m) == nil)
+    #expect(Snap.zone(SnapPoint(0, 540), snapScreen, nil, nil, snapping: m, held: ["shift"]) == "left-half")
+}

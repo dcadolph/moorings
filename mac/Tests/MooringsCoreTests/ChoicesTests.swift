@@ -111,3 +111,11 @@ import Testing
     #expect(try JSONDecoder().decode(Behaviors.self, from: bad) == Behaviors())
     #expect(Choices.decode(Data(#"{"behavior":{}}"#.utf8)).behavior.specifiedWidth == 1680)
 }
+
+// Swift only: choices with no snapping key load with default snap choices, and an empty object decodes to them.
+@Test func testChoicesDecodeWithoutSnapping() throws {
+    let c = Choices.decode(Data(#"{"snap":true}"#.utf8))
+    #expect(c.snapping == SnapChoices())
+    let s = try JSONDecoder().decode(SnapChoices.self, from: Data("{}".utf8))
+    #expect(s == SnapChoices())
+}

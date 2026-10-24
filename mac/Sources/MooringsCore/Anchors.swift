@@ -78,6 +78,8 @@ public struct Choices: Equatable, Sendable, Codable {
     public var mouseButtons: [String: String] = [:]
     // behavior holds the window action behavior choices.
     public var behavior: Behaviors = Behaviors()
+    // snapping holds the drag snap configuration and footprint style.
+    public var snapping: SnapChoices = SnapChoices()
 
     // init builds a set of choices.
     public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
@@ -93,7 +95,7 @@ public struct Choices: Equatable, Sendable, Codable {
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
-        case ignores, snap, theme, workspaces, checkUpdates, mouseButtons, behavior
+        case ignores, snap, theme, workspaces, checkUpdates, mouseButtons, behavior, snapping
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -117,6 +119,7 @@ public struct Choices: Equatable, Sendable, Codable {
         checkUpdates = (try? c.decodeIfPresent(Bool.self, forKey: .checkUpdates)) ?? true
         mouseButtons = (try? c.decodeIfPresent([String: String].self, forKey: .mouseButtons)) ?? [:]
         behavior = (try? c.decodeIfPresent(Behaviors.self, forKey: .behavior)) ?? Behaviors()
+        snapping = (try? c.decodeIfPresent(SnapChoices.self, forKey: .snapping)) ?? SnapChoices()
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -139,6 +142,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(checkUpdates, forKey: .checkUpdates)
         try c.encode(mouseButtons, forKey: .mouseButtons)
         try c.encode(behavior, forKey: .behavior)
+        try c.encode(snapping, forKey: .snapping)
     }
 
     // encode returns choices as sorted JSON for saving.
