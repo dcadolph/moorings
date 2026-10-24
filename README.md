@@ -14,8 +14,8 @@
   <img src="https://img.shields.io/badge/platform-macOS_14+-lightgrey?logo=apple&logoColor=white" alt="Platform: macOS 14 or later">
 </p>
 
-A free window manager for any Mac, keyboard or mouse. The permanent home for your always-on apps
-on an ultrawide.
+A free window manager for every Mac. Snap windows with a key or a drag, and on an ultrawide, pin
+your always-on apps to the edges.
 
 A native menu bar app, signed and notarized, with Rectangle's keymap, drag snapping, tiling and
 saved layouts on every display, and up to four apps parked on the edges of an ultrawide.
