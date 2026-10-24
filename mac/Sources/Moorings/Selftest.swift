@@ -19,6 +19,8 @@ final class Selftest {
     static let graceSeconds = 2.5
     // openSeconds is how long TextEdit may take to show a window.
     static let openSeconds = 10.0
+    // restoreSeconds is how long TextEdit may take to reopen documents from before once it shows.
+    static let restoreSeconds = 1.5
     // stepSeconds is how often a wait checks again.
     static let stepSeconds = 0.1
 
@@ -52,6 +54,9 @@ final class Selftest {
     private var slot: SlotKey = .leftTop
     // emptySide reports whether TextEdit's side has no other app.
     private var emptySide = false
+    // foreign reports whether TextEdit reopened a document the run did not make, so the run leaves
+    // TextEdit open rather than risk closing unsaved work.
+    private var foreign = false
 
     // init builds a selftest for app.
     init(app: AppDelegate) {
@@ -75,6 +80,7 @@ final class Selftest {
     private func run() async {
         checks = []
         made = []
+        foreign = false
         if let why = prepare() {
             logger.notice("selftest not run: \(why, privacy: .public)")
             app.notify("Selftest not run", why + ".")
@@ -95,7 +101,9 @@ final class Selftest {
         anchors.choices.slots = saved.slots
         anchors.choices.paused = saved.paused
         app.save()
-        await quitTextEdit()
+        if !foreign {
+            await quitTextEdit()
+        }
         let failed = checks.filter { $0.ok == false }.count
         let summary = "\(checks.count) checks, \(failed) failed" + (stopped.map { ", stopped: \($0)" } ?? "")
         logger.notice("selftest: \(summary, privacy: .public)")
@@ -132,6 +140,7 @@ final class Selftest {
         anchors.choices.paused = false
         anchors.assign(slot, Self.bundle)
         app.save()
+        try await launch()
         let a = try await newDocument()
         try await dismissPanels()
         check("anchored window lands in its slot", await settled { self.landed(a) })
@@ -304,6 +313,22 @@ final class Selftest {
     // textEdit returns the running TextEdit, nil when it is not open.
     private func textEdit() -> NSRunningApplication? {
         NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundle).first
+    }
+
+    // launch opens TextEdit and closes the open panel it shows at launch. A document window at this
+    // point is one TextEdit reopened from before, possibly with unsaved changes, so the run stops
+    // and leaves it alone.
+    private func launch() async throws {
+        app.open(Self.bundle, background: false)
+        _ = await settled({
+            (!self.windows(panels: true).isEmpty || !self.windows(panels: false).isEmpty, "")
+        }, Self.openSeconds)
+        try await Task.sleep(for: .seconds(Self.restoreSeconds))
+        if !windows(panels: false).isEmpty {
+            foreign = true
+            throw Stop(reason: "TextEdit reopened a document from before. Save or close it, quit TextEdit, and run again")
+        }
+        try await dismissPanels()
     }
 
     // newDocument makes a throwaway TextEdit document and returns its window once it shows.
