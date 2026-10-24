@@ -1,8 +1,8 @@
 (function () {
   "use strict";
 
-  // Themes mirror mac/Sources/MooringsCore/Theme.swift: bg, surface, text, muted, accent. Harbor
-  // is first and the style.css dark default, Concierge is last and the light default.
+  // Themes mirror mac/Sources/MooringsCore/Theme.swift: bg, surface, text, muted, accent. The page's
+  // own ocean palette in style.css shows until a visitor picks one.
   var themes = [
     ["Harbor", "#0f1012", "#0f1012", "#ffffff", "#aaa59b", "#f3e3b8"],
     ["Dragonfire", "#0d0a08", "#1a1310", "#f4e6d8", "#b89c86", "#ff7a1a"],
@@ -67,10 +67,11 @@
   });
   var saved = null;
   try { saved = localStorage.getItem("theme"); } catch (e) {}
-  var pick = window.matchMedia("(prefers-color-scheme: light)").matches ? themes.length - 1 : 0;
-  themes.forEach(function (t, i) { if (t[0] === saved) pick = i; });
-  if (saved) apply(themes[pick]);
-  buttons[pick].setAttribute("aria-pressed", "true");
+  themes.forEach(function (t, i) {
+    if (t[0] !== saved) return;
+    apply(t);
+    buttons[i].setAttribute("aria-pressed", "true");
+  });
 
   // Scenes. A rect is [left, top, width, height] in percent of the desktop under the menu bar.
   // Each step is a list of beats, and a beat changes only what it names.

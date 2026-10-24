@@ -1,10 +1,10 @@
 :root {
-  --bg: #0f1012;
-  --surface: #0f1012;
-  --text: #ffffff;
-  --muted: #aaa59b;
-  --accent: #f3e3b8;
-  --on: #0f1012;
+  --bg: #0a1c26;
+  --surface: #10293a;
+  --text: #f2e9d8;
+  --muted: #9fb7b9;
+  --accent: #6cc7b3;
+  --on: #0a1c26;
   --lift: color-mix(in srgb, var(--text) 6%, var(--bg));
   --lift2: color-mix(in srgb, var(--text) 11%, var(--bg));
   --line: color-mix(in srgb, var(--text) 14%, transparent);
@@ -15,7 +15,7 @@
   --page: 1200px;
 }
 @media (prefers-color-scheme: light) {
-  :root { --bg: #ece4cf; --surface: #f6f0dd; --text: #1a1a17; --muted: #5c5748; --accent: #7a2e12; --on: #ece4cf; }
+  :root { --bg: #f2e9d6; --surface: #faf5ea; --text: #0e2a3b; --muted: #4d6470; --accent: #1c6b74; --on: #f2e9d6; }
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
