@@ -301,8 +301,8 @@ public final class Anchors {
     var placed: [WindowID: PinPlacement] = [:]
     // zoom holds each window's green button rect as of the last pass.
     var zoom: [WindowID: ZoomSpot] = [:]
-    // filled records where a free window's green button click filled the channel.
-    var filled: [WindowID: Frame] = [:]
+    // filled records where a free window's green button click filled the channel, and from where.
+    var filled: [WindowID: ZoomFill] = [:]
     // saved records each window's frame before moorings first moved it with an action.
     var saved: [WindowID: Frame] = [:]
     // floors records the smallest size each window was seen to keep.

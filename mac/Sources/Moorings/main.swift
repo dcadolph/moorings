@@ -272,12 +272,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let screens = Screens.current()
             guard let w = windows.scan(screens).windows.first(where: { $0.id == id }) else { return }
             if case .fill = action {
-                if actions.apply("maximize", to: w, screens: screens) {
-                    anchors.markFilled(id, windows.frame(id))
+                if actions.apply("maximize", to: w, screens: screens), let f = windows.frame(id) {
+                    anchors.markFilled(id, f, from: w.frame)
                 }
-            } else {
-                anchors.markFilled(id, nil)
-                actions.apply("restore", to: w, screens: screens)
+            } else if let f = anchors.unfill(id) {
+                windows.move(id, to: f)
             }
         }
         wake()

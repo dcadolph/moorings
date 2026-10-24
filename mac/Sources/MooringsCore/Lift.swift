@@ -20,6 +20,14 @@ struct ZoomSpot: Equatable {
     var free: Bool
 }
 
+// ZoomFill records a green button fill: where it put the window and where the window was before.
+struct ZoomFill: Equatable {
+    // at is the frame the fill left the window at.
+    var at: Frame
+    // from is the frame the window had just before the fill.
+    var from: Frame
+}
+
 // Floor is the smallest size a window was seen to keep.
 struct Floor: Equatable {
     // w is the smallest width.
@@ -230,10 +238,22 @@ extension Anchors {
         return out
     }
 
-    // markFilled records that a green button click filled the channel with the window with id, now
-    // at frame, or forgets the fill when frame is nil.
-    public func markFilled(_ id: WindowID, _ frame: Frame?) {
-        filled[id] = frame
+    // markFilled records that a green button click filled the channel with the window with id, moving
+    // it from from to frame.
+    public func markFilled(_ id: WindowID, _ frame: Frame, from: Frame) {
+        filled[id] = ZoomFill(at: frame, from: from)
+    }
+
+    // unfill returns the frame the window with id had just before its last green button fill, and
+    // forgets the fill, or nil when there is none. A saved frame equal to it is forgotten too, since
+    // the window is back where moorings first found it.
+    public func unfill(_ id: WindowID) -> Frame? {
+        guard let f = filled.removeValue(forKey: id) else { return nil }
+        if let s = saved[id], Actions.near(s, f.from, tolerance: Self.tolerance) {
+            saved[id] = nil
+            clamped[id] = nil
+        }
+        return f.from
     }
 
     // covered reports whether a window in front of the window with id holds point p, so a click
@@ -266,7 +286,7 @@ extension Anchors {
                 continue
             }
             if c.free {
-                if let f = filled[id], Actions.near(c.frame, f, tolerance: Self.tolerance) {
+                if let f = filled[id], Actions.near(c.frame, f.at, tolerance: Self.tolerance) {
                     return .restore(id)
                 }
                 return .fill(id)

@@ -546,12 +546,12 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     #expect(world.click(anchors, 1060, 215) == .fill(f))
     anchors.save(world.info(f))
     world.set(f, anchors.channel(wide))
-    anchors.markFilled(f, world.frame(f))
+    anchors.markFilled(f, world.frame(f), from: start)
     world.pass(anchors)
     #expect(world.click(anchors, 570, 40) == .restore(f))
-    world.set(f, anchors.restore(f)!)
-    anchors.markFilled(f, nil)
+    world.set(f, anchors.unfill(f)!)
     #expect(world.frame(f) == start)
+    #expect(!anchors.canUndo)
     world.pass(anchors)
     anchors.choices.fullscreenFills = false
     #expect(world.click(anchors, 1060, 215) == nil)
@@ -566,4 +566,30 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     #expect(Anchors.covered(2, p, front: [cover, pin]))
     #expect(!Anchors.covered(2, p, front: [pin, cover]))
     #expect(!Anchors.covered(2, p, front: [away, pin]))
+}
+
+// Swift only: a green fill-back after Tile puts the window back in its tile, not where it was before
+// the tile, and Undo still returns it to where it was before the tile.
+@Test func testLiftFillBackAfterTile() {
+    let anchors = liftAnchors()
+    var world = LiftWorld()
+    world.add(slack, leftFull)
+    world.add(iterm, rightFull)
+    let start = Frame(x: 1000, y: 200, w: 800, h: 600)
+    let f = world.add(safari, start)
+    world.pass(anchors)
+    anchors.save(world.info(f))
+    let tiled = Frame(x: 512, y: 25, w: 1152, h: 1415)
+    world.set(f, tiled)
+    world.pass(anchors)
+    #expect(world.click(anchors, 564, 31) == .fill(f))
+    anchors.save(world.info(f))
+    world.set(f, anchors.channel(wide))
+    anchors.markFilled(f, world.frame(f), from: tiled)
+    world.pass(anchors)
+    #expect(world.click(anchors, 564, 31) == .restore(f))
+    world.set(f, anchors.unfill(f)!)
+    #expect(world.frame(f) == tiled)
+    #expect(anchors.unfill(f) == nil)
+    #expect(anchors.undo() == [f: start])
 }
