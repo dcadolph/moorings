@@ -92,6 +92,8 @@ uninstall, quit Moorings and run `brew uninstall --cask moorings`, or drag it to
 
 ## Docs
 
+How Moorings compares with every other Mac window manager, row by row with a check for each: [COMPARISON.md](COMPARISON.md).
+
 ### Menu
 
 The menu rebuilds each time it opens. From the top: an update offer when one is waiting, the
