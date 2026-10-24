@@ -607,6 +607,9 @@ public final class Anchors {
             openedAt[bundle] = nil
         }
         let rows = rows(pins.filter { holdsSpace($0.bundle) })
+        for w in scene.windows {
+            doubt(w)
+        }
         measure(scene.windows, pins)
         let use = inUse(screen)
         let h = heights
@@ -635,6 +638,7 @@ public final class Anchors {
                     moves.append(move)
                 }
             } else if w.onUltrawide {
+                cap(w.id, ch)
                 if w.isFullScreen {
                     if choices.fullscreenFills, let exit = leaveFullScreen(w) {
                         moves.append(exit)

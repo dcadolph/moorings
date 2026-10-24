@@ -79,6 +79,28 @@ extension Anchors {
         return f
     }
 
+    // doubt lowers the floor of w on each axis w is seen smaller than it, since w just showed it can
+    // be that small. This undoes a size read while an app was still resizing itself.
+    func doubt(_ w: WindowInfo) {
+        guard var fl = floors[w.id] else { return }
+        if w.frame.w < fl.w - Self.tolerance {
+            fl.w = w.frame.w
+        }
+        if w.frame.h < fl.h - Self.tolerance {
+            fl.h = w.frame.h
+        }
+        floors[w.id] = fl
+    }
+
+    // cap keeps the floor of the free window with id inside channel ch, so no floor holds it past
+    // the channel.
+    func cap(_ id: WindowID, _ ch: Frame) {
+        guard var fl = floors[id] else { return }
+        fl.w = min(fl.w, ch.w)
+        fl.h = min(fl.h, ch.h)
+        floors[id] = fl
+    }
+
     // measure records the widest floor among the pinned windows on each side.
     func measure(_ windows: [WindowInfo], _ pins: [Pin]) {
         var mins: [Side: Double] = [:]

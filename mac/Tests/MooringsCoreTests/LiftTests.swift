@@ -6,14 +6,21 @@ import Testing
 // safari and notes are the extra bundles the lift scenarios use.
 let safari = "com.apple.Safari"
 let notes = "com.apple.Notes"
+// vlc is the bundle of a player that resizes itself to its video.
+let vlc = "org.videolan.vlc"
 
-// LiftWorld holds windows that take moves the way real apps do: a window keeps its minimum size,
-// leaves fullscreen when asked unless it is stuck, and reports its frame back after each move.
+// LiftWorld holds windows that take moves the way real apps do: a window keeps its minimum size or
+// its aspect ratio, leaves fullscreen when asked unless it is stuck, and reports its frame back
+// after each move.
 struct LiftWorld {
     // Windows lists the movable windows, front-most first.
     var windows: [WindowInfo] = []
     // MinSize holds the smallest size each window will take.
     var minSize: [WindowID: (w: Double, h: Double)] = [:]
+    // Aspect holds the width over height each window keeps, its height following its width.
+    var aspect: [WindowID: Double] = [:]
+    // Late holds the frame a window reports once, on its next move, while still resizing itself.
+    var late: [WindowID: Frame] = [:]
     // Stuck holds the windows that ignore a request to leave fullscreen.
     var stuck: Set<WindowID> = []
     // Moves counts the frame changes each window was given.
@@ -62,12 +69,16 @@ struct LiftWorld {
         windows.removeAll { $0.id == id }
     }
 
-    // take applies frame to the window with id, kept at its minimum size, and returns where it landed.
+    // take applies frame to the window with id, kept at its minimum size and aspect ratio, and
+    // returns where it landed.
     mutating func take(_ id: WindowID, _ frame: Frame) -> Frame {
-        var got = frame
+        var got = late.removeValue(forKey: id) ?? frame
         if let m = minSize[id] {
             got.w = max(got.w, m.w)
             got.h = max(got.h, m.h)
+        }
+        if let a = aspect[id] {
+            got.h = (got.w / a).rounded()
         }
         set(id, got)
         moves[id, default: 0] += 1
@@ -592,4 +603,30 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     #expect(world.frame(f) == tiled)
     #expect(anchors.unfill(f) == nil)
     #expect(anchors.undo() == [f: start])
+}
+
+// Swift only: a player read back while it still resizes itself to its video learns no floor wider
+// than the channel, so it ends inside the channel with its controls on screen, and a hand shrink
+// holds.
+@Test func testLiftFalseFloor() {
+    let anchors = liftAnchors()
+    var world = LiftWorld()
+    world.add(slack, leftFull)
+    world.add(iterm, rightFull)
+    let v = world.add(vlc, Frame(x: 1382, y: 156, w: 3705, h: 1390))
+    world.aspect[v] = 16.0 / 9
+    world.late[v] = Frame(x: 1382, y: 156, w: 3621, h: 1377)
+    let ch = anchors.channel(wide)
+    for _ in 1...3 {
+        world.pass(anchors)
+        world.clock += 5
+    }
+    #expect(Geometry.clamp(world.frame(v), ch) == world.frame(v))
+    let shrunk = Frame(x: 1000, y: 200, w: 1600, h: 900)
+    world.set(v, shrunk)
+    for _ in 1...3 {
+        world.pass(anchors)
+        world.clock += 5
+    }
+    #expect(world.frame(v) == shrunk)
 }
