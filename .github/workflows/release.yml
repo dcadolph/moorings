@@ -229,6 +229,10 @@ jobs:
   verify:
     needs: tap
     runs-on: macos-15
+    # brew audit --online calls the GitHub API, and unauthenticated calls share the runner IP's
+    # limit of 60 an hour.
+    env:
+      HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
     steps:
       - name: Install from the tap and check it as a user would
         run: |
