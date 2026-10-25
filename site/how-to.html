@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to use moorings</title>
+<meta name="description" content="Short guides for moorings: set up an ultrawide, record shortcuts, change the snap map, throw windows, save workspaces and move your settings.">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="boat" viewBox="8.4 9.5 43 43">
+    <rect x="29.2" y="10.75" width="3.1" height="29" rx="1.55"/>
+    <path d="M26 14.25V36.2H11.4ZM35.4 19V36.2H48.4ZM11.6 39.75H46.6L40.6 50.4C40.1 51.25 40.1 51.25 39 51.25H19.3C18.2 51.25 18.2 51.25 17.7 50.4Z"/>
+  </symbol>
+</svg>
+<header class="top"><div class="w"><a class="brand" href="/"><svg class="mark"><use href="#boat"/></svg>moorings</a><nav><a class="keep" href="/">Home</a><a class="keep" href="https://github.com/dcadolph/moorings">GitHub</a></nav></div></header>
+<main class="doc">
+<p class="small">How to</p>
+<h1>Short guides.</h1>
+<p>Each guide is a few steps and the questions people ask about it. Everything here starts from the sailboat in the menu bar. The <a href="https://github.com/dcadolph/moorings#docs">README</a> has the full reference.</p>
+<ul class="toc">
+  <li><a href="#ultrawide">Set up your ultrawide</a></li>
+  <li><a href="#shortcuts">Set your shortcuts</a></li>
+  <li><a href="#snapping">Change what a drag snaps to</a></li>
+  <li><a href="#throw">Throw a window with a held key</a></li>
+  <li><a href="#workspaces">Save a workspace</a></li>
+  <li><a href="#settings">Fine-tune behavior and move your settings</a></li>
+</ul>
+
+<h2 id="ultrawide">Set up your ultrawide</h2>
+<p>A display at least 2.2 times as wide as it is tall counts as an ultrawide. It gets four slots, a top and a bottom on each side, and the open middle between them is the channel.</p>
+<h3>Steps</h3>
+<ol>
+  <li>Click the app you want on an edge so it is in front.</li>
+  <li>Open the Moorings menu and choose <b>Anchor</b> <i>app</i>, then pick Left top, Left bottom, Right top or Right bottom. Its window moves to that edge and stays there.</li>
+  <li>Repeat for up to three more apps. An app alone on its side takes the full height.</li>
+  <li>Open <b>Widths</b> to pick a preset such as Left 10%, right 45%, or step either strip wider or narrower one percent at a time.</li>
+  <li>Open <b>Heights</b> to move the line between a side's top and bottom rows.</li>
+</ol>
+<h3>Questions</h3>
+<details><summary>An app will not shrink to its strip.</summary><p>Some apps have a minimum width. Moorings keeps it and grows the strip to fit, and Widths names the app and turns off the steps that would squeeze it.</p></details>
+<details><summary>I dragged an anchored window away and it stayed put.</summary><p>Dragging lets the app go. A banner says how to bring it back: its green button, Restore, the Re-moor entry in the menu, or Re-moor now.</p></details>
+<details><summary>How do I see an anchored app bigger for a moment?</summary><p>Click its green button. It lifts over the channel at full height, and a second click lowers it.</p></details>
+<details><summary>How do I stop anchoring an app?</summary><p>Bring it to the front and choose Unanchor <i>app</i> from the menu, or pick Empty for its slot in Anchored apps. Its window stays where it is.</p></details>
+
+<h2 id="shortcuts">Set your shortcuts</h2>
+<p>A full set of shortcuts works from the first launch, such as Control-Option-Left for the left half. The Window folder in the menu lists every action with its shortcut.</p>
+<h3>Steps</h3>
+<ol>
+  <li>Open the menu and choose <b>Settings</b>, then the <b>Shortcuts</b> tab.</li>
+  <li>Find the action and click <b>Record</b> beside it.</li>
+  <li>Press the keys you want. A shortcut needs at least one of Control, Option, Command or Shift.</li>
+  <li><b>Clear</b> turns that action's shortcut off, and <b>Reset</b> puts back the one from the keymap.</li>
+</ol>
+<h3>Questions</h3>
+<details><summary>Can I start from a different set of shortcuts?</summary><p>Window &gt; Keymap, or the Keymap picker in Settings &gt; Layout, switches to another preset, or to None for a blank slate. Switching drops the shortcuts you recorded, so pick the keymap first.</p></details>
+<details><summary>A shortcut clashes with one in another app.</summary><p>Bring that app to the front and choose Window &gt; Ignore shortcuts in <i>app</i>. The shortcuts switch off while it is in front, so its own keys work.</p></details>
+<details><summary>Can a mouse button or a title bar button run an action?</summary><p>Yes. Settings &gt; Layout binds the middle, back and forward mouse buttons, and clicks on the red, yellow and green buttons, plain or with a modifier.</p></details>
+
+<h2 id="snapping">Change what a drag snaps to</h2>
+<p>Drag a window to an edge or a corner and a footprint shows where it will land. Edges give halves, corners give quarters, the top edge maximizes and the bottom edge gives thirds.</p>
+<h3>Steps</h3>
+<ol>
+  <li>Open <b>Settings</b>, then the <b>Snapping</b> tab.</li>
+  <li>Under Landscape displays or Portrait displays, pick the action for each edge and corner, or turn on <b>Never</b> for an area that should not snap.</li>
+  <li>Under <b>Hold these keys to snap</b>, tick keys if you only want a drag to snap while they are held.</li>
+  <li>Under <b>Custom areas</b>, click <b>Add area</b> to make any part of a display, as shares from 0 to 1, snap to an action.</li>
+  <li>Turn on the <b>Snap panel</b> to get a row of targets above the pointer when you pause mid-drag.</li>
+</ol>
+<h3>Questions</h3>
+<details><summary>Why does the ultrawide ignore my edge map?</summary><p>On the ultrawide the strips stand in for the screen edges, so they keep their own zones. The keys to hold still apply there.</p></details>
+<details><summary>How do I anchor an app by dragging?</summary><p>Hold Option while you drop its window on a strip of the ultrawide.</p></details>
+<details><summary>Can I turn drag snapping off?</summary><p>Window &gt; Snap windows by dragging switches it off and on.</p></details>
+
+<h2 id="throw">Throw a window with a held key</h2>
+<p>Throwing picks a place by pointing. It is off until you choose a key.</p>
+<h3>Steps</h3>
+<ol>
+  <li>Open <b>Settings</b>, then <b>Behavior</b>, and under <b>Throw with a held key</b> pick Right Option, Right Command, Right Control or Fn.</li>
+  <li>Put the pointer over a window, hold the key and move the pointer a little toward a side or a corner. A footprint shows the half or quarter.</li>
+  <li>Move further for thirds, sixths, maximize or center, then let go.</li>
+  <li>Press an arrow key while holding instead to switch to a grid of cells. Shift-arrows grow the pick, Return applies it and Escape cancels.</li>
+</ol>
+<h3>Questions</h3>
+<details><summary>Does the window have to be in front?</summary><p>No. The window under the pointer when you pressed the key is the one that moves.</p></details>
+<details><summary>Can I move windows by hovering without clicking?</summary><p>Yes. In the same tab, Move and resize by hovering takes keys to move the window under the pointer, and keys to resize it from its nearest corner.</p></details>
+
+<h2 id="workspaces">Save a workspace</h2>
+<p>A workspace remembers the slots, widths, heights and where every free window sits on every display.</p>
+<h3>Steps</h3>
+<ol>
+  <li>Arrange your windows the way you like them.</li>
+  <li>Open <b>Workspaces</b> and choose <b>Save workspace</b>, then give it a name.</li>
+  <li>To bring it back, open Workspaces, the workspace's name, then <b>Recall</b>.</li>
+  <li>Choose <b>Recall with these displays</b> to have it come back whenever the displays attached now are plugged in.</li>
+</ol>
+<h3>Questions</h3>
+<details><summary>Can a recall open apps that are closed?</summary><p>Yes. Turn on Open missing apps for that workspace in Settings &gt; Workspaces. The apps open and their windows are placed once they show.</p></details>
+<details><summary>Can one app always open in the same place?</summary><p>Add an app rule in Settings &gt; Workspaces. The app's first window goes to the action you pick whenever it appears.</p></details>
+<details><summary>Can I switch shortcuts and layouts together?</summary><p>Yes. A profile saves your shortcuts, snapping, behavior and theme with a group of workspaces. Choose Profiles &gt; Save current as profile, then switch from the menu or a shortcut.</p></details>
+
+<h2 id="settings">Fine-tune behavior and move your settings</h2>
+<p>The Behavior tab sets what a second press does, gaps at the screen edges, the pointer, the title bar and display order. A file export carries all of it to another Mac.</p>
+<h3>Steps</h3>
+<ol>
+  <li>Open <b>Settings</b>, then <b>Behavior</b>. For example, set <b>A shortcut pressed again</b> to <b>Move to the next display</b> and a second Control-Option-Left sends a left half on to the next display.</li>
+  <li>To copy everything, open the <b>General</b> tab and click <b>Export settings</b>. Moorings writes one JSON file.</li>
+  <li>On the other Mac, click <b>Import settings</b> in the same tab and pick the file.</li>
+</ol>
+<h3>Questions</h3>
+<details><summary>Can I edit the file by hand?</summary><p>Yes. The behavior choices sit under <code>settings.behavior</code>, for example <code>"subsequentExecution": "traverse-displays"</code>. Import the edited file to apply it. The README lists every key.</p></details>
+<details><summary>Why did my workspaces come back untied?</summary><p>An imported file may come from another desk, so imported workspaces are not tied to displays. Tie them again from the Workspaces folder.</p></details>
+<details><summary>How do I start over?</summary><p>Restore defaults, under the tabs in Settings, puts shortcuts, snapping, appearance and behavior back. Anchored apps, strip sizes, custom sizes and workspaces stay.</p></details>
+</main>
+<footer><div class="w"><span><a href="https://github.com/dcadolph/moorings">Source</a> &nbsp;&middot;&nbsp; <a href="https://github.com/dcadolph/moorings/issues">Issues</a> &nbsp;&middot;&nbsp; <a href="/">Home</a></span><span>moorings is free and open source under the Apache 2.0 license.</span></div></footer>
+</body>
+</html>

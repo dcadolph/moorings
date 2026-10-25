@@ -246,6 +246,13 @@ p b { color: var(--text); font-weight: 600; }
 .doc code { font: 14.5px var(--mono); background: var(--lift2); padding: 1px 6px; border-radius: 6px; color: var(--text); }
 .doc a { color: var(--accent); }
 .doc .eff { font: 500 14px var(--mono); }
+.doc ol { padding-left: 24px; color: var(--muted); }
+.doc h3 { font-size: 19px; margin: 26px 0 10px; }
+.doc .toc { padding-left: 22px; }
+.doc details { border-top: 1px solid var(--line); padding: 12px 0; }
+.doc details:last-of-type { border-bottom: 1px solid var(--line); }
+.doc summary { cursor: pointer; font-weight: 600; font-size: 17px; }
+.doc details p { margin: 10px 0 0; color: var(--muted); }
 footer { border-top: 2px solid color-mix(in srgb, var(--sand) 45%, transparent); padding: 36px 0 60px; font-size: 14px; color: var(--muted); }
 footer .w { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
 footer a { color: var(--muted); } footer a:hover { color: var(--accent); }
