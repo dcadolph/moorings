@@ -344,7 +344,7 @@ public enum Keymaps {
     // since both are saved after the shortcuts are bound.
     public static func known(_ name: String) -> Bool {
         special.contains(name) || organizeNames.contains(name) || windowNames.contains(name)
-            || stashNames.contains(name) || Actions.arrowNames.contains(name) || Actions.fillNames.contains(name)
+            || stashNames.contains(name) || Tiling.handles(name) || Actions.arrowNames.contains(name) || Actions.fillNames.contains(name)
             || name == Actions.specifiedName || Actions.displayNames.contains(name)
             || (name.hasPrefix(workspacePrefix) && name.count > workspacePrefix.count)
             || (name.hasPrefix(Profile.prefix) && name.count > Profile.prefix.count)
@@ -364,6 +364,9 @@ public enum Keymaps {
         }
         if name == menuName {
             return "Moorings menu at the pointer"
+        }
+        if let mode = Tiling.mode(name) {
+            return mode == .off ? "Tiling off" : mode == .bsp ? "BSP layout" : mode.rawValue.capitalized + " layout"
         }
         if name.hasPrefix(Overlay.gridPrefix), let size = Overlay.gridSize(name, OverlayChoices()) {
             return "Grid \(size.cols) by \(size.rows)"

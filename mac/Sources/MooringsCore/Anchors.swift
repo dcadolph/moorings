@@ -87,6 +87,8 @@ public struct Choices: Equatable, Sendable, Codable {
     public var stacking: StackChoices = StackChoices()
     // overlay holds the trigger key and grid size of the overlay that throws a window.
     public var overlay: OverlayChoices = OverlayChoices()
+    // tiling holds the auto tiling mode and the main pane's share.
+    public var tiling: TilingChoices = TilingChoices()
     // chains holds the saved action chains.
     public var chains: [Chain] = []
     // menu holds the menu order and the hidden actions.
@@ -113,7 +115,7 @@ public struct Choices: Equatable, Sendable, Codable {
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
         case ignores, snap, theme, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
-        case chains, menu, appRules, buttonClicks, profiles, activeProfile, overlay
+        case chains, menu, appRules, buttonClicks, profiles, activeProfile, overlay, tiling
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -141,6 +143,7 @@ public struct Choices: Equatable, Sendable, Codable {
         snapping = (try? c.decodeIfPresent(SnapChoices.self, forKey: .snapping)) ?? SnapChoices()
         stacking = (try? c.decodeIfPresent(StackChoices.self, forKey: .stacking)) ?? StackChoices()
         overlay = (try? c.decodeIfPresent(OverlayChoices.self, forKey: .overlay)) ?? OverlayChoices()
+        tiling = (try? c.decodeIfPresent(TilingChoices.self, forKey: .tiling)) ?? TilingChoices()
         chains = (try? c.decodeIfPresent([Chain].self, forKey: .chains)) ?? []
         menu = (try? c.decodeIfPresent(MenuChoices.self, forKey: .menu)) ?? MenuChoices()
         appRules = (try? c.decodeIfPresent([AppRule].self, forKey: .appRules)) ?? []
@@ -172,6 +175,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(snapping, forKey: .snapping)
         try c.encode(stacking, forKey: .stacking)
         try c.encode(overlay, forKey: .overlay)
+        try c.encode(tiling, forKey: .tiling)
         try c.encode(chains, forKey: .chains)
         try c.encode(menu, forKey: .menu)
         try c.encode(appRules, forKey: .appRules)

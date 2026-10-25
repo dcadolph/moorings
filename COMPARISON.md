@@ -127,10 +127,10 @@ Amethyst is free and MIT licensed.
 
 | Feature                                                                              | Who has it | Moorings            | Check                       |
 | ------------------------------------------------------------------------------------ | ---------- | ------------------- | --------------------------- |
-| Layouts tall, tall-right, wide, two pane, 3column, widescreen-tall, column, row, BSP | Amethyst   | planned (unit 23)   | unit 23 auto tiling mode    |
-| Fullscreen and floating layouts                                                      | Amethyst   | planned (unit 23)   | unit 23 auto tiling mode    |
-| Custom JS layouts                                                                    | Amethyst   | no (no unit yet, see the plan's Escalations) | not applicable |
-| Focus and swap by direction, layout cycling                                          | Amethyst   | planned (unit 23)   | unit 23 focus and swap      |
+| Layouts tall, tall-right, wide, two pane, 3column, widescreen-tall, column, row, BSP | Amethyst   | partial (tall, wide, columns, rows, BSP; retiled as windows come and go; not tall-right, two pane, 3column or widescreen-tall) | testTilingLayout; live check owed |
+| Fullscreen and floating layouts                                                      | Amethyst   | partial (a dragged window floats until a layout is chosen again; no fullscreen layout) | live check owed |
+| Custom JS layouts                                                                    | Amethyst   | no (out of scope, chains and profiles cover it) | not applicable |
+| Focus and swap by direction, layout cycling                                          | Amethyst   | yes (focus and swap work with tiling off too; grow and shrink the main pane) | testTilingToward, testTilingOrder, testTilingNames |
 | Per-space layouts                                                                    | Amethyst   | planned (unit 24)   | unit 24 spaces spike        |
 | YAML config                                                                          | Amethyst   | yes (one JSON file) | testSettingsBackupRoundTrip |
 

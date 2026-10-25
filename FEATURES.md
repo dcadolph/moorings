@@ -85,6 +85,10 @@ each part.
 - An optional badge counts the windows stacked at a corner when the pointer rests there, and
   cycle stacked windows walks the same windows.
 - Tidy channel lines up the two or three front windows, and Undo tidy puts everything back.
+- Tiling keeps the free windows of each display in a tall, wide, columns, rows or BSP layout
+  as windows open and close, in the channel on the ultrawide. A window you drag floats until you
+  choose a layout again. Grow or shrink the main window, and focus or swap the window to the
+  left, right, above or below, with tiling on or off.
 
 ## Workspaces
 

@@ -104,6 +104,9 @@ final class ActionRunner {
         "stash": "Park the front window at the nearest free screen edge, or bring it back if it is parked. "
             + "Rest the pointer on its edge to slide it out.",
         "unstash-all": "Bring every parked window back where it was.",
+        Tiling.cycleName: "Step to the next tiling layout.",
+        "grow-main": "Give the main window more of the area in the tall and wide layouts.",
+        "shrink-main": "Give the main window less of the area in the tall and wide layouts.",
     ]
 
     // placesFrame reports whether action name puts a window at a frame, so a snap area can take it.
@@ -183,6 +186,9 @@ final class ActionRunner {
         }
         if Tile.handles(name) {
             return app.organizer.run(name)
+        }
+        if Tiling.handles(name) {
+            return app.tiler.run(name)
         }
         if name.hasPrefix(Keymaps.workspacePrefix) {
             return app.organizer.recall(String(name.dropFirst(Keymaps.workspacePrefix.count)))

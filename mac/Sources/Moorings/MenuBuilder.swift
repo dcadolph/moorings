@@ -430,6 +430,17 @@ struct MenuBuilder {
             app.organizer.undo()
         })
         out.append(folder("Organize", organize))
+        var tiling = entries(Tiling.modeNames, "Keep the free windows of each display in this layout as windows come and go. "
+            + "A window you drag floats until you choose a layout again.")
+        let active = Keymaps.label(Tiling.modePrefix + anchors.choices.tiling.mode.rawValue)
+        for item in tiling where item.title == active || item.title.hasPrefix(active + "  ") {
+            item.state = .on
+        }
+        tiling.append(.separator())
+        tiling += entries([Tiling.cycleName, "grow-main", "shrink-main"], nil)
+        tiling += entries(Tiling.focusNames, "Bring the nearest window that way to the front.")
+        tiling += entries(Tiling.swapNames, "Trade places with the nearest window that way. Anchored windows stay.")
+        out.append(folder("Tiling", tiling))
         out.append(.separator())
         out.append(ActionItem("Snap windows by dragging", tip: "Drag a window to a display edge or corner to snap it "
                 + "there. Hold Option over a strip on the ultrawide to anchor its app.", checked: anchors.choices.snap) {

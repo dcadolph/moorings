@@ -210,3 +210,111 @@ func stackChoices(_ size: Double = 11, _ cascade: Int = 1, sameSize: Bool = fals
     #expect(Tile.hovered(at: Point(x: 160, y: 120), frames: frames, gap: 10) == nil)
     #expect(Tile.hovered(at: Point(x: 120, y: 160), frames: frames, gap: 10) == nil)
 }
+
+// TilingCase is one layout and the frames it must return.
+struct TilingCase: Sendable {
+    // Mode is the layout.
+    var Mode: TileMode
+    // Count is how many windows it lays out.
+    var Count: Int
+    // Ratio is the main pane's share.
+    var Ratio = 0.5
+    // Gap is the gap in points.
+    var Gap = 0.0
+    // WantFrames are the frames, main window first.
+    var WantFrames: [Frame]
+}
+
+// tilingArea is the area the tiling cases lay out in.
+let tilingArea = F(0, 0, 1000, 800)
+
+// tilingCases covers each mode, one window, no windows, a gap and a ratio.
+let tilingCases: [TilingCase] = [
+    // Test 5: Tall puts the main window left and stacks the rest on the right.
+    TilingCase(Mode: .tall, Count: 3, WantFrames: [F(0, 0, 500, 800), F(500, 0, 500, 400), F(500, 400, 500, 400)]),
+    // Test 6: Wide puts the main window on top and lines the rest up below.
+    TilingCase(Mode: .wide, Count: 3, WantFrames: [F(0, 0, 1000, 400), F(0, 400, 500, 400), F(500, 400, 500, 400)]),
+    // Test 7: Columns and rows split evenly.
+    TilingCase(Mode: .columns, Count: 2, WantFrames: [F(0, 0, 500, 800), F(500, 0, 500, 800)]),
+    TilingCase(Mode: .rows, Count: 2, WantFrames: [F(0, 0, 1000, 400), F(0, 400, 1000, 400)]),
+    // Test 8: BSP halves what is left across its longer side.
+    TilingCase(Mode: .bsp, Count: 3, WantFrames: [F(0, 0, 500, 800), F(500, 0, 500, 400), F(500, 400, 500, 400)]),
+    TilingCase(Mode: .bsp, Count: 4,
+               WantFrames: [F(0, 0, 500, 800), F(500, 0, 500, 400), F(500, 400, 250, 400), F(750, 400, 250, 400)]),
+    // Test 9: One window fills the area, and off or no windows lay out nothing.
+    TilingCase(Mode: .tall, Count: 1, WantFrames: [tilingArea]),
+    TilingCase(Mode: .off, Count: 3, WantFrames: []),
+    TilingCase(Mode: .bsp, Count: 0, WantFrames: []),
+    // Test 10: A gap sits around and between the windows.
+    TilingCase(Mode: .tall, Count: 2, Gap: 10, WantFrames: [F(10, 10, 485, 780), F(505, 10, 485, 780)]),
+    TilingCase(Mode: .tall, Count: 3, Gap: 10,
+               WantFrames: [F(10, 10, 485, 780), F(505, 10, 485, 385), F(505, 405, 485, 385)]),
+    // Test 11: The ratio sets the main pane's share.
+    TilingCase(Mode: .tall, Count: 2, Ratio: 0.6, WantFrames: [F(0, 0, 600, 800), F(600, 0, 400, 800)]),
+    TilingCase(Mode: .wide, Count: 2, Ratio: 0.25, WantFrames: [F(0, 0, 1000, 200), F(0, 200, 1000, 600)]),
+]
+
+@Test(arguments: tilingCases)
+func testTilingLayout(test: TilingCase) {
+    let got = Tiling.layout(test.Mode, tilingArea, test.Count, ratio: test.Ratio, gap: test.Gap)
+    #expect(got == test.WantFrames)
+}
+
+// Test 12: The neighbor that way is the nearest one beside the window, and none past an edge.
+@Test func testTilingToward() {
+    let quad = [F(0, 0, 500, 400), F(500, 0, 500, 400), F(0, 400, 500, 400), F(500, 400, 500, 400)]
+    #expect(Tiling.toward(.right, from: 0, frames: quad) == 1)
+    #expect(Tiling.toward(.down, from: 0, frames: quad) == 2)
+    #expect(Tiling.toward(.left, from: 0, frames: quad) == nil)
+    #expect(Tiling.toward(.up, from: 0, frames: quad) == nil)
+    #expect(Tiling.toward(.up, from: 3, frames: quad) == 1)
+    #expect(Tiling.toward(.left, from: 3, frames: quad) == 2)
+    let tall = [F(0, 0, 500, 800), F(500, 0, 500, 400), F(500, 400, 500, 400)]
+    #expect(Tiling.toward(.left, from: 2, frames: tall) == 0)
+    #expect(Tiling.toward(.right, from: 0, frames: tall) == 1)
+    #expect(Tiling.toward(.down, from: 1, frames: tall) == 2)
+    // A nearer window that does not overlap across loses to one beside the window.
+    let offset = [F(0, 0, 400, 300), F(450, 350, 100, 100), F(900, 0, 400, 300)]
+    #expect(Tiling.toward(.right, from: 0, frames: offset) == 2)
+    #expect(Tiling.toward(.right, from: 9, frames: offset) == nil)
+}
+
+// Test 13: Windows keep their tiling places as others come and go, new ones join at the end.
+@Test func testTilingOrder() {
+    #expect(Tiling.order([], [3, 1, 2]) == [3, 1, 2])
+    #expect(Tiling.order([1, 2, 3], [4, 3, 1]) == [1, 3, 4])
+    #expect(Tiling.order([1, 2], []) == [])
+    #expect(Tiling.swapped([1, 2, 3], 1, 3) == [3, 2, 1])
+    #expect(Tiling.swapped([1, 2, 3], 1, 9) == [1, 2, 3])
+}
+
+// Test 14: Action names map to modes and directions, cycling skips off, and the ratio stays in range.
+@Test func testTilingNames() {
+    #expect(Tiling.mode("tiling-bsp") == .bsp)
+    #expect(Tiling.mode("tiling-nope") == nil)
+    #expect(Tiling.direction("swap-left") == .left)
+    #expect(Tiling.direction("focus-down") == .down)
+    #expect(Tiling.direction("focus-next-window") == nil)
+    #expect(Tiling.next(.off) == .tall && Tiling.next(.bsp) == .tall && Tiling.next(.tall) == .wide)
+    #expect(Tiling.resized(0.5, grow: false) == 0.45)
+    #expect(Tiling.resized(0.8, grow: true) == 0.8)
+    #expect(Tiling.resized(0.2, grow: false) == 0.2)
+    #expect(Keymaps.label("tiling-off") == "Tiling off" && Keymaps.label("tiling-bsp") == "BSP layout")
+    #expect(Keymaps.label("tiling-tall") == "Tall layout" && Keymaps.label("swap-left") == "Swap left")
+    for name in Tiling.names {
+        #expect(Keymaps.known(name), "\(name)")
+    }
+}
+
+// Test 15: Tiling choices decode leniently, and choices saved before tiling existed load with it off.
+@Test func testTilingChoicesDecode() throws {
+    let d = JSONDecoder()
+    #expect(try d.decode(TilingChoices.self, from: Data("{}".utf8)) == TilingChoices())
+    #expect(try d.decode(TilingChoices.self, from: Data(#"{"mode":"bsp","ratio":5}"#.utf8))
+        == TilingChoices(mode: .bsp, ratio: 0.8))
+    #expect(try d.decode(TilingChoices.self, from: Data(#"{"mode":"spiral"}"#.utf8)).mode == .off)
+    #expect(Choices.decode(Data(#"{"gapPx":4}"#.utf8)).tiling == TilingChoices())
+    var c = Choices()
+    c.tiling = TilingChoices(mode: .wide, ratio: 0.3)
+    #expect(Choices.decode(try Choices.encode(c)).tiling == c.tiling)
+}

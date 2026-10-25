@@ -72,6 +72,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var stasher = Stasher(app: self)
     // gridPicker pops a grid of cells for the grid actions.
     lazy var gridPicker = GridPicker(app: self)
+    // tiler keeps free windows in the tiling mode's layout.
+    lazy var tiler = Tiler(app: self)
     // hover moves or resizes the window under the pointer while the hover modifiers are held.
     lazy var hover = HoverMover(app: self)
     // item is the menu bar status item.
@@ -148,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         tap.onDrag = { [weak self] p, flags in self?.snap.dragged(p, flags: flags) }
         tap.onUp = { [weak self] _, _ in
             self?.snap.released()
+            self?.tiler.mouseUp()
             self?.wake()
         }
         tap.onOther = { [weak self] button, down in self?.mouseButton(button, down: down) ?? false }
@@ -304,6 +307,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             apply(move)
         }
         organizer.seen(list, screens: screens)
+        tiler.pass(list, screens: screens, mouseHeld: scene.mouseHeld)
         for id in anchors.justReleased {
             logger.notice("window \(id) was moved by hand: released")
             let name = list.first { $0.id == id }.map { appName($0.bundle) } ?? "The window"
