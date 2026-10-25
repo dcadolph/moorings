@@ -6,10 +6,9 @@ each part.
 
 ## Window actions on every display
 
-- Rectangle's keymap out of the box: halves that cycle through 1/2, 2/3 and 1/3, quarters,
-  thirds, two thirds, maximize, maximize height, center, larger, smaller, restore, and previous
-  and next display. Spectacle's and Magnet's keymaps are one menu choice away, and None starts
-  from a blank slate.
+- A full keymap out of the box: halves that cycle through 1/2, 2/3 and 1/3, quarters, thirds,
+  two thirds, maximize, maximize height, center, larger, smaller, restore, and previous and next
+  display. Other presets are one menu choice away, and None starts from a blank slate.
 - Arrow mode: four arrow actions that read where the window is. Left and right take a half, then
   step across quarters and on to the next display. Up maximizes a free window or moves a half or
   quarter up a step. Down restores a maximized window, steps a half or quarter down, or minimizes
@@ -18,9 +17,7 @@ each part.
   keeping its far edge.
 - Front app windows: bring the next or previous window forward, minimize or close the front
   window, and minimize or close every other window of the app while anchored windows stay put.
-- Every other Rectangle action by Rectangle's name: display one to nine, a specified size of
-  1680 by 1050 points that you can change, and the side and center-section names, so a Rectangle link or script
-  works with `moorings://action?name=`.
+- Display one to nine, and a specified size of 1680 by 1050 points that you can change.
 - Larger, smaller, double and halve on one axis, each toward the edge you pick.
 - Fourths, sixths, eighths, ninths, twelfths, sixteenths, vertical thirds, sixths and eighths,
   corner thirds, almost maximize and center prominently in the Window folder, each ready for a
@@ -33,7 +30,7 @@ each part.
 - Clicks on the red, yellow and green buttons, plain or with Shift, Option or Command, bound to
   actions. Unbound clicks keep the button's own behavior.
 - Shortcuts that switch off while an app you name is in front.
-- Rectangle's behavior preferences at Rectangle's defaults: repeat presses that cycle sizes,
+- Behavior choices: repeat presses that cycle sizes,
   traverse or cycle displays, cycle quadrants or switch sides, screen edge gaps, room for the
   Stage Manager strip, Enhanced UI handling, a cursor that follows the window, a hidden menu bar
   icon, display ordering, maximize again to restore, center half cycling, halves that keep the
@@ -49,7 +46,6 @@ each part.
 ## Snap by dragging
 
 - Drag a window to an edge or corner, see a footprint of where it lands, and let go to snap it.
-  Normal displays use Rectangle's map.
 - On the ultrawide, the strips stand in for the screen edges, and holding Option while dropping a
   window on a strip anchors its app there.
 - Settings > Snapping picks the action for each edge and corner, separately for landscape and
@@ -108,8 +104,6 @@ each part.
 - A Menu tab to pin actions to the top of the Window folder, hide the ones you never use, and
   build chains.
 - Export every choice to one JSON file and import it on another Mac.
-- Import shortcuts, gaps, snapping and behavior choices from Rectangle, from its export file or
-  from the settings it keeps on this Mac.
 - Restore defaults resets shortcuts, snapping, appearance and behavior, and keeps your anchored
   apps, sizes and workspaces.
 
@@ -131,3 +125,14 @@ each part.
 - Without Accessibility access, a warning sign and one banner lead to the right settings page.
 - Tip the harbormaster, below a separator just above Quit Moorings, opens the GitHub Sponsors
   page. Nothing asks for a tip.
+
+## Coming from Rectangle
+
+- Rectangle's keymap is the default, beside Spectacle's, Magnet's, Windows and None.
+- Every Rectangle action under Rectangle's name, side and center-section aliases included, so a
+  Rectangle link or script works with `moorings://action?name=`.
+- Behavior choices start at Rectangle's defaults, and normal displays use Rectangle's snap map.
+- Import shortcuts, gaps, snapping and behavior choices from Rectangle, from its export file or
+  from the settings it keeps on this Mac.
+- [COMPARISON.md](COMPARISON.md) checks Moorings against Rectangle, Rectangle Pro and the other
+  Mac window managers row by row.

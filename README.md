@@ -17,8 +17,9 @@
 A free window manager for every Mac. Snap windows with a key or a drag, and on an ultrawide, pin
 your always-on apps to the edges.
 
-A native menu bar app, signed and notarized, with Rectangle's keymap, drag snapping, tiling and
-saved layouts on every display, and up to four apps parked on the edges of an ultrawide.
+A native menu bar app, signed and notarized, with a full set of window shortcuts, drag snapping,
+tiling, saved layouts and profiles on every display, and up to four apps parked on the edges of an
+ultrawide.
 [FEATURES.md](FEATURES.md) lists everything you get.
 
 ## How moorings started
@@ -47,6 +48,7 @@ to my ultrawide way of working.
 - [Quickstart](#quickstart)
 - [Docs](#docs)
 - [Moving from the Hammerspoon version](#moving-from-the-hammerspoon-version)
+- [Coming from Rectangle](#coming-from-rectangle)
 - [Support](#support)
 - [License](#license)
 
@@ -54,7 +56,7 @@ to my ultrawide way of working.
 
 - macOS 14 Sonoma or later, on Apple silicon or Intel
 - Accessibility permission for Moorings
-- Rectangle quit, since both apps move windows
+- Any other window manager quit, since both would move windows
 
 ## Install
 
@@ -107,7 +109,7 @@ at login, Check for updates, Tip the harbormaster, and Quit.
 Every action works on the front window. On the ultrawide it works inside the channel, and on any
 other display inside the usable screen. Halves, quarters and thirds cycle through 1/2, 2/3 and
 1/3 on repeat presses. The Window folder lists every action with its shortcut, so it doubles as a
-cheat sheet. The default keymap is Rectangle's:
+cheat sheet. The default keymap:
 
 | Action&nbsp;              | Shortcut&nbsp;  | In plain English&nbsp;                           |
 |---------------------------|-----------------|--------------------------------------------------|
@@ -123,17 +125,16 @@ cheat sheet. The default keymap is Rectangle's:
 | Restore                   | ⌃⌥⌫             | Control + Option + Delete                        |
 | Previous, next display    | ⌃⌥⌘← ⌃⌥⌘→       | Control + Option + Command + Left or Right Arrow |
 
-Window > Keymap switches to Spectacle's set. Fourths, sixths, eighths, ninths, twelfths,
+Window > Keymap switches to another preset, or to None to start from a blank slate. Fourths, sixths, eighths, ninths, twelfths,
 sixteenths, vertical thirds, sixths and eighths, corner thirds, almost maximize, center
 prominently and the move actions have no key until you record one in Settings.
 
-Every other Rectangle action is here under Rectangle's name, so its links and scripts carry
-over. Window > Displays sends the front window to display one through nine, counted left to
+Window > Displays sends the front window to display one through nine, counted left to
 right with a row of displays above another counted first. Specified sizes it to 1680 by 1050
 points unless you change it, centered and shrunk to fit. Window > One axis
 makes it wider, narrower, taller or shorter in 30 point steps, or doubles or halves one side
 toward the edge you pick. The side names such as `left-side` and `center-section` are aliases of
-the halves, as in Rectangle. On an anchored window, Maximize lifts it and Restore puts it back in its slot. Window >
+the halves. On an anchored window, Maximize lifts it and Restore puts it back in its slot. Window >
 Ignore shortcuts in *app* turns the shortcuts off while that app is in front, so its own keys
 work.
 
@@ -164,7 +165,7 @@ action.
 ### Behavior choices
 
 Settings > Behavior sets each of these, and the JSON file Settings exports keeps them under
-`settings.behavior`, at Rectangle's defaults.
+`settings.behavior`.
 
 - `subsequentExecution`: what pressing the same shortcut again does. `cycle-sizes` (the default)
   steps a half through 1/2, 2/3 and 1/3. `traverse-displays` sends a left or right half on to the
@@ -236,12 +237,6 @@ come back untied, since the file may come from another desk. Restore defaults, u
 asks once and then puts shortcuts, snapping, appearance and behavior back to their defaults.
 Anchored apps, strip sizes, ignored apps, custom sizes and workspaces stay.
 
-Import from Rectangle, in the General tab, reads a file exported from Rectangle's settings, or
-without one the settings Rectangle keeps on this Mac. It brings over shortcuts, the keymap, gaps,
-snapping and the hidden behavior preferences, lists anything that cannot come over, and asks
-before it applies. An export file also clears the shortcuts it leaves unbound, as Rectangle's own
-import does.
-
 ### Snap by dragging
 
 Drag a window to an edge or corner of any display and a footprint shows where it lands. Edges
@@ -298,6 +293,22 @@ logs PASS or FAIL, and a banner gives the total.
 Versions before 1.5.0 ran inside Hammerspoon. To move over, run `moorings uninstall` and
 `brew uninstall moorings`, then install the cask. Slots, widths and choices start fresh. Choose
 your anchored apps once from the menu.
+
+## Coming from Rectangle
+
+Settings > General > Import from Rectangle reads a file exported from Rectangle's settings, or
+without one the settings Rectangle keeps on this Mac. It brings over shortcuts, the keymap, gaps,
+snapping and the hidden behavior preferences, lists anything that cannot come over, and asks
+before it applies. An export file also clears the shortcuts it leaves unbound, as Rectangle's own
+import does.
+
+The default keymap is Rectangle's, and Window > Keymap also offers Spectacle's, Magnet's, a
+Windows set for Arrow mode, and None. Every Rectangle action is here under Rectangle's name, side
+and center-section aliases included, so its links and scripts carry over with
+`moorings://action?name=`. The behavior choices start at Rectangle's defaults, and the drag snap
+map on a normal display is Rectangle's. [COMPARISON.md](COMPARISON.md) lists Rectangle,
+Rectangle Pro and the other Mac window managers feature by feature, with the check behind each
+row.
 
 ## Support
 
