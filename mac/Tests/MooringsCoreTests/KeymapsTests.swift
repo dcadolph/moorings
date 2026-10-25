@@ -158,7 +158,7 @@ private func has(_ problems: [String], _ text: String) -> Bool {
     }
     let fallback = Keymaps.shortcuts(keymap: Keymap(rawValue: "nope") ?? .rectangle)
     #expect(fallback.map["left-half"]?.text == "⌃⌥←")
-    #expect(Keymap.names.joined(separator: ",") == "rectangle,spectacle")
+    #expect(Keymap.names == ["rectangle", "spectacle", "magnet", "none"])
 }
 
 // Lua case 10: Shortcuts are spelled out with the names printed on the keys, glyphs after.
@@ -194,4 +194,39 @@ private func has(_ problems: [String], _ text: String) -> Bool {
     #expect(problems.count == 3)
     #expect(problems.contains("mouseButtons names unknown action nope for button 5: ignoring it"))
     #expect(problems.contains("mouseButtons has button 1: use a number from 2 to 31"))
+}
+
+// No Lua case: Every Magnet action is known and Magnet binds its defaults without problems.
+@Test func testMagnet() {
+    let r = Keymaps.shortcuts(keymap: .magnet)
+    #expect(r.map.count == 18)
+    #expect(r.map["larger"] == nil)
+    #expect(r.problems.isEmpty)
+    #expect(r.map["left-half"]?.text == "⌃⌥←")
+    #expect(r.map["restore"]?.text == "⌃⌥⌫")
+    #expect(r.map["next-display"]?.text == "⌃⌥⌘→")
+    for name in Keymap.magnet.table.keys {
+        #expect(Keymaps.known(name), "known \(name)")
+    }
+}
+
+// No Lua case: No two actions in any keymap share a shortcut.
+@Test func testNoDuplicateShortcuts() {
+    for keymap in Keymap.allCases {
+        var seen: [String: String] = [:]
+        for (name, shortcut) in keymap.table {
+            if let other = seen[shortcut.text] {
+                Issue.record("\(keymap.rawValue): \(other) and \(name) share \(shortcut.text)")
+            }
+            seen[shortcut.text] = name
+        }
+    }
+}
+
+// No Lua case: The none keymap binds nothing.
+@Test func testNoneKeymap() {
+    #expect(Keymap.none.table.isEmpty)
+    let r = Keymaps.shortcuts(keymap: .none)
+    #expect(r.map.isEmpty)
+    #expect(r.problems.isEmpty)
 }

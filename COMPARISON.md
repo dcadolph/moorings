@@ -171,7 +171,7 @@ Divvy costs $13.99 and Mosaic 14.99 GBP. The Lasso price is on a separate page a
 | iCloud sync                                   | Lasso                | planned (unit 20) | unit 20 settings sync on iCloud |
 | Export and import                             | Lasso                | yes               | testSettingsBackupRoundTrip     |
 | Rectangle keymap preset                       | Lasso                | yes               | testRectangleDefaults           |
-| Magnet keymap preset                          | Lasso                | no (no unit yet, see the plan's Escalations) | not applicable |
+| Magnet keymap preset                          | Lasso                | yes (Magnet's site lists no shortcuts; the table is the Magnet set Rectangle ships) | testMagnet |
 
 ## Raycast window management
 

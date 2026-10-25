@@ -8,7 +8,8 @@ each part.
 
 - Rectangle's keymap out of the box: halves that cycle through 1/2, 2/3 and 1/3, quarters,
   thirds, two thirds, maximize, maximize height, center, larger, smaller, restore, and previous
-  and next display. Spectacle's keymap is one menu choice away.
+  and next display. Spectacle's and Magnet's keymaps are one menu choice away, and None starts
+  from a blank slate.
 - Every other Rectangle action by Rectangle's name: display one to nine, a specified size of
   1680 by 1050 points that you can change, and the side and center-section names, so a Rectangle link or script
   works with `moorings://action?name=`.

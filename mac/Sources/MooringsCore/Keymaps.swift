@@ -196,7 +196,14 @@ public struct ShortcutsResult: Equatable, Sendable {
 
 // Keymap names a built-in shortcut set.
 public enum Keymap: String, CaseIterable, Sendable {
-    case rectangle, spectacle
+    // rectangle is Rectangle's recommended set.
+    case rectangle
+    // spectacle is Spectacle's default set.
+    case spectacle
+    // magnet is Magnet's default set.
+    case magnet
+    // none binds no shortcut.
+    case none
 
     // names lists the built-in keymaps in menu order.
     public static let names = allCases.map(\.rawValue)
@@ -206,6 +213,8 @@ public enum Keymap: String, CaseIterable, Sendable {
         switch self {
         case .rectangle: return Keymap.rectangleTable
         case .spectacle: return Keymap.spectacleTable
+        case .magnet: return Keymap.magnetTable
+        case .none: return [:]
         }
     }
 
@@ -235,6 +244,30 @@ public enum Keymap: String, CaseIterable, Sendable {
         "center": sc([.ctrl, .alt], "c"),
         "larger": sc([.ctrl, .alt], "="),
         "smaller": sc([.ctrl, .alt], "-"),
+        "restore": sc([.ctrl, .alt], "delete"),
+        "previous-display": sc([.ctrl, .alt, .cmd], "left"),
+        "next-display": sc([.ctrl, .alt, .cmd], "right"),
+    ]
+
+    // magnetTable is Magnet's default set: the Control-Option keys Rectangle's alternate set ships for
+    // Magnet users, without the larger, smaller, maximize height and center two thirds keys Magnet
+    // does not have.
+    private static let magnetTable: [String: Shortcut] = [
+        "left-half": sc([.ctrl, .alt], "left"),
+        "right-half": sc([.ctrl, .alt], "right"),
+        "top-half": sc([.ctrl, .alt], "up"),
+        "bottom-half": sc([.ctrl, .alt], "down"),
+        "top-left": sc([.ctrl, .alt], "u"),
+        "top-right": sc([.ctrl, .alt], "i"),
+        "bottom-left": sc([.ctrl, .alt], "j"),
+        "bottom-right": sc([.ctrl, .alt], "k"),
+        "first-third": sc([.ctrl, .alt], "d"),
+        "center-third": sc([.ctrl, .alt], "f"),
+        "last-third": sc([.ctrl, .alt], "g"),
+        "first-two-thirds": sc([.ctrl, .alt], "e"),
+        "last-two-thirds": sc([.ctrl, .alt], "t"),
+        "maximize": sc([.ctrl, .alt], "return"),
+        "center": sc([.ctrl, .alt], "c"),
         "restore": sc([.ctrl, .alt], "delete"),
         "previous-display": sc([.ctrl, .alt, .cmd], "left"),
         "next-display": sc([.ctrl, .alt, .cmd], "right"),
