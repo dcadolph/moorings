@@ -22,9 +22,10 @@ INTENTS_PROTOCOLS := .build/intents-protocols.json
 INTENTS_FLAGS := -Xswiftc -emit-const-values -Xswiftc -Xfrontend -Xswiftc -const-gather-protocols-file \
 	-Xswiftc -Xfrontend -Xswiftc $(INTENTS_PROTOCOLS)
 INTENTS_OUT := .build/intents
-# INTENTS_CONSTS is where the compiler leaves the app module's recorded conformances, which differs
-# between a one-architecture build and a universal one.
-INTENTS_CONSTS := $(if $(ARCHS),.build/apple/Intermediates.noindex/Moorings.build/Release/Moorings.build/Objects-normal/$(firstword $(ARCHS))/Moorings-primary.swiftconstvalues,.build/$(shell uname -m)-apple-macosx/release/Moorings.build/Moorings.swiftconstvalues)
+# INTENTS_CONSTS_DIR is where the compiler leaves the app module's recorded conformances, one file per
+# source or per batch depending on the toolchain, which differs between a one-architecture build and
+# a universal one.
+INTENTS_CONSTS_DIR := $(if $(ARCHS),.build/apple/Intermediates.noindex/Moorings.build/Release/Moorings.build,.build/$(shell uname -m)-apple-macosx/release/Moorings.build)
 
 .PHONY: build test app sandbox zip dmg notarize run clean
 
@@ -54,8 +55,9 @@ app: $(ICNS) $(INTENTS_PROTOCOLS)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources $(INTENTS_OUT)
 	cp $(ICNS) $(APP)/Contents/Resources/AppIcon.icns
 	ls Sources/Moorings/*.swift | sed "s|^|$$PWD/|" > $(INTENTS_OUT)/sources.txt
-	echo "$$PWD/$(INTENTS_CONSTS)" > $(INTENTS_OUT)/consts.txt
-	test -f $(INTENTS_CONSTS)
+	find "$$PWD/$(INTENTS_CONSTS_DIR)" -name '*.swiftconstvalues' $(if $(ARCHS),-path '*/arm64/*') \
+		> $(INTENTS_OUT)/consts.txt 2>/dev/null || true
+	test -s $(INTENTS_OUT)/consts.txt || { find .build -name '*.swiftconstvalues'; exit 1; }
 	xcrun appintentsmetadataprocessor --output $(APP)/Contents/Resources \
 		--toolchain-dir "$$(dirname "$$(dirname "$$(dirname "$$(xcrun --find swift)")")")" --module-name Moorings \
 		--sdk-root "$$(xcrun --sdk macosx --show-sdk-path)" \
