@@ -48,6 +48,18 @@ public struct ActionTarget: Equatable, Sendable {
     }
 }
 
+// ArrowResult is what an arrow action does to a window, decided from the window's current state.
+public enum ArrowResult: Equatable, Sendable {
+    // frame places the window at the frame. The name is the existing action the result counts as.
+    case frame(Frame, name: String)
+    // restore restores the window's frame from before its last action.
+    case restore
+    // minimize sends the window to the Dock.
+    case minimize
+    // stay does nothing.
+    case stay
+}
+
 // Actions picks the frame each window action gives a window.
 public enum Actions {
     // step is how many points larger and smaller move each free edge.
@@ -67,6 +79,10 @@ public enum Actions {
     public static let quadrants = ["top-left", "top-right", "bottom-left", "bottom-right"]
     // maximizers lists the actions edge gaps skip when applyGapsToMaximize is off.
     public static let maximizers: Set = ["maximize", "almost-maximize", "maximize-height"]
+    // arrowNames lists the four arrow actions of Arrow mode, which act on the window's current state.
+    public static let arrowNames = ["arrow-left", "arrow-right", "arrow-up", "arrow-down"]
+    // fillNames lists the actions that grow a window sideways into empty space.
+    public static let fillNames = ["fill-left", "fill-right"]
     // displayNames lists display-one to display-nine, which send a window to that screen in order.
     public static let displayNames = [
         "display-one", "display-two", "display-three", "display-four", "display-five",
@@ -188,5 +204,66 @@ public enum Actions {
             let other = opposites[name] ?? name
             return (Geometry.cycle(other, 1, area, cur, gap: gap), 1, other)
         }
+    }
+
+    // arrowStates lists the states an arrow action tells apart, in the order the first match wins.
+    private static let arrowStates = [
+        "maximize", "left-half", "right-half", "top-left", "top-right", "bottom-left", "bottom-right",
+    ]
+
+    // arrowState returns which of arrowStates the window at cur is in, or "free" for none.
+    private static func arrowState(_ cur: Frame, target: ActionTarget, gap: Double, behavior: Behaviors) -> String {
+        for name in arrowStates {
+            if let f = frame(name, cur: cur, target: target, gap: gap, behavior: behavior).0, near(cur, f) {
+                return name
+            }
+        }
+        return "free"
+    }
+
+    // arrow returns what the arrow action name does to a window at cur: the Windows-style walk
+    // between halves, quarters, maximize, restore and minimize, crossing to the next display from a
+    // half or quarter on the side facing it.
+    public static func arrow(
+        _ name: String, cur: Frame, target: ActionTarget, gap: Double = 0, behavior: Behaviors = Behaviors()
+    ) -> ArrowResult {
+        let state = arrowState(cur, target: target, gap: gap, behavior: behavior)
+        var landing: String
+        var dir = 0
+        switch (name, state) {
+        case ("arrow-left", "left-half"): landing = "right-half"; dir = -1
+        case ("arrow-left", "top-left"): landing = "top-right"; dir = -1
+        case ("arrow-left", "bottom-left"): landing = "bottom-right"; dir = -1
+        case ("arrow-left", "top-right"): landing = "top-left"
+        case ("arrow-left", "bottom-right"): landing = "bottom-left"
+        case ("arrow-left", _): landing = "left-half"
+        case ("arrow-right", "right-half"): landing = "left-half"; dir = 1
+        case ("arrow-right", "top-right"): landing = "top-left"; dir = 1
+        case ("arrow-right", "bottom-right"): landing = "bottom-left"; dir = 1
+        case ("arrow-right", "top-left"): landing = "top-right"
+        case ("arrow-right", "bottom-left"): landing = "bottom-right"
+        case ("arrow-right", _): landing = "right-half"
+        case ("arrow-up", "maximize"): return .stay
+        case ("arrow-up", "left-half"), ("arrow-up", "bottom-left"): landing = "top-left"
+        case ("arrow-up", "right-half"), ("arrow-up", "bottom-right"): landing = "top-right"
+        case ("arrow-up", "top-left"): landing = "left-half"
+        case ("arrow-up", "top-right"): landing = "right-half"
+        case ("arrow-up", _): landing = "maximize"
+        case ("arrow-down", "maximize"): return .restore
+        case ("arrow-down", "left-half"), ("arrow-down", "top-left"): landing = "bottom-left"
+        case ("arrow-down", "right-half"), ("arrow-down", "top-right"): landing = "bottom-right"
+        case ("arrow-down", "bottom-left"): landing = "left-half"
+        case ("arrow-down", "bottom-right"): landing = "right-half"
+        case ("arrow-down", _): return .minimize
+        default: return .stay
+        }
+        var t = target
+        if dir != 0 {
+            let to = neighbor(target.screens, target.index, dir, by: behavior.screensOrderedByX)
+            if to == target.index { return .stay }
+            t.index = to
+        }
+        guard let f = frame(landing, cur: cur, target: t, gap: gap, behavior: behavior).0 else { return .stay }
+        return .frame(f, name: landing)
     }
 }

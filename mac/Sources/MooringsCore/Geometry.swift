@@ -576,6 +576,29 @@ public enum Geometry {
         return Frame(x: x, y: y, w: w, h: h)
     }
 
+    // fill grows cur sideways into empty space. For left the left edge moves to the nearest edge of a
+    // window on its left that overlaps it vertically, or to the area's edge, keeping the right edge
+    // fixed. Right is the mirror. A gap is left at the stop, and the window never shrinks.
+    public static func fill(_ cur: Frame, _ side: Side, area: Frame, others: [Frame], gap: Double = 0) -> Frame {
+        let tol = Actions.tolerance
+        let beside = others.filter { $0.y < cur.y + cur.h && cur.y < $0.y + $0.h }
+        var f = cur
+        switch side {
+        case .left:
+            let stop = beside.map { $0.x + $0.w }.filter { $0 <= cur.x + tol }.max() ?? area.x
+            let left = max(stop, area.x) + gap
+            if left >= cur.x { return cur }
+            f.x = left
+            f.w = cur.x + cur.w - left
+        case .right:
+            let stop = beside.map(\.x).filter { $0 >= cur.x + cur.w - tol }.min() ?? area.x + area.w
+            let right = min(stop, area.x + area.w) - gap
+            if right <= cur.x + cur.w { return cur }
+            f.w = right - cur.x
+        }
+        return f
+    }
+
     // names returns every action position knows, sorted.
     public static func names() -> [String] {
         (Array(cells.keys) + Array(relative.keys)).sorted()

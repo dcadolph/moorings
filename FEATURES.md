@@ -10,6 +10,12 @@ each part.
   thirds, two thirds, maximize, maximize height, center, larger, smaller, restore, and previous
   and next display. Spectacle's and Magnet's keymaps are one menu choice away, and None starts
   from a blank slate.
+- Arrow mode: four arrow actions that read where the window is. Left and right take a half, then
+  step across quarters and on to the next display. Up maximizes a free window or moves a half or
+  quarter up a step. Down restores a maximized window, steps a half or quarter down, or minimizes
+  a free one. The Windows keymap puts them on Control-Option arrows.
+- Fill left and fill right grow the window sideways to the next window or the edge of the area,
+  keeping its far edge.
 - Front app windows: bring the next or previous window forward, minimize or close the front
   window, and minimize or close every other window of the app while anchored windows stay put.
 - Every other Rectangle action by Rectangle's name: display one to nine, a specified size of

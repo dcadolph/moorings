@@ -162,7 +162,7 @@ private func has(_ problems: [String], _ text: String) -> Bool {
     }
     let fallback = Keymaps.shortcuts(keymap: Keymap(rawValue: "nope") ?? .rectangle)
     #expect(fallback.map["left-half"]?.text == "⌃⌥←")
-    #expect(Keymap.names == ["rectangle", "spectacle", "magnet", "none"])
+    #expect(Keymap.names == ["rectangle", "spectacle", "magnet", "windows", "none"])
 }
 
 // Lua case 10: Shortcuts are spelled out with the names printed on the keys, glyphs after.
@@ -233,4 +233,31 @@ private func has(_ problems: [String], _ text: String) -> Bool {
     let r = Keymaps.shortcuts(keymap: .none)
     #expect(r.map.isEmpty)
     #expect(r.problems.isEmpty)
+}
+
+// Test: Arrow and fill actions are known.
+@Test func testKnownArrowAndFill() {
+    for name in Actions.arrowNames + Actions.fillNames {
+        #expect(Keymaps.known(name), "known \(name)")
+    }
+    #expect(Actions.arrowNames.count == 4 && Actions.fillNames.count == 2)
+}
+
+// Test: The windows keymap binds Control-Option arrows to Arrow mode and keeps the rest of Rectangle.
+@Test func testWindowsKeymap() {
+    let windows = Keymap.windows.table
+    let rectangle = Keymap.rectangle.table
+    for dir in ["left", "right", "up", "down"] {
+        #expect(windows["arrow-" + dir] == Shortcut(mods: [.ctrl, .alt], key: dir), "arrow-\(dir)")
+    }
+    for name in ["left-half", "right-half", "top-half", "bottom-half"] {
+        #expect(windows[name] == nil, "no \(name)")
+        #expect(rectangle[name] != nil, "rectangle keeps \(name)")
+    }
+    for (name, sc) in rectangle where windows[name] == nil {
+        #expect(["left-half", "right-half", "top-half", "bottom-half"].contains(name), "missing \(name)")
+    }
+    for (name, sc) in windows where !name.hasPrefix("arrow-") {
+        #expect(rectangle[name] == sc, "same \(name)")
+    }
 }

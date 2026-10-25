@@ -47,6 +47,7 @@ final class ActionRunner {
                names: ["larger-width", "smaller-width", "larger-height", "smaller-height", "double-width-left",
                        "double-width-right", "double-height-up", "double-height-down", "halve-width-left",
                        "halve-width-right", "halve-height-up", "halve-height-down"], groups: []),
+        Family(title: "Arrow mode", hint: nil, names: Actions.arrowNames + Actions.fillNames, groups: []),
         Family(title: "Front app", hint: nil, names: Keymaps.windowNames, groups: []),
         Family(title: "Displays", hint: "Send the front window to this display, keeping its place in the layout.",
                names: ["previous-display", "next-display"] + Actions.displayNames, groups: []),
@@ -80,6 +81,12 @@ final class ActionRunner {
         "halve-width-right": "Halve the front window's width, keeping its right half.",
         "halve-height-up": "Halve the front window's height, keeping its top half.",
         "halve-height-down": "Halve the front window's height, keeping its bottom half.",
+        "arrow-left": "Left half, then the next quarter or display to the left, from where the front window is.",
+        "arrow-right": "Right half, then the next quarter or display to the right, from where the front window is.",
+        "arrow-up": "Maximize a free window, or move a half or quarter up a step.",
+        "arrow-down": "Restore a maximized window, move a half or quarter down a step, or minimize a free one.",
+        "fill-left": "Grow the front window left to the next window or the edge, keeping its right edge.",
+        "fill-right": "Grow the front window right to the next window or the edge, keeping its left edge.",
         "focus-next-window": "Bring the front app's next window forward, in the order they were opened.",
         "focus-previous-window": "Bring the front app's previous window forward, in the order they were opened.",
         "minimize-window": "Send the front window to the Dock.",
@@ -238,28 +245,60 @@ final class ActionRunner {
             app.wake()
             return true
         }
+        if Actions.arrowNames.contains(name) {
+            switch Actions.arrow(name, cur: w.frame, target: target(for: w, screens: screens, index: index),
+                                 gap: anchors.choices.gapPx, behavior: anchors.choices.behavior) {
+            case let .frame(f, landed):
+                return place(w, at: f, press: 1, name: landed)
+            case .restore:
+                return apply("restore", to: w, screens: screens)
+            case .minimize:
+                app.windows.minimize(w.id)
+                return true
+            case .stay:
+                return false
+            }
+        }
         let (frame, press, result) = frame(name, for: w, screens: screens, index: index)
         guard let frame else { return false }
+        return place(w, at: frame, press: press, name: result)
+    }
+
+    // place moves w to frame and records it as press of action name, so a repeat press steps on.
+    private func place(_ w: WindowInfo, at frame: Frame, press: Int, name: String) -> Bool {
         anchors.save(w)
         app.windows.move(w.id, to: frame, enhancedUI: anchors.choices.behavior.enhancedUI)
-        last[w.id] = LastPress(name: result, press: press, frame: app.windows.frame(w.id) ?? frame)
+        last[w.id] = LastPress(name: name, press: press, frame: app.windows.frame(w.id) ?? frame)
         app.wake()
         return true
     }
 
-    // frame returns the frame action name gives w on the screen at index, its own screen when nil,
-    // the press count, and the action the result counts as, without moving it.
-    func frame(
-        _ name: String, for w: WindowInfo, screens: Screens, index: Int? = nil
-    ) -> (Frame?, press: Int, name: String) {
+    // target returns the screens an action on w may use, with w on the screen at index, its own
+    // screen when nil.
+    private func target(for w: WindowInfo, screens: Screens, index: Int? = nil) -> ActionTarget {
         let areas = screens.usable.indices.map { i in
             i == screens.ultrawide ? anchors.channel(screens.usable[i]) : screens.usable[i]
         }
         let right = Self.stageOnRight()
         let notched = Set(NSScreen.screens.indices.filter { NSScreen.screens[$0].safeAreaInsets.top > 0 })
-        let target = ActionTarget(screens: screens.full, areas: areas, index: index ?? screens.index(w.frame) ?? 0,
-                                  notched: notched, staged: Self.staged(screens.full, right: right),
-                                  stageOnRight: right)
+        return ActionTarget(screens: screens.full, areas: areas, index: index ?? screens.index(w.frame) ?? 0,
+                            notched: notched, staged: Self.staged(screens.full, right: right), stageOnRight: right)
+    }
+
+    // frame returns the frame action name gives w on the screen at index, its own screen when nil,
+    // the press count, and the action the result counts as, without moving it. A fill stops at the
+    // other windows on screen.
+    func frame(
+        _ name: String, for w: WindowInfo, screens: Screens, index: Int? = nil
+    ) -> (Frame?, press: Int, name: String) {
+        let target = target(for: w, screens: screens, index: index)
+        if Actions.fillNames.contains(name) {
+            let area = Actions.area(target, target.index, anchors.choices.behavior)
+            let others = app.windows.scan(screens).windows.filter { $0.id != w.id }.map(\.frame)
+            let f = Geometry.fill(w.frame, name == "fill-left" ? .left : .right, area: area, others: others,
+                                  gap: anchors.choices.gapPx)
+            return (f == w.frame ? nil : f, 1, name)
+        }
         return Actions.frame(name, cur: w.frame, target: target, gap: anchors.choices.gapPx,
                              sizes: Bindings(anchors.choices).specs, last: last[w.id],
                              behavior: anchors.choices.behavior)

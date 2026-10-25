@@ -227,3 +227,117 @@ private func press(
     let other = ActionTarget(screens: twoUp.screens, areas: twoUp.areas, index: 0, staged: [1])
     #expect(Actions.frame("maximize", cur: window, target: other).0 == twoUp.areas[0])
 }
+
+// oneDisplay is a single 1000 by 800 display for the arrow tests.
+let oneDisplay = ActionTarget(screens: [F(0, 0, 1000, 800)], areas: [F(0, 0, 1000, 800)], index: 0)
+
+// sideBySide is two 1000 by 800 displays, the window on the left one.
+let sideBySide = ActionTarget(
+    screens: [F(0, 0, 1000, 800), F(1000, 0, 1000, 800)], areas: [F(0, 0, 1000, 800), F(1000, 0, 1000, 800)], index: 0)
+
+// arrowFrame returns the frame of action name on target t for the arrow tests.
+func arrowFrame(_ name: String, _ t: ActionTarget) -> Frame {
+    Actions.frame(name, cur: F(100, 100, 300, 300), target: t).0!
+}
+
+// secondDisplay is sideBySide with the window on the right display.
+let secondDisplay = ActionTarget(screens: sideBySide.screens, areas: sideBySide.areas, index: 1)
+
+// Test: Arrow left from a free window or maximize takes the left half, and the right side goes left.
+@Test func testArrowLeft() {
+    let free = F(100, 100, 300, 300)
+    #expect(Actions.arrow("arrow-left", cur: free, target: oneDisplay)
+        == .frame(arrowFrame("left-half", oneDisplay), name: "left-half"))
+    #expect(Actions.arrow("arrow-left", cur: arrowFrame("maximize", oneDisplay), target: oneDisplay)
+        == .frame(arrowFrame("left-half", oneDisplay), name: "left-half"))
+    #expect(Actions.arrow("arrow-left", cur: arrowFrame("right-half", oneDisplay), target: oneDisplay)
+        == .frame(arrowFrame("left-half", oneDisplay), name: "left-half"))
+    #expect(Actions.arrow("arrow-left", cur: arrowFrame("top-right", oneDisplay), target: oneDisplay)
+        == .frame(arrowFrame("top-left", oneDisplay), name: "top-left"))
+    #expect(Actions.arrow("arrow-left", cur: arrowFrame("bottom-right", oneDisplay), target: oneDisplay)
+        == .frame(arrowFrame("bottom-left", oneDisplay), name: "bottom-left"))
+    for name in ["left-half", "top-left", "bottom-left"] {
+        #expect(Actions.arrow("arrow-left", cur: arrowFrame(name, oneDisplay), target: oneDisplay) == .stay)
+    }
+    let toRight = [("left-half", "right-half"), ("top-left", "top-right"), ("bottom-left", "bottom-right")]
+    for (from, to) in toRight {
+        #expect(Actions.arrow("arrow-left", cur: arrowFrame(from, sideBySide), target: sideBySide)
+            == .frame(arrowFrame(to, secondDisplay), name: to), "\(from) wraps to \(to)")
+    }
+}
+
+// Test: Arrow right mirrors arrow left, crossing to the next display from the right side.
+@Test func testArrowRight() {
+    let free = F(100, 100, 300, 300)
+    #expect(Actions.arrow("arrow-right", cur: free, target: oneDisplay)
+        == .frame(arrowFrame("right-half", oneDisplay), name: "right-half"))
+    #expect(Actions.arrow("arrow-right", cur: arrowFrame("maximize", oneDisplay), target: oneDisplay)
+        == .frame(arrowFrame("right-half", oneDisplay), name: "right-half"))
+    #expect(Actions.arrow("arrow-right", cur: arrowFrame("left-half", oneDisplay), target: oneDisplay)
+        == .frame(arrowFrame("right-half", oneDisplay), name: "right-half"))
+    #expect(Actions.arrow("arrow-right", cur: arrowFrame("top-left", oneDisplay), target: oneDisplay)
+        == .frame(arrowFrame("top-right", oneDisplay), name: "top-right"))
+    #expect(Actions.arrow("arrow-right", cur: arrowFrame("bottom-left", oneDisplay), target: oneDisplay)
+        == .frame(arrowFrame("bottom-right", oneDisplay), name: "bottom-right"))
+    for name in ["right-half", "top-right", "bottom-right"] {
+        #expect(Actions.arrow("arrow-right", cur: arrowFrame(name, oneDisplay), target: oneDisplay) == .stay)
+    }
+    let toLeft = [("right-half", "left-half"), ("top-right", "top-left"), ("bottom-right", "bottom-left")]
+    for (from, to) in toLeft {
+        #expect(Actions.arrow("arrow-right", cur: arrowFrame(from, secondDisplay), target: secondDisplay)
+            == .frame(arrowFrame(to, sideBySide), name: to), "\(from) wraps to \(to)")
+    }
+}
+
+// Test: Arrow up maximizes a free window, raises halves and bottom quarters, lowers top quarters to halves.
+@Test func testArrowUp() {
+    let t = oneDisplay
+    #expect(Actions.arrow("arrow-up", cur: F(100, 100, 300, 300), target: t)
+        == .frame(arrowFrame("maximize", t), name: "maximize"))
+    #expect(Actions.arrow("arrow-up", cur: arrowFrame("maximize", t), target: t) == .stay)
+    let table = [
+        ("left-half", "top-left"), ("right-half", "top-right"), ("bottom-left", "top-left"),
+        ("bottom-right", "top-right"), ("top-left", "left-half"), ("top-right", "right-half"),
+    ]
+    for (from, to) in table {
+        #expect(Actions.arrow("arrow-up", cur: arrowFrame(from, t), target: t)
+            == .frame(arrowFrame(to, t), name: to), "\(from) to \(to)")
+    }
+}
+
+// Test: Arrow down restores a maximized window, lowers halves and top quarters, and minimizes a free window.
+@Test func testArrowDown() {
+    let t = oneDisplay
+    #expect(Actions.arrow("arrow-down", cur: arrowFrame("maximize", t), target: t) == .restore)
+    #expect(Actions.arrow("arrow-down", cur: F(100, 100, 300, 300), target: t) == .minimize)
+    let table = [
+        ("left-half", "bottom-left"), ("right-half", "bottom-right"), ("top-left", "bottom-left"),
+        ("top-right", "bottom-right"), ("bottom-left", "left-half"), ("bottom-right", "right-half"),
+    ]
+    for (from, to) in table {
+        #expect(Actions.arrow("arrow-down", cur: arrowFrame(from, t), target: t)
+            == .frame(arrowFrame(to, t), name: to), "\(from) to \(to)")
+    }
+}
+
+// Test: From a free window Left, Up, Down, Down walks left-half, top-left, bottom-left, left-half.
+@Test func testArrowWalk() {
+    var cur = F(100, 100, 300, 300)
+    for (arrow, want) in [
+        ("arrow-left", "left-half"), ("arrow-up", "top-left"), ("arrow-down", "bottom-left"),
+        ("arrow-down", "left-half"),
+    ] {
+        guard case let .frame(f, name) = Actions.arrow(arrow, cur: cur, target: oneDisplay) else {
+            Issue.record("\(arrow) gave no frame")
+            return
+        }
+        #expect(name == want)
+        #expect(f == arrowFrame(want, oneDisplay))
+        cur = f
+    }
+}
+
+// Test: An unknown arrow name does nothing.
+@Test func testArrowUnknown() {
+    #expect(Actions.arrow("arrow-sideways", cur: F(100, 100, 300, 300), target: oneDisplay) == .stay)
+}

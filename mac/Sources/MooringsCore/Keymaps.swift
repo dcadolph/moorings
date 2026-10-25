@@ -202,6 +202,8 @@ public enum Keymap: String, CaseIterable, Sendable {
     case spectacle
     // magnet is Magnet's default set.
     case magnet
+    // windows is the Rectangle set with Control-Option arrows on Arrow mode.
+    case windows
     // none binds no shortcut.
     case none
 
@@ -214,9 +216,19 @@ public enum Keymap: String, CaseIterable, Sendable {
         case .rectangle: return Keymap.rectangleTable
         case .spectacle: return Keymap.spectacleTable
         case .magnet: return Keymap.magnetTable
+        case .windows: return Keymap.windowsTable
         case .none: return [:]
         }
     }
+
+    // windowsTable is the Rectangle set without the four halves, which Control-Option arrows run as
+    // Arrow mode instead.
+    private static let windowsTable: [String: Shortcut] = {
+        var t = rectangleTable
+        for name in ["left-half", "right-half", "top-half", "bottom-half"] { t[name] = nil }
+        for dir in ["left", "right", "up", "down"] { t["arrow-" + dir] = sc([.ctrl, .alt], dir) }
+        return t
+    }()
 
     // sc builds a shortcut from modifiers and a key.
     private static func sc(_ mods: [Modifier], _ key: String) -> Shortcut {
@@ -329,6 +341,7 @@ public enum Keymaps {
     // since both are saved after the shortcuts are bound.
     public static func known(_ name: String) -> Bool {
         special.contains(name) || organizeNames.contains(name) || windowNames.contains(name)
+            || Actions.arrowNames.contains(name) || Actions.fillNames.contains(name)
             || name == Actions.specifiedName || Actions.displayNames.contains(name)
             || (name.hasPrefix(workspacePrefix) && name.count > workspacePrefix.count)
             || (name.hasPrefix(Chain.prefix) && name.count > Chain.prefix.count) || name == menuName

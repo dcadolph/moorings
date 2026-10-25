@@ -468,3 +468,59 @@ func testAxisActions(test: AxisCase) {
     #expect(Geometry.custom(channel, spec) == F(824, 208, 1680, 1050))
     #expect(Geometry.custom(F(0, 0, 1000, 800), spec) == F(0, 0, 1000, 800))
 }
+
+// fillArea is the area the fill tests grow a window within.
+let fillArea = F(0, 0, 1000, 800)
+
+// Test: Fill left with nothing beside the window reaches the area's left edge and keeps the rest.
+@Test func testFillLeftOpen() {
+    let cur = F(300, 100, 200, 300)
+    #expect(Geometry.fill(cur, .left, area: fillArea, others: []) == F(0, 100, 500, 300))
+}
+
+// Test: Fill left stops at the right edge of a window on the left that overlaps vertically.
+@Test func testFillLeftStops() {
+    let cur = F(300, 100, 200, 300)
+    let others = [F(50, 50, 100, 200), F(0, 0, 60, 800)]
+    #expect(Geometry.fill(cur, .left, area: fillArea, others: others) == F(150, 100, 350, 300))
+}
+
+// Test: Fill left ignores windows that do not overlap vertically or only touch top to bottom.
+@Test func testFillLeftIgnores() {
+    let cur = F(300, 100, 200, 300)
+    let apart = F(100, 500, 150, 100)
+    let touching = F(100, 400, 150, 100)
+    #expect(Geometry.fill(cur, .left, area: fillArea, others: [apart, touching]) == F(0, 100, 500, 300))
+}
+
+// Test: Fill left leaves the gap, and a window already touching its stop is returned unchanged.
+@Test func testFillLeftGapAndTouching() {
+    let cur = F(300, 100, 200, 300)
+    #expect(Geometry.fill(cur, .left, area: fillArea, others: [F(50, 50, 100, 200)], gap: 10)
+        == F(160, 100, 340, 300))
+    #expect(Geometry.fill(cur, .left, area: fillArea, others: [F(100, 50, 200, 200)]) == cur)
+    #expect(Geometry.fill(F(0, 100, 200, 300), .left, area: fillArea, others: []) == F(0, 100, 200, 300))
+    #expect(Geometry.fill(F(5, 100, 200, 300), .left, area: fillArea, others: [], gap: 10) == F(5, 100, 200, 300))
+}
+
+// Test: Fill right with nothing beside the window reaches the area's right edge and keeps the rest.
+@Test func testFillRightOpen() {
+    let cur = F(300, 100, 200, 300)
+    #expect(Geometry.fill(cur, .right, area: fillArea, others: []) == F(300, 100, 700, 300))
+}
+
+// Test: Fill right stops at a window on the right, ignores non-overlapping ones, and leaves the gap.
+@Test func testFillRightStops() {
+    let cur = F(300, 100, 200, 300)
+    let others = [F(700, 50, 100, 200), F(600, 500, 100, 100), F(600, 400, 100, 100)]
+    #expect(Geometry.fill(cur, .right, area: fillArea, others: others) == F(300, 100, 400, 300))
+    #expect(Geometry.fill(cur, .right, area: fillArea, others: others, gap: 10) == F(300, 100, 390, 300))
+}
+
+// Test: Fill right already touching returns cur unchanged and never moves the left edge.
+@Test func testFillRightTouching() {
+    let cur = F(300, 100, 200, 300)
+    #expect(Geometry.fill(cur, .right, area: fillArea, others: [F(500, 0, 100, 800)]) == cur)
+    let grown = Geometry.fill(cur, .right, area: fillArea, others: [])
+    #expect(grown.x == cur.x && grown.y == cur.y && grown.h == cur.h)
+}
