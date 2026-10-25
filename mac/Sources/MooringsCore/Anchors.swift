@@ -76,6 +76,9 @@ public struct Choices: Equatable, Sendable, Codable {
     public var checkUpdates: Bool = true
     // mouseButtons maps an extra mouse button, numbered from 2, to the action it runs.
     public var mouseButtons: [String: String] = [:]
+    // buttonClicks maps a title bar button and modifier, such as red+option, to the action a click
+    // runs instead of the button's own. Empty keeps every button as macOS and moorings ship it.
+    public var buttonClicks: [String: String] = [:]
     // behavior holds the window action behavior choices.
     public var behavior: Behaviors = Behaviors()
     // snapping holds the drag snap configuration and footprint style.
@@ -104,7 +107,7 @@ public struct Choices: Equatable, Sendable, Codable {
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
         case ignores, snap, theme, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
-        case chains, menu, appRules
+        case chains, menu, appRules, buttonClicks
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -127,6 +130,7 @@ public struct Choices: Equatable, Sendable, Codable {
         workspaces = (try? c.decodeIfPresent([String: Workspace].self, forKey: .workspaces)) ?? [:]
         checkUpdates = (try? c.decodeIfPresent(Bool.self, forKey: .checkUpdates)) ?? true
         mouseButtons = (try? c.decodeIfPresent([String: String].self, forKey: .mouseButtons)) ?? [:]
+        buttonClicks = (try? c.decodeIfPresent([String: String].self, forKey: .buttonClicks)) ?? [:]
         behavior = (try? c.decodeIfPresent(Behaviors.self, forKey: .behavior)) ?? Behaviors()
         snapping = (try? c.decodeIfPresent(SnapChoices.self, forKey: .snapping)) ?? SnapChoices()
         stacking = (try? c.decodeIfPresent(StackChoices.self, forKey: .stacking)) ?? StackChoices()
@@ -154,6 +158,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(workspaces, forKey: .workspaces)
         try c.encode(checkUpdates, forKey: .checkUpdates)
         try c.encode(mouseButtons, forKey: .mouseButtons)
+        try c.encode(buttonClicks, forKey: .buttonClicks)
         try c.encode(behavior, forKey: .behavior)
         try c.encode(snapping, forKey: .snapping)
         try c.encode(stacking, forKey: .stacking)
@@ -174,8 +179,8 @@ public struct Choices: Equatable, Sendable, Codable {
         return c
     }
 
-    // renameChain renames the chain at index to name and moves its shortcut, mouse buttons and menu
-    // entries to the new action name. It does nothing when index is out of range or another chain
+    // renameChain renames the chain at index to name and moves its shortcut, mouse buttons, button
+    // clicks and menu entries to the new action name. It does nothing when index is out of range or another chain
     // already has the name.
     public mutating func renameChain(at index: Int, to name: String) {
         guard chains.indices.contains(index), !chains.contains(where: { $0.name == name }) else { return }
@@ -186,6 +191,7 @@ public struct Choices: Equatable, Sendable, Codable {
             shortcuts[new] = sc
         }
         mouseButtons = mouseButtons.mapValues { $0 == old ? new : $0 }
+        buttonClicks = buttonClicks.mapValues { $0 == old ? new : $0 }
         menu.order = menu.order.map { $0 == old ? new : $0 }
     }
 

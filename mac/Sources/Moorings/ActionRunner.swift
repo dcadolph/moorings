@@ -112,42 +112,48 @@ final class ActionRunner {
     // anchors is the layout the actions read.
     private var anchors: Anchors { app.anchors }
 
-    // run applies action name to the focused window and reports whether anything moved. Nothing runs
-    // while the anchor is weighed. On a pin, Maximize lifts or lowers it and Restore re-moors it. A
-    // chain runs its next step, and the menu action opens the menu under the pointer.
+    // run applies action name to the window with id window, raised first, or to the focused window
+    // when nil, and reports whether anything moved. Nothing runs while the anchor is weighed. On a
+    // pin, Maximize lifts or lowers it and Restore re-moors it. A chain runs its next step, and the
+    // menu action opens the menu under the pointer.
     @discardableResult
-    func run(_ name: String) -> Bool {
+    func run(_ name: String, window: WindowID? = nil) -> Bool {
         if name == Keymaps.menuName {
             DispatchQueue.main.async { [app] in app.popMenu() }
             return true
         }
         guard !anchors.choices.paused, app.windows.trusted else { return false }
+        if let window {
+            app.windows.raise(window)
+        }
         if name.hasPrefix(Chain.prefix) {
-            return runChain(String(name.dropFirst(Chain.prefix.count)))
+            return runChain(String(name.dropFirst(Chain.prefix.count)), window: window)
         }
         chainPress = nil
-        return perform(name)
+        return perform(name, window: window)
     }
 
-    // runChain runs the next step of the chain titled title on the focused window. A press counts as
-    // the next one only when the same chain last ran on the same window with nothing run in between.
-    private func runChain(_ title: String) -> Bool {
+    // runChain runs the next step of the chain titled title on window, or the focused window when nil.
+    // A press counts as the next one only when the same chain last ran on the same window with nothing
+    // run in between.
+    private func runChain(_ title: String, window: WindowID?) -> Bool {
         guard let chain = anchors.choices.chains.first(where: { $0.name == title }) else {
             logger.notice("chain \(title, privacy: .public): no such chain")
             return false
         }
-        let window = app.windows.scan(Screens.current()).focused?.id
+        let window = window ?? app.windows.scan(Screens.current()).focused?.id
         let press = chainPress.map { $0.name == title && $0.window == window ? $0.press + 1 : 0 } ?? 0
         chainPress = (title, window, press)
         guard let step = chain.step(press: press) else {
             logger.notice("chain \(title, privacy: .public): no steps")
             return false
         }
-        return perform(step)
+        return perform(step, window: window)
     }
 
-    // perform applies action name, which is not a chain, to the focused window.
-    private func perform(_ name: String) -> Bool {
+    // perform applies action name, which is not a chain, to the window with id window, or to the
+    // focused window when nil. Actions on the front app or several windows act on the front app.
+    private func perform(_ name: String, window: WindowID? = nil) -> Bool {
         if Keymaps.windowNames.contains(name) {
             return frontApp(name)
         }
@@ -158,7 +164,8 @@ final class ActionRunner {
             return app.organizer.recall(String(name.dropFirst(Keymaps.workspacePrefix.count)))
         }
         let screens = Screens.current()
-        guard let w = app.windows.scan(screens).focused else {
+        let scan = app.windows.scan(screens)
+        guard let w = window.flatMap({ id in scan.windows.first { $0.id == id } }) ?? scan.focused else {
             logger.notice("\(name, privacy: .public): no focused window")
             return false
         }

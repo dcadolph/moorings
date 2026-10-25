@@ -267,3 +267,85 @@ public enum Behavior {
         return "maximize"
     }
 }
+
+// WindowButton names a title bar button whose click a binding can take over.
+public enum WindowButton: String, CaseIterable, Sendable {
+    // red is the close button.
+    case red
+    // yellow is the minimize button.
+    case yellow
+    // green is the zoom and full screen button.
+    case green
+
+    // init reads the button from an element's accessibility subrole, or returns nil for anything else.
+    public init?(subrole: String?) {
+        switch subrole {
+        case "AXCloseButton": self = .red
+        case "AXMinimizeButton": self = .yellow
+        case "AXZoomButton", "AXFullScreenButton": self = .green
+        default: return nil
+        }
+    }
+}
+
+// ButtonClicks resolves clicks on the title bar buttons to the actions bound to them. A binding is
+// saved under the button's name, with "+" and a modifier when one is held, such as red+option.
+public enum ButtonClicks {
+    // modifiers lists the modifiers a binding can take, with "" for a plain click, in menu order.
+    public static let modifiers = ["", "shift", "option", "command"]
+    // cornerWidth is how far right of a window's left edge, in points, the title bar buttons reach.
+    public static let cornerWidth = 100.0
+    // cornerHeight is how far below a window's top, in points, the title bar buttons reach, with a
+    // tall toolbar.
+    public static let cornerHeight = 60.0
+
+    // key returns the saved key of button clicked with modifier.
+    public static func key(_ button: WindowButton, _ modifier: String) -> String {
+        modifier.isEmpty ? button.rawValue : button.rawValue + "+" + modifier
+    }
+
+    // modifier returns the modifier of a click, "" for none, or nil when Control or more than one
+    // modifier is held, which no binding takes.
+    public static func modifier(shift: Bool, option: Bool, command: Bool, control: Bool) -> String? {
+        let held = [(shift, "shift"), (option, "option"), (command, "command")].filter(\.0).map(\.1)
+        guard !control, held.count <= 1 else { return nil }
+        return held.first ?? ""
+    }
+
+    // bound reports whether any binding takes a click with modifier, so a click no binding takes
+    // skips the button lookup.
+    public static func bound(_ clicks: [String: String], modifier: String) -> Bool {
+        WindowButton.allCases.contains { clicks[key($0, modifier)] != nil }
+    }
+
+    // action returns the action bound to button clicked with modifier, or nil when none is bound or
+    // the bound action is not known and not one of sizes.
+    public static func action(
+        _ clicks: [String: String], _ button: WindowButton, _ modifier: String, sizes: Set<String> = []
+    ) -> String? {
+        guard let name = clicks[key(button, modifier)], Keymaps.known(name) || sizes.contains(name) else { return nil }
+        return name
+    }
+
+    // near reports whether p sits in the top left corner of a window at frame, where the title bar
+    // buttons are.
+    public static func near(_ p: Point, _ frame: Frame) -> Bool {
+        p.x >= frame.x && p.x < frame.x + min(cornerWidth, frame.w)
+            && p.y >= frame.y && p.y < frame.y + min(cornerHeight, frame.h)
+    }
+
+    // valid returns the problems in saved: a key that names no button and modifier, or an action that
+    // is not known and not one of sizes.
+    public static func valid(_ saved: [String: String], sizes: Set<String> = []) -> [String] {
+        let keys = Set(WindowButton.allCases.flatMap { b in modifiers.map { key(b, $0) } })
+        return saved.sorted { $0.key < $1.key }.compactMap { k, name in
+            if !keys.contains(k) {
+                return "buttonClicks has \(k): use red, yellow or green, with +shift, +option or +command"
+            }
+            if !Keymaps.known(name) && !sizes.contains(name) {
+                return "buttonClicks names unknown action \(name) for \(k): ignoring it"
+            }
+            return nil
+        }
+    }
+}

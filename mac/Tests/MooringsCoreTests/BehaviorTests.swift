@@ -193,3 +193,62 @@ private let behaviorScreen = Frame(x: 0, y: 0, w: 1000, h: 800)
     #expect(Behavior.titleBarAction(last: LastPress(name: "maximize", press: 1, frame: full), frame: moved)
         == "maximize")
 }
+
+// Swift only: a title bar button is read from its accessibility subrole.
+@Test func testWindowButtonSubrole() {
+    #expect(WindowButton(subrole: "AXCloseButton") == .red)
+    #expect(WindowButton(subrole: "AXMinimizeButton") == .yellow)
+    #expect(WindowButton(subrole: "AXZoomButton") == .green)
+    #expect(WindowButton(subrole: "AXFullScreenButton") == .green)
+    #expect(WindowButton(subrole: "AXToolbarButton") == nil)
+    #expect(WindowButton(subrole: nil) == nil)
+}
+
+// Swift only: a click takes one modifier or none, and Control or two modifiers take no binding.
+@Test func testButtonClicksModifier() {
+    #expect(ButtonClicks.modifier(shift: false, option: false, command: false, control: false) == "")
+    #expect(ButtonClicks.modifier(shift: true, option: false, command: false, control: false) == "shift")
+    #expect(ButtonClicks.modifier(shift: false, option: true, command: false, control: false) == "option")
+    #expect(ButtonClicks.modifier(shift: false, option: false, command: true, control: false) == "command")
+    #expect(ButtonClicks.modifier(shift: true, option: true, command: false, control: false) == nil)
+    #expect(ButtonClicks.modifier(shift: false, option: false, command: false, control: true) == nil)
+}
+
+// Swift only: a binding is found by button and modifier, and an unknown action or empty map binds nothing.
+@Test func testButtonClicksAction() {
+    let clicks = ["red+option": "left-half", "yellow": "maximize", "green+shift": "nonsense", "red+command": "size:Wide"]
+    #expect(ButtonClicks.key(.red, "option") == "red+option")
+    #expect(ButtonClicks.key(.yellow, "") == "yellow")
+    #expect(ButtonClicks.action(clicks, .red, "option") == "left-half")
+    #expect(ButtonClicks.action(clicks, .yellow, "") == "maximize")
+    #expect(ButtonClicks.action(clicks, .red, "") == nil)
+    #expect(ButtonClicks.action(clicks, .green, "shift") == nil)
+    #expect(ButtonClicks.action(clicks, .red, "command") == nil)
+    #expect(ButtonClicks.action(clicks, .red, "command", sizes: ["size:Wide"]) == "size:Wide")
+    #expect(ButtonClicks.action([:], .red, "") == nil)
+    #expect(ButtonClicks.bound(clicks, modifier: "option"))
+    #expect(ButtonClicks.bound(clicks, modifier: ""))
+    #expect(ButtonClicks.bound(clicks, modifier: "shift"))
+    #expect(!ButtonClicks.bound(["red+option": "left-half"], modifier: ""))
+    #expect(!ButtonClicks.bound([:], modifier: ""))
+}
+
+// Swift only: only the top left corner of a window holds the title bar buttons.
+@Test func testButtonClicksNear() {
+    let w = Frame(x: 100, y: 100, w: 800, h: 600)
+    #expect(ButtonClicks.near(Point(x: 108, y: 110), w))
+    #expect(ButtonClicks.near(Point(x: 199, y: 159), w))
+    #expect(!ButtonClicks.near(Point(x: 200, y: 110), w))
+    #expect(!ButtonClicks.near(Point(x: 108, y: 160), w))
+    #expect(!ButtonClicks.near(Point(x: 99, y: 110), w))
+    #expect(!ButtonClicks.near(Point(x: 108, y: 99), w))
+}
+
+// Swift only: a saved binding with a bad key or an unknown action is a problem.
+@Test func testButtonClicksValid() {
+    #expect(ButtonClicks.valid(["red+option": "left-half", "green": "maximize"]).isEmpty)
+    #expect(ButtonClicks.valid(["purple": "left-half"]).count == 1)
+    #expect(ButtonClicks.valid(["red+control": "left-half"]).count == 1)
+    #expect(ButtonClicks.valid(["red": "nonsense"]).count == 1)
+    #expect(ButtonClicks.valid(["red": "size:Wide"], sizes: ["size:Wide"]).isEmpty)
+}

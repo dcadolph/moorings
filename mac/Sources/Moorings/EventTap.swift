@@ -11,9 +11,9 @@ final class EventTap {
 
     // logger writes when the system turns the tap off.
     private let logger = Logger(subsystem: "com.dcadolph.moorings", category: "tap")
-    // onDown is asked about each press with its point and whether Option is held, and returns true
-    // to swallow the click.
-    var onDown: (CGPoint, Bool) -> Bool = { _, _ in false }
+    // onDown is asked about each press with its point and the modifiers held, and returns true to
+    // swallow the click.
+    var onDown: (CGPoint, CGEventFlags) -> Bool = { _, _ in false }
     // onDrag is told where the mouse is while the primary button is held, and which modifiers are held.
     var onDrag: (CGPoint, CGEventFlags) -> Void = { _, _ in }
     // onUp is told where the primary button came up, for a click that was not swallowed.
@@ -71,7 +71,7 @@ final class EventTap {
             }
             return true
         case .leftMouseDown:
-            if onDown(event.location, option) {
+            if onDown(event.location, event.flags) {
                 swallowUp = true
                 return false
             }

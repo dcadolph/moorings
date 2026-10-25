@@ -115,9 +115,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         anchors.launch(now: Self.now)
         _ = organizer
-        tap.onDown = { [weak self] p, option in
+        tap.onDown = { [weak self] p, flags in
             guard let self else { return false }
-            if self.zoomDown(p, option: option) {
+            if self.buttonDown(p, flags: flags) || self.zoomDown(p, option: flags.contains(.maskAlternate)) {
                 return true
             }
             self.snap.pressed(p)
@@ -263,6 +263,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if down {
             DispatchQueue.main.async { [weak self] in self?.actions.run(name) }
         }
+        return true
+    }
+
+    // buttonDown reports whether a press at p is on a title bar button bound to an action for the
+    // modifiers held, and if so runs the action on that button's window after the event. The element
+    // is read only for a press in a window's top left corner while a binding takes these modifiers, and
+    // the green button of an anchored window keeps its lift.
+    private func buttonDown(_ p: CGPoint, flags: CGEventFlags) -> Bool {
+        let choices = anchors.choices
+        guard !choices.buttonClicks.isEmpty, !choices.paused, hotkeys.enabled, windows.trusted,
+              let modifier = ButtonClicks.modifier(shift: flags.contains(.maskShift),
+                                                   option: flags.contains(.maskAlternate),
+                                                   command: flags.contains(.maskCommand),
+                                                   control: flags.contains(.maskControl)),
+              ButtonClicks.bound(choices.buttonClicks, modifier: modifier)
+        else { return false }
+        let point = Point(x: p.x, y: p.y)
+        let front = Windows.front()
+        let under = { (f: Frame) in p.x >= f.x && p.x < f.x + f.w && p.y >= f.y && p.y < f.y + f.h }
+        guard let top = front.first(where: { under($0.frame) }), ButtonClicks.near(point, top.frame),
+              let hit = Windows.button(p), hit.id == top.id, let button = WindowButton(subrole: hit.subrole),
+              let name = ButtonClicks.action(choices.buttonClicks, button, modifier,
+                                             sizes: Set(Bindings(choices).sizes.map(\.name)))
+        else { return false }
+        if button == .green {
+            switch anchors.zoomClick(point, option: flags.contains(.maskAlternate), front: front) {
+            case .lift, .lower, .remoor: return false
+            default: break
+            }
+        }
+        DispatchQueue.main.async { [weak self] in self?.actions.run(name, window: hit.id) }
         return true
     }
 

@@ -140,6 +140,22 @@ struct SettingsView: View {
                     }
                 }
             }
+            Section("Title bar buttons") {
+                ForEach([(WindowButton.red, "Red (close)"), (.yellow, "Yellow (minimize)"), (.green, "Green (zoom)")],
+                        id: \.0) { button, title in
+                    DisclosureGroup(title) {
+                        ForEach([("", "Click"), ("shift", "Shift-click"), ("option", "Option-click"),
+                                 ("command", "Command-click")], id: \.0) { modifier, label in
+                            let key = ButtonClicks.key(button, modifier)
+                            Picker(label, selection: Binding(get: { model.choices.buttonClicks[key] ?? "" },
+                                                             set: { v in model.change { $0.buttonClicks[key] = v.isEmpty ? nil : v } })) {
+                                Text("The button's own").tag("")
+                                ForEach(runNames, id: \.self) { Text(Keymaps.label($0)).tag($0) }
+                            }
+                        }
+                    }
+                }
+            }
             Toggle("Fullscreen fills the channel", isOn: Binding(get: { model.choices.fullscreenFills },
                                                                   set: { v in model.change { $0.fullscreenFills = v } }))
             Toggle("Fullscreen keeps anchored apps in their slots",

@@ -86,6 +86,7 @@ import Testing
     #expect(c.slots[.leftTop] == "com.tinyspeck.slackmacgap")
     #expect(c.gapPx == 4 && c.ignores == ["com.apple.Terminal"] && c.mouseButtons == ["3": "maximize"])
     #expect(c.behavior == Behaviors())
+    #expect(c.buttonClicks.isEmpty)
     #expect(c.behavior.subsequentExecution == .cycleSizes)
     #expect(c.behavior.minimumWindowWidth == 0.25 && c.behavior.minimumWindowHeight == 0.25)
     #expect(c.behavior.screenEdgeGapTopNotch == -1 && c.behavior.stageSize == 190)
@@ -160,6 +161,7 @@ import Testing
     c.theme = .rose
     c.checkUpdates = false
     c.mouseButtons = ["3": "maximize"]
+    c.buttonClicks = ["red+option": "left-half"]
     c.snapping.footprint.color = "#ff0000"
     c.ignores = ["com.apple.Terminal"]
     c.sizes = [StoredSize(title: "Reading", x: 0.25, w: 0.5, shortcut: nil)]
@@ -176,21 +178,30 @@ import Testing
     #expect(Choices().restoringDefaults() == Choices())
 }
 
-// Swift only: renaming a chain moves its shortcut, mouse button and pinned menu entry.
+// Swift only: renaming a chain moves its shortcut, mouse button, button click and pinned menu entry.
 @Test func testChoicesRenameChain() {
     var c = Choices()
     c.chains = [Chain(name: "A", steps: ["left-half"]), Chain(name: "B", steps: ["maximize"])]
     c.shortcuts = ["chain:A": StoredShortcut(mods: ["ctrl", "alt"], key: "k")]
     c.mouseButtons = ["3": "chain:A", "4": "maximize"]
+    c.buttonClicks = ["red+option": "chain:A", "green": "maximize"]
     c.menu.order = ["maximize", "chain:A"]
     c.renameChain(at: 0, to: "Focus")
     #expect(c.chains.map(\.name) == ["Focus", "B"])
     #expect(c.shortcuts["chain:A"] == nil)
     #expect(c.shortcuts["chain:Focus"] == .some(StoredShortcut(mods: ["ctrl", "alt"], key: "k")))
     #expect(c.mouseButtons == ["3": "chain:Focus", "4": "maximize"])
+    #expect(c.buttonClicks == ["red+option": "chain:Focus", "green": "maximize"])
     #expect(c.menu.order == ["maximize", "chain:Focus"])
     let before = c
     c.renameChain(at: 0, to: "B")
     c.renameChain(at: 5, to: "C")
     #expect(c == before)
+}
+
+// Swift only: button clicks survive a save and load.
+@Test func testChoicesButtonClicksRoundTrip() throws {
+    var c = Choices()
+    c.buttonClicks = ["red+option": "left-half", "yellow": "maximize"]
+    #expect(Choices.decode(try Choices.encode(c)).buttonClicks == c.buttonClicks)
 }

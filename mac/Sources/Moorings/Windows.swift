@@ -264,6 +264,18 @@ final class Windows {
         return (id, frame, element(win, kAXZoomButtonAttribute).flatMap { Self.frame($0) }, role)
     }
 
+    // button reads the element at p and returns its window's id and the element's subrole, which names
+    // a title bar button. It returns nil when no window is there.
+    static func button(_ p: CGPoint) -> (id: WindowID, subrole: String?)? {
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, timeout)
+        var found: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(system, Float(p.x), Float(p.y), &found) == .success, let el = found,
+              let win = element(el, kAXWindowAttribute), let id = id(win)
+        else { return nil }
+        return (id, string(el, kAXSubroleAttribute))
+    }
+
     // raise brings the window with id to the front and activates its app.
     func raise(_ id: WindowID) {
         guard let el = elements[id] else { return }
