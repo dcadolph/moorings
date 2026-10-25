@@ -84,22 +84,30 @@ final class DragSnap {
     private var drop: SnapDrop?
     // screen is the index of the screen the drop is on.
     private var screen: Int?
+    // at is where the button went down.
+    private var at: CGPoint?
+    // placed is the frame the dragged window's last action gave it, nil unless the window still sat
+    // there when the drag began.
+    private var placed: Frame?
 
     // init builds a drag follower for app.
     init(app: AppDelegate) {
         self.app = app
     }
 
-    // pressed starts following a new drag.
-    func pressed() {
+    // pressed starts following a new drag from p.
+    func pressed(_ p: CGPoint) {
         reset()
         down = true
+        at = p
     }
 
     // dragged follows the cursor at p and moves the footprint when the zone changes.
     func dragged(_ p: CGPoint, option: Bool) {
         let choices = app.anchors.choices
-        guard down, !done, !choices.paused, choices.snap, isMoving(p), let w = win else { return }
+        guard down, !done, !choices.paused, choices.snap || choices.behavior.unsnapRestore, isMoving(p),
+              choices.snap, let w = win
+        else { return }
         let screens = Screens.current()
         guard let i = screens.full.firstIndex(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
         else {
@@ -173,6 +181,8 @@ final class DragSnap {
         pending = false
         drop = nil
         screen = nil
+        at = nil
+        placed = nil
     }
 
     // isMoving reports whether the drag is moving a window, queueing one read of it at a time once
@@ -199,7 +209,8 @@ final class DragSnap {
     }
 
     // look reads the dragged window: the focused window the first time, then its frame, until it
-    // moves, resizes, or maxChecks reads pass.
+    // moves, resizes, or maxChecks reads pass. A snapped window that starts moving gets its size from
+    // before the snap back.
     private func look() {
         guard let w = win, let s = start else {
             guard let focused = app.windows.scan(Screens.current()).focused else {
@@ -208,6 +219,10 @@ final class DragSnap {
             }
             win = focused
             start = focused.frame
+            if let at, let from, let p = app.actions.placed(focused.id), !app.anchors.pinned(focused),
+               Behavior.snapped(p, start: focused.frame, moved: abs(from.x - at.x) + abs(from.y - at.y)) {
+                placed = p
+            }
             return
         }
         guard let f = app.windows.frame(w.id) else {
@@ -218,6 +233,10 @@ final class DragSnap {
             done = true
         } else if f.x != s.x || f.y != s.y {
             moving = true
+            if let p = placed, let at, app.anchors.choices.behavior.unsnapRestore {
+                placed = nil
+                app.actions.unsnap(w, at: f, grab: at.x - p.x)
+            }
         } else {
             checks += 1
             done = checks >= Self.maxChecks

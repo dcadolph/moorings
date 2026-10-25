@@ -182,6 +182,12 @@ in the JSON file Settings exports, at Rectangle's defaults. Edit the file and im
   browsers.
 - `moveCursor` moves the pointer to the middle of a window that a shortcut, the menu or a link
   moved.
+- `unsnapRestore` (on by default) gives a window that a shortcut, the menu or a drag snap placed
+  its earlier size back as soon as you drag it away, with the window kept under the pointer.
+- `doubleClickTitleBar` (off by default) maximizes a window when you double-click its title bar,
+  and restores it when the window still sits where that maximize put it. It works only when System
+  Settings > Desktop & Dock > Double-click a window's title bar is set to Do Nothing, so macOS and
+  Moorings never both act. `doubleClickIgnoredApps` lists bundle ids it leaves alone.
 - `hideMenuBarIcon` hides the icon. Open Moorings again to reach Settings.
 - `screensOrderedByX` orders displays for the display actions: `y-then-min-x` (the default),
   `min-x` or `mid-x`.

@@ -240,6 +240,12 @@ extension Anchors {
         clamped[w.id] = nil
     }
 
+    // savedFrame returns the frame the window with id had before moorings first moved it, nil when
+    // there is none, and keeps it.
+    public func savedFrame(_ id: WindowID) -> Frame? {
+        saved[id]
+    }
+
     // restore returns the frame the window with id had before moorings first moved it, and forgets
     // it, or nil when there is none.
     public func restore(_ id: WindowID) -> Frame? {

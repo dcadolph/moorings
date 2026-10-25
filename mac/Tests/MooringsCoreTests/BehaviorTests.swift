@@ -146,3 +146,50 @@ private let behaviorScreen = Frame(x: 0, y: 0, w: 1000, h: 800)
     b.unsnapRestore = false
     #expect(Behavior.unsnapSize(b, wasSnapped: true, saved: saved, current: cur) == nil)
 }
+
+// Swift only: a window counts as snapped while its size matches and it moved no farther than the cursor.
+@Test func testSnapped() {
+    let placed = Frame(x: 0, y: 0, w: 600, h: 800)
+    #expect(Behavior.snapped(placed, start: placed, moved: 0))
+    #expect(Behavior.snapped(placed, start: Frame(x: 5, y: 3, w: 600, h: 800), moved: 8))
+    #expect(!Behavior.snapped(placed, start: Frame(x: 40, y: 0, w: 600, h: 800), moved: 8))
+    #expect(!Behavior.snapped(placed, start: Frame(x: 0, y: 0, w: 500, h: 800), moved: 8))
+    #expect(!Behavior.snapped(placed, start: Frame(x: 0, y: 0, w: 600, h: 700), moved: 8))
+}
+
+// Swift only: unsnap keeps the top left unless the cursor would fall off the narrower window.
+@Test func testUnsnapFrame() {
+    let cur = Frame(x: 100, y: 50, w: 1000, h: 800)
+    let size = (w: 400.0, h: 300.0)
+    #expect(Behavior.unsnapFrame(cur, size: size, grab: 200) == Frame(x: 100, y: 50, w: 400, h: 300))
+    #expect(Behavior.unsnapFrame(cur, size: size, grab: 368) == Frame(x: 100, y: 50, w: 400, h: 300))
+    #expect(Behavior.unsnapFrame(cur, size: size, grab: 800) == Frame(x: 532, y: 50, w: 400, h: 300))
+    #expect(Behavior.unsnapFrame(cur, size: size, grab: 5000) == Frame(x: 700, y: 50, w: 400, h: 300))
+    #expect(Behavior.unsnapFrame(cur, size: (w: 1200, h: 900), grab: 900) == Frame(x: 100, y: 50, w: 1200, h: 900))
+}
+
+// Swift only: the title bar is the band beside and below the green button, on a title bar role.
+@Test func testOnTitleBar() {
+    let window = Frame(x: 100, y: 100, w: 800, h: 600)
+    let button = Frame(x: 148, y: 106, w: 16, h: 16)
+    #expect(Behavior.onTitleBar(Point(x: 400, y: 110), window: window, button: button, role: "AXWindow"))
+    #expect(Behavior.onTitleBar(Point(x: 400, y: 127), window: window, button: button, role: "AXToolbar"))
+    #expect(!Behavior.onTitleBar(Point(x: 400, y: 128), window: window, button: button, role: "AXWindow"))
+    #expect(!Behavior.onTitleBar(Point(x: 120, y: 110), window: window, button: button, role: "AXWindow"))
+    #expect(!Behavior.onTitleBar(Point(x: 400, y: 110), window: window, button: button, role: "AXButton"))
+    #expect(!Behavior.onTitleBar(Point(x: 400, y: 110), window: window, button: nil, role: "AXWindow"))
+    #expect(!Behavior.onTitleBar(Point(x: 400, y: 110), window: window, button: button, role: nil))
+    #expect(!Behavior.onTitleBar(Point(x: 950, y: 110), window: window, button: button, role: "AXWindow"))
+}
+
+// Swift only: a double-click restores a window its last maximize still holds, and maximizes otherwise.
+@Test func testTitleBarAction() {
+    let full = Frame(x: 0, y: 0, w: 1000, h: 800)
+    #expect(Behavior.titleBarAction(last: nil, frame: full) == "maximize")
+    #expect(Behavior.titleBarAction(last: LastPress(name: "maximize", press: 1, frame: full), frame: full) == "restore")
+    #expect(Behavior.titleBarAction(last: LastPress(name: "left-half", press: 1, frame: full), frame: full)
+        == "maximize")
+    let moved = Frame(x: 50, y: 0, w: 1000, h: 800)
+    #expect(Behavior.titleBarAction(last: LastPress(name: "maximize", press: 1, frame: full), frame: moved)
+        == "maximize")
+}

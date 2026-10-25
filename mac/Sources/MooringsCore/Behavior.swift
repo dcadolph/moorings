@@ -227,4 +227,43 @@ public enum Behavior {
         }
         return saved
     }
+
+    // snapped reports whether a window first read at start, after the cursor moved moved points from
+    // where the button went down, still sat at placed, the frame its last action gave it.
+    public static func snapped(_ placed: Frame, start: Frame, moved: Double) -> Bool {
+        let t = Actions.tolerance
+        return abs(placed.w - start.w) <= t && abs(placed.h - start.h) <= t
+            && abs(placed.x - start.x) + abs(placed.y - start.y) <= moved + t
+    }
+
+    // unsnapFrame returns the frame of a window at current resized to size. The top left stays put
+    // unless the cursor, grab points from the left edge, would fall off the narrower window. Then it
+    // shifts right only as far as keeps the cursor over the window, as Rectangle does.
+    public static func unsnapFrame(_ current: Frame, size: (w: Double, h: Double), grab: Double) -> Frame {
+        let inset = min(32, size.w / 2)
+        let shift = min(max(0, grab - (size.w - inset)), max(0, current.w - size.w))
+        return Frame(x: current.x + shift, y: current.y, w: size.w, h: size.h)
+    }
+
+    // titleBarRoles lists the roles of the elements a title bar double-click may land on, as Rectangle
+    // allows. Buttons, fields and tabs keep their own double-click.
+    public static let titleBarRoles: Set<String> = ["AXWindow", "AXToolbar", "AXGroup", "AXTabGroup", "AXStaticText"]
+
+    // onTitleBar reports whether a click at p lands on the title bar of a window at frame with its
+    // green button at button, on an element with role. The title bar runs from the top of the window
+    // down as far below the button's middle as the middle sits below the top, right of the button.
+    public static func onTitleBar(_ p: Point, window: Frame, button: Frame?, role: String?) -> Bool {
+        guard let button, let role, titleBarRoles.contains(role) else { return false }
+        let band = 2 * (button.y + button.h / 2 - window.y)
+        return p.y >= window.y && p.y < window.y + band && p.x >= button.x + button.w && p.x < window.x + window.w
+    }
+
+    // titleBarAction returns the action a title bar double-click runs on a window at frame: restore
+    // when the window still sits where its last maximize put it, maximize otherwise.
+    public static func titleBarAction(last: LastPress?, frame: Frame) -> String {
+        if let last, last.name == "maximize", Actions.near(last.frame, frame) {
+            return "restore"
+        }
+        return "maximize"
+    }
 }

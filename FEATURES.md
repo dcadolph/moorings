@@ -26,6 +26,8 @@ each part.
   traverse or cycle displays, cycle quadrants or switch sides, screen edge gaps, room for the
   Stage Manager strip, Enhanced UI handling, a cursor that follows the window, a hidden menu bar
   icon and display ordering.
+- Unsnap restore: dragging a placed window away gives it its earlier size back.
+- Double-click a title bar to maximize or restore, with apps you name left alone.
 
 ## Snap by dragging
 

@@ -169,6 +169,13 @@ final class Windows {
         AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
     }
 
+    // resize sets the size of the window with id and leaves its position to whatever is moving it.
+    func resize(_ id: WindowID, w: Double, h: Double) {
+        var size = CGSize(width: w, height: h)
+        guard let el = elements[id], let value = AXValueCreate(.cgSize, &size) else { return }
+        AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, value)
+    }
+
     // enhancedUIKey is the app attribute VoiceOver and some apps set, which makes an app animate its
     // own resizing and land off the frame asked for.
     static let enhancedUIKey = "AXEnhancedUserInterface" as CFString
@@ -234,6 +241,21 @@ final class Windows {
             else { return nil }
             return (id, Frame(x: x, y: y, w: w, h: h))
         }
+    }
+
+    // hit reads the element at p and the window it belongs to: the window's id, frame and green button
+    // and the element's role. It returns nil when no window is there.
+    static func hit(_ p: CGPoint) -> (id: WindowID, frame: Frame, button: Frame?, role: String?)? {
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, timeout)
+        var found: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(system, Float(p.x), Float(p.y), &found) == .success, let el = found
+        else { return nil }
+        let role = string(el, kAXRoleAttribute)
+        guard let win = role == kAXWindowRole ? el : element(el, kAXWindowAttribute), let id = id(win),
+              let frame = frame(win)
+        else { return nil }
+        return (id, frame, element(win, kAXZoomButtonAttribute).flatMap { Self.frame($0) }, role)
     }
 
     // raise brings the window with id to the front and activates its app.

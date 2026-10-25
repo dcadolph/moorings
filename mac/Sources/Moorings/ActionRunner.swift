@@ -214,6 +214,49 @@ final class ActionRunner {
         return Set(counts.filter { $0.value >= 2 }.keys)
     }
 
+    // placed returns the frame the last action gave the window with id, nil when none has.
+    func placed(_ id: WindowID) -> Frame? {
+        last[id]?.frame
+    }
+
+    // unsnap gives the dragged window w, now at current, back the size it had before moorings first
+    // moved it, with the cursor grab points from its left edge kept over it, and forgets the snap.
+    func unsnap(_ w: WindowInfo, at current: Frame, grab: Double) {
+        let saved = anchors.savedFrame(w.id).map { (w: $0.w, h: $0.h) }
+        guard let size = Behavior.unsnapSize(anchors.choices.behavior, wasSnapped: true, saved: saved, current: current)
+        else { return }
+        let f = Behavior.unsnapFrame(current, size: size, grab: grab)
+        if f.x == current.x {
+            app.windows.resize(w.id, w: f.w, h: f.h)
+        } else {
+            app.windows.move(w.id, to: f)
+        }
+        _ = anchors.restore(w.id)
+        last[w.id] = nil
+    }
+
+    // titleBarClick maximizes or restores the window whose title bar was double-clicked at p. It needs
+    // the choice on and macOS set to do nothing on a title bar double-click, as Rectangle does, so
+    // the two never both act. The window is read after the event, never inside the tap.
+    func titleBarClick(_ p: CGPoint) {
+        let b = anchors.choices.behavior
+        guard b.doubleClickTitleBar, !anchors.choices.paused, app.windows.trusted else { return }
+        guard UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") == "None" else {
+            logger.notice("title bar double-click: macOS handles it; set Double-click a window's title bar to Do Nothing")
+            return
+        }
+        DispatchQueue.main.async { [self] in
+            guard let hit = Windows.hit(p),
+                  Behavior.onTitleBar(Point(x: p.x, y: p.y), window: hit.frame, button: hit.button, role: hit.role)
+            else { return }
+            let screens = Screens.current()
+            guard let w = app.windows.scan(screens).windows.first(where: { $0.id == hit.id }),
+                  !b.doubleClickIgnoredApps.contains(w.bundle)
+            else { return }
+            apply(Behavior.titleBarAction(last: last[w.id], frame: w.frame), to: w, screens: screens)
+        }
+    }
+
     // runnable reports whether name is an action or a custom size in the choices.
     func runnable(_ name: String) -> Bool {
         Keymaps.known(name) || Bindings(anchors.choices).specs[name] != nil

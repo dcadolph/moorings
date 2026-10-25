@@ -18,6 +18,9 @@ final class EventTap {
     var onDrag: (CGPoint, Bool) -> Void = { _, _ in }
     // onUp is told where the primary button came up, for a click that was not swallowed.
     var onUp: (CGPoint, Bool) -> Void = { _, _ in }
+    // onDoubleClick is told where the primary button came up to end a double-click that was not
+    // swallowed.
+    var onDoubleClick: (CGPoint) -> Void = { _ in }
     // onOther is asked about each extra mouse button press or release with the button number and
     // whether it went down, and returns true to swallow it.
     var onOther: (Int, Bool) -> Bool = { _, _ in false }
@@ -79,6 +82,9 @@ final class EventTap {
                 return false
             }
             onUp(event.location, option)
+            if event.getIntegerValueField(.mouseEventClickState) == 2 {
+                onDoubleClick(event.location)
+            }
             return true
         case .leftMouseDragged:
             onDrag(event.location, option)

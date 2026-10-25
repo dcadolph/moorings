@@ -120,9 +120,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if self.zoomDown(p, option: option) {
                 return true
             }
-            self.snap.pressed()
+            self.snap.pressed(p)
             return false
         }
+        tap.onDoubleClick = { [weak self] p in self?.actions.titleBarClick(p) }
         tap.onDrag = { [weak self] p, option in self?.snap.dragged(p, option: option) }
         tap.onUp = { [weak self] _, _ in self?.snap.released() }
         tap.onOther = { [weak self] button, down in self?.mouseButton(button, down: down) ?? false }
