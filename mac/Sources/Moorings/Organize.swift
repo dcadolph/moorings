@@ -283,6 +283,15 @@ final class Organizer {
         }
     }
 
+    // waiting reports whether a recall is waiting for an app it opened to show a window, which may
+    // come before the app takes an observer, so passes keep looking.
+    var waiting: Bool { !awaited.isEmpty }
+
+    // deadlines returns when each placed window is due its second look.
+    func deadlines() -> [Double] {
+        rechecks.values.map(\.at)
+    }
+
     // seen looks at the windows on screen after each pass. A window a recall was waiting for goes where
     // the workspace saved it, matched by title first. Then, for each app whose first window just
     // appeared, its rule places that window. Apps already showing windows at the first look are not

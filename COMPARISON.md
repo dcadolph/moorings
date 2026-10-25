@@ -203,6 +203,8 @@ Measured with mac/scripts/energy.sh on an M1 Max, macOS 26.6.1. Idle means no wi
 
 For Moorings, top's energy impact equals its CPU percent in every sample. The window animation switch (Settings > Behavior) changed churn from 8.88 off to 8.68 on in the same two-minute protocol, which is inside the run-to-run spread. With the stack badge on and showing, idle read 1.12.
 
+The idle cells above predate the event-driven rest state. Until then a timer fired four times a second and looked at every window every two seconds even when nothing moved. Now no timer fires at rest: window, app, display and mouse-up events wake it, it looks every quarter second for two seconds after the last one, then stops. It looks every two seconds only while something is pending that sends no event (an app launched in the last 30 seconds, a recall waiting for an app it opened, Accessibility not yet granted) and once at each known deadline (an opened app's strip lapsing, a hold ending). The stack badge, when on, reads the pointer four times a second. testPaceNext and testDeadlinesHold cover the schedule. The after figure waits for the same sitting as the Rectangle and Loop cells.
+
 ## What only Moorings has
 
 None of the products above hold apps at the edges of an ultrawide with a channel between them.

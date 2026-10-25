@@ -5,17 +5,14 @@ import os
 import MooringsCore
 
 // AppDelegate starts Moorings and owns its long-lived objects: the layout, the window reader, the
-// poll timer, and the menu bar item.
+// pass timer, and the menu bar item.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // choicesKey is the defaults key the saved choices live under.
     static let choicesKey = "choices"
-    // pollSeconds is how often the layout is checked while windows are changing.
-    static let pollSeconds = 0.25
-    // activeSeconds is how long after the last window event the layout counts as changing.
-    static let activeSeconds = 10.0
-    // idleSeconds is how often the layout is checked once windows are still.
-    static let idleSeconds = 2.0
+    // launchSeconds is how long after an app launches passes keep looking for its first window,
+    // in case it shows one before it takes an observer.
+    static let launchSeconds = 30.0
 
     // logger writes to the unified log under the com.dcadolph.moorings subsystem.
     let logger = Logger(subsystem: "com.dcadolph.moorings", category: "anchors")
@@ -23,7 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let anchors = Anchors(choices: Choices.decode(UserDefaults.standard.data(forKey: AppDelegate.choicesKey) ?? Data()))
     // windows reads and moves windows.
     let windows = Windows()
-    // watcher wakes the poll on window events.
+    // watcher wakes the passes on window events.
     private lazy var watcher = Watcher { [weak self] in self?.wake() }
     // actions applies window actions to the focused window.
     lazy var actions = ActionRunner(app: self)
@@ -79,19 +76,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var hover = HoverMover(app: self)
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    // timer runs tick every pollSeconds.
+    // timer runs the next pass, nil when none is due until an event.
     private var timer: Timer?
+    // due is when timer fires, nil when no timer is set.
+    private var due: Double?
     // woke is when the last window event came.
     private var woke = 0.0
-    // polled is when the last pass ran.
-    private var polled = 0.0
+    // launching is when passes stop looking for the first window of an app that just launched.
+    private var launching = 0.0
+    // badgeTimer reads the pointer for the stack badge while the badge is on.
+    private var badgeTimer: Timer?
     // started reports whether the first pass ran, which opens the anchored apps.
     private var started = false
 
     // now returns the time in seconds since boot.
     static var now: Double { ProcessInfo.processInfo.systemUptime }
 
-    // applicationDidFinishLaunching builds the menu, subscribes to events, and starts the poll.
+    // applicationDidFinishLaunching builds the menu, subscribes to events, and runs the first pass.
     func applicationDidFinishLaunching(_ notification: Notification) {
         if installer.offerMove() {
             return
@@ -104,7 +105,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.menu = menu
         let center = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didActivateApplicationNotification, NSWorkspace.didLaunchApplicationNotification,
-                     NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didUnhideApplicationNotification] {
+                     NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didUnhideApplicationNotification,
+                     NSWorkspace.didHideApplicationNotification, NSWorkspace.didWakeNotification,
+                     NSWorkspace.screensDidWakeNotification] {
             center.addObserver(self, selector: #selector(workspaceChanged(_:)), name: name, object: nil)
         }
         center.addObserver(self, selector: #selector(appQuit(_:)), name: NSWorkspace.didTerminateApplicationNotification,
@@ -123,6 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
             MainActor.assumeIsolated { self.checkUpdate() }
         }
+        updateTimer?.tolerance = 10
         anchors.launch(now: Self.now)
         _ = organizer
         tap.onDown = { [weak self] p, flags in
@@ -142,7 +146,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         tap.onDoubleClick = { [weak self] p in self?.actions.titleBarClick(p) }
         tap.onDrag = { [weak self] p, flags in self?.snap.dragged(p, flags: flags) }
-        tap.onUp = { [weak self] _, _ in self?.snap.released() }
+        tap.onUp = { [weak self] _, _ in
+            self?.snap.released()
+            self?.wake()
+        }
         tap.onOther = { [weak self] button, down in self?.mouseButton(button, down: down) ?? false }
         tap.onFlags = { [weak self] flags, p in
             self?.overlay.flagsChanged(flags, at: p)
@@ -160,9 +167,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rebind()
         refreshShortcuts()
         wake()
-        timer = Timer.scheduledTimer(withTimeInterval: Self.pollSeconds, repeats: true) { _ in
-            MainActor.assumeIsolated { self.tick() }
-        }
         moor()
     }
 
@@ -216,13 +220,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
     }
 
-    // wake marks windows as changing, so the poll runs every pollSeconds again.
+    // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle.
     func wake() {
-        woke = Self.now
+        let t = Self.now
+        woke = t
+        if let due, due <= t + Pace.pollSeconds {
+            return
+        }
+        schedule(t + Pace.pollSeconds)
     }
 
-    // tick runs a pass every pollSeconds while windows are changing and every idleSeconds once they
-    // have been still for activeSeconds.
+    // schedule sets the timer for the next pass at time at, or clears it when at is nil.
+    private func schedule(_ at: Double?) {
+        timer?.invalidate()
+        timer = nil
+        due = at
+        guard let at else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: max(0.001, at - Self.now), repeats: false) { _ in
+            MainActor.assumeIsolated {
+                self.timer = nil
+                self.due = nil
+                self.tick()
+            }
+        }
+    }
+
+    // pace sets the timer for the pass after the one that just ran: soon while windows change,
+    // every Pace.busySeconds while something pending sends no event, at the next deadline, or not
+    // at all. It also starts or stops the stack badge's pointer reads.
+    private func pace() {
+        let t = Self.now
+        let busy = !windows.trusted || watcher.waiting || organizer.waiting || t < launching
+        schedule(Pace.next(now: t, woke: woke, busy: busy, deadlines: anchors.deadlines() + organizer.deadlines()))
+        if anchors.choices.stacking.badge, badgeTimer == nil {
+            badgeTimer = Timer.scheduledTimer(withTimeInterval: Pace.pollSeconds, repeats: true) { _ in
+                MainActor.assumeIsolated { self.updateBadge() }
+            }
+        } else if !anchors.choices.stacking.badge, let badgeTimer {
+            badgeTimer.invalidate()
+            self.badgeTimer = nil
+            stackBadge.hide()
+        }
+    }
+
+    // updateBadge shows or hides the stack badge for the pointer's place.
+    private func updateBadge() {
+        stackBadge.update(palette: anchors.choices.theme.palette, choices: anchors.choices.stacking,
+                          gap: anchors.choices.gapPx)
+    }
+
+    // tick catches an Accessibility grant, then runs the pass that was due.
     private func tick() {
         if windows.trusted != wasTrusted {
             wasTrusted = windows.trusted
@@ -232,30 +279,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 notify("Moorings is ready", "Accessibility is on. Anchored apps take their slots now.")
             }
         }
-        if anchors.choices.stacking.badge {
-            stackBadge.update(palette: anchors.choices.theme.palette, choices: anchors.choices.stacking,
-                              gap: anchors.choices.gapPx)
-        } else {
-            stackBadge.hide()
-        }
-        let t = Self.now
-        if t - woke > Self.activeSeconds && t - polled < Self.idleSeconds {
-            return
-        }
         moor()
     }
 
     // moor runs one pass and applies its moves. The first pass after launch opens the anchored apps
     // that have no window, in the background.
     func moor() {
-        polled = Self.now
+        defer { pace() }
+        logger.debug("pass")
         guard windows.trusted else { return }
         if !tap.running {
             tap.start()
         }
         let screens = Screens.current()
         let (list, focused) = windows.scan(screens)
-        watcher.watch(windows.scanned)
+        watcher.watch(Self.regularApps())
+        watcher.watchClosing(windows.elements)
         if anchors.hasCastOff || !anchors.stashed.isEmpty {
             anchors.prune(alive: Windows.alive())
         }
@@ -522,9 +561,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // workspaceChanged wakes the poll when an app or screen changes, and turns the shortcuts off or
-    // on when the front app changes.
+    // workspaceChanged wakes the passes when an app or screen changes, watches an app that just
+    // launched, and turns the shortcuts off or on when the front app changes.
     @objc private func workspaceChanged(_ note: Notification) {
+        if note.name == NSWorkspace.didLaunchApplicationNotification,
+           let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+           app.activationPolicy == .regular {
+            launching = Self.now + Self.launchSeconds
+            watcher.watch([app.processIdentifier])
+        }
         if note.name == NSWorkspace.didActivateApplicationNotification {
             if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
@@ -544,7 +589,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         wake()
     }
 
-    // appQuit forgets a quit app's elements and observer and wakes the poll.
+    // regularApps returns the processes of the apps that can show windows, other than moorings.
+    private static func regularApps() -> Set<pid_t> {
+        let me = ProcessInfo.processInfo.processIdentifier
+        return Set(NSWorkspace.shared.runningApplications.lazy
+            .filter { $0.activationPolicy == .regular && $0.processIdentifier != me }.map(\.processIdentifier))
+    }
+
+    // appQuit forgets a quit app's elements and observer and wakes the passes.
     @objc private func appQuit(_ note: Notification) {
         if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication {
             windows.forget(app.processIdentifier)

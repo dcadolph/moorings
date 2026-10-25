@@ -254,7 +254,7 @@ final class Selftest {
             check(ruleName, empty)
             return
         }
-        try await Task.sleep(for: .seconds(AppDelegate.idleSeconds + 0.5))
+        try await Task.sleep(for: .seconds(Pace.settleSeconds + 0.5))
         let target = Frame(x: ch.x + 100, y: ch.y + 100, w: 700, h: 500)
         anchors.choices.appRules = [AppRule(bundle: Self.bundle, frame: target)]
         app.save()
