@@ -226,6 +226,19 @@ final class Selftest {
         anchors.choices.paused = false
         app.save()
         check("drop anchor puts the window back", await settled { self.landed(c) })
+
+        let d = try await newDocument()
+        let focusName = "focus next window brings the app's other window forward"
+        let ids = windows(panels: false).map(\.id)
+        if let want = Tile.neighbor(ids, of: d, forward: true) {
+            app.actions.run("focus-next-window")
+            check(focusName, await settled {
+                let got = self.app.windows.scan(Screens.current()).focused?.id
+                return (got == want, "focused \(got.map(String.init) ?? "nothing"), want \(want)")
+            })
+        } else {
+            check(focusName, (false, "TextEdit shows one window"))
+        }
     }
 
     // check records one result and logs it.

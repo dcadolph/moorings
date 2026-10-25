@@ -233,7 +233,9 @@ struct SettingsView: View {
                                                      set: { v in model.change { $0.snapping[keyPath: path][area] = v } })) {
                         Text("Nothing").tag("")
                         ForEach(Self.snapCompounds, id: \.0) { Text($0.1).tag($0.0) }
-                        ForEach(actionNames, id: \.self) { Text(Keymaps.label($0)).tag($0) }
+                        ForEach(actionNames.filter { !Keymaps.windowNames.contains($0) }, id: \.self) {
+                            Text(Keymaps.label($0)).tag($0)
+                        }
                     }
                     Toggle("Never", isOn: Binding(get: { model.choices.snapping.ignoredSnapAreas.contains(area) },
                                                   set: { v in model.change {

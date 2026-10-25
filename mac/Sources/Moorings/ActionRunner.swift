@@ -47,6 +47,7 @@ final class ActionRunner {
                names: ["larger-width", "smaller-width", "larger-height", "smaller-height", "double-width-left",
                        "double-width-right", "double-height-up", "double-height-down", "halve-width-left",
                        "halve-width-right", "halve-height-up", "halve-height-down"], groups: []),
+        Family(title: "Front app", hint: nil, names: Keymaps.windowNames, groups: []),
         Family(title: "Displays", hint: "Send the front window to this display, keeping its place in the layout.",
                names: ["previous-display", "next-display"] + Actions.displayNames, groups: []),
     ]
@@ -79,6 +80,12 @@ final class ActionRunner {
         "halve-width-right": "Halve the front window's width, keeping its right half.",
         "halve-height-up": "Halve the front window's height, keeping its top half.",
         "halve-height-down": "Halve the front window's height, keeping its bottom half.",
+        "focus-next-window": "Bring the front app's next window forward, in the order they were opened.",
+        "focus-previous-window": "Bring the front app's previous window forward, in the order they were opened.",
+        "minimize-window": "Send the front window to the Dock.",
+        "close-window": "Close the front window, as its close button does.",
+        "minimize-others": "Send every other window of the front app to the Dock. Anchored windows stay.",
+        "close-others": "Close every other window of the front app. Anchored windows stay.",
     ]
 
     // app is the running app delegate.
@@ -134,6 +141,9 @@ final class ActionRunner {
 
     // perform applies action name, which is not a chain, to the focused window.
     private func perform(_ name: String) -> Bool {
+        if Keymaps.windowNames.contains(name) {
+            return frontApp(name)
+        }
         if Tile.handles(name) {
             return app.organizer.run(name)
         }
@@ -150,6 +160,48 @@ final class ActionRunner {
             CGWarpMouseCursorPosition(CGPoint(x: f.x + f.w / 2, y: f.y + f.h / 2))
         }
         return true
+    }
+
+    // frontApp runs a window action on the focused app's windows: bring its next or previous window
+    // forward, minimize or close the focused one, or minimize or close every other one. None moves a
+    // frame. Anchored windows are left alone, except that close-window closes one as its close button
+    // would.
+    private func frontApp(_ name: String) -> Bool {
+        let scan = app.windows.scan(Screens.current())
+        guard let w = scan.focused else {
+            logger.notice("\(name, privacy: .public): no focused window")
+            return false
+        }
+        let mine = scan.windows.filter { $0.bundle == w.bundle && !$0.isFilePanel }
+        switch name {
+        case "focus-next-window", "focus-previous-window":
+            guard let next = Tile.neighbor(mine.map(\.id), of: w.id, forward: name == "focus-next-window") else {
+                logger.notice("\(name, privacy: .public): the front app has no other window")
+                return false
+            }
+            app.windows.raise(next)
+            return true
+        case "close-window":
+            app.windows.close(w.id)
+            return true
+        case "minimize-window":
+            guard !anchors.pinned(w) else {
+                logger.notice("the window is pinned: window actions leave pins alone")
+                return false
+            }
+            app.windows.minimize(w.id)
+            return true
+        default:
+            let others = mine.filter { $0.id != w.id && !anchors.pinned($0) }
+            for o in others {
+                if name == "minimize-others" {
+                    app.windows.minimize(o.id)
+                } else {
+                    app.windows.close(o.id)
+                }
+            }
+            return !others.isEmpty
+        }
     }
 
     // apply applies action name to window w on the screen at index, its own screen when nil, and

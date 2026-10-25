@@ -122,3 +122,15 @@ func covered(_ frames: [Frame]) -> Double {
     let wide = F(0, 0, 1000, 400)
     #expect(Tile.overlapOffset(wide, others: [wide], area: area, size: 11, maxCascade: 1) == F(0, 11, 1000, 400))
 }
+
+// Swift only: the neighbor walks window numbers in order, wraps, and needs a second window.
+@Test func testTileNeighbor() {
+    let ids: [WindowID] = [30, 10, 20]
+    #expect(Tile.neighbor(ids, of: 10, forward: true) == 20)
+    #expect(Tile.neighbor(ids, of: 30, forward: true) == 10)
+    #expect(Tile.neighbor(ids, of: 10, forward: false) == 30)
+    #expect(Tile.neighbor(ids, of: 20, forward: false) == 10)
+    #expect(Tile.neighbor([10], of: 10, forward: true) == nil)
+    #expect(Tile.neighbor([10, 10], of: 10, forward: true) == nil)
+    #expect(Tile.neighbor(ids, of: 99, forward: true) == nil)
+}

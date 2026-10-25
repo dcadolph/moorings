@@ -319,10 +319,16 @@ public enum Keymaps {
         "cycle-stacked-windows", "cycle-stacked-windows-backward", "reverse-all",
     ]
 
+    // windowNames lists the actions on the front app's windows that never move a frame, in menu order.
+    public static let windowNames = [
+        "focus-next-window", "focus-previous-window", "minimize-window", "close-window", "minimize-others",
+        "close-others",
+    ]
+
     // known reports whether name is an action moorings can run. A workspace or chain name counts,
     // since both are saved after the shortcuts are bound.
     public static func known(_ name: String) -> Bool {
-        special.contains(name) || organizeNames.contains(name)
+        special.contains(name) || organizeNames.contains(name) || windowNames.contains(name)
             || name == Actions.specifiedName || Actions.displayNames.contains(name)
             || (name.hasPrefix(workspacePrefix) && name.count > workspacePrefix.count)
             || (name.hasPrefix(Chain.prefix) && name.count > Chain.prefix.count) || name == menuName

@@ -110,6 +110,17 @@ public enum Tile {
         names.contains(name)
     }
 
+    // neighbor returns the window after current in window number order, or before it when forward
+    // is false, wrapping at the ends. Window numbers follow the order windows were made, so repeat
+    // presses visit every window, where front to back order would bounce between the front two. It
+    // returns nil when current is not in ids or no other window is.
+    public static func neighbor(_ ids: [WindowID], of current: WindowID, forward: Bool) -> WindowID? {
+        let order = Array(Set(ids)).sorted()
+        guard order.count > 1, let at = order.firstIndex(of: current) else { return nil }
+        let n = order.count
+        return order[((at + (forward ? 1 : -1)) % n + n) % n]
+    }
+
     // columns returns n side by side frames filling area.
     public static func columns(_ area: Frame, _ n: Int, gap: Double = 0) -> [Frame] {
         (0..<max(n, 0)).map { Geometry.part(area, $0, $0 + 1, n, 0, 1, 1, gap: gap) }

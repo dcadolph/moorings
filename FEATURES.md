@@ -10,6 +10,8 @@ each part.
   thirds, two thirds, maximize, maximize height, center, larger, smaller, restore, and previous
   and next display. Spectacle's and Magnet's keymaps are one menu choice away, and None starts
   from a blank slate.
+- Front app windows: bring the next or previous window forward, minimize or close the front
+  window, and minimize or close every other window of the app while anchored windows stay put.
 - Every other Rectangle action by Rectangle's name: display one to nine, a specified size of
   1680 by 1050 points that you can change, and the side and center-section names, so a Rectangle link or script
   works with `moorings://action?name=`.

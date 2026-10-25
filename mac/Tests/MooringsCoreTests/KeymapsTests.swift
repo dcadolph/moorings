@@ -70,6 +70,10 @@ private func has(_ problems: [String], _ text: String) -> Bool {
     for name in Keymaps.organizeNames {
         #expect(Keymaps.known(name), "organize \(name)")
     }
+    for name in Keymaps.windowNames {
+        #expect(Keymaps.known(name), "window \(name)")
+        #expect(Geometry.position(name, Frame(x: 0, y: 0, w: 100, h: 100)) == nil, "no frame for \(name)")
+    }
     #expect(Keymaps.known("workspace:Day"))
     #expect(!Keymaps.known("workspace:"))
     #expect(Keymaps.known("chain:Focus"))

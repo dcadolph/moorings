@@ -180,12 +180,13 @@ Divvy costs $13.99 and Mosaic 14.99 GBP. The Lasso price is on a separate page a
 | Rectangle action set                                   | Raycast    | yes (see the Rectangle table) | testAllNames                   |
 | Move to Previous or Next Space, Move to Desktop 1 to 9 | Raycast    | planned (unit 24 spike)       | unit 24 spaces spike           |
 | Rename Desktop                                         | Raycast    | no (macOS has no public call to name a Space) | not applicable |
-| Open and Close a window                                | Raycast    | no (no unit yet, see the plan's Escalations) | not applicable  |
-| Focus next or previous app window                      | Raycast    | no (no unit yet, see the plan's Escalations) | not applicable  |
+| Close a window                                         | Raycast    | yes (close-window)            | testKnown                      |
+| Open a window                                          | Raycast    | no (a new window is an app command; launching an app is covered by workspaces) | not applicable |
+| Focus next or previous app window                      | Raycast    | yes (focus-next-window, focus-previous-window) | testTileNeighbor, selftest focus case |
 | Exact size and position commands in points             | Raycast    | yes                           | testPointsSpec, testSpecified|
 | Size and position as shares of the screen              | Raycast    | yes                           | testCustomShare                |
 | Layouts of up to eight windows with launch arguments   | Raycast    | planned (unit 17)             | unit 17 layouts that open apps |
-| Other windows behavior (minimize or close others)      | Raycast    | no (no unit yet, see the plan's Escalations) | not applicable  |
+| Other windows behavior (minimize or close others)      | Raycast    | yes (minimize-others, close-others; anchored windows stay) | testKnown |
 | Deeplinks                                              | Raycast    | planned (unit 26)             | unit 26 App Intents and links  |
 
 ## Energy

@@ -218,6 +218,12 @@ final class Windows {
         AXUIElementPerformAction(button, kAXPressAction as CFString)
     }
 
+    // minimize sends the window with id to the Dock.
+    func minimize(_ id: WindowID) {
+        guard let el = elements[id] else { return }
+        AXUIElementSetAttributeValue(el, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
+    }
+
     // title returns the title of the window with id, empty when it has none.
     func title(_ id: WindowID) -> String {
         elements[id].flatMap { Self.string($0, kAXTitleAttribute) } ?? ""
