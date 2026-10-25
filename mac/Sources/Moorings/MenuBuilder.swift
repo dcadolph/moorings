@@ -119,7 +119,7 @@ struct MenuBuilder {
         }
         out.append(ActionItem("Quit Moorings", tip: "Stop Moorings until you open it again from Applications or "
                 + "next log in. Your slots, widths and heights are kept.") {
-            NSApp.terminate(nil)
+            app.quit()
         })
         return out
     }

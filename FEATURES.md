@@ -151,6 +151,8 @@ each part.
 - One sailboat in the menu bar and no Dock icon.
 - Messages appear in a themed banner at the top right, not in macOS notifications, so there is no
   notification permission to grant.
+- Quit Moorings from the menu and an octopus pulls the sailboat under the water. With Reduce
+  Motion on it just quits.
 - Launch at login is one menu switch. Opening Moorings while it runs shows the settings window.
 - Moorings checks once a day for a new release and offers it at the top of the menu. The offer
   opens the release page, and Homebrew or the zip installs it. Nothing installs on its own.

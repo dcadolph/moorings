@@ -92,6 +92,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var badgeTimer: Timer?
     // started reports whether the first pass ran, which opens the anchored apps.
     private var started = false
+    // quitting reports whether Quit Moorings was chosen, so the icon stays blank while the boat sinks.
+    private var quitting = false
+    // sinking plays the quit animation.
+    private let sinking = Sinking()
 
     // now returns the time in seconds since boot.
     static var now: Double { ProcessInfo.processInfo.systemUptime }
@@ -184,6 +188,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshShortcuts()
         wake()
         moor()
+    }
+
+    // quit pulls the menu bar sailboat under the water, then quits. With Reduce Motion on, the icon
+    // hidden or no button on screen, it quits at once.
+    func quit() {
+        guard !quitting else { return }
+        quitting = true
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, item.isVisible, let button = item.button,
+              let win = button.window else {
+            NSApp.terminate(nil)
+            return
+        }
+        let rect = win.convertToScreen(button.convert(button.bounds, to: nil))
+        button.image = NSImage(size: button.image?.size ?? NSSize(width: 18, height: 18))
+        sinking.play(over: rect, appearance: button.effectiveAppearance,
+                     accent: BannerPanel.color(anchors.choices.theme.palette.accent)) {
+            NSApp.terminate(nil)
+        }
     }
 
     // applicationWillTerminate puts stashed windows back, so none is left parked off screen.
@@ -457,6 +479,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // showTrust shows a warning mark on the menu bar icon while Accessibility is missing.
     private func showTrust() {
+        guard !quitting else { return }
         item.button?.image = windows.trusted ? Mark.image()
             : NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "Moorings")
     }
