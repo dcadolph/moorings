@@ -390,13 +390,12 @@ struct SettingsView: View {
                 behaviorToggle("Animate window moves (experimental)", \.animate)
             }
             Section("Stacked windows") {
-                Toggle("Show how many windows are stacked under the pointer",
+                Toggle("Show how many windows are stacked when the pointer rests at a window's corner",
                        isOn: Binding(get: { model.choices.stacking.badge },
                                      set: { v in model.change { $0.stacking.badge = v } }))
-                Toggle("Count only windows of the same size",
+                Toggle("Stack and cycle only windows of the same size",
                        isOn: Binding(get: { model.choices.stacking.sameSizeOnly },
                                      set: { v in model.change { $0.stacking.sameSizeOnly = v } }))
-                    .disabled(!model.choices.stacking.badge)
             }
         }
         .formStyle(.grouped)

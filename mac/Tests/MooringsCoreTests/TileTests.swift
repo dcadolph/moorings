@@ -136,14 +136,77 @@ func covered(_ frames: [Frame]) -> Double {
 }
 
 // Swift only: the stack under the pointer counts a cascade, and same size only drops other sizes.
-@Test func testStackCount() {
-    let cascade = [F(160, 160, 600, 400), F(130, 130, 600, 400), F(100, 100, 600, 400), F(2000, 100, 600, 400)]
-    let hit = Tile.stackCount(at: Point(x: 300, y: 300), frames: cascade, sameSizeOnly: false)
-    #expect(hit?.0 == F(160, 160, 600, 400))
-    #expect(hit?.1 == 3)
-    #expect(Tile.stackCount(at: Point(x: 2100, y: 200), frames: cascade, sameSizeOnly: false)?.1 == 1)
-    #expect(Tile.stackCount(at: Point(x: 50, y: 50), frames: cascade, sameSizeOnly: false) == nil)
-    let mixed = [F(100, 100, 600, 400), F(100, 100, 300, 400)]
-    #expect(Tile.stackCount(at: Point(x: 200, y: 200), frames: mixed, sameSizeOnly: false)?.1 == 2)
-    #expect(Tile.stackCount(at: Point(x: 200, y: 200), frames: mixed, sameSizeOnly: true)?.1 == 1)
+// stackChoices returns stack choices with offset size, max cascade and sameSizeOnly set.
+func stackChoices(_ size: Double = 11, _ cascade: Int = 1, sameSize: Bool = false) -> StackChoices {
+    var c = StackChoices()
+    c.overlapOffsetSize = size
+    c.overlapMaxCascade = cascade
+    c.sameSizeOnly = sameSize
+    return c
+}
+
+// Test 0: Reach follows the offset size and max cascade, clamped to one to five steps.
+@Test func testStackReach() {
+    #expect(StackChoices().reach == 13)
+    #expect(stackChoices(30, 3).reach == 92)
+    #expect(stackChoices(11, 9).reach == 57)
+    #expect(stackChoices(0, 0).reach == 3)
+}
+
+// Test 1: A stack is the densest cascade cluster holding the window, read the same from any member.
+@Test func testStack() {
+    let corner = [F(100, 100, 600, 400), F(111, 111, 600, 400), F(100, 100, 300, 200), F(2000, 100, 600, 400)]
+    for i in 0..<3 {
+        #expect(Tile.stack(anchorOf: i, among: corner, choices: StackChoices()) == [0, 1, 2])
+    }
+    #expect(Tile.stack(anchorOf: 3, among: corner, choices: StackChoices()) == [3])
+    #expect(Tile.stack(anchorOf: 4, among: corner, choices: StackChoices()).isEmpty)
+
+    let row = [F(100, 100, 600, 400), F(111, 100, 600, 400), F(122, 100, 600, 400)]
+    #expect(Tile.stack(anchorOf: 0, among: row, choices: StackChoices()) == [0, 1])
+    #expect(Tile.stack(anchorOf: 1, among: row, choices: StackChoices()) == [0, 1])
+    #expect(Tile.stack(anchorOf: 2, among: row, choices: StackChoices()) == [1, 2])
+    for i in 0..<3 {
+        #expect(Tile.stack(anchorOf: i, among: row, choices: stackChoices(11, 2)) == [0, 1, 2])
+    }
+
+    let cascade = [F(100, 100, 600, 400), F(130, 130, 600, 400), F(160, 160, 600, 400)]
+    for i in 0..<3 {
+        #expect(Tile.stack(anchorOf: i, among: cascade, choices: StackChoices()) == [i])
+        #expect(Tile.stack(anchorOf: i, among: cascade, choices: stackChoices(30, 3)) == [0, 1, 2])
+    }
+}
+
+// Test 2: A maximized window at a half's corner joins the stack unless sameSizeOnly.
+@Test func testStackSameSize() {
+    let frames = [F(723, 30, 2198, 1410), F(723, 30, 4396, 1410), F(725, 31, 2180, 1400)]
+    #expect(Tile.stack(anchorOf: 0, among: frames, choices: StackChoices()) == [0, 1, 2])
+    #expect(Tile.stack(anchorOf: 0, among: frames, choices: stackChoices(sameSize: true)) == [0, 2])
+    #expect(Tile.stack(anchorOf: 1, among: frames, choices: stackChoices(sameSize: true)) == [1])
+}
+
+// Test 3: An origin just left of a stack's corner does not become its corner.
+@Test func testStackDensest() {
+    let frames = [F(90, 100, 600, 400), F(100, 100, 600, 400), F(100, 100, 600, 400), F(111, 111, 600, 400),
+                  F(111, 111, 600, 400)]
+    #expect(Tile.stack(anchorOf: 1, among: frames, choices: StackChoices()) == [1, 2, 3, 4])
+    #expect(Tile.stack(anchorOf: 4, among: frames, choices: StackChoices()) == [1, 2, 3, 4])
+    #expect(Tile.stack(anchorOf: 0, among: frames, choices: StackChoices()) == [0, 1, 2])
+
+    let rounded = [F(100, 100, 600, 400), F(100, 100, 600, 400), F(99, 100, 600, 400), F(113, 100, 600, 400)]
+    #expect(Tile.stack(anchorOf: 0, among: rounded, choices: StackChoices()) == [0, 1, 2, 3])
+    #expect(Tile.stack(anchorOf: 2, among: rounded, choices: StackChoices()) == [0, 1, 2, 3])
+}
+
+// Test 4: The pointer asks for the badge only while it rests at the front window's top-left corner.
+@Test func testHovered() {
+    let frames = [F(100, 100, 600, 400), F(90, 90, 800, 600)]
+    #expect(Tile.hovered(at: Point(x: 120, y: 120), frames: frames, gap: 0) == 0)
+    #expect(Tile.hovered(at: Point(x: 97, y: 97), frames: frames, gap: 0) == 0)
+    #expect(Tile.hovered(at: Point(x: 400, y: 300), frames: frames, gap: 0) == nil)
+    #expect(Tile.hovered(at: Point(x: 95, y: 95), frames: frames, gap: 0) == 1)
+    #expect(Tile.hovered(at: Point(x: 50, y: 50), frames: frames, gap: 0) == nil)
+    #expect(Tile.hovered(at: Point(x: 155, y: 155), frames: frames, gap: 10) == 0)
+    #expect(Tile.hovered(at: Point(x: 160, y: 120), frames: frames, gap: 10) == nil)
+    #expect(Tile.hovered(at: Point(x: 120, y: 160), frames: frames, gap: 10) == nil)
 }

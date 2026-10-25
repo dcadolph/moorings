@@ -84,8 +84,10 @@ final class Organizer {
         case "cascade-active-app":
             return cascade(list.filter { $0.bundle == win.bundle }, a)
         case "cycle-stacked-windows", "cycle-stacked-windows-backward":
-            let stack = list.filter { Actions.near($0.frame, win.frame) }.sorted { $0.id < $1.id }
-            guard let at = stack.firstIndex(where: { $0.id == win.id }) else { return false }
+            guard let me = list.firstIndex(where: { $0.id == win.id }) else { return false }
+            let stack = Tile.stack(anchorOf: me, among: list.map(\.frame), choices: anchors.choices.stacking)
+                .map { list[$0] }.sorted { $0.id < $1.id }
+            guard stack.count > 1, let at = stack.firstIndex(where: { $0.id == win.id }) else { return false }
             let dir = name == "cycle-stacked-windows" ? 1 : -1
             app.windows.raise(stack[((at + dir) % stack.count + stack.count) % stack.count].id)
             return true

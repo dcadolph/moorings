@@ -295,33 +295,50 @@ final class DragSnap {
 }
 
 // StackBadge is the small count that sits on the top-right corner of a stacked window while the
-// pointer hovers it.
+// pointer rests at that window's top-left corner.
 @MainActor
 final class StackBadge {
+    // restMove is the most in points the pointer may move between two ticks and still count as
+    // resting.
+    static let restMove = 2.0
+
     // panel is the badge window, nil until first shown.
     private var panel: NSPanel?
     // label draws the count.
     private let label = NSTextField(labelWithString: "")
-    // pointer is the pointer position the badge was last worked out for.
+    // pointer is the pointer position at the previous tick.
     private var pointer: Point?
+    // settled reports whether the badge was already worked out for the current rest.
+    private var settled = false
 
-    // update shows the count of the stack under the pointer, or hides the badge when the pointer is
-    // over no stack or a mouse button is down. It reads the window list only when the pointer moved.
-    func update(palette: Palette, sameSizeOnly: Bool) {
+    // update runs once a tick. Any move of more than restMove hides the badge and restarts the rest.
+    // On the first tick of a rest it shows the count of the stack whose front window has its
+    // top-left corner under the pointer, or hides the badge when there is none. It reads the window
+    // list once per rest, never while the pointer moves or stays still, and hides the badge while a
+    // mouse button is down.
+    func update(palette: Palette, choices: StackChoices, gap: Double) {
         guard NSEvent.pressedMouseButtons == 0 else {
             hide()
+            pointer = nil
             return
         }
         let primary = NSScreen.screens.first?.frame.height ?? 0
         let loc = NSEvent.mouseLocation
         let p = Point(x: loc.x, y: primary - loc.y)
-        guard p != pointer else { return }
-        pointer = p
-        guard let (front, n) = Tile.stackCount(at: p, frames: Self.frames(), sameSizeOnly: sameSizeOnly), n > 1 else {
+        defer { pointer = p }
+        guard let last = pointer, abs(p.x - last.x) <= Self.restMove, abs(p.y - last.y) <= Self.restMove else {
             hide()
+            settled = false
             return
         }
-        show(n, at: front, primary: primary, palette: palette)
+        guard !settled else { return }
+        settled = true
+        let frames = Self.frames()
+        guard let i = Tile.hovered(at: p, frames: frames, gap: gap) else { return }
+        let n = Tile.stack(anchorOf: i, among: frames, choices: choices).count
+        if n > 1 {
+            show(n, at: frames[i], primary: primary, palette: palette)
+        }
     }
 
     // hide removes the badge.
@@ -329,7 +346,8 @@ final class StackBadge {
         panel?.orderOut(nil)
     }
 
-    // frames lists the frames of the normal windows on screen, front to back, leaving out Moorings' own.
+    // frames lists the frames of the visible normal windows on screen, front to back, leaving out
+    // Moorings' own.
     private static func frames() -> [Frame] {
         let own = ProcessInfo.processInfo.processIdentifier
         let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
@@ -337,6 +355,7 @@ final class StackBadge {
         return list.compactMap { info in
             guard (info[kCGWindowLayer as String] as? Int) == 0,
                   (info[kCGWindowOwnerPID as String] as? pid_t) != own,
+                  (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
                   let b = info[kCGWindowBounds as String] as? [String: Double],
                   let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"] else { return nil }
             return Frame(x: x, y: y, w: w, h: h)

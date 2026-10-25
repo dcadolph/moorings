@@ -201,7 +201,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         if anchors.choices.stacking.badge {
-            stackBadge.update(palette: anchors.choices.theme.palette, sameSizeOnly: anchors.choices.stacking.sameSizeOnly)
+            stackBadge.update(palette: anchors.choices.theme.palette, choices: anchors.choices.stacking,
+                              gap: anchors.choices.gapPx)
         } else {
             stackBadge.hide()
         }

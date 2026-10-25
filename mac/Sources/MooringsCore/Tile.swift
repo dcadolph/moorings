@@ -91,6 +91,13 @@ public struct StackChoices: Equatable, Sendable, Codable {
         badge = (try? c.decodeIfPresent(Bool.self, forKey: .badge)) ?? false
         sameSizeOnly = (try? c.decodeIfPresent(Bool.self, forKey: .sameSizeOnly)) ?? false
     }
+
+    // reach is how far in points a window's top-left corner may sit right of, above or below a
+    // stack's corner and still be in the stack: every step the overlap offset can take, plus the
+    // rounding tolerance.
+    public var reach: Double {
+        max(overlapOffsetSize, 1) * Double(min(5, max(1, overlapMaxCascade))) + Actions.tolerance
+    }
 }
 
 // Tile holds the organize frame math: columns, rows, a grid, a cascade and a mirror. Every function
@@ -105,23 +112,62 @@ public enum Tile {
     // cascadeStep is how far in points each cascaded window sits from the last.
     public static let cascadeStep = 30.0
 
-    // stackReach is how far in points a window's top-left corner may sit from the front window's and
-    // still count as stacked with it, enough for a cascade of several windows.
-    public static let stackReach = 150.0
+    // stackSizeTolerance is how far in points two windows' sizes may differ and still count as the
+    // same size, so terminals that round to a character cell stack together.
+    public static let stackSizeTolerance = 24.0
 
-    // stackCount returns the front window under p and how many windows share its stack, given frames
-    // front to back: the front one plus each window whose top-left corner sits within stackReach of
-    // its own, of the same size too when sameSizeOnly. It returns nil when no window is under p.
-    public static func stackCount(at p: Point, frames: [Frame], sameSizeOnly: Bool) -> (Frame, Int)? {
-        guard let i = frames.firstIndex(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
-        else { return nil }
-        let front = frames[i]
-        let n = frames.indices.filter { j in
+    // cornerZone is how far in points right of and below a window's top-left corner the pointer may
+    // rest and still ask for the stack badge, before the gap is added.
+    public static let cornerZone = 48.0
+
+    // cornerSlack is how far in points left of and above a window's top-left corner the pointer may
+    // rest and still count as at that corner.
+    public static let cornerSlack = 4.0
+
+    // stack returns the indices of the windows stacked with frames[i], in frames order: the densest
+    // cascade cluster holding it. Every origin is tried as the cluster's left corner, a window joins
+    // when its origin sits up to the tolerance left of that corner and up to the reach right of,
+    // above or below it, and the earliest corner wins a tie. Any size counts unless sameSizeOnly,
+    // when only windows within stackSizeTolerance of frames[i]'s size are clustered. It returns an
+    // empty list when i is out of range. The stack badge and cycle-stacked-windows both use it, so
+    // the badge counts what the shortcut cycles.
+    public static func stack(anchorOf i: Int, among frames: [Frame], choices: StackChoices) -> [Int] {
+        guard frames.indices.contains(i) else { return [] }
+        let me = frames[i]
+        let pool = frames.indices.filter { j in
             let f = frames[j]
-            guard abs(f.x - front.x) <= stackReach, abs(f.y - front.y) <= stackReach else { return false }
-            return !sameSizeOnly || (abs(f.w - front.w) <= Actions.tolerance && abs(f.h - front.h) <= Actions.tolerance)
-        }.count
-        return (front, n)
+            return !choices.sameSizeOnly
+                || (abs(f.w - me.w) <= stackSizeTolerance && abs(f.h - me.h) <= stackSizeTolerance)
+        }
+        var best: [Int] = []
+        for a in pool {
+            let c = cluster(at: frames[a], among: frames, pool: pool, reach: choices.reach)
+            if c.count > best.count && c.contains(i) {
+                best = c
+            }
+        }
+        return best
+    }
+
+    // cluster returns the indices in pool whose origin sits in the cascade box of corner's origin.
+    static func cluster(at corner: Frame, among frames: [Frame], pool: [Int], reach: Double) -> [Int] {
+        pool.filter { j in
+            let dx = frames[j].x - corner.x
+            let dy = frames[j].y - corner.y
+            return dx >= -Actions.tolerance && dx <= reach && dy >= -reach && dy <= reach
+        }
+    }
+
+    // hovered returns the index of the front window under p, given frames front to back, when p
+    // rests at that window's top-left corner: up to cornerZone plus gap right of and below it, or up
+    // to cornerSlack left of and above it. It returns nil anywhere else, including the rest of the
+    // window.
+    public static func hovered(at p: Point, frames: [Frame], gap: Double) -> Int? {
+        guard let i = frames.firstIndex(where: { f in
+            p.x >= f.x - cornerSlack && p.x < f.x + f.w && p.y >= f.y - cornerSlack && p.y < f.y + f.h
+        }) else { return nil }
+        let zone = cornerZone + gap
+        return p.x - frames[i].x <= zone && p.y - frames[i].y <= zone ? i : nil
     }
 
     // handles reports whether name is an organize action.
