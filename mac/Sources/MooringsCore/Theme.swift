@@ -106,7 +106,7 @@ public enum ThemeName: String, Sendable, Codable, CaseIterable, Identifiable {
     case phosphor
     case rose
     case hussar
-    case tyrian
+    case grapes
     case coast
     case verdigris
     case copper
@@ -125,7 +125,7 @@ public enum ThemeName: String, Sendable, Codable, CaseIterable, Identifiable {
         case .phosphor: return "Phosphor"
         case .rose: return "Rose"
         case .hussar: return "Hussar"
-        case .tyrian: return "Tyrian"
+        case .grapes: return "Grapes"
         case .coast: return "Coast"
         case .verdigris: return "Verdigris"
         case .copper: return "Copper"
@@ -143,7 +143,7 @@ public enum ThemeName: String, Sendable, Codable, CaseIterable, Identifiable {
         case .phosphor: return Self.make("#050a05", "#0b160b", "#b8ffb0", "#5fae5a", "#33ff33")
         case .rose: return Self.make("#0e0c0c", "#1c1919", "#f4f1ee", "#a9a3a0", "#d6282f")
         case .hussar: return Self.make("#1a0608", "#2b0c10", "#f3e3c0", "#c2a272", "#d4a63a")
-        case .tyrian: return Self.make("#140816", "#231027", "#f0e2f5", "#b597bf", "#b04cc8")
+        case .grapes: return Self.make("#140816", "#231027", "#f0e2f5", "#b597bf", "#b04cc8")
         case .coast: return Self.make("#060b1f", "#0e1736", "#e3e9ff", "#8e9cc9", "#4f78ff")
         case .verdigris: return Self.make("#0a1614", "#12241f", "#dff3ec", "#86b3a5", "#43b39a")
         case .copper: return Self.make("#0c0c0d", "#18181a", "#f5f5f2", "#a8a8a3", "#c07a44")

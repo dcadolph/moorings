@@ -17,15 +17,15 @@ import Testing
     }
 }
 
-// Theme case 1: Rose labels an accent fill in white and Tyrian in black, and both fall back to
+// Theme case 1: Rose labels an accent fill in white and Grapes in black, and both fall back to
 // the text color for small accent text.
 @Test func testThemeAccentRules() {
     let rose = ThemeName.rose.palette
     #expect(rose.onAccent == .white)
     #expect(rose.accentText == rose.text)
-    let tyrian = ThemeName.tyrian.palette
-    #expect(tyrian.onAccent == .black)
-    #expect(tyrian.accentText == tyrian.text)
+    let grapes = ThemeName.grapes.palette
+    #expect(grapes.onAccent == .black)
+    #expect(grapes.accentText == grapes.text)
 }
 
 // Theme case 2: A theme whose background reaches 4.5 on the accent labels with the background, and
