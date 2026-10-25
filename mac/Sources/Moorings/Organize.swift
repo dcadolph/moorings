@@ -156,10 +156,19 @@ final class Organizer {
     // is not running, or whose display is gone, stay where they are.
     @discardableResult
     func recall(_ name: String) -> Bool {
-        guard !anchors.choices.paused else { return false }
+        guard let missed = place(name) else { return false }
+        app.notify("Workspace \(name)", missed > 0 ? "Recalled. \(missed) windows had no running app or display."
+            : "Recalled.")
+        return true
+    }
+
+    // place puts back the workspace saved as name without a banner and returns how many of its
+    // windows had no running app or display, or nil when paused or no workspace has that name.
+    private func place(_ name: String) -> Int? {
+        guard !anchors.choices.paused else { return nil }
         guard let ws = anchors.choices.workspaces[name] else {
             logger.notice("no workspace is named \(name, privacy: .public)")
-            return false
+            return nil
         }
         anchors.choices.slots = ws.slots
         if let w = ws.widths, Layout.validSplit(w) {
@@ -185,10 +194,8 @@ final class Organizer {
         if missed > 0 {
             logger.notice("workspace \(name, privacy: .public): \(missed) windows had no running app or display")
         }
-        app.notify("Workspace \(name)", missed > 0 ? "Recalled. \(missed) windows had no running app or display."
-            : "Recalled.")
         app.save()
-        return true
+        return missed
     }
 
     // delete removes the workspace saved as name.
@@ -255,11 +262,20 @@ final class Organizer {
         }
         anchors.choices = anchors.choices.applying(profile)
         app.save()
-        for ws in profile.workspaces {
-            recall(ws)
+        let paused = anchors.choices.paused && !profile.workspaces.isEmpty
+        var recalled: [String] = []
+        var missing: [String] = []
+        var missed = 0
+        for ws in profile.workspaces where !paused {
+            if let n = place(ws) {
+                recalled.append(ws)
+                missed += n
+            } else {
+                missing.append(ws)
+            }
         }
-        app.notify("Profile \(name)", profile.workspaces.isEmpty ? "Switched." :
-            "Switched and recalled \(profile.workspaces.joined(separator: ", ")).")
+        app.notify("Profile \(name)",
+                   Profiles.switchMessage(recalled: recalled, missing: missing, missed: missed, paused: paused))
         return true
     }
 
