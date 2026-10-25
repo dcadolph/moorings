@@ -17,6 +17,30 @@ final class Organizer {
     // setup is the signature of the displays last seen, so a display change recalls its workspace
     // once. The displays attached at launch count as handled.
     private var setup: String
+    // waitSeconds is how long a recall waits for the window of an app it opened.
+    static let waitSeconds = 30.0
+    // recheckSeconds is how long after a rule or a launch places a window it is checked again, for an
+    // app that moves its own window once it shows.
+    static let recheckSeconds = 1.0
+
+    // Awaited is a window a recall is waiting for: the app it opened, the saved title and where it goes.
+    struct Awaited {
+        // bundle is the app opened.
+        let bundle: String
+        // title is the title the window was saved with.
+        let title: String
+        // frame is where the window goes.
+        let frame: Frame
+        // until is when the recall stops waiting.
+        let until: Double
+    }
+
+    // awaited lists the windows recalls are waiting for.
+    private var awaited: [Awaited] = []
+    // present lists the apps with a window on screen at the last look, nil before the first look.
+    private var present: Set<String>?
+    // rechecks maps a window a rule or launch placed to the frame it was given and when to check it.
+    private var rechecks: [WindowID: (frame: Frame, at: Double)] = [:]
 
     // init builds an organizer for app.
     init(app: AppDelegate) {
@@ -152,13 +176,19 @@ final class Organizer {
         app.save()
     }
 
-    // recall puts back the workspace saved as name and reports whether it existed. Windows whose app
-    // is not running, or whose display is gone, stay where they are.
+    // recall puts back the workspace saved as name and reports whether it existed. Apps it opens get
+    // their windows placed once they show. Other windows whose app is not running, or whose display is
+    // gone, stay where they are.
     @discardableResult
     func recall(_ name: String) -> Bool {
+        let opening = awaited.count
         guard let missed = place(name) else { return false }
-        app.notify("Workspace \(name)", missed > 0 ? "Recalled. \(missed) windows had no running app or display."
-            : "Recalled.")
+        let opened = awaited.count - opening
+        var text = missed > 0 ? "Recalled. \(missed) windows had no running app or display." : "Recalled."
+        if opened > 0 {
+            text += opened == 1 ? " Opening 1 app." : " Opening \(opened) apps."
+        }
+        app.notify("Workspace \(name)", text)
         return true
     }
 
@@ -183,7 +213,16 @@ final class Organizer {
         let areas = screens.full.indices.map { ScreenAreas(full: screens.full[$0], area: area(screens, $0)) }
         let matched = Workspaces.match(ws.windows, info)
         var missed = 0
+        var opened: Set<String> = []
         for (i, saved) in ws.windows.enumerated() {
+            if matched[i] == nil, let b = saved.launchBundle, !b.isEmpty, let target = Workspaces.fit(saved.frame, areas) {
+                if opened.insert(b + "\u{0}" + (saved.openTarget ?? "")).inserted {
+                    app.open(b, background: true, target: saved.openTarget)
+                }
+                awaited.append(Awaited(bundle: saved.bundle, title: saved.title, frame: target,
+                                       until: AppDelegate.now + Self.waitSeconds))
+                continue
+            }
             guard let j = matched[i], let target = Workspaces.fit(saved.frame, areas) else {
                 missed += 1
                 continue
@@ -229,13 +268,65 @@ final class Organizer {
         app.save()
     }
 
-    // screensChanged recalls the workspace tied to the display setup just plugged in.
+    // screensChanged recalls the workspace tied to the display setup just plugged in, then each
+    // workspace marked to come back on any display change, in name order.
     func screensChanged() {
         let now = Workspaces.signature(Screens.current().full)
         guard now != setup else { return }
         setup = now
-        if let name = anchors.choices.workspaces.keys.sorted().first(where: { anchors.choices.workspaces[$0]?.setup == now }) {
-            recall(name)
+        let tied = anchors.choices.workspaces.keys.sorted().first { anchors.choices.workspaces[$0]?.setup == now }
+        if let tied {
+            recall(tied)
+        }
+        for ws in Workspaces.recalling(anchors.choices.workspaces) where ws.name != tied {
+            recall(ws.name)
+        }
+    }
+
+    // seen looks at the windows on screen after each pass. A window a recall was waiting for goes where
+    // the workspace saved it, matched by title first. Then, for each app whose first window just
+    // appeared, its rule places that window. Apps already showing windows at the first look are not
+    // new. A placed window is checked once more a moment later and put back if its app moved it.
+    func seen(_ list: [WindowInfo], screens: Screens) {
+        let now = AppDelegate.now
+        let free = list.filter { !$0.isFilePanel && !$0.isFullScreen && !anchors.pinned($0) }
+        let bundles = Set(list.filter { !$0.isFilePanel }.map(\.bundle))
+        defer { present = bundles }
+        for (id, r) in rechecks where now >= r.at {
+            rechecks[id] = nil
+            if let f = app.windows.frame(id), !Actions.near(f, r.frame, tolerance: Actions.tolerance) {
+                app.windows.move(id, to: r.frame)
+            }
+        }
+        awaited.removeAll { $0.until < now }
+        var claimed: Set<WindowID> = []
+        var placedApps: Set<String> = []
+        for (k, a) in awaited.enumerated().reversed() {
+            let mine = free.filter { $0.bundle == a.bundle && !claimed.contains($0.id) }
+            guard let w = mine.first(where: { app.windows.title($0.id) == a.title }) ?? mine.first else { continue }
+            claimed.insert(w.id)
+            placedApps.insert(a.bundle)
+            awaited.remove(at: k)
+            anchors.save(w)
+            app.windows.move(w.id, to: a.frame)
+            rechecks[w.id] = (a.frame, now + Self.recheckSeconds)
+        }
+        guard let before = present, !anchors.choices.paused else { return }
+        for bundle in bundles.subtracting(before).subtracting(placedApps).sorted() {
+            guard let rule = Workspaces.rule(bundle, anchors.choices.appRules),
+                  let w = free.first(where: { $0.bundle == bundle })
+            else { continue }
+            if let f = rule.frame {
+                let areas = screens.full.indices.map { ScreenAreas(full: screens.full[$0], area: area(screens, $0)) }
+                guard let target = Workspaces.fit(f, areas) else { continue }
+                anchors.save(w)
+                app.windows.move(w.id, to: target)
+                rechecks[w.id] = (target, now + Self.recheckSeconds)
+            } else if let name = rule.action, app.actions.apply(name, to: w, screens: screens),
+                      let f = app.windows.frame(w.id) {
+                rechecks[w.id] = (f, now + Self.recheckSeconds)
+            }
+            logger.notice("rule for \(bundle, privacy: .public) placed its first window")
         }
     }
 

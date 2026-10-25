@@ -100,6 +100,7 @@ final class Selftest {
         }
         anchors.choices.slots = saved.slots
         anchors.choices.paused = saved.paused
+        anchors.choices.appRules = saved.appRules
         app.save()
         if !foreign {
             await quitTextEdit()
@@ -239,6 +240,26 @@ final class Selftest {
         } else {
             check(focusName, (false, "TextEdit shows one window"))
         }
+
+        let ruleName = "an app rule places the app's first window"
+        anchors.choices.slots[slot] = nil
+        app.save()
+        for id in made {
+            try await close(id)
+        }
+        made = []
+        let empty = await settled({ (self.windows(panels: false).isEmpty, "TextEdit still shows a window") },
+                                  Self.openSeconds)
+        guard empty.0 else {
+            check(ruleName, empty)
+            return
+        }
+        try await Task.sleep(for: .seconds(AppDelegate.idleSeconds + 0.5))
+        let target = Frame(x: ch.x + 100, y: ch.y + 100, w: 700, h: 500)
+        anchors.choices.appRules = [AppRule(bundle: Self.bundle, frame: target)]
+        app.save()
+        let e = try await newDocument()
+        check(ruleName, await settled { self.at(e, target) })
     }
 
     // check records one result and logs it.

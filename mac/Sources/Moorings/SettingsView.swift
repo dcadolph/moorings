@@ -121,6 +121,53 @@ struct SettingsView: View {
                                      $0.workspaces[name] = nil
                                      for i in $0.profiles.indices { $0.profiles[i].workspaces.removeAll { $0 == name } }
                                  } })
+                    if let ws = model.choices.workspaces[name] {
+                        HStack {
+                            Toggle("Open missing apps", isOn: Binding(
+                                get: { !ws.windows.isEmpty && ws.windows.allSatisfy { $0.launchBundle != nil } },
+                                set: { v in model.change {
+                                    guard var w = $0.workspaces[name] else { return }
+                                    for i in w.windows.indices {
+                                        w.windows[i].launchBundle = v ? w.windows[i].bundle : nil
+                                    }
+                                    $0.workspaces[name] = w
+                                } }))
+                            Toggle("Recall on any display change", isOn: Binding(
+                                get: { ws.recallOnDisplayChange },
+                                set: { v in model.change { $0.workspaces[name]?.recallOnDisplayChange = v } }))
+                        }
+                        .toggleStyle(.checkbox)
+                    }
+                }
+            }
+            Section("App rules") {
+                Text("A rule places an app's first window when it appears: when the app opens, or when it shows a "
+                    + "window again after having none. Anchored apps keep their slots.")
+                    .font(.callout).foregroundStyle(.secondary)
+                ForEach(Array(model.choices.appRules.enumerated()), id: \.offset) { i, rule in
+                    HStack {
+                        Text(model.app.appName(rule.bundle))
+                        Spacer()
+                        Picker("", selection: Binding(get: { rule.action ?? "" }, set: { v in model.change {
+                            $0.appRules[i].action = v.isEmpty ? nil : v
+                            $0.appRules[i].frame = nil
+                        } })) {
+                            if rule.frame != nil {
+                                Text("Saved frame").tag("")
+                            }
+                            ForEach(snapTargets, id: \.self) { Text(Keymaps.label($0)).tag($0) }
+                        }
+                        .frame(width: 220)
+                        Button("Remove") { model.change { _ = $0.appRules.remove(at: i) } }
+                    }
+                }
+                Picker("Add a rule for", selection: Binding(get: { "" }, set: { b in
+                    if !b.isEmpty { model.change { $0.appRules.append(AppRule(bundle: b, action: "center")) } }
+                })) {
+                    Text("Choose…").tag("")
+                    ForEach(runningApps.filter { b in !model.choices.appRules.contains { $0.bundle == b } }, id: \.self) {
+                        Text(model.app.appName($0)).tag($0)
+                    }
                 }
             }
             profiles(names)
@@ -479,6 +526,12 @@ struct SettingsView: View {
                 in: 0.05...1, step: 0.05) {
             Text("\(title): \(Int((model.choices.behavior[keyPath: path] * 100).rounded()))%")
         }
+    }
+
+    // runningApps lists the bundle IDs of the running apps that show in the Dock, sorted.
+    private var runningApps: [String] {
+        Set(NSWorkspace.shared.runningApplications.filter { $0.activationPolicy == .regular }
+            .compactMap(\.bundleIdentifier)).subtracting(["com.dcadolph.moorings"]).sorted()
     }
 
     // snapTargets lists the actions a custom snap area can take.

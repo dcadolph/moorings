@@ -82,7 +82,11 @@ each part.
 
 - Save the slots, widths, heights and the frame of every free window on every display under a
   name, then recall it from the menu, a shortcut or a link.
-- Tie a workspace to a set of displays, and plugging into that setup recalls it.
+- Tie a workspace to a set of displays, and plugging into that setup recalls it. Mark one to come
+  back on any display change.
+- Open missing apps: a recall opens the apps a workspace names that are not running, with the file
+  or URL an imported settings file names, and places their windows once they show.
+- App rules: name an app and an action, and its first window goes there when it appears.
 - Profiles: save shortcuts, snapping, behavior, chains, menu and theme under a name with a group of
   workspaces, and switch between them from the menu or a shortcut. Anchored apps stay put.
 

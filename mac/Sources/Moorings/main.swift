@@ -236,7 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let screens = Screens.current()
         let (list, focused) = windows.scan(screens)
         watcher.watch(windows.scanned)
-        if anchors.hasCastOff {
+        if anchors.hasCastOff || !anchors.stashed.isEmpty {
             anchors.prune(alive: Windows.alive())
         }
         let scene = Scene(screen: screens.wide, windows: list, focused: focused?.id,
@@ -244,6 +244,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for move in anchors.moor(scene) {
             apply(move)
         }
+        organizer.seen(list, screens: screens)
         for id in anchors.justReleased {
             logger.notice("window \(id) was moved by hand: released")
             let name = list.first { $0.id == id }.map { appName($0.bundle) } ?? "The window"
@@ -458,10 +459,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // open opens the app with bundle the way a Dock click does, which launches it or asks a running
     // app with no window for a new one. A background open leaves the front app in front.
-    func open(_ bundle: String, background: Bool) {
+    func open(_ bundle: String, background: Bool, target: String? = nil) {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        task.arguments = (background ? ["-g"] : []) + ["-b", bundle]
+        task.arguments = (background ? ["-g"] : []) + ["-b", bundle] + (target.map { [$0] } ?? [])
         do {
             try task.run()
         } catch {
