@@ -180,6 +180,18 @@ final class Windows {
     // own resizing and land off the frame asked for.
     static let enhancedUIKey = "AXEnhancedUserInterface" as CFString
 
+    // slide moves the window with id from start to frame through Behavior.steps over
+    // Behavior.animationTime, then lands it exactly with move(_:to:enhancedUI:).
+    func slide(_ id: WindowID, from start: Frame, to frame: Frame, enhancedUI mode: EnhancedUIMode) {
+        let steps = Behavior.steps(from: start, to: frame)
+        let pause = Behavior.animationTime / Double(steps.count - 1)
+        for f in steps.dropFirst().dropLast() {
+            move(id, to: f)
+            Thread.sleep(forTimeInterval: pause)
+        }
+        move(id, to: frame, enhancedUI: mode)
+    }
+
     // move puts the window with id at frame with its app's Enhanced UI off for the move, and turns it
     // back on afterward when mode says to.
     func move(_ id: WindowID, to frame: Frame, enhancedUI mode: EnhancedUIMode) {

@@ -252,3 +252,27 @@ private let behaviorScreen = Frame(x: 0, y: 0, w: 1000, h: 800)
     #expect(ButtonClicks.valid(["red": "nonsense"]).count == 1)
     #expect(ButtonClicks.valid(["red": "size:Wide"], sizes: ["size:Wide"]).isEmpty)
 }
+
+// Swift only: animation steps start on the window, end exactly on the target and never turn back.
+@Test func testAnimationSteps() {
+    let start = F(0, 0, 400, 300)
+    let target = F(1000, 25, 1280, 875)
+    let steps = Behavior.steps(from: start, to: target)
+    #expect(steps.count == Behavior.animationWrites + 1)
+    #expect(steps.first == start)
+    #expect(steps.last == target)
+    for (a, b) in zip(steps, steps.dropFirst()) {
+        #expect(a.x <= b.x && a.y <= b.y && a.w <= b.w && a.h <= b.h)
+    }
+    #expect(steps[1].x - steps[0].x > steps[8].x - steps[7].x)
+    let back = Behavior.steps(from: target, to: start)
+    #expect(back.last == start)
+    #expect(Behavior.steps(from: start, to: start, writes: 0) == [start, start])
+}
+
+// Swift only: animate is off when old choices leave it out.
+@Test func testAnimateDefault() throws {
+    let b = try JSONDecoder().decode(Behaviors.self, from: Data("{}".utf8))
+    #expect(!b.animate)
+    #expect(try JSONDecoder().decode(Behaviors.self, from: Data(#"{"animate":true}"#.utf8)).animate)
+}

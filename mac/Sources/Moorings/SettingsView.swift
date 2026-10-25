@@ -387,6 +387,7 @@ struct SettingsView: View {
                 behaviorToggle("Always leave room for the Stage Manager strip", \.alwaysAccountForStage)
                 behaviorStepper("Stage Manager strip width", \.stageSize, 0...600, 10)
                 behaviorToggle("Hide the menu bar icon", \.hideMenuBarIcon)
+                behaviorToggle("Animate window moves (experimental)", \.animate)
             }
         }
         .formStyle(.grouped)

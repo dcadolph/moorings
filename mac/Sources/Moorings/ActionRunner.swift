@@ -283,7 +283,12 @@ final class ActionRunner {
     // place moves w to frame and records it as press of action name, so a repeat press steps on.
     private func place(_ w: WindowInfo, at frame: Frame, press: Int, name: String) -> Bool {
         anchors.save(w)
-        app.windows.move(w.id, to: frame, enhancedUI: anchors.choices.behavior.enhancedUI)
+        let b = anchors.choices.behavior
+        if b.animate {
+            app.windows.slide(w.id, from: w.frame, to: frame, enhancedUI: b.enhancedUI)
+        } else {
+            app.windows.move(w.id, to: frame, enhancedUI: b.enhancedUI)
+        }
         last[w.id] = LastPress(name: name, press: press, frame: app.windows.frame(w.id) ?? frame)
         app.wake()
         return true

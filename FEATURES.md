@@ -38,6 +38,7 @@ each part.
   Stage Manager strip, Enhanced UI handling, a cursor that follows the window, a hidden menu bar
   icon, display ordering, maximize again to restore, center half cycling, halves that keep the
   other axis, and the smallest size a window shrinks to.
+- An experimental switch that slides windows into place instead of jumping, off by default.
 - Unsnap restore: dragging a placed window away gives it its earlier size back.
 - Double-click a title bar to maximize or restore, with apps you name left alone.
 - Chains: a named list of actions that runs one step per press on the same window, stopping on

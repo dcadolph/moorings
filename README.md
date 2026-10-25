@@ -199,6 +199,9 @@ Settings > Behavior sets each of these, and the JSON file Settings exports keeps
   and left edge on a top or bottom half.
 - `minimumWindowWidth` and `minimumWindowHeight` (25% by default) are the smallest share of the area
   Smaller, the one-axis Smaller and the Halve actions shrink a window to.
+- `animate` (off by default, experimental) slides a window a shortcut, the menu or a link moves
+  over 150 ms instead of jumping. Drag snap, anchors, push back and lift never animate, and the
+  last write always lands on the exact frame.
 
 ### Organize
 

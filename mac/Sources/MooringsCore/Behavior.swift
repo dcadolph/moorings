@@ -78,6 +78,9 @@ public struct Behaviors: Equatable, Sendable, Codable {
     public var specifiedWidth: Double = 1680
     // specifiedHeight is the height in points of the specified size action.
     public var specifiedHeight: Double = 1050
+    // animate reports whether shortcut, menu and link moves slide the window instead of jumping. It is
+    // experimental and off by default.
+    public var animate: Bool = false
 
     // init builds behaviors at their defaults.
     public init() {}
@@ -88,7 +91,7 @@ public struct Behaviors: Equatable, Sendable, Codable {
         case minimumWindowWidth, minimumWindowHeight, screenEdgeGapTop, screenEdgeGapBottom, screenEdgeGapLeft
         case screenEdgeGapRight, screenEdgeGapTopNotch, gapsOnMainOnly, applyGapsToMaximize, unsnapRestore
         case doubleClickTitleBar, doubleClickIgnoredApps, moveCursor, enhancedUI, stageSize
-        case alwaysAccountForStage, hideMenuBarIcon, screensOrderedByX, specifiedWidth, specifiedHeight
+        case alwaysAccountForStage, hideMenuBarIcon, screensOrderedByX, specifiedWidth, specifiedHeight, animate
     }
 
     // init decodes saved behaviors, keeping the default for anything missing or unreadable.
@@ -119,6 +122,7 @@ public struct Behaviors: Equatable, Sendable, Codable {
         screensOrderedByX = (try? c.decodeIfPresent(ScreenOrdering.self, forKey: .screensOrderedByX)) ?? .yThenMinX
         specifiedWidth = (try? c.decodeIfPresent(Double.self, forKey: .specifiedWidth)) ?? 1680
         specifiedHeight = (try? c.decodeIfPresent(Double.self, forKey: .specifiedHeight)) ?? 1050
+        animate = (try? c.decodeIfPresent(Bool.self, forKey: .animate)) ?? false
     }
 }
 
@@ -179,6 +183,26 @@ public enum Behavior {
         case .cycleDisplays: return displayCount > 1 ? .moveToDisplay((displayIndex + 1) % displayCount) : .place
         case .cycleQuadrants: return corner ? .cycleQuadrant : .cycleSize
         case .switchSides: return direction != 0 || half ? .switchSide : .place
+        }
+    }
+
+    // animationWrites is how many frame writes a window move animation makes, the last one exact.
+    public static let animationWrites = 9
+
+    // animationTime is how long a window move animation takes, in seconds.
+    public static let animationTime = 0.15
+
+    // steps returns the frames a window passes through sliding from start to target, eased out, starting
+    // with start and ending exactly on target, with writes frames after start.
+    public static func steps(from start: Frame, to target: Frame, writes: Int = animationWrites) -> [Frame] {
+        let n = max(writes, 1)
+        return [start] + (1...n).map { i in
+            if i == n { return target }
+            let t = Double(i) / Double(n)
+            let e = 1 - pow(1 - t, 3)
+            func mix(_ a: Double, _ b: Double) -> Double { (a + (b - a) * e).rounded() }
+            return Frame(x: mix(start.x, target.x), y: mix(start.y, target.y), w: mix(start.w, target.w),
+                         h: mix(start.h, target.h))
         }
     }
 

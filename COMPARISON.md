@@ -137,13 +137,13 @@ Amethyst is free and MIT licensed.
 
 yabai is free. Its scripting-addition features need System Integrity Protection partly off. Moorings keeps it on.
 
-| Feature                                                           | Who has it     | Moorings                          | Check                  |
-| ----------------------------------------------------------------- | -------------- | --------------------------------- | ---------------------- |
-| Create and destroy Space                                          | yabai          | no (needs SIP off)                | not applicable         |
-| Shadows, transparency, layers, sticky windows, picture in picture | yabai          | no (needs SIP off)                | not applicable         |
-| Window animations                                                 | yabai          | no (no unit yet, see the plan's Escalations) | not applicable |
-| Scratchpads                                                       | yabai          | no (needs SIP off)                | not applicable         |
-| Move a window to another Space with SIP on                        | yabai, Raycast | planned (unit 24 spike)           | unit 24 spaces spike   |
+| Feature                                                           | Who has it     | Moorings                          | Check                |
+|-------------------------------------------------------------------|----------------|-----------------------------------|----------------------|
+| Create and destroy Space                                          | yabai          | no (needs SIP off)                | not applicable       |
+| Shadows, transparency, layers, sticky windows, picture in picture | yabai          | no (needs SIP off)                | not applicable       |
+| Window animations                                                 | yabai          | yes, off by default, experimental | testAnimationSteps   |
+| Scratchpads                                                       | yabai          | no (needs SIP off)                | not applicable       |
+| Move a window to another Space with SIP on                        | yabai, Raycast | planned (unit 24 spike)           | unit 24 spaces spike |
 
 ## Magnet
 
