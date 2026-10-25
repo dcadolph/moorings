@@ -92,8 +92,8 @@ p b { color: var(--text); font-weight: 600; }
 .win { position: absolute; display: flex; flex-direction: column; overflow: hidden; opacity: 0;
   background: var(--surface); border: 1px solid var(--line); border-radius: calc(.9 * var(--u));
   box-shadow: 0 calc(1.4 * var(--u)) calc(4 * var(--u)) calc(-1 * var(--u)) rgba(0,0,0,.5), 0 1px 0 var(--line) inset;
-  transition: left .55s cubic-bezier(.3,.9,.3,1), top .55s cubic-bezier(.3,.9,.3,1), width .55s cubic-bezier(.3,.9,.3,1),
-    height .55s cubic-bezier(.3,.9,.3,1), opacity .35s; }
+  transition: left .44s cubic-bezier(.3,.9,.3,1), top .44s cubic-bezier(.3,.9,.3,1), width .44s cubic-bezier(.3,.9,.3,1),
+    height .44s cubic-bezier(.3,.9,.3,1), opacity .35s; }
 .win.on { opacity: 1; }
 .win.hot { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .win .bar { flex: none; display: flex; align-items: center; gap: calc(.5 * var(--u)); height: calc(2.4 * var(--u));
@@ -127,7 +127,7 @@ p b { color: var(--text); font-weight: 600; }
   background: color-mix(in srgb, var(--accent) 20%, transparent); border: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); }
 .fp.on { opacity: 1; }
 .cursor { position: absolute; width: calc(1.6 * var(--u)); height: auto; z-index: 20; opacity: 0; fill: #fff; stroke: #000; stroke-width: 1;
-  transition: left .55s cubic-bezier(.3,.9,.3,1), top .55s cubic-bezier(.3,.9,.3,1), opacity .25s; }
+  transition: left .44s cubic-bezier(.3,.9,.3,1), top .44s cubic-bezier(.3,.9,.3,1), opacity .25s; }
 .cursor.on { opacity: 1; }
 .banner, .mban { display: flex; align-items: center; gap: calc(1 * var(--u)); background: var(--lift2); border: 1px solid var(--line);
   border-radius: calc(1 * var(--u)); padding: calc(1 * var(--u)) calc(1.4 * var(--u)); }

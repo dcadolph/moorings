@@ -188,7 +188,7 @@
       if (!last) { beat++; apply(steps[step].beats[beat], false); schedule(); return; }
       held = false;
       show((step + 1) % steps.length);
-    }, last ? (held ? 6000 : 2200) : 1150);
+    }, last ? (held ? 4800 : 1760) : 920);
   }
   function show(i) {
     step = i; beat = 0;
