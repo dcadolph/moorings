@@ -31,9 +31,9 @@ import Testing
 // Theme case 2: A theme whose background reaches 4.5 on the accent labels with the background, and
 // a theme whose accent passes as small text keeps it.
 @Test func testThemeOnAccentBackground() {
-    let neo = ThemeName.neo.palette
-    #expect(neo.onAccent == neo.background)
-    #expect(neo.accentText == neo.accent)
+    let phosphor = ThemeName.phosphor.palette
+    #expect(phosphor.onAccent == phosphor.background)
+    #expect(phosphor.accentText == phosphor.accent)
 }
 
 // Theme case 3: The footprint is the accent at 20% fill and 70% stroke.
