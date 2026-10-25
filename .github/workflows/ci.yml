@@ -21,3 +21,6 @@ jobs:
 
       - name: Test
         run: swift test
+
+      - name: Bundle with Shortcuts metadata
+        run: make app ARCHS="arm64 x86_64"

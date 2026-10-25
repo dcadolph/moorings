@@ -26,6 +26,8 @@ each part.
 - A gap around and between the windows an action places.
 - Any action from a link such as `moorings://action?name=left-half`, so a script, a launcher or a
   Stream Deck can run it.
+- Any action from Shortcuts: Run Moorings Action takes an action name and offers the list, so a
+  shortcut, Spotlight or Siri can run it.
 - Extra mouse buttons bound to actions.
 - Clicks on the red, yellow and green buttons, plain or with Shift, Option or Command, bound to
   actions. Unbound clicks keep the button's own behavior.
@@ -55,6 +57,10 @@ each part.
 - Move and resize by hovering: pick the keys in Settings > Behavior, hold them and move the
   pointer, no click needed. The window under the pointer follows it, or with the resize keys it
   grows and shrinks from its nearest corner. Off until you pick keys. Anchored windows stay put.
+- Shared edge resize: pick the keys in Settings > Behavior, hold them and drag the edge two side by
+  side windows share, and both resize as one divider. Off until you pick keys.
+- Undo move and Redo move step a window back through its last ten moves by moorings and forward
+  again, each window on its own.
 - Quick positions: move the front window to an edge, a corner or the center without resizing it.
 - Stash: park a window at the left, right or bottom edge with a sliver showing, by the Stash
   action or by dragging it to the edge with Command held. Rest the pointer on the sliver and it
