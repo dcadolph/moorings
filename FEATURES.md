@@ -30,6 +30,8 @@ each part.
 - Any action from a link such as `moorings://action?name=left-half`, so a script, a launcher or a
   Stream Deck can run it.
 - Extra mouse buttons bound to actions.
+- Clicks on the red, yellow and green buttons, plain or with Shift, Option or Command, bound to
+  actions. Unbound clicks keep the button's own behavior.
 - Shortcuts that switch off while an app you name is in front.
 - Rectangle's behavior preferences at Rectangle's defaults: repeat presses that cycle sizes,
   traverse or cycle displays, cycle quadrants or switch sides, screen edge gaps, room for the

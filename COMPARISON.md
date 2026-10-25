@@ -85,7 +85,7 @@ It is sold on the Mac App Store. The price is not on the page.
 | Custom snap areas anywhere                      | BetterSnapTool         | planned (unit 16)                         | unit 16 custom snap areas     |
 | Custom shortcuts                                | BetterSnapTool         | yes                                       | testSizeShortcuts             |
 | Green button lifts or fills instead of zoom     | BetterSnapTool         | yes                                       | testLiftGreenButton           |
-| Customized clicks on the red and yellow buttons | BetterSnapTool         | planned (unit 33, built, live check owed) | testButtonClicksAction        |
+| Customized clicks on the red and yellow buttons | BetterSnapTool         | yes                                       | testButtonClicksAction        |
 | Move or resize while holding a key              | BetterSnapTool         | planned (unit 21)                         | unit 21 hover move and resize |
 
 ## Loop
