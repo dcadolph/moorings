@@ -105,6 +105,25 @@ public enum Tile {
     // cascadeStep is how far in points each cascaded window sits from the last.
     public static let cascadeStep = 30.0
 
+    // stackReach is how far in points a window's top-left corner may sit from the front window's and
+    // still count as stacked with it, enough for a cascade of several windows.
+    public static let stackReach = 150.0
+
+    // stackCount returns the front window under p and how many windows share its stack, given frames
+    // front to back: the front one plus each window whose top-left corner sits within stackReach of
+    // its own, of the same size too when sameSizeOnly. It returns nil when no window is under p.
+    public static func stackCount(at p: Point, frames: [Frame], sameSizeOnly: Bool) -> (Frame, Int)? {
+        guard let i = frames.firstIndex(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
+        else { return nil }
+        let front = frames[i]
+        let n = frames.indices.filter { j in
+            let f = frames[j]
+            guard abs(f.x - front.x) <= stackReach, abs(f.y - front.y) <= stackReach else { return false }
+            return !sameSizeOnly || (abs(f.w - front.w) <= Actions.tolerance && abs(f.h - front.h) <= Actions.tolerance)
+        }.count
+        return (front, n)
+    }
+
     // handles reports whether name is an organize action.
     public static func handles(_ name: String) -> Bool {
         names.contains(name)

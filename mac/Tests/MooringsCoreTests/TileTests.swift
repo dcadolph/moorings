@@ -134,3 +134,16 @@ func covered(_ frames: [Frame]) -> Double {
     #expect(Tile.neighbor([10, 10], of: 10, forward: true) == nil)
     #expect(Tile.neighbor(ids, of: 99, forward: true) == nil)
 }
+
+// Swift only: the stack under the pointer counts a cascade, and same size only drops other sizes.
+@Test func testStackCount() {
+    let cascade = [F(160, 160, 600, 400), F(130, 130, 600, 400), F(100, 100, 600, 400), F(2000, 100, 600, 400)]
+    let hit = Tile.stackCount(at: Point(x: 300, y: 300), frames: cascade, sameSizeOnly: false)
+    #expect(hit?.0 == F(160, 160, 600, 400))
+    #expect(hit?.1 == 3)
+    #expect(Tile.stackCount(at: Point(x: 2100, y: 200), frames: cascade, sameSizeOnly: false)?.1 == 1)
+    #expect(Tile.stackCount(at: Point(x: 50, y: 50), frames: cascade, sameSizeOnly: false) == nil)
+    let mixed = [F(100, 100, 600, 400), F(100, 100, 300, 400)]
+    #expect(Tile.stackCount(at: Point(x: 200, y: 200), frames: mixed, sameSizeOnly: false)?.1 == 2)
+    #expect(Tile.stackCount(at: Point(x: 200, y: 200), frames: mixed, sameSizeOnly: true)?.1 == 1)
+}

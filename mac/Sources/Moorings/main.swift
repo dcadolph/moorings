@@ -47,6 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let installer = Installer()
     // banner shows what moorings did.
     let banner = BannerPanel()
+    // stackBadge counts the stacked windows under the pointer when the choice is on.
+    let stackBadge = StackBadge()
     // update is a newer release found by the daily check, nil when none.
     var update: ReleaseInfo?
     // launched is when moorings started.
@@ -197,6 +199,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 tap.start()
                 notify("Moorings is ready", "Accessibility is on. Anchored apps take their slots now.")
             }
+        }
+        if anchors.choices.stacking.badge {
+            stackBadge.update(palette: anchors.choices.theme.palette, sameSizeOnly: anchors.choices.stacking.sameSizeOnly)
+        } else {
+            stackBadge.hide()
         }
         let t = Self.now
         if t - woke > Self.activeSeconds && t - polled < Self.idleSeconds {

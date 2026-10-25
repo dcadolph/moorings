@@ -208,7 +208,9 @@ Settings > Behavior sets each of these, and the JSON file Settings exports keeps
 Window > Organize tiles the free windows on the front window's display in columns, rows or a
 grid, tiles one app's windows in a grid, cascades them all or one app's, cycles windows stacked on the same frame, and mirrors them
 left to right. Tidy channel lines up the two or three front windows side by side. Undo tidy puts
-back every window a fill, tidy or action moved.
+back every window a fill, tidy or action moved. With Settings > Behavior > Show how many windows
+are stacked on, hovering a window stacked or cascaded over others shows their count at its
+top-right corner.
 
 ### Workspaces
 

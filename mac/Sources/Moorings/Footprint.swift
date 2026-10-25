@@ -293,3 +293,89 @@ final class DragSnap {
         }
     }
 }
+
+// StackBadge is the small count that sits on the top-right corner of a stacked window while the
+// pointer hovers it.
+@MainActor
+final class StackBadge {
+    // panel is the badge window, nil until first shown.
+    private var panel: NSPanel?
+    // label draws the count.
+    private let label = NSTextField(labelWithString: "")
+    // pointer is the pointer position the badge was last worked out for.
+    private var pointer: Point?
+
+    // update shows the count of the stack under the pointer, or hides the badge when the pointer is
+    // over no stack or a mouse button is down. It reads the window list only when the pointer moved.
+    func update(palette: Palette, sameSizeOnly: Bool) {
+        guard NSEvent.pressedMouseButtons == 0 else {
+            hide()
+            return
+        }
+        let primary = NSScreen.screens.first?.frame.height ?? 0
+        let loc = NSEvent.mouseLocation
+        let p = Point(x: loc.x, y: primary - loc.y)
+        guard p != pointer else { return }
+        pointer = p
+        guard let (front, n) = Tile.stackCount(at: p, frames: Self.frames(), sameSizeOnly: sameSizeOnly), n > 1 else {
+            hide()
+            return
+        }
+        show(n, at: front, primary: primary, palette: palette)
+    }
+
+    // hide removes the badge.
+    func hide() {
+        panel?.orderOut(nil)
+    }
+
+    // frames lists the frames of the normal windows on screen, front to back, leaving out Moorings' own.
+    private static func frames() -> [Frame] {
+        let own = ProcessInfo.processInfo.processIdentifier
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        return list.compactMap { info in
+            guard (info[kCGWindowLayer as String] as? Int) == 0,
+                  (info[kCGWindowOwnerPID as String] as? pid_t) != own,
+                  let b = info[kCGWindowBounds as String] as? [String: Double],
+                  let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"] else { return nil }
+            return Frame(x: x, y: y, w: w, h: h)
+        }
+    }
+
+    // show draws count at the top-right corner of front.
+    private func show(_ count: Int, at front: Frame, primary: Double, palette: Palette) {
+        let size = NSSize(width: 30, height: 22)
+        let rect = NSRect(x: front.x + front.w - size.width - 8, y: primary - front.y - size.height - 8,
+                          width: size.width, height: size.height)
+        let p = panel ?? makePanel(rect)
+        panel = p
+        p.contentView?.layer?.backgroundColor = BannerPanel.color(palette.accent).cgColor
+        label.textColor = BannerPanel.color(palette.onAccent)
+        label.stringValue = "\(count)"
+        p.setFrame(rect, display: true)
+        p.orderFrontRegardless()
+    }
+
+    // makePanel builds the badge window at rect.
+    private func makePanel(_ rect: NSRect) -> NSPanel {
+        let p = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = true
+        p.ignoresMouseEvents = true
+        p.level = .floating
+        p.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary]
+        let view = NSView(frame: NSRect(origin: .zero, size: rect.size))
+        view.autoresizingMask = [.width, .height]
+        view.wantsLayer = true
+        view.layer?.cornerRadius = rect.height / 2
+        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.alignment = .center
+        label.frame = NSRect(x: 0, y: (rect.height - 16) / 2, width: rect.width, height: 16)
+        label.autoresizingMask = [.width]
+        view.addSubview(label)
+        p.contentView = view
+        return p
+    }
+}
