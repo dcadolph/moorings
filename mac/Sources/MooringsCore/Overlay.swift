@@ -65,6 +65,9 @@ public struct OverlayChoices: Equatable, Sendable, Codable {
     // hoverResize lists the modifiers that, held with no button down, resize the window under the
     // pointer from its nearest corner. Empty turns it off.
     public var hoverResize: [Modifier] = []
+    // edgeResize lists the modifiers that, held as a drag starts on the edge two windows share,
+    // resize both. Empty turns it off.
+    public var edgeResize: [Modifier] = []
 
     // gridRange bounds the grid columns and rows.
     public static let gridRange = 1...12
@@ -74,7 +77,7 @@ public struct OverlayChoices: Equatable, Sendable, Codable {
 
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
-        case trigger, gridColumns, gridRows, hoverMove, hoverResize
+        case trigger, gridColumns, gridRows, hoverMove, hoverResize, edgeResize
     }
 
     // init decodes overlay choices, keeping the default for any field missing or unreadable, clamping
@@ -87,6 +90,7 @@ public struct OverlayChoices: Equatable, Sendable, Codable {
         gridRows = min(r.upperBound, max(r.lowerBound, (try? c.decodeIfPresent(Int.self, forKey: .gridRows)) ?? 4))
         hoverMove = Self.mods((try? c.decodeIfPresent([String].self, forKey: .hoverMove)) ?? [])
         hoverResize = Self.mods((try? c.decodeIfPresent([String].self, forKey: .hoverResize)) ?? [])
+        edgeResize = Self.mods((try? c.decodeIfPresent([String].self, forKey: .edgeResize)) ?? [])
     }
 
     // encode writes the overlay choices, modifiers by name.
@@ -97,6 +101,7 @@ public struct OverlayChoices: Equatable, Sendable, Codable {
         try c.encode(gridRows, forKey: .gridRows)
         try c.encode(hoverMove.map(\.rawValue), forKey: .hoverMove)
         try c.encode(hoverResize.map(\.rawValue), forKey: .hoverResize)
+        try c.encode(edgeResize.map(\.rawValue), forKey: .edgeResize)
     }
 
     // mods resolves modifier names in menu order without repeats, dropping unknown names.
@@ -276,6 +281,11 @@ public enum Hover {
             return .resize
         }
         return nil
+    }
+
+    // holds reports whether the modifiers in flags are exactly mods and mods can drive a drag.
+    public static func holds(_ flags: UInt64, _ mods: [Modifier]) -> Bool {
+        usable(mods) && Set(bits.filter { flags & $0.1 != 0 }.map(\.0)) == Set(mods)
     }
 
     // corner returns the corner of f nearest p, by which half of f p is in.

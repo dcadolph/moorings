@@ -74,6 +74,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var gridPicker = GridPicker(app: self)
     // tiler keeps free windows in the tiling mode's layout.
     lazy var tiler = Tiler(app: self)
+    // edges moves the edge two windows share for both while the edge resize keys are held.
+    lazy var edges = EdgeResizer(app: self)
     // hover moves or resizes the window under the pointer while the hover modifiers are held.
     lazy var hover = HoverMover(app: self)
     // item is the menu bar status item.
@@ -140,6 +142,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.gridPicker.cancel()
             }
             self.stasher.clicked(p)
+            if self.edges.pressed(p, flags: flags) {
+                return true
+            }
             if self.buttonDown(p, flags: flags) || self.zoomDown(p, option: flags.contains(.maskAlternate)) {
                 return true
             }
@@ -147,7 +152,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return false
         }
         tap.onDoubleClick = { [weak self] p in self?.actions.titleBarClick(p) }
-        tap.onDrag = { [weak self] p, flags in self?.snap.dragged(p, flags: flags) }
+        tap.onDrag = { [weak self] p, flags in
+            guard let self else { return }
+            if self.edges.active {
+                self.edges.dragged(p)
+            } else {
+                self.snap.dragged(p, flags: flags)
+            }
+        }
+        tap.onSwallowedUp = { [weak self] _ in self?.edges.released() }
         tap.onUp = { [weak self] _, _ in
             self?.snap.released()
             self?.tiler.mouseUp()

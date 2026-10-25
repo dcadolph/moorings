@@ -232,8 +232,10 @@ extension Anchors {
         placed = [:]
     }
 
-    // save records w's frame once, before Fill, Tidy or a window action first moves it.
+    // save records w's frame once, before Fill, Tidy or a window action first moves it, and adds it
+    // to the window's history on every move.
     public func save(_ w: WindowInfo) {
+        history.record(w.id, from: w.frame)
         if saved[w.id] == nil {
             saved[w.id] = w.frame
         }
@@ -339,5 +341,80 @@ public struct Point: Equatable, Sendable {
     public init(x: Double, y: Double) {
         self.x = x
         self.y = y
+    }
+}
+
+// SharedEdge is an edge two windows share that a drag moves for both: a sits left of or above b.
+public struct SharedEdge: Equatable, Sendable {
+    // a is the index of the window left of or above the edge.
+    public var a: Int
+    // b is the index of the window right of or below the edge.
+    public var b: Int
+    // vertical reports whether the edge runs top to bottom, so a drag moves it left and right.
+    public var vertical: Bool
+}
+
+// SharedEdges finds an edge two windows share under the pointer and resizes both as it moves, as a
+// divider between panes does.
+public enum SharedEdges {
+    // touch is how far apart in points two edges may be and still count as shared.
+    public static let touch = 4.0
+    // grab is how far in points from the edge a drag may start.
+    public static let grab = 8.0
+    // minimum is the smallest width or height in points a shared edge drag leaves a window.
+    public static let minimum = 160.0
+
+    // find returns the shared edge within grab of p among frames, front-most first. The pair whose
+    // front window comes first wins, and the edge counts only where the two windows overlap along it.
+    public static func find(at p: Point, frames: [Frame]) -> SharedEdge? {
+        for (i, f) in frames.enumerated() {
+            for (j, g) in frames.enumerated() where j != i {
+                if let e = edge(f, i, g, j, at: p) {
+                    return e
+                }
+            }
+        }
+        return nil
+    }
+
+    // edge returns the edge f and g share near p with f left of or above g, nil when they share none.
+    static func edge(_ f: Frame, _ i: Int, _ g: Frame, _ j: Int, at p: Point) -> SharedEdge? {
+        let right = f.x + f.w
+        if abs(right - g.x) <= touch, abs(p.x - (right + g.x) / 2) <= grab {
+            let top = max(f.y, g.y)
+            let bottom = min(f.y + f.h, g.y + g.h)
+            if bottom > top, p.y >= top, p.y <= bottom {
+                return SharedEdge(a: i, b: j, vertical: true)
+            }
+        }
+        let low = f.y + f.h
+        if abs(low - g.y) <= touch, abs(p.y - (low + g.y) / 2) <= grab {
+            let left = max(f.x, g.x)
+            let far = min(f.x + f.w, g.x + g.w)
+            if far > left, p.x >= left, p.x <= far {
+                return SharedEdge(a: i, b: j, vertical: false)
+            }
+        }
+        return nil
+    }
+
+    // resize returns a and b after the shared edge between them moved by delta points, right or
+    // down when positive, keeping the space between them and each far edge where it was. Neither
+    // window gets narrower or shorter than minimum.
+    public static func resize(_ a: Frame, _ b: Frame, vertical: Bool, delta: Double) -> (Frame, Frame) {
+        var a = a
+        var b = b
+        if vertical {
+            let d = min(max(delta, minimum - a.w), b.w - minimum)
+            a.w += d
+            b.x += d
+            b.w -= d
+        } else {
+            let d = min(max(delta, minimum - a.h), b.h - minimum)
+            a.h += d
+            b.y += d
+            b.h -= d
+        }
+        return (a, b)
     }
 }

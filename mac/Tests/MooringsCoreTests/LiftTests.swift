@@ -630,3 +630,39 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     }
     #expect(world.frame(v) == shrunk)
 }
+
+// Swift only: a drag near the edge two windows share finds it, front pair first, and only where
+// they overlap along it.
+@Test func testSharedEdgeFind() {
+    let left = F(0, 0, 500, 800), right = F(502, 0, 500, 800), below = F(0, 803, 500, 200)
+    let frames = [left, right, below]
+    #expect(SharedEdges.find(at: Point(x: 501, y: 400), frames: frames) == SharedEdge(a: 0, b: 1, vertical: true))
+    #expect(SharedEdges.find(at: Point(x: 495, y: 400), frames: frames) == SharedEdge(a: 0, b: 1, vertical: true))
+    #expect(SharedEdges.find(at: Point(x: 520, y: 400), frames: frames) == nil)
+    #expect(SharedEdges.find(at: Point(x: 250, y: 801), frames: frames) == SharedEdge(a: 0, b: 2, vertical: false))
+    #expect(SharedEdges.find(at: Point(x: 750, y: 801), frames: frames) == nil)
+    #expect(SharedEdges.find(at: Point(x: 501, y: 400), frames: [left, F(510, 0, 500, 800)]) == nil)
+    #expect(SharedEdges.find(at: Point(x: 501, y: 400), frames: [right, left]) == SharedEdge(a: 1, b: 0, vertical: true))
+}
+
+// Swift only: moving a shared edge resizes both windows, keeps the space between them and both far
+// edges, and stops at the minimum size.
+@Test func testSharedEdgeResize() {
+    let (a, b) = SharedEdges.resize(F(0, 0, 500, 800), F(504, 0, 500, 800), vertical: true, delta: 100)
+    #expect(a == F(0, 0, 600, 800) && b == F(604, 0, 400, 800))
+    let (c, d) = SharedEdges.resize(F(0, 0, 500, 800), F(504, 0, 500, 800), vertical: true, delta: -1000)
+    #expect(c.w == SharedEdges.minimum && d.x + d.w == 1004)
+    let (e, f) = SharedEdges.resize(F(0, 0, 500, 400), F(0, 400, 500, 400), vertical: false, delta: 1000)
+    #expect(e.h == 800 - SharedEdges.minimum && f == F(0, 800 - SharedEdges.minimum, 500, SharedEdges.minimum))
+}
+
+// Swift only: the edge resize keys decode leniently and must be held exactly.
+@Test func testEdgeResizeKeys() throws {
+    let c = try JSONDecoder().decode(OverlayChoices.self, from: Data(#"{"edgeResize":["ctrl","alt","bogus"]}"#.utf8))
+    #expect(c.edgeResize == [.ctrl, .alt])
+    #expect(try JSONDecoder().decode(OverlayChoices.self, from: Data("{}".utf8)).edgeResize == [])
+    #expect(Hover.holds(0x40000 | 0x80000, [.ctrl, .alt]))
+    #expect(!Hover.holds(0x40000 | 0x80000 | 0x20000, [.ctrl, .alt]))
+    #expect(!Hover.holds(0, []))
+    #expect(!Hover.holds(0x20000, [.shift]))
+}

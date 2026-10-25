@@ -1,6 +1,8 @@
 import AppKit
 import os
 
+import MooringsCore
+
 // EventTap is moorings' one mouse event tap. It watches the primary button going down, dragging
 // and coming up, and swallows both halves of a click that moorings handles, such as a green
 // button click it turns into a lift or a fill. It also sees modifier keys change, for the
@@ -19,6 +21,8 @@ final class EventTap {
     var onDrag: (CGPoint, CGEventFlags) -> Void = { _, _ in }
     // onUp is told where the primary button came up, for a click that was not swallowed.
     var onUp: (CGPoint, Bool) -> Void = { _, _ in }
+    // onSwallowedUp is told where the primary button came up to end a press that was swallowed.
+    var onSwallowedUp: (CGPoint) -> Void = { _ in }
     // onDoubleClick is told where the primary button came up to end a double-click that was not
     // swallowed.
     var onDoubleClick: (CGPoint) -> Void = { _ in }
@@ -83,6 +87,7 @@ final class EventTap {
         case .leftMouseUp:
             if swallowUp {
                 swallowUp = false
+                onSwallowedUp(event.location)
                 return false
             }
             onUp(event.location, option)
@@ -102,5 +107,91 @@ final class EventTap {
         default:
             return true
         }
+    }
+}
+
+// EdgeResizer moves the edge two windows share for both of them, as a divider between panes does,
+// when a drag starts on it with the edge resize keys held. Moves are applied once per run loop turn
+// so a fast drag never backs up the tap.
+@MainActor
+final class EdgeResizer {
+    // Drag is a shared edge being moved: the two windows, their frames at the press, which way the
+    // edge runs, and where the press was.
+    struct Drag {
+        // a is the window left of or above the edge.
+        let a: WindowID
+        // b is the window right of or below the edge.
+        let b: WindowID
+        // fa is a's frame at the press.
+        let fa: Frame
+        // fb is b's frame at the press.
+        let fb: Frame
+        // vertical reports whether the edge runs top to bottom.
+        let vertical: Bool
+        // start is where the press was.
+        let start: CGPoint
+    }
+
+    // app is the running app delegate.
+    private unowned let app: AppDelegate
+    // drag is the edge being moved, nil when none is.
+    private var drag: Drag?
+    // latest is the pointer's last place in the drag, nil once applied.
+    private var latest: CGPoint?
+
+    // init builds an edge resizer for app.
+    init(app: AppDelegate) {
+        self.app = app
+    }
+
+    // active reports whether a shared edge is being moved.
+    var active: Bool { drag != nil }
+
+    // pressed starts moving the shared edge under p when the edge resize keys are exactly the
+    // modifiers in flags, and reports whether it did, so the press is swallowed. Anchored, stashed,
+    // fullscreen windows and file panels never take part.
+    func pressed(_ p: CGPoint, flags: CGEventFlags) -> Bool {
+        let anchors = app.anchors
+        guard !anchors.choices.paused, Hover.holds(flags.rawValue, anchors.choices.overlay.edgeResize) else { return false }
+        let scan = app.windows.scan(Screens.current())
+        let pool = scan.windows.filter {
+            !$0.isFilePanel && !$0.isFullScreen && !anchors.pinned($0) && !anchors.stashed.contains($0.id)
+        }
+        guard let e = SharedEdges.find(at: Point(x: p.x, y: p.y), frames: pool.map(\.frame)) else { return false }
+        let a = pool[e.a]
+        let b = pool[e.b]
+        anchors.save(a)
+        anchors.save(b)
+        drag = Drag(a: a.id, b: b.id, fa: a.frame, fb: b.frame, vertical: e.vertical, start: p)
+        return true
+    }
+
+    // dragged notes the pointer's place and applies it on the next run loop turn.
+    func dragged(_ p: CGPoint) {
+        guard drag != nil else { return }
+        let waiting = latest != nil
+        latest = p
+        if !waiting {
+            DispatchQueue.main.async { [weak self] in self?.apply() }
+        }
+    }
+
+    // apply moves both windows for the pointer's last place.
+    private func apply() {
+        guard let d = drag, let p = latest else { return }
+        latest = nil
+        let delta = d.vertical ? p.x - d.start.x : p.y - d.start.y
+        let (fa, fb) = SharedEdges.resize(d.fa, d.fb, vertical: d.vertical, delta: delta)
+        app.windows.move(d.a, to: fa)
+        app.windows.move(d.b, to: fb)
+    }
+
+    // released applies the last place and ends the drag.
+    func released() {
+        guard drag != nil else { return }
+        apply()
+        drag = nil
+        app.tiler.mouseUp()
+        app.wake()
     }
 }

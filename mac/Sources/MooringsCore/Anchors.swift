@@ -402,6 +402,8 @@ public final class Anchors {
     var filled: [WindowID: ZoomFill] = [:]
     // saved records each window's frame before moorings first moved it with an action.
     var saved: [WindowID: Frame] = [:]
+    // history holds the frames each window was moved away from, for undo-move and redo-move.
+    public var history = History()
     // floors records the smallest size each window was seen to keep.
     var floors: [WindowID: Floor] = [:]
     // pendingFill records when each window was asked to leave native fullscreen.

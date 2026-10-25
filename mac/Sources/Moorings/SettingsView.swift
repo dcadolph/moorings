@@ -506,6 +506,9 @@ struct SettingsView: View {
                     + "or to resize it from its nearest corner. Pick at least Control, Option or Command, and give "
                     + "resize a different set from move, such as the same keys plus Shift. Anchored windows stay put.")
                     .font(.callout).foregroundStyle(.secondary)
+                hoverKeys("Shared edge with", \.edgeResize)
+                Text("Hold these keys and drag the edge two side by side windows share to resize both at once.")
+                    .font(.callout).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)

@@ -323,7 +323,9 @@ public enum Keymaps {
     public static let maxGap = 100.0
 
     // special lists the actions that are not positions in geometry.
-    private static let special: Set<String> = ["larger", "smaller", "restore", "next-display", "previous-display"]
+    private static let special: Set<String> = [
+        "larger", "smaller", "restore", "undo-move", "redo-move", "next-display", "previous-display",
+    ]
 
     // organizeNames returns the organize actions in menu order.
     public static let organizeNames = [

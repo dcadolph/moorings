@@ -43,7 +43,8 @@ final class ActionRunner {
         Family(title: "Size and move", hint: nil,
                names: ["maximize", "almost-maximize", "maximize-height", "center", "center-prominently", "larger",
                        "smaller", "move-left", "move-right", "move-up", "move-down", "move-top-left", "move-top-right",
-                       "move-bottom-left", "move-bottom-right", "specified", "restore", Overlay.gridName], groups: []),
+                       "move-bottom-left", "move-bottom-right", "specified", "restore", "undo-move", "redo-move",
+                       Overlay.gridName], groups: []),
         Family(title: "One axis", hint: nil,
                names: ["larger-width", "smaller-width", "larger-height", "smaller-height", "double-width-left",
                        "double-width-right", "double-height-up", "double-height-down", "halve-width-left",
@@ -77,6 +78,8 @@ final class ActionRunner {
         "specified": "Size the front window to the specified size, 1680 by 1050 points unless changed, centered, "
             + "shrunk to fit.",
         "restore": "Put the front window back where it was before moorings first moved it.",
+        "undo-move": "Step the front window back to where it was before its last move by moorings, up to ten moves.",
+        "redo-move": "Step the front window forward again after an undo.",
         "larger-width": "Widen the front window, keeping its height.",
         "smaller-width": "Narrow the front window, keeping its height.",
         "larger-height": "Make the front window taller, keeping its width.",
@@ -284,6 +287,19 @@ final class ActionRunner {
         if name == "restore" {
             last[w.id] = nil
             guard let f = anchors.restore(w.id) else { return false }
+            anchors.history.record(w.id, from: w.frame)
+            app.windows.move(w.id, to: f)
+            app.wake()
+            return true
+        }
+        if name == "undo-move" || name == "redo-move" {
+            last[w.id] = nil
+            let f = name == "undo-move" ? anchors.history.undo(w.id, current: w.frame)
+                : anchors.history.redo(w.id, current: w.frame)
+            guard let f else {
+                logger.notice("\(name, privacy: .public): nothing to step to for this window")
+                return false
+            }
             app.windows.move(w.id, to: f)
             app.wake()
             return true
