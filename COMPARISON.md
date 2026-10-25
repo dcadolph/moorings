@@ -17,7 +17,7 @@ Price is not on the product page. A 2022 article gave 10 EUR. It has a 10-day tr
 | Stash at a screen edge with slide-out on hover         | Rectangle Pro | planned (unit 15)                                      | unit 15 stash                                    |
 | Pin one app to a side                                  | Rectangle Pro | yes                                                    | selftest "anchored window lands in its slot"     |
 | Todo mode with more settings                           | Rectangle Pro | no (anchored apps cover the pinning, no separate mode) | not applicable                                   |
-| Menu customization, by shortcut or as a context menu   | Rectangle Pro | planned (unit 13)                                      | unit 13 menu by shortcut and context menu        |
+| Menu customization, by shortcut or as a context menu   | Rectangle Pro | yes                                                    | testMenuVisible, testMenuPinned, live 10-24      |
 | Import from Rectangle                                  | Rectangle Pro | no (no unit yet, see the plan's Escalations)           | not applicable                                   |
 | iCloud sync                                            | Rectangle Pro | planned (unit 20)                                      | unit 20 settings sync on iCloud                  |
 | Windows-style arrow keys and left/right fill           | Rectangle Pro | no (no unit yet, see the plan's Escalations)           | not applicable                                   |
@@ -59,21 +59,21 @@ Rectangle is free and MIT licensed. The action list and the hidden preferences c
 
 Moom costs $15.
 
-| Feature                                                  | Who has it                  | Moorings                                                           | Check                                  |
-| -------------------------------------------------------- | --------------------------- | ------------------------------------------------------------------ | -------------------------------------- |
-| Pop-up palette on the green button with up to 61 actions | Moom                        | planned (unit 13) as a menu at the cursor, not on the green button | unit 13 context menu                   |
-| Saved layouts for an app's windows and recent windows    | Moom                        | yes                                                                | testWorkspacesFitAndCodable            |
-| Snap zones                                               | Moom                        | yes                                                                | testSnapEdges                          |
-| Drop zones from a saved layout                           | Moom                        | planned (unit 16)                                                  | unit 16 custom snap areas              |
-| Chains of actions, in sequence or looped                 | Moom                        | yes                                                                | testChainStepStops, testChainStepLoops |
-| Hover move and resize with modifiers, no click           | Moom, Lasso                 | planned (unit 21)                                                  | unit 21 hover move and resize          |
-| Keyboard grid controller                                 | Moom                        | planned (unit 14)                                                  | unit 14 keyboard grid                  |
-| Folders in the menu                                      | Moom                        | no (fixed folders by family; actions are pinned or hidden instead) | not applicable                         |
-| Per-action grid sizes                                    | Moom                        | planned (unit 21)                                                  | unit 21 grid overlay                   |
-| Use active window size                                   | Moom                        | planned (unit 5)                                                   | unit 5 specified size                  |
-| Display adjustment of layouts                            | Moom                        | yes                                                                | testWorkspacesFitAndCodable            |
-| Dock, menu bar or invisible app modes                    | Moom                        | no (menu bar only by design)                                       | not applicable                         |
-| Modifier drag to move or resize from anywhere            | Moom, BetterSnapTool, Lasso | planned (unit 21)                                                  | unit 21 hover move and resize          |
+| Feature                                                  | Who has it                  | Moorings                                                                           | Check                                  |
+| -------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------- |
+| Pop-up palette on the green button with up to 61 actions | Moom                        | yes, as a menu at the pointer by shortcut or mouse button, not on the green button | live 10-24                             |
+| Saved layouts for an app's windows and recent windows    | Moom                        | yes                                                                                | testWorkspacesFitAndCodable            |
+| Snap zones                                               | Moom                        | yes                                                                                | testSnapEdges                          |
+| Drop zones from a saved layout                           | Moom                        | planned (unit 16)                                                                  | unit 16 custom snap areas              |
+| Chains of actions, in sequence or looped                 | Moom                        | yes                                                                                | testChainStepStops, testChainStepLoops |
+| Hover move and resize with modifiers, no click           | Moom, Lasso                 | planned (unit 21)                                                                  | unit 21 hover move and resize          |
+| Keyboard grid controller                                 | Moom                        | planned (unit 14)                                                                  | unit 14 keyboard grid                  |
+| Folders in the menu                                      | Moom                        | no (fixed folders by family; actions are pinned or hidden instead)                 | not applicable                         |
+| Per-action grid sizes                                    | Moom                        | planned (unit 21)                                                                  | unit 21 grid overlay                   |
+| Use active window size                                   | Moom                        | planned (unit 5)                                                                   | unit 5 specified size                  |
+| Display adjustment of layouts                            | Moom                        | yes                                                                                | testWorkspacesFitAndCodable            |
+| Dock, menu bar or invisible app modes                    | Moom                        | no (menu bar only by design)                                                       | not applicable                         |
+| Modifier drag to move or resize from anywhere            | Moom, BetterSnapTool, Lasso | planned (unit 21)                                                                  | unit 21 hover move and resize          |
 
 ## BetterSnapTool
 
