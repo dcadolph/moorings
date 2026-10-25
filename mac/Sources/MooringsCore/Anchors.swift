@@ -248,6 +248,26 @@ public struct WindowInfo: Equatable, Sendable {
         self.isFullScreen = isFullScreen
         self.zoomRect = zoomRect
     }
+
+    // promotingLone marks an app's one on-screen window as its main window when the app names none
+    // of its on-screen windows main, so a pin holds an app whose main window is off screen. An open
+    // or save panel is never promoted.
+    public static func promotingLone(_ windows: [WindowInfo]) -> [WindowInfo] {
+        var counts: [String: Int] = [:]
+        var hasMain: Set<String> = []
+        for w in windows where !w.isFilePanel {
+            counts[w.bundle, default: 0] += 1
+            if w.isMain {
+                hasMain.insert(w.bundle)
+            }
+        }
+        return windows.map { w in
+            guard !w.isMain, !w.isFilePanel, counts[w.bundle] == 1, !hasMain.contains(w.bundle) else { return w }
+            var out = w
+            out.isMain = true
+            return out
+        }
+    }
 }
 
 // Scene is what one pass sees.

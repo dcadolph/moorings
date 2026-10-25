@@ -492,3 +492,26 @@ func testCastReason(test: CastReasonCase) {
     #expect(anchors.pinned(world.info(w)))
     #expect(!anchors.isCastOff(w))
 }
+
+// Swift only: an app's one on-screen window counts as main when the app names none of them main.
+@Test func testPromotingLone() {
+    let f = Frame(x: 0, y: 0, w: 100, h: 100)
+    let windows = [
+        WindowInfo(id: 1, bundle: iterm, frame: f, onUltrawide: true, isMain: false),
+        WindowInfo(id: 2, bundle: slack, frame: f, onUltrawide: true, isMain: false),
+        WindowInfo(id: 3, bundle: slack, frame: f, onUltrawide: true, isMain: false),
+        WindowInfo(id: 4, bundle: "com.apple.TextEdit", frame: f, onUltrawide: true, isMain: false),
+        WindowInfo(id: 5, bundle: "com.apple.TextEdit", frame: f, onUltrawide: true, isMain: true),
+        WindowInfo(id: 6, bundle: "com.apple.Preview", frame: f, onUltrawide: true, isMain: false, isFilePanel: true),
+    ]
+    let got = WindowInfo.promotingLone(windows).map(\.isMain)
+    #expect(got == [true, false, false, false, true, false])
+}
+
+// Swift only: a pin holds an app whose only on-screen window is not its main window.
+@Test func testPinHoldsLoneWindow() {
+    let anchors = anchored()
+    let w = WindowInfo(id: 9, bundle: iterm, frame: Frame(x: 1000, y: 200, w: 800, h: 600), onUltrawide: true, isMain: false)
+    #expect(!anchors.pinned(w))
+    #expect(anchors.pinned(WindowInfo.promotingLone([w])[0]))
+}

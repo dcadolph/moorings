@@ -103,6 +103,7 @@ final class Windows {
                 focusedID = Self.id(el)
             }
         }
+        found = WindowInfo.promotingLone(found)
         elements = seen
         panels = panels.filter { seen[$0.key] != nil }
         zooms = zooms.filter { seen[$0.key] != nil }
