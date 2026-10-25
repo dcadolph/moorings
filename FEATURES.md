@@ -101,6 +101,8 @@ each part.
 - A Menu tab to pin actions to the top of the Window folder, hide the ones you never use, and
   build chains.
 - Export every choice to one JSON file and import it on another Mac.
+- Import shortcuts, gaps, snapping and behavior choices from Rectangle, from its export file or
+  from the settings it keeps on this Mac.
 - Restore defaults resets shortcuts, snapping, appearance and behavior, and keeps your anchored
   apps, sizes and workspaces.
 

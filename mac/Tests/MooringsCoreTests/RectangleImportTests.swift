@@ -141,3 +141,34 @@ private func rectangleFixture() throws -> Data {
         try RectangleImport.apply(Data(#"{"bundleId":"com.knollsoft.Hookshot"}"#.utf8), to: Choices())
     }
 }
+
+// Swift only: the live domain carries dictionary shortcuts and typed values, and skips app state quietly.
+@Test func testRectangleImportLive() {
+    let domain: [String: Any] = [
+        "leftHalf": ["keyCode": 0, "modifierFlags": 1 << 18 | 1 << 19],
+        "rightHalf": ["modifierFlags": 1 << 18],
+        "leftTodo": ["keyCode": 1, "modifierFlags": 1 << 18],
+        "gapSize": Float(4),
+        "repeatedMaximizeRestoresPrevious": true,
+        "unsnapRestore": 2,
+        "subsequentExecutionMode": 1,
+        "SUEnableAutomaticChecks": true,
+        "NSStatusItem Visible Item-0": false,
+        "lastVersion": "93",
+    ]
+    let (c, w) = RectangleImport.applyLive(domain, to: Choices())
+    #expect(c.shortcuts["left-half"] == .some(StoredShortcut(mods: ["ctrl", "alt"], key: "a")))
+    #expect(c.shortcuts["right-half"] == nil)
+    #expect(c.gapPx == 4)
+    #expect(c.behavior.repeatedMaximizeRestores)
+    #expect(!c.behavior.unsnapRestore)
+    #expect(c.behavior.subsequentExecution == .traverseDisplays)
+    #expect(w == ["Rectangle action leftTodo has no moorings action and was skipped."])
+}
+
+// Swift only: a domain holding only app state, or nothing, has nothing to import.
+@Test func testRectangleImportLiveEmpty() {
+    #expect(!RectangleImport.hasLiveSettings([:]))
+    #expect(!RectangleImport.hasLiveSettings(["SUEnableAutomaticChecks": true, "lastVersion": "93"]))
+    #expect(RectangleImport.hasLiveSettings(["gapSize": Float(4)]))
+}

@@ -215,6 +215,12 @@ come back untied, since the file may come from another desk. Restore defaults, u
 asks once and then puts shortcuts, snapping, appearance and behavior back to their defaults.
 Anchored apps, strip sizes, ignored apps, custom sizes and workspaces stay.
 
+Import from Rectangle, in the General tab, reads a file exported from Rectangle's settings, or
+without one the settings Rectangle keeps on this Mac. It brings over shortcuts, the keymap, gaps,
+snapping and the hidden behavior preferences, lists anything that cannot come over, and asks
+before it applies. An export file also clears the shortcuts it leaves unbound, as Rectangle's own
+import does.
+
 ### Snap by dragging
 
 Drag a window to an edge or corner of any display and a footprint shows where it lands. Edges

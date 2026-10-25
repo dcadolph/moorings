@@ -355,7 +355,7 @@ struct SettingsView: View {
         }
     }
 
-    // general holds launch at login, the update check, and export and import.
+    // general holds launch at login, the update check, export and import, and the Rectangle import.
     private var general: some View {
         Form {
             Toggle("Launch at login", isOn: Binding(get: { model.app.launchAtLogin },
@@ -366,6 +366,7 @@ struct SettingsView: View {
                 Button("Export settings…") { model.exportSettings() }
                 Button("Import settings…") { model.importSettings() }
             }
+            Button("Import from Rectangle…") { model.importRectangle() }
             if !model.message.isEmpty {
                 Text(model.message).font(.callout)
             }

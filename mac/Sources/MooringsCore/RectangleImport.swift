@@ -54,6 +54,8 @@ public enum RectangleImportError: Error, Equatable, Sendable {
 public enum RectangleImport {
     // bundleIds lists the bundle IDs whose exports are accepted.
     public static let bundleIds: Set<String> = ["com.knollsoft.Rectangle", "com.knollsoft.Hookshot"]
+    // domain is the defaults domain Rectangle keeps its live settings in.
+    public static let domain = "com.knollsoft.Rectangle"
 
     // keyNames maps a Carbon virtual key code (kVK_ value) to the key name Keymaps uses.
     static let keyNames: [Int: String] = [
@@ -165,11 +167,57 @@ public enum RectangleImport {
         shortcuts: [String: (keyCode: Int, modifierFlags: UInt)], defaults: [String: RectangleValue],
         to choices: Choices
     ) -> (Choices, [String]) {
+        carry(shortcuts: shortcuts, defaults: defaults, to: choices, quiet: false)
+    }
+
+    // applyLive carries the settings in Rectangle's live defaults domain onto choices. Shortcuts sit there
+    // as dictionaries of keyCode and modifierFlags under the action name, everything else as plain values.
+    // The domain only holds what the user changed, so actions it leaves out keep their binding, and keys
+    // with no moorings setting are Rectangle's own app state, skipped without a warning.
+    public static func applyLive(_ domain: [String: Any], to choices: Choices) -> (Choices, [String]) {
+        var shortcuts: [String: (keyCode: Int, modifierFlags: UInt)] = [:]
+        var defaults: [String: RectangleValue] = [:]
+        for (key, value) in domain {
+            if let dict = value as? [String: Any] {
+                guard let code = (dict["keyCode"] as? NSNumber)?.intValue,
+                      let flags = (dict["modifierFlags"] as? NSNumber)?.uintValue else { continue }
+                shortcuts[key] = (code, flags)
+            } else if let v = liveValue(value) {
+                defaults[key] = v
+            }
+        }
+        return carry(shortcuts: shortcuts, defaults: defaults, to: choices, quiet: true)
+    }
+
+    // hasLiveSettings reports whether a live domain holds anything applyLive would carry over.
+    public static func hasLiveSettings(_ domain: [String: Any]) -> Bool {
+        let (c, w) = applyLive(domain, to: Choices())
+        return c != Choices() || !w.isEmpty
+    }
+
+    // liveValue decodes one plain defaults value, telling a stored bool from a number by its CoreFoundation
+    // type, since both arrive as NSNumber.
+    private static func liveValue(_ value: Any) -> RectangleValue? {
+        if let s = value as? String { return .string(s) }
+        guard let n = value as? NSNumber else { return nil }
+        if CFGetTypeID(n) == CFBooleanGetTypeID() { return .bool(n.boolValue) }
+        switch String(cString: n.objCType) {
+        case "f": return .float(n.floatValue)
+        case "d": return .double(n.doubleValue)
+        default: return .int(n.intValue)
+        }
+    }
+
+    // carry applies shortcuts and defaults. Quiet skips defaults with no moorings setting without a warning.
+    private static func carry(
+        shortcuts: [String: (keyCode: Int, modifierFlags: UInt)], defaults: [String: RectangleValue],
+        to choices: Choices, quiet: Bool
+    ) -> (Choices, [String]) {
         var out = choices
         var warnings: [String] = []
         applyShortcuts(shortcuts, to: &out, warnings: &warnings)
         for key in defaults.keys.sorted() {
-            if !applyDefault(key, defaults[key]!, to: &out) {
+            if !applyDefault(key, defaults[key]!, to: &out), !quiet {
                 warnings.append("Rectangle default \(key) has no moorings setting and was skipped.")
             }
         }

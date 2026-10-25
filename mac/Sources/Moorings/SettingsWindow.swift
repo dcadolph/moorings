@@ -76,6 +76,66 @@ final class SettingsModel: ObservableObject {
             message = "That file is not a Moorings settings file."
         }
     }
+
+    // importRectangle carries Rectangle's settings over, from an export file or, without one, from the
+    // settings Rectangle keeps on this Mac. It lists what cannot come over and asks before applying.
+    func importRectangle() {
+        let source = NSAlert()
+        source.messageText = "Import from Rectangle"
+        source.informativeText = "Choose a file exported from Rectangle's settings, or read the settings "
+            + "Rectangle keeps on this Mac."
+        source.addButton(withTitle: "Choose Export File…")
+        source.addButton(withTitle: "Use Rectangle on This Mac")
+        source.addButton(withTitle: "Cancel")
+        let imported: Choices
+        let warnings: [String]
+        let from: String
+        switch source.runModal() {
+        case .alertFirstButtonReturn:
+            let panel = NSOpenPanel()
+            panel.allowedContentTypes = [.json]
+            panel.allowsMultipleSelection = false
+            guard panel.runModal() == .OK, let url = panel.url else { return }
+            do {
+                (imported, warnings) = try RectangleImport.apply(try Data(contentsOf: url), to: choices)
+            } catch RectangleImportError.wrongApp(let app) {
+                message = "That file holds settings for \(app), not Rectangle."
+                return
+            } catch {
+                message = "That file is not a Rectangle export."
+                return
+            }
+            from = url.lastPathComponent
+        case .alertSecondButtonReturn:
+            let domain = UserDefaults.standard.persistentDomain(forName: RectangleImport.domain) ?? [:]
+            guard RectangleImport.hasLiveSettings(domain) else {
+                message = "Rectangle has no settings on this Mac, so there is nothing to import."
+                return
+            }
+            (imported, warnings) = RectangleImport.applyLive(domain, to: choices)
+            from = "Rectangle on this Mac"
+        default:
+            return
+        }
+        guard imported != choices || !warnings.isEmpty else {
+            message = "\(from) holds nothing that differs from these settings."
+            return
+        }
+        let confirm = NSAlert()
+        confirm.messageText = "Apply Rectangle's settings?"
+        var text = "Shortcuts and behavior choices from \(from) replace the ones here."
+        if !warnings.isEmpty {
+            let shown = warnings.prefix(12).joined(separator: "\n")
+            let more = warnings.count > 12 ? "\nand \(warnings.count - 12) more." : ""
+            text += "\n\nThese do not come over:\n\(shown)\(more)"
+        }
+        confirm.informativeText = text
+        confirm.addButton(withTitle: "Import")
+        confirm.addButton(withTitle: "Cancel")
+        guard confirm.runModal() == .alertFirstButtonReturn else { return }
+        change { $0 = imported }
+        message = "Imported Rectangle's settings from \(from)."
+    }
 }
 
 // SettingsWindow is the settings window, built once and shown again on each open.
