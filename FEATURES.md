@@ -84,6 +84,8 @@ each part.
 - Record shortcuts, edit custom sizes, manage workspaces, bind mouse buttons, and pick the keymap,
   snapping, gap, fullscreen handling and one of twelve themes.
 - Export every choice to one JSON file and import it on another Mac.
+- Restore defaults resets shortcuts, snapping, appearance and behavior, and keeps your anchored
+  apps, sizes and workspaces.
 
 ## Out of sight
 

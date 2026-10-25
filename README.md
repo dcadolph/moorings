@@ -211,7 +211,9 @@ ties a workspace to the displays attached now, and plugging into that set recall
 Open it from the menu, or open Moorings again while it runs. It records shortcuts, edits custom
 sizes, renames and ties workspaces, picks the keymap, snap areas, gap, mouse buttons, fullscreen
 handling and theme, and exports or imports every choice as one JSON file. Imported workspaces
-come back untied, since the file may come from another desk.
+come back untied, since the file may come from another desk. Restore defaults, under the tabs,
+asks once and then puts shortcuts, snapping, appearance and behavior back to their defaults.
+Anchored apps, strip sizes, ignored apps, custom sizes and workspaces stay.
 
 ### Snap by dragging
 
