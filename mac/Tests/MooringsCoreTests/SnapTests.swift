@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import MooringsCore
@@ -188,4 +189,56 @@ func snapZone(_ f: Frame, _ ch: Frame?, _ x: Double, _ y: Double, _ prev: String
     #expect(s.fadeTime == FootprintStyle.fadeSeconds)
     s.animationSpeed = 2
     #expect(s.fadeTime == FootprintStyle.fadeSeconds * 2)
+}
+
+// Swift only: a custom area off the ultrawide takes a drop before the edges, the first match wins, an
+// empty action turns an area off, held keys still apply, and the ultrawide ignores custom areas.
+@Test func testSnapCustomAreas() {
+    var m = SnapChoices()
+    m.customAreas = [CustomSnapArea(x: 0.4, y: 0.4, w: 0.2, h: 0.2, action: "center-third"),
+                     CustomSnapArea(x: 0.4, y: 0.4, w: 0.6, h: 0.6, action: "bottom-right"),
+                     CustomSnapArea(x: 0, y: 0, w: 0.1, h: 1, action: "")]
+    #expect(Snap.zone(SnapPoint(960, 540), snapScreen, nil, nil, snapping: m) == "center-third")
+    #expect(Snap.zone(SnapPoint(1500, 800), snapScreen, nil, nil, snapping: m) == "bottom-right")
+    #expect(Snap.zone(SnapPoint(1919, 500), snapScreen, nil, nil, snapping: m) == "bottom-right")
+    #expect(Snap.zone(SnapPoint(0, 500), snapScreen, nil, nil, snapping: m) == "left-half")
+    #expect(Snap.zone(SnapPoint(300, 300), snapScreen, nil, nil, snapping: m) == nil)
+    #expect(Snap.zone(SnapPoint(5120 + 756, 491), snapSide, nil, nil, snapping: m) == "center-third")
+    let ch = F(512, 25, 4096, 1415)
+    #expect(Snap.zone(SnapPoint(2560, 720), snapWide, ch, nil, snapping: m) == nil)
+    m.snapModifiers = ["shift"]
+    #expect(Snap.zone(SnapPoint(960, 540), snapScreen, nil, nil, snapping: m) == nil)
+    #expect(Snap.zone(SnapPoint(960, 540), snapScreen, nil, nil, snapping: m, held: ["shift"]) == "center-third")
+}
+
+// Swift only: snap choices saved before custom areas and the panel load with neither, a bad area field
+// reads 0, and both round trip.
+@Test func testSnapChoicesCustomDecode() throws {
+    let old = try JSONDecoder().decode(SnapChoices.self, from: Data(#"{"cornerSize":30}"#.utf8))
+    #expect(old.customAreas.isEmpty && !old.snapPanel && old.panelActions == SnapPanel.defaultActions)
+    let bad = try JSONDecoder().decode(CustomSnapArea.self, from: Data(#"{"x":"wide","w":0.5,"action":"maximize"}"#.utf8))
+    #expect(bad == CustomSnapArea(x: 0, y: 0, w: 0.5, h: 0, action: "maximize"))
+    var m = SnapChoices()
+    m.customAreas = [CustomSnapArea(x: 0.1, y: 0.2, w: 0.3, h: 0.4, action: "maximize")]
+    m.snapPanel = true
+    m.panelActions = ["left-half"]
+    #expect(try JSONDecoder().decode(SnapChoices.self, from: JSONEncoder().encode(m)) == m)
+}
+
+// Swift only: the snap panel sits centered above the cursor, drops below it at the top of the display,
+// stays on the display, and hit finds the target under the cursor.
+@Test func testSnapPanelLayout() {
+    let (panel, cells) = SnapPanel.layout(3, at: SnapPoint(960, 500), screen: snapScreen)
+    #expect(panel == F(850, 392, 220, 60))
+    #expect(cells == [F(858, 400, 64, 44), F(928, 400, 64, 44), F(998, 400, 64, 44)])
+    #expect(SnapPanel.hit(SnapPoint(940, 420), cells) == 1)
+    #expect(SnapPanel.hit(SnapPoint(925, 420), cells) == nil)
+    #expect(SnapPanel.hit(SnapPoint(940, 500), cells) == nil)
+    let top = SnapPanel.layout(3, at: SnapPoint(960, 50), screen: snapScreen).panel
+    #expect(top.y == 98)
+    let corner = SnapPanel.layout(6, at: SnapPoint(10, 1075), screen: snapScreen).panel
+    #expect(corner.x == 0 && corner.y == 1075 - 48 - 60)
+    let right = SnapPanel.layout(6, at: SnapPoint(1915, 500), screen: snapScreen).panel
+    #expect(right.x + right.w == 1920)
+    #expect(SnapPanel.layout(0, at: SnapPoint(960, 500), screen: snapScreen).cells.isEmpty)
 }

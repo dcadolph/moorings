@@ -269,6 +269,39 @@ struct SettingsView: View {
                     Spacer()
                 }
             }
+            Section("Custom areas") {
+                Text("A custom area is a part of a display, as shares from 0 to 1, that snaps a window dropped in it. "
+                    + "Custom areas come before the edges and do not apply on the ultrawide.")
+                    .font(.callout).foregroundStyle(.secondary)
+                ForEach(s.customAreas.indices, id: \.self) { i in
+                    SnapAreaRow(area: s.customAreas[i], actions: snapTargets,
+                                save: { a in model.change { $0.snapping.customAreas[i] = a } },
+                                delete: { model.change { $0.snapping.customAreas.remove(at: i) } })
+                }
+                Button("Add area") {
+                    model.change {
+                        $0.snapping.customAreas.append(CustomSnapArea(x: 0.4, y: 0.4, w: 0.2, h: 0.2, action: "center"))
+                    }
+                }
+            }
+            Section("Snap panel") {
+                Toggle("Pause while dragging to show a panel of targets near the pointer",
+                       isOn: Binding(get: { s.snapPanel }, set: { v in model.change { $0.snapping.snapPanel = v } }))
+                ForEach(Array(s.panelActions.enumerated()), id: \.offset) { i, name in
+                    HStack {
+                        Text(Keymaps.label(name))
+                        Spacer()
+                        Button("Left") { model.change { $0.snapping.panelActions.swapAt(i, i - 1) } }.disabled(i == 0)
+                        Button("Right") { model.change { $0.snapping.panelActions.swapAt(i, i + 1) } }
+                            .disabled(i == s.panelActions.count - 1)
+                        Button("Remove") { model.change { _ = $0.snapping.panelActions.remove(at: i) } }
+                    }
+                }
+                adder("Add a target", snapTargets.filter { !s.panelActions.contains($0) }) { name in
+                    model.change { $0.snapping.panelActions.append(name) }
+                }
+                Text("Drop the window on a target to apply it.").font(.callout).foregroundStyle(.secondary)
+            }
             Section("Edges") {
                 snapStepper("Snap before the edge", \.snapBeforeReachingEdges, 0...100, 5)
                 snapStepper("Top margin", \.edgeMarginTop, 0...50, 1)
@@ -448,6 +481,12 @@ struct SettingsView: View {
         }
     }
 
+    // snapTargets lists the actions a custom snap area can take.
+    private var snapTargets: [String] {
+        actionNames.filter { !Keymaps.windowNames.contains($0) && !Actions.arrowNames.contains($0) }
+            + model.bindings.sizes.map(\.name)
+    }
+
     // areaSection picks the action for each snap area in the map at path, and whether the area never snaps.
     private func areaSection(_ title: String, _ path: WritableKeyPath<SnapChoices, [String: String]>) -> some View {
         Section(title) {
@@ -616,6 +655,41 @@ struct SizeRow: View {
     // share edits one share of the size.
     private func share(_ label: String, _ path: WritableKeyPath<StoredSize, Double?>) -> some View {
         TextField(label, value: Binding(get: { size[keyPath: path] }, set: { var s = size; s[keyPath: path] = $0; save(s) }),
+                  format: .number)
+            .frame(width: 48)
+    }
+}
+
+// SnapAreaRow edits one custom snap area: its four shares, its action and Delete.
+struct SnapAreaRow: View {
+    // area is the area as saved.
+    let area: CustomSnapArea
+    // actions lists the actions the area can take.
+    let actions: [String]
+    // save stores an edited area.
+    let save: (CustomSnapArea) -> Void
+    // delete removes the area.
+    let delete: () -> Void
+
+    // body shows the shares, the action picker and Delete.
+    var body: some View {
+        HStack {
+            share("x", \.x)
+            share("y", \.y)
+            share("w", \.w)
+            share("h", \.h)
+            Picker("", selection: Binding(get: { area.action }, set: { var a = area; a.action = $0; save(a) })) {
+                Text("Nothing").tag("")
+                ForEach(actions, id: \.self) { Text(Keymaps.label($0)).tag($0) }
+            }
+            Button("Delete", action: delete)
+        }
+    }
+
+    // share edits one share of the area, clamped from 0 to 1.
+    private func share(_ label: String, _ path: WritableKeyPath<CustomSnapArea, Double>) -> some View {
+        TextField(label, value: Binding(get: { area[keyPath: path] },
+                                        set: { var a = area; a[keyPath: path] = min(max($0, 0), 1); save(a) }),
                   format: .number)
             .frame(width: 48)
     }

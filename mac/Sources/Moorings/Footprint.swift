@@ -127,6 +127,14 @@ final class DragSnap {
     private var placed: Frame?
     // stashAt is the edge a Command-drag would stash the window at, nil when it would not.
     private var stashAt: StashEdge?
+    // panel shows the snap panel's targets.
+    private let panel = SnapPanelWindow()
+    // cells are the snap panel's target frames while it shows, nil while it is hidden.
+    private var cells: [Frame]?
+    // dwell fires once the cursor has paused during a drag.
+    private var dwell: Timer?
+    // dwellFrom is where the cursor was when the current pause began.
+    private var dwellFrom: CGPoint?
 
     // init builds a drag follower for app.
     init(app: AppDelegate) {
@@ -173,9 +181,21 @@ final class DragSnap {
         if case let .zone(z) = drop {
             prev = z
         }
-        let next = Snap.drop(SnapPoint(p.x, p.y), screens.full[i], ch, prev: prev, option: option,
-                             parkable: true, pinned: app.anchors.pinned(w), castOff: app.anchors.isCastOff(w.id),
-                             snapping: choices.snapping, held: Self.held(flags))
+        let held = Self.held(flags)
+        let s = choices.snapping
+        let panelOn = s.snapPanel && !option && !app.anchors.pinned(w) && !app.anchors.isCastOff(w.id)
+            && Set(s.snapModifiers).isSubset(of: held)
+        let hit = panelOn ? cells.flatMap { SnapPanel.hit(SnapPoint(p.x, p.y), $0) } : nil
+        panel.highlight(hit)
+        if panelOn {
+            wait(p)
+        }
+        let next: SnapDrop? = if let hit, hit < s.panelActions.count {
+            .zone(s.panelActions[hit])
+        } else {
+            Snap.drop(SnapPoint(p.x, p.y), screens.full[i], ch, prev: prev, option: option, parkable: true,
+                      pinned: app.anchors.pinned(w), castOff: app.anchors.isCastOff(w.id), snapping: s, held: held)
+        }
         if next == drop && i == screen {
             return
         }
@@ -249,6 +269,43 @@ final class DragSnap {
         at = nil
         placed = nil
         stashAt = nil
+        dwell?.invalidate()
+        dwell = nil
+        dwellFrom = nil
+        cells = nil
+        panel.hide()
+    }
+
+    // wait restarts the pause before the snap panel shows whenever the cursor at p has moved more than
+    // SnapPanel.still since the pause began. Once the panel shows it stays until the drag ends.
+    private func wait(_ p: CGPoint) {
+        guard cells == nil else { return }
+        if let from = dwellFrom, abs(p.x - from.x) <= SnapPanel.still, abs(p.y - from.y) <= SnapPanel.still {
+            return
+        }
+        dwellFrom = p
+        dwell?.invalidate()
+        let this = drag
+        dwell = Timer.scheduledTimer(withTimeInterval: SnapPanel.dwellSeconds, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.drag == this, self.down, !self.done else { return }
+                self.showPanel()
+            }
+        }
+    }
+
+    // showPanel shows the snap panel over the paused cursor, on the display under it.
+    private func showPanel() {
+        guard let p = dwellFrom, cells == nil else { return }
+        let screens = Screens.current()
+        guard let f = screens.full.first(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
+        else { return }
+        let choices = app.anchors.choices
+        let names = choices.snapping.panelActions
+        guard !names.isEmpty else { return }
+        let layout = SnapPanel.layout(names.count, at: SnapPoint(p.x, p.y), screen: f)
+        cells = layout.cells
+        panel.show(layout.panel, cells: layout.cells, names: names, palette: choices.theme.palette)
     }
 
     // isMoving reports whether the drag is moving a window, queueing one read of it at a time once
@@ -412,5 +469,101 @@ final class StackBadge {
         view.addSubview(label)
         p.contentView = view
         return p
+    }
+}
+
+// SnapPanelWindow is the row of targets that appears near the cursor when a drag pauses. Each target
+// draws where its action puts a window.
+@MainActor
+final class SnapPanelWindow {
+    // panel is the panel window, nil while hidden.
+    private var panel: NSPanel?
+    // view draws the targets.
+    private let view = SnapPanelView()
+
+    // show draws the targets for names at cells inside frame, all in global top-left coordinates.
+    func show(_ frame: Frame, cells: [Frame], names: [String], palette: Palette) {
+        let primary = NSScreen.screens.first?.frame.height ?? 0
+        let rect = NSRect(x: frame.x, y: primary - frame.y - frame.h, width: frame.w, height: frame.h)
+        view.cells = cells.map { NSRect(x: $0.x - frame.x, y: frame.y + frame.h - $0.y - $0.h, width: $0.w, height: $0.h) }
+        view.names = names
+        view.lit = nil
+        view.background = BannerPanel.color(palette.surface)
+        view.ink = BannerPanel.color(palette.muted)
+        view.accent = BannerPanel.color(palette.accent)
+        view.needsDisplay = true
+        let p = panel ?? makePanel(rect)
+        panel = p
+        p.setFrame(rect, display: true)
+        p.orderFrontRegardless()
+    }
+
+    // highlight lights the target at index i, or none when nil.
+    func highlight(_ i: Int?) {
+        guard panel != nil, view.lit != i else { return }
+        view.lit = i
+        view.needsDisplay = true
+    }
+
+    // hide removes the panel.
+    func hide() {
+        panel?.orderOut(nil)
+        panel = nil
+    }
+
+    // makePanel builds the panel window at rect.
+    private func makePanel(_ rect: NSRect) -> NSPanel {
+        let p = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = true
+        p.ignoresMouseEvents = true
+        p.level = .popUpMenu
+        p.collectionBehavior = [.canJoinAllSpaces, .transient, .ignoresCycle, .fullScreenAuxiliary]
+        view.frame = NSRect(origin: .zero, size: rect.size)
+        view.autoresizingMask = [.width, .height]
+        p.contentView = view
+        return p
+    }
+}
+
+// SnapPanelView draws the snap panel: a rounded card with one target per action, each showing the
+// part of a screen its action fills.
+final class SnapPanelView: NSView {
+    // cells lists each target's rect.
+    var cells: [NSRect] = []
+    // names lists each target's action.
+    var names: [String] = []
+    // lit is the index of the target under the cursor, nil when none is.
+    var lit: Int?
+    // background fills the card.
+    var background = NSColor.windowBackgroundColor
+    // ink draws the targets.
+    var ink = NSColor.secondaryLabelColor
+    // accent draws the lit target.
+    var accent = NSColor.controlAccentColor
+
+    // draw paints the card and each target with a miniature of where its action puts a window.
+    override func draw(_ dirtyRect: NSRect) {
+        background.setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10).fill()
+        for (i, c) in cells.enumerated() where i < names.count {
+            let color = i == lit ? accent : ink
+            let screen = c.insetBy(dx: 4, dy: 4)
+            color.setStroke()
+            let outline = NSBezierPath(roundedRect: screen, xRadius: 3, yRadius: 3)
+            outline.lineWidth = 1
+            outline.stroke()
+            let area = Frame(x: 0, y: 0, w: screen.width, h: screen.height)
+            guard let f = Geometry.position(names[i], area) else {
+                let label = Keymaps.label(names[i]) as NSString
+                label.draw(in: screen.insetBy(dx: 2, dy: 2),
+                           withAttributes: [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: color])
+                continue
+            }
+            color.withAlphaComponent(i == lit ? 0.9 : 0.5).setFill()
+            let r = NSRect(x: screen.minX + f.x, y: screen.maxY - f.y - f.h, width: f.w, height: f.h).insetBy(dx: 1.5, dy: 1.5)
+            NSBezierPath(roundedRect: r, xRadius: 2, yRadius: 2).fill()
+        }
     }
 }

@@ -58,8 +58,9 @@ public enum Snap {
     }
 
     // zone returns the action a window dropped at p gets on a display whose full frame is f, or nil.
-    // snapping supplies the area maps and sizes, used off the ultrawide, and held is the set of modifier
-    // names down now. The ultrawide strip rule is fixed and ignores the maps.
+    // snapping supplies the custom areas, which come first, the area maps and sizes, all used off the
+    // ultrawide, and held is the set of modifier names down now. The ultrawide strip rule is fixed and
+    // ignores the custom areas and the maps.
     // ch is the channel when the display is the ultrawide. prev is the zone the drag was last in.
     public static func zone(
         _ p: SnapPoint, _ f: Frame, _ ch: Frame? = nil, _ prev: String? = nil, snapping: SnapChoices = SnapChoices(),
@@ -67,6 +68,9 @@ public enum Snap {
     ) -> String? {
         if !snapping.snapModifiers.isEmpty && !Set(snapping.snapModifiers).isSubset(of: held) {
             return nil
+        }
+        if ch == nil, let area = snapping.customAreas.first(where: { !$0.action.isEmpty && $0.contains(p, f) }) {
+            return area.action
         }
         let l = p.x - f.x
         let r = f.x + f.w - p.x
@@ -234,6 +238,12 @@ public struct SnapChoices: Equatable, Sendable, Codable {
     public var shortEdgeSize: Double = 145
     // footprint is the footprint style.
     public var footprint: FootprintStyle = FootprintStyle()
+    // customAreas lists the areas the owner drew, checked in order before the edge areas.
+    public var customAreas: [CustomSnapArea] = []
+    // snapPanel reports whether pausing during a drag shows a panel of targets near the cursor.
+    public var snapPanel: Bool = false
+    // panelActions lists the snap panel's targets, left to right.
+    public var panelActions: [String] = SnapPanel.defaultActions
 
     // init builds snap choices at their defaults.
     public init() {}
@@ -242,6 +252,7 @@ public struct SnapChoices: Equatable, Sendable, Codable {
     private enum CodingKeys: String, CodingKey {
         case landscapeSnapAreas, portraitSnapAreas, ignoredSnapAreas, snapModifiers, snapBeforeReachingEdges
         case edgeMarginTop, edgeMarginBottom, edgeMarginLeft, edgeMarginRight, cornerSize, shortEdgeSize, footprint
+        case customAreas, snapPanel, panelActions
     }
 
     // init decodes saved snap choices, keeping the default for anything missing or unreadable.
@@ -261,6 +272,9 @@ public struct SnapChoices: Equatable, Sendable, Codable {
         cornerSize = (try? c.decodeIfPresent(Double.self, forKey: .cornerSize)) ?? 20
         shortEdgeSize = (try? c.decodeIfPresent(Double.self, forKey: .shortEdgeSize)) ?? 145
         footprint = (try? c.decodeIfPresent(FootprintStyle.self, forKey: .footprint)) ?? FootprintStyle()
+        customAreas = (try? c.decodeIfPresent([CustomSnapArea].self, forKey: .customAreas)) ?? []
+        snapPanel = (try? c.decodeIfPresent(Bool.self, forKey: .snapPanel)) ?? false
+        panelActions = (try? c.decodeIfPresent([String].self, forKey: .panelActions)) ?? SnapPanel.defaultActions
     }
 
     // resolve returns the action for area under the map, or nil when the area is ignored or unmapped. short
@@ -286,5 +300,100 @@ public struct SnapChoices: Equatable, Sendable, Codable {
         default:
             return value
         }
+    }
+}
+
+// CustomSnapArea is a snap area the owner draws: a rectangle as shares of a display's full frame, each
+// from 0 to 1, and the action a window dropped in it gets.
+public struct CustomSnapArea: Equatable, Sendable, Codable {
+    // x is the left edge as a share of the display's width.
+    public var x: Double
+    // y is the top edge as a share of the display's height.
+    public var y: Double
+    // w is the width as a share of the display's width.
+    public var w: Double
+    // h is the height as a share of the display's height.
+    public var h: Double
+    // action is the action a window dropped here gets, empty to turn the area off.
+    public var action: String
+
+    // init builds an area.
+    public init(x: Double, y: Double, w: Double, h: Double, action: String) {
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+        self.action = action
+    }
+
+    // CodingKeys names the saved fields.
+    private enum CodingKeys: String, CodingKey {
+        case x, y, w, h, action
+    }
+
+    // init decodes an area, keeping 0 or empty for anything missing or unreadable.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        x = (try? c.decodeIfPresent(Double.self, forKey: .x)) ?? 0
+        y = (try? c.decodeIfPresent(Double.self, forKey: .y)) ?? 0
+        w = (try? c.decodeIfPresent(Double.self, forKey: .w)) ?? 0
+        h = (try? c.decodeIfPresent(Double.self, forKey: .h)) ?? 0
+        action = (try? c.decodeIfPresent(String.self, forKey: .action)) ?? ""
+    }
+
+    // frame returns the area on a display whose full frame is f.
+    public func frame(_ f: Frame) -> Frame {
+        Frame(x: f.x + x * f.w, y: f.y + y * f.h, w: w * f.w, h: h * f.h)
+    }
+
+    // contains reports whether p lies in the area on a display whose full frame is f.
+    public func contains(_ p: SnapPoint, _ f: Frame) -> Bool {
+        let r = frame(f)
+        return r.w > 0 && r.h > 0 && p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h
+    }
+}
+
+// SnapPanel holds the snap panel's layout: a row of targets that appears near the cursor when a drag
+// pauses. Every function is pure.
+public enum SnapPanel {
+    // defaultActions lists the targets a new panel offers.
+    public static let defaultActions = ["left-half", "maximize", "right-half", "first-third", "center-third", "last-third"]
+    // dwellSeconds is how long the cursor must pause during a drag before the panel appears.
+    public static let dwellSeconds = 0.3
+    // still is the most in points the cursor may move and still count as paused.
+    public static let still = 4.0
+    // cellWidth and cellHeight are a target's size in points.
+    public static let cellWidth = 64.0
+    public static let cellHeight = 44.0
+    // spacing is the room in points between targets, and padding the room around them.
+    public static let spacing = 6.0
+    public static let padding = 8.0
+    // offset is how far in points above the cursor the panel's bottom sits, or below it when there is
+    // no room above.
+    public static let offset = 48.0
+
+    // layout returns the panel's frame and its count targets' frames for a pause at p on a display whose
+    // full frame is f: centered over the cursor, above it when it fits and below it otherwise, and kept
+    // on the display.
+    public static func layout(_ count: Int, at p: SnapPoint, screen f: Frame) -> (panel: Frame, cells: [Frame]) {
+        let n = max(0, count)
+        let w = Double(n) * cellWidth + Double(max(0, n - 1)) * spacing + 2 * padding
+        let h = cellHeight + 2 * padding
+        var x = p.x - w / 2
+        x = min(max(x, f.x), f.x + f.w - w)
+        var y = p.y - offset - h
+        if y < f.y {
+            y = p.y + offset
+        }
+        y = min(max(y, f.y), f.y + f.h - h)
+        let cells = (0..<n).map { i in
+            Frame(x: x + padding + Double(i) * (cellWidth + spacing), y: y + padding, w: cellWidth, h: cellHeight)
+        }
+        return (Frame(x: x, y: y, w: w, h: h), cells)
+    }
+
+    // hit returns the index of the target under p, nil when none is.
+    public static func hit(_ p: SnapPoint, _ cells: [Frame]) -> Int? {
+        cells.firstIndex { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h }
     }
 }

@@ -64,6 +64,11 @@ each part.
   margins and corner sizes. The strips on the ultrawide keep their own zones.
 - The footprint's fill opacity, border width, color, fade and fade time are yours to set, and a
   haptic tap can mark each new zone.
+- Custom areas: any part of a display, as shares from 0 to 1, mapped to any action or size of
+  your own. They come before the edges, off the ultrawide.
+- The snap panel: pause for a moment while dragging and a row of targets appears above the
+  pointer, each drawn as the part of the screen it fills. Drop the window on one to apply it.
+  Pick and order the targets in Settings > Snapping. Off until you turn it on.
 
 ## Organize
 

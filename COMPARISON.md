@@ -6,21 +6,21 @@ Every row names its check. A row reads yes only when that check passes. Rows tha
 
 Price is not on the product page. A 2022 article gave 10 EUR. It has a 10-day trial and covers 3 devices. Charmstone, its separate app switcher, is out of scope because it is not a window manager.
 
-| Feature                                                | Who has it    | Moorings                                                                  | Check                                                                                 |
-|--------------------------------------------------------|---------------|---------------------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| Window throw, 16 sizes, works on an unfocused window   | Rectangle Pro | yes, by a held key, on the window under the pointer                       | testOverlayPick, testOverlayTargetsKnown, testOverlayTriggerHeld; live check owed     |
-| Quick throw and throw by cursor direction              | Rectangle Pro | yes, by cursor direction                                                  | testOverlayPick; live check owed                                                      |
-| Custom snap targets and a configurable snap panel      | Rectangle Pro | planned (unit 16)                                                         | unit 16 snap panel                                                                    |
-| Custom sizes with repeat behavior                      | Rectangle Pro | yes                                                                       | testCustomSize, testSizeShortcuts                                                     |
-| Workspace arrangement by shortcut                      | Rectangle Pro | yes                                                                       | testWorkspacesMatch, testWorkspacesFitAndCodable                                      |
-| Workspace arrangement on display connect or disconnect | Rectangle Pro | yes                                                                       | testWorkspacesSignature                                                               |
-| Stash at a screen edge with slide-out on hover         | Rectangle Pro | yes, left, right and bottom edges, no top edge                            | testStashFrames, testStashHover, testStashEdges, testStashedStaysPut; live check owed |
-| Pin one app to a side                                  | Rectangle Pro | yes                                                                       | selftest "anchored window lands in its slot"                                          |
-| Todo mode with more settings                           | Rectangle Pro | no (anchored apps cover the pinning, no separate mode)                    | not applicable                                                                        |
-| Menu customization, by shortcut or as a context menu   | Rectangle Pro | yes                                                                       | testMenuVisible, testMenuPinned, live 10-24                                           |
-| Import from Rectangle, export file or live settings    | Rectangle Pro | yes                                                                       | testRectangleImportRoundTrip, testRectangleImportLive                                 |
-| iCloud sync                                            | Rectangle Pro | planned (unit 20)                                                         | unit 20 settings sync on iCloud                                                       |
-| Windows-style arrow keys and left/right fill           | Rectangle Pro | yes                                                                       | testArrowWalk, testFillLeftStops, testWindowsKeymap                                   |
+| Feature                                                | Who has it    | Moorings                                                        | Check                                                                                  |
+|--------------------------------------------------------|---------------|-----------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| Window throw, 16 sizes, works on an unfocused window   | Rectangle Pro | yes, by a held key, on the window under the pointer             | testOverlayPick, testOverlayTargetsKnown, testOverlayTriggerHeld; live check owed      |
+| Quick throw and throw by cursor direction              | Rectangle Pro | yes, by cursor direction                                        | testOverlayPick; live check owed                                                       |
+| Custom snap targets and a configurable snap panel      | Rectangle Pro | yes, custom areas off the ultrawide and a snap panel on a pause | testSnapCustomAreas, testSnapPanelLayout, testSnapChoicesCustomDecode; live check owed |
+| Custom sizes with repeat behavior                      | Rectangle Pro | yes                                                             | testCustomSize, testSizeShortcuts                                                      |
+| Workspace arrangement by shortcut                      | Rectangle Pro | yes                                                             | testWorkspacesMatch, testWorkspacesFitAndCodable                                       |
+| Workspace arrangement on display connect or disconnect | Rectangle Pro | yes                                                             | testWorkspacesSignature                                                                |
+| Stash at a screen edge with slide-out on hover         | Rectangle Pro | yes, left, right and bottom edges, no top edge                  | testStashFrames, testStashHover, testStashEdges, testStashedStaysPut; live check owed  |
+| Pin one app to a side                                  | Rectangle Pro | yes                                                             | selftest "anchored window lands in its slot"                                           |
+| Todo mode with more settings                           | Rectangle Pro | no (anchored apps cover the pinning, no separate mode)          | not applicable                                                                         |
+| Menu customization, by shortcut or as a context menu   | Rectangle Pro | yes                                                             | testMenuVisible, testMenuPinned, live 10-24                                            |
+| Import from Rectangle, export file or live settings    | Rectangle Pro | yes                                                             | testRectangleImportRoundTrip, testRectangleImportLive                                  |
+| iCloud sync                                            | Rectangle Pro | planned (unit 20)                                               | unit 20 settings sync on iCloud                                                        |
+| Windows-style arrow keys and left/right fill           | Rectangle Pro | yes                                                             | testArrowWalk, testFillLeftStops, testWindowsKeymap                                    |
 
 ## Rectangle
 
@@ -65,7 +65,7 @@ Moom costs $15.
 | Pop-up palette on the green button with up to 61 actions | Moom                        | yes, as a menu at the pointer by shortcut or mouse button, not on the green button | live 10-24                             |
 | Saved layouts for an app's windows and recent windows    | Moom                        | yes                                                                                | testWorkspacesFitAndCodable            |
 | Snap zones                                               | Moom                        | yes                                                                                | testSnapEdges                          |
-| Drop zones from a saved layout                           | Moom                        | planned (unit 16)                                                                  | unit 16 custom snap areas              |
+| Drop zones from a saved layout                           | Moom                        | partial: custom areas drawn as shares, not made from a saved layout                | testSnapCustomAreas                    |
 | Chains of actions, in sequence or looped                 | Moom                        | yes                                                                                | testChainStepStops, testChainStepLoops |
 | Hover move and resize with modifiers, no click           | Moom, Lasso                 | planned (unit 21)                                                                  | unit 21 hover move and resize          |
 | Keyboard grid controller                                 | Moom                        | yes, arrows under the held key, Return applies                                     | testOverlayGrid; live check owed       |
@@ -80,14 +80,14 @@ Moom costs $15.
 
 It is sold on the Mac App Store. The price is not on the page.
 
-| Feature                                         | Who has it             | Moorings                                  | Check                         |
-|-------------------------------------------------|------------------------|-------------------------------------------|-------------------------------|
-| Corner and edge snapping                        | BetterSnapTool, Magnet | yes                                       | testSnapEdges                 |
-| Custom snap areas anywhere                      | BetterSnapTool         | planned (unit 16)                         | unit 16 custom snap areas     |
-| Custom shortcuts                                | BetterSnapTool         | yes                                       | testSizeShortcuts             |
-| Green button lifts or fills instead of zoom     | BetterSnapTool         | yes                                       | testLiftGreenButton           |
-| Customized clicks on the red and yellow buttons | BetterSnapTool         | yes                                       | testButtonClicksAction        |
-| Move or resize while holding a key              | BetterSnapTool         | planned (unit 21)                         | unit 21 hover move and resize |
+| Feature                                         | Who has it             | Moorings               | Check                                |
+|-------------------------------------------------|------------------------|------------------------|--------------------------------------|
+| Corner and edge snapping                        | BetterSnapTool, Magnet | yes                    | testSnapEdges                        |
+| Custom snap areas anywhere                      | BetterSnapTool         | yes, off the ultrawide | testSnapCustomAreas; live check owed |
+| Custom shortcuts                                | BetterSnapTool         | yes                    | testSizeShortcuts                    |
+| Green button lifts or fills instead of zoom     | BetterSnapTool         | yes                    | testLiftGreenButton                  |
+| Customized clicks on the red and yellow buttons | BetterSnapTool         | yes                    | testButtonClicksAction               |
+| Move or resize while holding a key              | BetterSnapTool         | planned (unit 21)      | unit 21 hover move and resize        |
 
 ## Loop
 
