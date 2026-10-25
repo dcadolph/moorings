@@ -175,3 +175,22 @@ import Testing
     #expect(c.restoringDefaults() == want)
     #expect(Choices().restoringDefaults() == Choices())
 }
+
+// Swift only: renaming a chain moves its shortcut, mouse button and pinned menu entry.
+@Test func testChoicesRenameChain() {
+    var c = Choices()
+    c.chains = [Chain(name: "A", steps: ["left-half"]), Chain(name: "B", steps: ["maximize"])]
+    c.shortcuts = ["chain:A": StoredShortcut(mods: ["ctrl", "alt"], key: "k")]
+    c.mouseButtons = ["3": "chain:A", "4": "maximize"]
+    c.menu.order = ["maximize", "chain:A"]
+    c.renameChain(at: 0, to: "Focus")
+    #expect(c.chains.map(\.name) == ["Focus", "B"])
+    #expect(c.shortcuts["chain:A"] == nil)
+    #expect(c.shortcuts["chain:Focus"] == .some(StoredShortcut(mods: ["ctrl", "alt"], key: "k")))
+    #expect(c.mouseButtons == ["3": "chain:Focus", "4": "maximize"])
+    #expect(c.menu.order == ["maximize", "chain:Focus"])
+    let before = c
+    c.renameChain(at: 0, to: "B")
+    c.renameChain(at: 5, to: "C")
+    #expect(c == before)
+}

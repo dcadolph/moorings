@@ -271,6 +271,9 @@ public enum Keymaps {
     // workspacePrefix starts the action name that recalls a saved workspace.
     public static let workspacePrefix = "workspace:"
 
+    // menuName is the action that opens the moorings menu under the pointer.
+    public static let menuName = "show-menu"
+
     // maxGap is the widest gap the config may ask for.
     public static let maxGap = 100.0
 
@@ -283,12 +286,13 @@ public enum Keymaps {
         "cycle-stacked-windows", "cycle-stacked-windows-backward", "reverse-all",
     ]
 
-    // known reports whether name is an action moorings can run. A workspace name counts, since
-    // workspaces are saved after the shortcuts are bound.
+    // known reports whether name is an action moorings can run. A workspace or chain name counts,
+    // since both are saved after the shortcuts are bound.
     public static func known(_ name: String) -> Bool {
         special.contains(name) || organizeNames.contains(name)
             || name == Actions.specifiedName || Actions.displayNames.contains(name)
             || (name.hasPrefix(workspacePrefix) && name.count > workspacePrefix.count)
+            || (name.hasPrefix(Chain.prefix) && name.count > Chain.prefix.count) || name == menuName
             || Geometry.position(name, Frame(x: 0, y: 0, w: 100, h: 100)) != nil
     }
 
@@ -297,6 +301,12 @@ public enum Keymaps {
     public static func label(_ name: String) -> String {
         if name.hasPrefix(sizePrefix) {
             return String(name.dropFirst(sizePrefix.count))
+        }
+        if name.hasPrefix(Chain.prefix) {
+            return String(name.dropFirst(Chain.prefix.count))
+        }
+        if name == menuName {
+            return "Moorings menu at the pointer"
         }
         let s = name.replacingOccurrences(of: "-", with: " ")
         return s.prefix(1).uppercased() + s.dropFirst()

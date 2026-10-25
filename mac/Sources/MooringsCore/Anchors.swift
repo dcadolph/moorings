@@ -174,6 +174,21 @@ public struct Choices: Equatable, Sendable, Codable {
         return c
     }
 
+    // renameChain renames the chain at index to name and moves its shortcut, mouse buttons and menu
+    // entries to the new action name. It does nothing when index is out of range or another chain
+    // already has the name.
+    public mutating func renameChain(at index: Int, to name: String) {
+        guard chains.indices.contains(index), !chains.contains(where: { $0.name == name }) else { return }
+        let old = chains[index].actionName
+        chains[index].name = name
+        let new = chains[index].actionName
+        if let sc = shortcuts.removeValue(forKey: old) {
+            shortcuts[new] = sc
+        }
+        mouseButtons = mouseButtons.mapValues { $0 == old ? new : $0 }
+        menu.order = menu.order.map { $0 == old ? new : $0 }
+    }
+
     // encode returns choices as sorted JSON for saving.
     public static func encode(_ choices: Choices) throws -> Data {
         let encoder = JSONEncoder()

@@ -39,6 +39,7 @@ struct SettingsView: View {
             workspaces.tabItem { Label("Workspaces", systemImage: "rectangle.3.group") }
             layout.tabItem { Label("Layout", systemImage: "rectangle.split.3x1") }
             snapping.tabItem { Label("Snapping", systemImage: "square.on.square.dashed") }
+            menu.tabItem { Label("Menu", systemImage: "list.bullet") }
             appearance.tabItem { Label("Appearance", systemImage: "paintpalette") }
             general.tabItem { Label("General", systemImage: "gearshape") }
         }
@@ -49,10 +50,16 @@ struct SettingsView: View {
         ActionRunner.families.flatMap { $0.names + $0.groups.flatMap(\.names) } + Tile.names
     }
 
+    // runNames lists every action a shortcut or mouse button can run: the window actions, the menu
+    // at the pointer and the chains.
+    private var runNames: [String] {
+        actionNames + [Keymaps.menuName] + model.choices.chains.map(\.actionName)
+    }
+
     // shortcuts lists every action with its shortcut, a recorder, and a way back to the keymap's.
     private var shortcuts: some View {
         let map = model.bindings.map
-        return List(actionNames, id: \.self) { name in
+        return List(runNames, id: \.self) { name in
             HStack {
                 Text(Keymaps.label(name))
                 Spacer()
@@ -129,7 +136,7 @@ struct SettingsView: View {
                     Picker(title, selection: Binding(get: { model.choices.mouseButtons[String(button)] ?? "" },
                                                      set: { v in model.change { $0.mouseButtons[String(button)] = v.isEmpty ? nil : v } })) {
                         Text("Nothing").tag("")
-                        ForEach(actionNames, id: \.self) { Text(Keymaps.label($0)).tag($0) }
+                        ForEach(runNames, id: \.self) { Text(Keymaps.label($0)).tag($0) }
                     }
                 }
             }
@@ -249,6 +256,76 @@ struct SettingsView: View {
         }
     }
 
+    // menu edits the Window folder: the actions pinned to its top, the hidden ones, and the chains.
+    private var menu: some View {
+        let m = model.choices.menu
+        let chains = model.choices.chains
+        let extra = Set(model.bindings.sizes.map(\.name))
+        let problems = chains.flatMap { $0.validate(extra: extra) }
+        return Form {
+            Section("Menu at the pointer") {
+                HStack {
+                    Text("Open the Moorings menu under the pointer")
+                    Spacer()
+                    ShortcutRecorder(current: model.bindings.map[Keymaps.menuName], suspend: model.suspend) { sc in
+                        model.change { $0.shortcuts[Keymaps.menuName] = .some(sc) }
+                    }
+                    Button("Clear") { model.change { $0.shortcuts[Keymaps.menuName] = .some(nil) } }
+                        .help("Turn this shortcut off.")
+                }
+            }
+            Section("Pinned to the top of the Window folder") {
+                ForEach(Array(m.order.enumerated()), id: \.offset) { i, name in
+                    HStack {
+                        Text(Keymaps.label(name))
+                        Spacer()
+                        Button("Up") { model.change { $0.menu.order.swapAt(i, i - 1) } }.disabled(i == 0)
+                        Button("Down") { model.change { $0.menu.order.swapAt(i, i + 1) } }.disabled(i == m.order.count - 1)
+                        Button("Remove") { model.change { _ = $0.menu.order.remove(at: i) } }
+                    }
+                }
+                adder("Pin an action", runNames.filter { $0 != Keymaps.menuName && !m.order.contains($0) }) { name in
+                    model.change { $0.menu.order.append(name) }
+                }
+            }
+            Section("Hidden from the Window folder") {
+                ForEach(m.hidden, id: \.self) { name in
+                    HStack {
+                        Text(Keymaps.label(name))
+                        Spacer()
+                        Button("Show") { model.change { $0.menu.hidden.removeAll { $0 == name } } }
+                    }
+                }
+                adder("Hide an action", (actionNames + model.bindings.sizes.map(\.name)).filter { !m.hidden.contains($0) }) { name in
+                    model.change { $0.menu.hidden.append(name) }
+                }
+            }
+            Section("Chains") {
+                Text("A chain runs one step per press on the same window. Give it a shortcut in the Shortcuts tab.")
+                    .font(.callout)
+                ForEach(chains.indices, id: \.self) { i in
+                    ChainRow(chain: chains[i], steps: actionNames + model.bindings.sizes.map(\.name),
+                             save: { c in model.change { $0.chains[i] = c } },
+                             rename: { new in model.change { $0.renameChain(at: i, to: new) } },
+                             delete: { model.change { $0.chains.remove(at: i) } })
+                }
+                ForEach(problems, id: \.self) { Text($0).foregroundStyle(.red).font(.callout) }
+                Button("Add chain") {
+                    model.change { $0.chains.append(Chain(name: "Chain \($0.chains.count + 1)")) }
+                }
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    // adder is a picker that hands the chosen action name to add and then shows its prompt again.
+    private func adder(_ prompt: String, _ names: [String], add: @escaping (String) -> Void) -> some View {
+        Picker(prompt, selection: Binding(get: { "" }, set: { v in if !v.isEmpty { add(v) } })) {
+            Text("Choose…").tag("")
+            ForEach(names, id: \.self) { Text(Keymaps.label($0)).tag($0) }
+        }
+    }
+
     // appearance picks the theme.
     private var appearance: some View {
         Form {
@@ -345,6 +422,55 @@ struct WorkspaceRow: View {
                 }
             Toggle("With these displays", isOn: Binding(get: { tied }, set: { _ in tie() }))
             Button("Delete", action: delete)
+        }
+    }
+}
+
+// ChainRow edits one chain: its name, whether it loops, and its steps.
+struct ChainRow: View {
+    // chain is the chain as saved.
+    let chain: Chain
+    // steps lists the action names a step may run.
+    let steps: [String]
+    // save stores the edited chain.
+    let save: (Chain) -> Void
+    // rename stores a new name.
+    let rename: (String) -> Void
+    // delete removes the chain.
+    let delete: () -> Void
+
+    // draft is the name being typed.
+    @State private var draft = ""
+
+    // body shows the name field, the loop switch, each step and a picker to add one.
+    var body: some View {
+        VStack(alignment: .leading) {
+            HStack {
+                TextField("Name", text: $draft)
+                    .onAppear { draft = chain.name }
+                    .onSubmit {
+                        let new = draft.trimmingCharacters(in: .whitespaces)
+                        if !new.isEmpty && new != chain.name {
+                            rename(new)
+                        }
+                    }
+                Toggle("Loop", isOn: Binding(get: { chain.loops }, set: { var c = chain; c.loops = $0; save(c) }))
+                    .help("After the last step, the next press starts over.")
+                Button("Delete", action: delete)
+            }
+            ForEach(Array(chain.steps.enumerated()), id: \.offset) { i, step in
+                HStack {
+                    Text("\(i + 1). \(Keymaps.label(step))")
+                    Spacer()
+                    Button("Remove") { var c = chain; c.steps.remove(at: i); save(c) }
+                }
+            }
+            Picker("Add step", selection: Binding(get: { "" }, set: { v in
+                if !v.isEmpty { var c = chain; c.steps.append(v); save(c) }
+            })) {
+                Text("Choose…").tag("")
+                ForEach(steps, id: \.self) { Text(Keymaps.label($0)).tag($0) }
+            }
         }
     }
 }

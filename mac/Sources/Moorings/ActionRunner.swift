@@ -87,6 +87,8 @@ final class ActionRunner {
     private let logger = Logger(subsystem: "com.dcadolph.moorings", category: "actions")
     // last records the last action applied to each window, so a repeat press steps its cycle.
     private var last: [WindowID: LastPress] = [:]
+    // chainPress records the last chain run, the window it ran on and its zero-based press count.
+    private var chainPress: (name: String, window: WindowID?, press: Int)?
 
     // init builds a runner for app.
     init(app: AppDelegate) {
@@ -97,10 +99,41 @@ final class ActionRunner {
     private var anchors: Anchors { app.anchors }
 
     // run applies action name to the focused window and reports whether anything moved. Nothing runs
-    // while the anchor is weighed. On a pin, Maximize lifts or lowers it and Restore re-moors it.
+    // while the anchor is weighed. On a pin, Maximize lifts or lowers it and Restore re-moors it. A
+    // chain runs its next step, and the menu action opens the menu under the pointer.
     @discardableResult
     func run(_ name: String) -> Bool {
+        if name == Keymaps.menuName {
+            DispatchQueue.main.async { [app] in app.popMenu() }
+            return true
+        }
         guard !anchors.choices.paused, app.windows.trusted else { return false }
+        if name.hasPrefix(Chain.prefix) {
+            return runChain(String(name.dropFirst(Chain.prefix.count)))
+        }
+        chainPress = nil
+        return perform(name)
+    }
+
+    // runChain runs the next step of the chain titled title on the focused window. A press counts as
+    // the next one only when the same chain last ran on the same window with nothing run in between.
+    private func runChain(_ title: String) -> Bool {
+        guard let chain = anchors.choices.chains.first(where: { $0.name == title }) else {
+            logger.notice("chain \(title, privacy: .public): no such chain")
+            return false
+        }
+        let window = app.windows.scan(Screens.current()).focused?.id
+        let press = chainPress.map { $0.name == title && $0.window == window ? $0.press + 1 : 0 } ?? 0
+        chainPress = (title, window, press)
+        guard let step = chain.step(press: press) else {
+            logger.notice("chain \(title, privacy: .public): no steps")
+            return false
+        }
+        return perform(step)
+    }
+
+    // perform applies action name, which is not a chain, to the focused window.
+    private func perform(_ name: String) -> Bool {
         if Tile.handles(name) {
             return app.organizer.run(name)
         }
@@ -257,8 +290,11 @@ final class ActionRunner {
         }
     }
 
-    // runnable reports whether name is an action or a custom size in the choices.
+    // runnable reports whether name is an action, or a custom size or chain in the choices.
     func runnable(_ name: String) -> Bool {
-        Keymaps.known(name) || Bindings(anchors.choices).specs[name] != nil
+        if name.hasPrefix(Chain.prefix) {
+            return anchors.choices.chains.contains { $0.actionName == name }
+        }
+        return Keymaps.known(name) || Bindings(anchors.choices).specs[name] != nil
     }
 }

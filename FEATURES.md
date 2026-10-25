@@ -28,6 +28,10 @@ each part.
   icon and display ordering.
 - Unsnap restore: dragging a placed window away gives it its earlier size back.
 - Double-click a title bar to maximize or restore, with apps you name left alone.
+- Chains: a named list of actions that runs one step per press on the same window, stopping on
+  the last step or looping back to the first, with its own shortcut, mouse button and menu entry.
+- The Moorings menu under the pointer, from a shortcut or a mouse button, without bringing
+  Moorings to the front.
 
 ## Snap by dragging
 
@@ -83,6 +87,8 @@ each part.
 
 - Record shortcuts, edit custom sizes, manage workspaces, bind mouse buttons, and pick the keymap,
   snapping, gap, fullscreen handling and one of twelve themes.
+- A Menu tab to pin actions to the top of the Window folder, hide the ones you never use, and
+  build chains.
 - Export every choice to one JSON file and import it on another Mac.
 - Restore defaults resets shortcuts, snapping, appearance and behavior, and keeps your anchored
   apps, sizes and workspaces.

@@ -72,6 +72,9 @@ private func has(_ problems: [String], _ text: String) -> Bool {
     }
     #expect(Keymaps.known("workspace:Day"))
     #expect(!Keymaps.known("workspace:"))
+    #expect(Keymaps.known("chain:Focus"))
+    #expect(!Keymaps.known("chain:"))
+    #expect(Keymaps.known(Keymaps.menuName))
     for name in [Actions.specifiedName, "left-side", "center-section"] + Actions.displayNames {
         #expect(Keymaps.known(name), "rectangle \(name)")
     }
@@ -121,6 +124,8 @@ private func has(_ problems: [String], _ text: String) -> Bool {
     #expect(r.problems.count == 8)
     #expect(Keymaps.sizes([]).sizes.isEmpty)
     #expect(Keymaps.label("size:Reading") == "Reading")
+    #expect(Keymaps.label("chain:Focus") == "Focus")
+    #expect(Keymaps.label(Keymaps.menuName) == "Moorings menu at the pointer")
 }
 
 // Lua case 7: A custom size shortcut beats a default and a malformed one is reported.

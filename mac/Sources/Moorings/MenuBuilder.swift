@@ -337,29 +337,50 @@ struct MenuBuilder {
     // gapPresets lists the gaps in points the Gap folder offers.
     static let gapPresets: [Double] = [0, 4, 8, 12, 16]
 
-    // windowItems builds the Window folder: a folder per action family, the custom sizes, the keymap,
-    // the gap, and the switch that turns the shortcuts off in the front app. Each entry shows its
-    // shortcut, so the menu doubles as the cheat sheet.
+    // chainTip is the hover hint on every chain entry.
+    static let chainTip = "Run the next step of this chain. Pressing it again on the same window runs the step "
+        + "after."
+
+    // windowItems builds the Window folder: the pinned actions, a folder per action family, the custom
+    // sizes, the chains, the keymap, the gap, and the switch that turns the shortcuts off in the front
+    // app. Each entry shows its shortcut, so the menu doubles as the cheat sheet. Hidden actions are
+    // left out, and a folder left empty is dropped.
     private func windowItems() -> [NSMenuItem] {
         let bindings = Bindings(anchors.choices)
         let paused = anchors.choices.paused
-        let entries = { (names: [String], hint: String?) -> [NSMenuItem] in
-            names.map { name in
-                var title = Keymaps.label(name)
-                if let sc = bindings.map[name] {
-                    title += "  " + sc.text
-                }
-                return ActionItem(title, tip: hint ?? ActionRunner.hints[name] ?? "", enabled: !paused) {
-                    app.actions.run(name)
-                } as NSMenuItem
+        let menu = anchors.choices.menu
+        let entry = { (name: String, hint: String?) -> NSMenuItem in
+            var title = Keymaps.label(name)
+            if let sc = bindings.map[name] {
+                title += "  " + sc.text
+            }
+            return ActionItem(title, tip: hint ?? ActionRunner.hints[name] ?? "", enabled: !paused) {
+                app.actions.run(name)
             }
         }
+        let entries = { (names: [String], hint: String?) -> [NSMenuItem] in
+            menu.visible(names).map { entry($0, hint) }
+        }
         var out: [NSMenuItem] = []
+        let pinned = menu.pinned(app.actions.runnable)
+        if !pinned.isEmpty {
+            out += pinned.map { entry($0, $0.hasPrefix(Chain.prefix) ? Self.chainTip : nil) }
+            out.append(.separator())
+        }
         for fam in ActionRunner.families {
             if fam.groups.isEmpty {
-                out.append(folder(fam.title, entries(fam.names, fam.hint)))
+                let items = entries(fam.names, fam.hint)
+                if !items.isEmpty {
+                    out.append(folder(fam.title, items))
+                }
             } else {
-                out.append(folder(fam.title, fam.groups.map { folder($0.title, entries($0.names, fam.hint)) }))
+                let groups = fam.groups.compactMap { g -> NSMenuItem? in
+                    let items = entries(g.names, fam.hint)
+                    return items.isEmpty ? nil : folder(g.title, items)
+                }
+                if !groups.isEmpty {
+                    out.append(folder(fam.title, groups))
+                }
             }
         }
         var custom = entries(bindings.sizes.map(\.name), "Resize the front window to this size.")
@@ -367,6 +388,11 @@ struct MenuBuilder {
             custom = [label("No custom sizes", tip: "Add sizes in Settings to list them here.")]
         }
         out.append(folder("Custom sizes", custom))
+        var chains = entries(anchors.choices.chains.map(\.actionName), Self.chainTip)
+        if chains.isEmpty {
+            chains = [label("No chains", tip: "Add chains in Settings, Menu tab, to list them here.")]
+        }
+        out.append(folder("Chains", chains))
         var organize = entries(Tile.names, nil)
         organize.append(.separator())
         for n in Organizer.tidyCounts {

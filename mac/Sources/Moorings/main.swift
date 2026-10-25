@@ -172,6 +172,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    // popMenu opens the menu under the pointer as a context menu. Moorings is not brought forward,
+    // so the front app's entries and window actions still act on the window that was in front.
+    func popMenu() {
+        let menu = NSMenu()
+        for entry in MenuBuilder(app: self).items() {
+            menu.addItem(entry)
+        }
+        menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
     // wake marks windows as changing, so the poll runs every pollSeconds again.
     func wake() {
         woke = Self.now

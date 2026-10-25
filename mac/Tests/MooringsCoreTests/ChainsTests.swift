@@ -48,3 +48,19 @@ import Testing
     let chain = try JSONDecoder().decode(Chain.self, from: Data(#"{"name":"A"}"#.utf8))
     #expect(chain == Chain(name: "A"))
 }
+
+// Swift only: hidden names drop out of the menu and the rest keep their order.
+@Test func testMenuVisible() {
+    var menu = MenuChoices()
+    menu.hidden = ["maximize", "center"]
+    #expect(menu.visible(["left-half", "maximize", "right-half", "center"]) == ["left-half", "right-half"])
+    #expect(MenuChoices().visible(["left-half"]) == ["left-half"])
+}
+
+// Swift only: pinned names keep their order, appear once, and drop names that no longer run.
+@Test func testMenuPinned() {
+    var menu = MenuChoices()
+    menu.order = ["maximize", "chain:Gone", "left-half", "maximize", "no-such-action"]
+    #expect(menu.pinned { Keymaps.known($0) && $0 != "chain:Gone" } == ["maximize", "left-half"])
+    #expect(MenuChoices().pinned(Keymaps.known).isEmpty)
+}

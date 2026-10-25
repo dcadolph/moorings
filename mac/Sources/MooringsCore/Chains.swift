@@ -50,7 +50,7 @@ public struct Chain: Equatable, Sendable, Codable {
         var problems: [String] = []
         if name.isEmpty {
             problems.append("chain has no name")
-        } else if Keymaps.known(name) || Keymaps.known(actionName) || extra.contains(name) {
+        } else if Keymaps.known(name) || extra.contains(name) {
             problems.append("chain \(name) collides with an action name")
         }
         if steps.isEmpty {
@@ -87,5 +87,18 @@ public struct MenuChoices: Equatable, Sendable, Codable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         order = (try? c.decodeIfPresent([String].self, forKey: .order)) ?? []
         hidden = (try? c.decodeIfPresent([String].self, forKey: .hidden)) ?? []
+    }
+
+    // visible returns names without the hidden ones, keeping their order.
+    public func visible(_ names: [String]) -> [String] {
+        let skip = Set(hidden)
+        return names.filter { !skip.contains($0) }
+    }
+
+    // pinned returns the shown names in order that runnable accepts, each once, so a stale name left
+    // by a deleted chain or size drops out of the menu.
+    public func pinned(_ runnable: (String) -> Bool) -> [String] {
+        var seen: Set<String> = []
+        return order.filter { runnable($0) && seen.insert($0).inserted }
     }
 }
