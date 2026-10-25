@@ -18,7 +18,7 @@ Price is not on the product page. A 2022 article gave 10 EUR. It has a 10-day tr
 | Pin one app to a side                                  | Rectangle Pro | yes                                                    | selftest "anchored window lands in its slot"     |
 | Todo mode with more settings                           | Rectangle Pro | no (anchored apps cover the pinning, no separate mode) | not applicable                                   |
 | Menu customization, by shortcut or as a context menu   | Rectangle Pro | yes                                                    | testMenuVisible, testMenuPinned, live 10-24      |
-| Import from Rectangle                                  | Rectangle Pro | no (no unit yet, see the plan's Escalations)           | not applicable                                   |
+| Import from Rectangle                                  | Rectangle Pro | planned (unit 30 adds the button; the parser is done)  | testRectangleImportRoundTrip                     |
 | iCloud sync                                            | Rectangle Pro | planned (unit 20)                                      | unit 20 settings sync on iCloud                  |
 | Windows-style arrow keys and left/right fill           | Rectangle Pro | no (no unit yet, see the plan's Escalations)           | not applicable                                   |
 
