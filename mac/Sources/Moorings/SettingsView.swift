@@ -11,16 +11,16 @@ struct SettingsView: View {
     // body lays the sections out as tabs.
     var body: some View {
         TabView {
-            shortcuts.tabItem { Text("Shortcuts") }
-            sizes.tabItem { Text("Sizes") }
-            workspaces.tabItem { Text("Workspaces") }
-            layout.tabItem { Text("Layout") }
-            snapping.tabItem { Text("Snapping") }
-            appearance.tabItem { Text("Appearance") }
-            general.tabItem { Text("General") }
+            shortcuts.tabItem { Label("Shortcuts", systemImage: "keyboard") }
+            sizes.tabItem { Label("Sizes", systemImage: "aspectratio") }
+            workspaces.tabItem { Label("Workspaces", systemImage: "rectangle.3.group") }
+            layout.tabItem { Label("Layout", systemImage: "rectangle.split.3x1") }
+            snapping.tabItem { Label("Snapping", systemImage: "square.on.square.dashed") }
+            appearance.tabItem { Label("Appearance", systemImage: "paintpalette") }
+            general.tabItem { Label("General", systemImage: "gearshape") }
         }
         .padding()
-        .frame(minWidth: 600, minHeight: 480)
+        .frame(width: 720, height: 600)
     }
 
     // actionNames lists every action that can take a shortcut, in menu order.

@@ -95,11 +95,10 @@ final class SettingsWindow {
     func show() {
         model.reload()
         if window == nil {
-            let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 640, height: 520),
-                             styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+            let w = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model)))
             w.title = "Moorings Settings"
+            w.styleMask = [.titled, .closable, .miniaturizable]
             w.isReleasedWhenClosed = false
-            w.contentView = NSHostingView(rootView: SettingsView(model: model))
             w.center()
             window = w
         }
