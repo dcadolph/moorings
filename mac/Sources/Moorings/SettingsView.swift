@@ -397,6 +397,28 @@ struct SettingsView: View {
                        isOn: Binding(get: { model.choices.stacking.sameSizeOnly },
                                      set: { v in model.change { $0.stacking.sameSizeOnly = v } }))
             }
+            Section("Throw with a held key") {
+                Picker("Hold to throw", selection: Binding(
+                    get: { model.choices.overlay.trigger }, set: { v in model.change { $0.overlay.trigger = v } })) {
+                    ForEach(OverlayTrigger.allCases, id: \.self) { Text($0.title).tag($0) }
+                }
+                Stepper(value: Binding(get: { model.choices.overlay.gridColumns },
+                                       set: { v in model.change { $0.overlay.gridColumns = v } }),
+                        in: OverlayChoices.gridRange) {
+                    Text("Grid columns: \(model.choices.overlay.gridColumns)")
+                }
+                Stepper(value: Binding(get: { model.choices.overlay.gridRows },
+                                       set: { v in model.change { $0.overlay.gridRows = v } }),
+                        in: OverlayChoices.gridRange) {
+                    Text("Grid rows: \(model.choices.overlay.gridRows)")
+                }
+                Text("While the key is held, move the pointer toward a half, a corner or an edge and let go to send "
+                    + "the window under the pointer there. Go farther for thirds, sixths, maximize and center. Arrow "
+                    + "keys pick cells on the grid instead, Shift-arrows grow the pick, and Return or letting go "
+                    + "applies it. Escape cancels. While the key is held, its arrow, Return and Escape keys go to "
+                    + "Moorings.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
     }

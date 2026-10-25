@@ -24,7 +24,7 @@ final class Hotkeys {
             "left": kVK_LeftArrow, "right": kVK_RightArrow, "up": kVK_UpArrow, "down": kVK_DownArrow,
             "return": kVK_Return, "delete": kVK_Delete, "forwarddelete": kVK_ForwardDelete,
             "escape": kVK_Escape, "tab": kVK_Tab, "space": kVK_Space, "home": kVK_Home, "end": kVK_End,
-            "pageup": kVK_PageUp, "pagedown": kVK_PageDown,
+            "pageup": kVK_PageUp, "pagedown": kVK_PageDown, "enter": kVK_ANSI_KeypadEnter,
         ]
         let fkeys = [kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10,
                      kVK_F11, kVK_F12, kVK_F13, kVK_F14, kVK_F15, kVK_F16, kVK_F17, kVK_F18, kVK_F19, kVK_F20]
@@ -51,6 +51,14 @@ final class Hotkeys {
     private(set) var enabled = true
     // map is the shortcuts last bound, registered again when the shortcuts are turned back on.
     private var map: [String: Shortcut] = [:]
+    // grabBase is the first hotkey id of the grabbed keys, clear of the shortcut ids.
+    static let grabBase: UInt32 = 0x1_0000
+    // grabRefs holds each grabbed key.
+    private var grabRefs: [EventHotKeyRef] = []
+    // grabTags maps each grabbed key's id to its tag.
+    private var grabTags: [UInt32: String] = [:]
+    // onGrab is called with the tag of a pressed grabbed key.
+    var onGrab: @MainActor (String) -> Void = { _ in }
 
     // init installs the Carbon handler that reports presses to run.
     init(run: @escaping @MainActor (String) -> Void) {
@@ -115,8 +123,39 @@ final class Hotkeys {
         names = [:]
     }
 
-    // pressed runs the action for the hotkey with id.
+    // grab registers each key, a key name with Carbon modifiers and a tag, until ungrab, so its presses
+    // go to onGrab instead of the front app. It returns how many keys registered; a key another
+    // shortcut holds is skipped.
+    @discardableResult
+    func grab(_ keys: [(key: String, mods: UInt32, tag: String)]) -> Int {
+        ungrab()
+        for (i, k) in keys.enumerated() {
+            guard let code = Self.keyCodes[k.key] else { continue }
+            var ref: EventHotKeyRef?
+            let id = EventHotKeyID(signature: Self.signature, id: Self.grabBase + UInt32(i))
+            guard RegisterEventHotKey(UInt32(code), k.mods, id, GetApplicationEventTarget(), 0, &ref) == noErr, let ref
+            else { continue }
+            grabRefs.append(ref)
+            grabTags[id.id] = k.tag
+        }
+        return grabRefs.count
+    }
+
+    // ungrab removes every grabbed key.
+    func ungrab() {
+        for ref in grabRefs {
+            UnregisterEventHotKey(ref)
+        }
+        grabRefs = []
+        grabTags = [:]
+    }
+
+    // pressed runs the action for the hotkey with id, or reports a grabbed key's tag.
     private func pressed(_ id: UInt32) {
+        if let tag = grabTags[id] {
+            onGrab(tag)
+            return
+        }
         guard let name = names[id] else { return }
         run(name)
     }

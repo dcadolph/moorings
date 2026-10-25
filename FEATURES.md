@@ -42,6 +42,12 @@ each part.
   the last step or looping back to the first, with its own shortcut, mouse button and menu entry.
 - The Moorings menu under the pointer, from a shortcut or a mouse button, without bringing
   Moorings to the front.
+- Throw with a held key: pick Right Option, Right Command, Right Control or Fn in Settings >
+  Behavior, hold it and move the pointer. A short move toward a side or corner picks a half or a
+  quarter, a longer one picks thirds, sixths, maximize or center, and a footprint shows where the
+  window will land. Letting go sends the window that was under the pointer there, focused or not.
+  Arrow keys switch to a grid of cells instead, Shift-arrows grow the pick, and Return applies it.
+  Off until you pick a key.
 
 ## Snap by dragging
 

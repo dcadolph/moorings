@@ -3,7 +3,8 @@ import os
 
 // EventTap is moorings' one mouse event tap. It watches the primary button going down, dragging
 // and coming up, and swallows both halves of a click that moorings handles, such as a green
-// button click it turns into a lift or a fill.
+// button click it turns into a lift or a fill. It also sees modifier keys change, for the
+// overlay's trigger key, and never sees other keys.
 @MainActor
 final class EventTap {
     // current is the one EventTap the tap callback reports to.
@@ -24,6 +25,9 @@ final class EventTap {
     // onOther is asked about each extra mouse button press or release with the button number and
     // whether it went down, and returns true to swallow it.
     var onOther: (Int, Bool) -> Bool = { _, _ in false }
+    // onFlags is told the modifiers held and where the pointer is each time a modifier key goes down
+    // or up. It must return at once and never read a window.
+    var onFlags: (CGEventFlags, CGPoint) -> Void = { _, _ in }
     // port is the tap, nil until it starts.
     private var port: CFMachPort?
     // swallowUp reports whether the next button up belongs to a swallowed press.
@@ -44,7 +48,7 @@ final class EventTap {
         Self.current = self
         let mask = (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.leftMouseUp.rawValue)
             | (1 << CGEventType.leftMouseDragged.rawValue) | (1 << CGEventType.otherMouseDown.rawValue)
-            | (1 << CGEventType.otherMouseUp.rawValue)
+            | (1 << CGEventType.otherMouseUp.rawValue) | (1 << CGEventType.flagsChanged.rawValue)
         let callback: CGEventTapCallBack = { _, type, event, _ in
             let keep = MainActor.assumeIsolated { EventTap.current?.handle(type, event) ?? true }
             return keep ? Unmanaged.passUnretained(event) : nil
@@ -88,6 +92,9 @@ final class EventTap {
             return true
         case .leftMouseDragged:
             onDrag(event.location, event.flags)
+            return true
+        case .flagsChanged:
+            onFlags(event.flags, event.location)
             return true
         case .otherMouseDown, .otherMouseUp:
             let button = Int(event.getIntegerValueField(.mouseEventButtonNumber))

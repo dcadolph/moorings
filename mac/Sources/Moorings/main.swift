@@ -69,6 +69,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var snap = DragSnap(app: self)
     // hotkeys runs a window action when its shortcut is pressed.
     lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
+    // overlay throws a window while the overlay's trigger key is held.
+    lazy var overlay = TriggerOverlay(app: self)
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     // timer runs tick every pollSeconds.
@@ -129,6 +131,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         tap.onDrag = { [weak self] p, flags in self?.snap.dragged(p, flags: flags) }
         tap.onUp = { [weak self] _, _ in self?.snap.released() }
         tap.onOther = { [weak self] button, down in self?.mouseButton(button, down: down) ?? false }
+        tap.onFlags = { [weak self] flags, p in self?.overlay.flagsChanged(flags, at: p) }
+        hotkeys.onGrab = { [weak self] tag in self?.overlay.key(tag) }
         tap.start()
         rebind()
         refreshShortcuts()

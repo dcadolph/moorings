@@ -280,6 +280,25 @@ final class ActionRunner {
         return place(w, at: frame, press: press, name: result)
     }
 
+    // applyFrame raises the window with id and moves it to frame as a placement restore can undo, and
+    // reports whether it moved. Pinned and fullscreen windows stay put.
+    @discardableResult
+    func applyFrame(_ frame: Frame, to id: WindowID) -> Bool {
+        guard !anchors.choices.paused, app.windows.trusted else { return false }
+        guard let w = app.windows.scan(Screens.current()).windows.first(where: { $0.id == id }),
+              !anchors.pinned(w), !w.isFullScreen
+        else { return false }
+        app.windows.raise(id)
+        chainPress = nil
+        return place(w, at: frame, press: 1, name: "grid")
+    }
+
+    // area returns the area actions on w use on its own screen.
+    func area(for w: WindowInfo, screens: Screens) -> Frame {
+        let t = target(for: w, screens: screens)
+        return Actions.area(t, t.index, anchors.choices.behavior)
+    }
+
     // place moves w to frame and records it as press of action name, so a repeat press steps on.
     private func place(_ w: WindowInfo, at frame: Frame, press: Int, name: String) -> Bool {
         anchors.save(w)
