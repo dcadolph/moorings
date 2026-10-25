@@ -254,10 +254,16 @@ private func has(_ problems: [String], _ text: String) -> Bool {
         #expect(windows[name] == nil, "no \(name)")
         #expect(rectangle[name] != nil, "rectangle keeps \(name)")
     }
-    for (name, sc) in rectangle where windows[name] == nil {
+    for (name, _) in rectangle where windows[name] == nil {
         #expect(["left-half", "right-half", "top-half", "bottom-half"].contains(name), "missing \(name)")
     }
     for (name, sc) in windows where !name.hasPrefix("arrow-") {
         #expect(rectangle[name] == sc, "same \(name)")
     }
+}
+
+// Swift only: known accepts a profile action name and rejects a bare prefix.
+@Test func testProfileKnownAction() {
+    #expect(Keymaps.known("profile:Work"))
+    #expect(!Keymaps.known("profile:"))
 }

@@ -91,6 +91,10 @@ public struct Choices: Equatable, Sendable, Codable {
     public var menu: MenuChoices = MenuChoices()
     // appRules holds the per-app rules applied when an app's first window appears.
     public var appRules: [AppRule] = []
+    // profiles holds the saved profiles.
+    public var profiles: [Profile] = []
+    // activeProfile names the profile last applied, nil when none is.
+    public var activeProfile: String?
 
     // init builds a set of choices.
     public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
@@ -107,7 +111,7 @@ public struct Choices: Equatable, Sendable, Codable {
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
         case ignores, snap, theme, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
-        case chains, menu, appRules, buttonClicks
+        case chains, menu, appRules, buttonClicks, profiles, activeProfile
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -137,6 +141,8 @@ public struct Choices: Equatable, Sendable, Codable {
         chains = (try? c.decodeIfPresent([Chain].self, forKey: .chains)) ?? []
         menu = (try? c.decodeIfPresent(MenuChoices.self, forKey: .menu)) ?? MenuChoices()
         appRules = (try? c.decodeIfPresent([AppRule].self, forKey: .appRules)) ?? []
+        profiles = (try? c.decodeIfPresent([Profile].self, forKey: .profiles)) ?? []
+        activeProfile = try? c.decodeIfPresent(String.self, forKey: .activeProfile)
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -165,10 +171,12 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(chains, forKey: .chains)
         try c.encode(menu, forKey: .menu)
         try c.encode(appRules, forKey: .appRules)
+        try c.encode(profiles, forKey: .profiles)
+        try c.encodeIfPresent(activeProfile, forKey: .activeProfile)
     }
 
     // restoringDefaults returns the default choices with the owner's own data kept: anchored apps, strip
-    // sizes, the pause state, ignored apps, custom sizes, saved workspaces, chains and app rules.
+    // sizes, the pause state, ignored apps, custom sizes, saved workspaces, chains, app rules and profiles.
     public func restoringDefaults() -> Choices {
         var c = Choices(slots: slots, widths: widths, heights: heights, paused: paused)
         c.ignores = ignores
@@ -176,6 +184,7 @@ public struct Choices: Equatable, Sendable, Codable {
         c.workspaces = workspaces
         c.chains = chains
         c.appRules = appRules
+        c.profiles = profiles
         return c
     }
 

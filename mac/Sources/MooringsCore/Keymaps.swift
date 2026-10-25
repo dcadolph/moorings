@@ -344,6 +344,7 @@ public enum Keymaps {
             || Actions.arrowNames.contains(name) || Actions.fillNames.contains(name)
             || name == Actions.specifiedName || Actions.displayNames.contains(name)
             || (name.hasPrefix(workspacePrefix) && name.count > workspacePrefix.count)
+            || (name.hasPrefix(Profile.prefix) && name.count > Profile.prefix.count)
             || (name.hasPrefix(Chain.prefix) && name.count > Chain.prefix.count) || name == menuName
             || Geometry.position(name, Frame(x: 0, y: 0, w: 100, h: 100)) != nil
     }

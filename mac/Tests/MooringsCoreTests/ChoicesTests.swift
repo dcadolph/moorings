@@ -205,3 +205,19 @@ import Testing
     c.buttonClicks = ["red+option": "left-half", "yellow": "maximize"]
     #expect(Choices.decode(try Choices.encode(c)).buttonClicks == c.buttonClicks)
 }
+
+// Swift only: the v1.7.0 choices shape with no profiles decodes with none and no active profile.
+@Test func testProfileDecodeOldShape() {
+    let json = #"{"slots":{},"paused":false,"keymap":"rectangle","chains":[],"gapPx":4}"#
+    let c = Choices.decode(Data(json.utf8))
+    #expect(c.profiles.isEmpty)
+    #expect(c.activeProfile == nil)
+    #expect(c.gapPx == 4)
+}
+
+// Swift only: restoring defaults keeps the saved profiles.
+@Test func testProfileRestoringDefaultsKeeps() {
+    var c = Choices()
+    c.profiles = [Profile(name: "Work")]
+    #expect(c.restoringDefaults().profiles == c.profiles)
+}
