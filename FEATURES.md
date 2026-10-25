@@ -58,7 +58,6 @@ each part.
 
 - Tile columns, tile rows, tile all or one app, cascade all or one app, cycle stacked windows,
   and reverse.
-- An optional badge counts the windows stacked under the pointer.
 - Tidy channel lines up the two or three front windows, and Undo tidy puts everything back.
 
 ## Workspaces
