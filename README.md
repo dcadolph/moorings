@@ -296,19 +296,11 @@ your anchored apps once from the menu.
 
 ## Coming from Rectangle
 
-Settings > General > Import from Rectangle reads a file exported from Rectangle's settings, or
-without one the settings Rectangle keeps on this Mac. It brings over shortcuts, the keymap, gaps,
-snapping and the hidden behavior preferences, lists anything that cannot come over, and asks
-before it applies. An export file also clears the shortcuts it leaves unbound, as Rectangle's own
-import does.
-
-The default keymap is Rectangle's, and Window > Keymap also offers Spectacle's, Magnet's, a
-Windows set for Arrow mode, and None. Every Rectangle action is here under Rectangle's name, side
-and center-section aliases included, so its links and scripts carry over with
-`moorings://action?name=`. The behavior choices start at Rectangle's defaults, and the drag snap
-map on a normal display is Rectangle's. [COMPARISON.md](COMPARISON.md) lists Rectangle,
-Rectangle Pro and the other Mac window managers feature by feature, with the check behind each
-row.
+Quit the old app first so the two do not fight over the same keys. Settings > General > Import
+from Rectangle brings over your shortcuts, gaps, snapping and behavior choices, and asks before
+it applies them. The default keymap matches the old one. Links and scripts keep the same action
+names and need the `moorings://action?name=<action>` URL. [COMPARISON.md](COMPARISON.md) lists
+every feature with the check behind it.
 
 ## Support
 
