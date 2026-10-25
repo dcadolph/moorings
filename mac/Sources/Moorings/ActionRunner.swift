@@ -266,6 +266,9 @@ final class ActionRunner {
                 return false
             }
         }
+        if Behavior.restoresMaximize(name, cur: w.frame, last: last[w.id], anchors.choices.behavior) {
+            return apply("restore", to: w, screens: screens)
+        }
         let (frame, press, result) = frame(name, for: w, screens: screens, index: index)
         guard let frame else { return false }
         return place(w, at: frame, press: press, name: result)

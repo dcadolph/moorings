@@ -2,8 +2,8 @@ import SwiftUI
 
 import MooringsCore
 
-// SettingsView is the settings window's content: shortcuts, sizes, workspaces, layout, appearance
-// and general choices.
+// SettingsView is the settings window's content: shortcuts, sizes, workspaces, layout, snapping, behavior,
+// menu, appearance and general choices.
 struct SettingsView: View {
     // model holds the choices and saves each change.
     @ObservedObject var model: SettingsModel
@@ -19,7 +19,7 @@ struct SettingsView: View {
             }
             .padding()
         }
-        .frame(width: 720, height: 640)
+        .frame(width: 840, height: 640)
         .confirmationDialog("Restore the default settings?", isPresented: $confirmRestore) {
             Button("Restore defaults", role: .destructive) { model.change { $0 = $0.restoringDefaults() } }
         } message: {
@@ -39,6 +39,7 @@ struct SettingsView: View {
             workspaces.tabItem { Label("Workspaces", systemImage: "rectangle.3.group") }
             layout.tabItem { Label("Layout", systemImage: "rectangle.split.3x1") }
             snapping.tabItem { Label("Snapping", systemImage: "square.on.square.dashed") }
+            behavior.tabItem { Label("Behavior", systemImage: "arrow.triangle.2.circlepath") }
             menu.tabItem { Label("Menu", systemImage: "list.bullet") }
             appearance.tabItem { Label("Appearance", systemImage: "paintpalette") }
             general.tabItem { Label("General", systemImage: "gearshape") }
@@ -238,6 +239,113 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    // repeatLabels names each choice for what a shortcut pressed again does.
+    private static let repeatLabels: [(SubsequentExecution, String)] = [
+        (.cycleSizes, "Cycle sizes"), (.traverseDisplays, "Move to the next display"), (.none, "Nothing more"),
+        (.traverseAndCycle, "Move across displays, then cycle sizes"), (.cycleDisplays, "Cycle through displays"),
+        (.cycleQuadrants, "Cycle corners"), (.switchSides, "Switch sides"),
+    ]
+
+    // enhancedUILabels names each way of handling apps whose Enhanced UI slows moves.
+    private static let enhancedUILabels: [(EnhancedUIMode, String)] = [
+        (.automatic, "Automatic"), (.disableEnable, "Turn off while moving, then back on"),
+        (.disableOnly, "Turn off while moving"), (.frontmostDisable, "Turn off when an app comes to the front"),
+    ]
+
+    // orderLabels names each way of numbering displays.
+    private static let orderLabels: [(ScreenOrdering, String)] = [
+        (.yThenMinX, "Top row first, then left to right"), (.minX, "By left edge"), (.midX, "By center"),
+    ]
+
+    // behavior edits how actions behave: repeat presses, sizes, gaps, the pointer, title bars and displays.
+    private var behavior: some View {
+        let b = model.choices.behavior
+        return Form {
+            Section("Pressed again") {
+                Picker("A shortcut pressed again", selection: Binding(
+                    get: { b.subsequentExecution }, set: { v in model.change { $0.behavior.subsequentExecution = v } })) {
+                    ForEach(Self.repeatLabels, id: \.0) { Text($0.1).tag($0.0) }
+                }
+                behaviorToggle("Maximize pressed again restores the window", \.repeatedMaximizeRestores)
+                behaviorToggle("Center half cycles sizes like the sides", \.centerHalfCycles)
+                behaviorToggle("Halves keep the window's size on the other axis", \.halvesPreserveOtherAxis)
+            }
+            Section("Sizes") {
+                behaviorShare("Smallest width when shrinking", \.minimumWindowWidth)
+                behaviorShare("Smallest height when shrinking", \.minimumWindowHeight)
+                behaviorStepper("Specified width", \.specifiedWidth, 100...10000, 10)
+                behaviorStepper("Specified height", \.specifiedHeight, 100...10000, 10)
+            }
+            Section("Screen edge gaps") {
+                behaviorStepper("Top", \.screenEdgeGapTop, 0...200, 1)
+                behaviorStepper("Bottom", \.screenEdgeGapBottom, 0...200, 1)
+                behaviorStepper("Left", \.screenEdgeGapLeft, 0...200, 1)
+                behaviorStepper("Right", \.screenEdgeGapRight, 0...200, 1)
+                Stepper(value: Binding(get: { b.screenEdgeGapTopNotch },
+                                       set: { v in model.change { $0.behavior.screenEdgeGapTopNotch = min(max(v, -1), 200) } }),
+                        in: -1...200, step: 1) {
+                    Text("Top on a display with a notch: "
+                        + (b.screenEdgeGapTopNotch < 0 ? "same as top" : "\(Int(b.screenEdgeGapTopNotch)) pt"))
+                }
+                behaviorToggle("Gaps on the main display only", \.gapsOnMainOnly)
+                behaviorToggle("Gaps apply to maximize", \.applyGapsToMaximize)
+            }
+            Section("Pointer and title bar") {
+                behaviorToggle("Move the pointer with the window", \.moveCursor)
+                behaviorToggle("Dragging a snapped window gives back its size", \.unsnapRestore)
+                behaviorToggle("Double-click a title bar to maximize", \.doubleClickTitleBar)
+                TextField("Apps the double-click leaves alone, bundle IDs, comma separated",
+                          text: Binding(get: { b.doubleClickIgnoredApps.joined(separator: ", ") },
+                                        set: { v in model.change {
+                                            $0.behavior.doubleClickIgnoredApps = v.split(separator: ",")
+                                                .map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                                        } }))
+                    .disabled(!b.doubleClickTitleBar)
+                Text("The double-click only acts when macOS is set to do nothing on a title bar double-click.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+            Section("Displays and apps") {
+                Picker("Number displays", selection: Binding(
+                    get: { b.screensOrderedByX }, set: { v in model.change { $0.behavior.screensOrderedByX = v } })) {
+                    ForEach(Self.orderLabels, id: \.0) { Text($0.1).tag($0.0) }
+                }
+                Picker("Enhanced UI", selection: Binding(
+                    get: { b.enhancedUI }, set: { v in model.change { $0.behavior.enhancedUI = v } })) {
+                    ForEach(Self.enhancedUILabels, id: \.0) { Text($0.1).tag($0.0) }
+                }
+                behaviorToggle("Always leave room for the Stage Manager strip", \.alwaysAccountForStage)
+                behaviorStepper("Stage Manager strip width", \.stageSize, 0...600, 10)
+                behaviorToggle("Hide the menu bar icon", \.hideMenuBarIcon)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    // behaviorToggle switches the behavior choice at path.
+    private func behaviorToggle(_ title: String, _ path: WritableKeyPath<Behaviors, Bool>) -> some View {
+        Toggle(title, isOn: Binding(get: { model.choices.behavior[keyPath: path] },
+                                    set: { v in model.change { $0.behavior[keyPath: path] = v } }))
+    }
+
+    // behaviorStepper edits the behavior choice at path in points, clamped to range.
+    private func behaviorStepper(_ title: String, _ path: WritableKeyPath<Behaviors, Double>, _ range: ClosedRange<Double>,
+                                 _ step: Double) -> some View {
+        Stepper(value: Binding(get: { model.choices.behavior[keyPath: path] },
+                               set: { v in model.change { $0.behavior[keyPath: path] = min(max(v, range.lowerBound), range.upperBound) } }),
+                in: range, step: step) {
+            Text("\(title): \(Int(model.choices.behavior[keyPath: path])) pt")
+        }
+    }
+
+    // behaviorShare edits the behavior choice at path as a share of the area, in steps of 5%.
+    private func behaviorShare(_ title: String, _ path: WritableKeyPath<Behaviors, Double>) -> some View {
+        Stepper(value: Binding(get: { model.choices.behavior[keyPath: path] },
+                               set: { v in model.change { $0.behavior[keyPath: path] = min(max(v, 0.05), 1) } }),
+                in: 0.05...1, step: 0.05) {
+            Text("\(title): \(Int((model.choices.behavior[keyPath: path] * 100).rounded()))%")
+        }
     }
 
     // areaSection picks the action for each snap area in the map at path, and whether the area never snaps.

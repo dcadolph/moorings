@@ -163,8 +163,8 @@ action.
 
 ### Behavior choices
 
-Rectangle keeps its finer behaviors as hidden preferences. Moorings keeps them under `settings.behavior`
-in the JSON file Settings exports, at Rectangle's defaults. Edit the file and import it again.
+Settings > Behavior sets each of these, and the JSON file Settings exports keeps them under
+`settings.behavior`, at Rectangle's defaults.
 
 - `subsequentExecution`: what pressing the same shortcut again does. `cycle-sizes` (the default)
   steps a half through 1/2, 2/3 and 1/3. `traverse-displays` sends a left or right half on to the
@@ -192,6 +192,13 @@ in the JSON file Settings exports, at Rectangle's defaults. Edit the file and im
 - `screensOrderedByX` orders displays for the display actions: `y-then-min-x` (the default),
   `min-x` or `mid-x`.
 - `specifiedWidth` and `specifiedHeight` set the Specified size in points.
+- `repeatedMaximizeRestores` makes Maximize pressed again restore the window, while it still sits
+  where that maximize put it.
+- `centerHalfCycles` steps Center half through 1/2, 2/3 and 1/3 on repeat presses, as the sides do.
+- `halvesPreserveOtherAxis` keeps the window's height and top on a left or right half, and its width
+  and left edge on a top or bottom half.
+- `minimumWindowWidth` and `minimumWindowHeight` (25% by default) are the smallest share of the area
+  Smaller, the one-axis Smaller and the Halve actions shrink a window to.
 
 ### Organize
 

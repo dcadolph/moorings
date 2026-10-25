@@ -341,3 +341,62 @@ let secondDisplay = ActionTarget(screens: sideBySide.screens, areas: sideBySide.
 @Test func testArrowUnknown() {
     #expect(Actions.arrow("arrow-sideways", cur: F(100, 100, 300, 300), target: oneDisplay) == .stay)
 }
+
+// plain is one 1000 by 800 screen whose whole area is usable.
+let plain = ActionTarget(screens: [F(0, 0, 1000, 800)], areas: [F(0, 0, 1000, 800)], index: 0)
+
+// Swift only: halvesPreserveOtherAxis keeps the window's height on a side half and its width on a top half.
+@Test func testHalvesPreserveOtherAxis() {
+    let cur = F(100, 100, 400, 300)
+    var b = Behaviors()
+    #expect(Actions.frame("left-half", cur: cur, target: plain, behavior: b).0 == F(0, 0, 500, 800))
+    b.halvesPreserveOtherAxis = true
+    #expect(Actions.frame("left-half", cur: cur, target: plain, behavior: b).0 == F(0, 100, 500, 300))
+    #expect(Actions.frame("top-half", cur: cur, target: plain, behavior: b).0 == F(100, 0, 400, 400))
+    #expect(Actions.frame("maximize", cur: cur, target: plain, behavior: b).0 == F(0, 0, 1000, 800))
+    #expect(Behavior.keepOtherAxis("left-half", F(0, 0, 500, 800), cur: F(0, 700, 10, 900), area: plain.areas[0])
+        == F(0, 0, 500, 800))
+}
+
+// Swift only: centerHalfCycles steps center half through two thirds and one third on repeat.
+@Test func testCenterHalfCycles() {
+    let half = Geometry.position("center-half", plain.areas[0])!
+    let last = LastPress(name: "center-half", press: 1, frame: half)
+    var b = Behaviors()
+    #expect(Actions.frame("center-half", cur: half, target: plain, last: last, behavior: b).0 == half)
+    b.centerHalfCycles = true
+    let two = Actions.frame("center-half", cur: half, target: plain, last: last, behavior: b)
+    #expect(two.0 == Geometry.position("center-two-thirds", plain.areas[0]))
+    #expect(two.press == 2)
+    let three = LastPress(name: "center-half", press: 2, frame: two.0!)
+    #expect(Actions.frame("center-half", cur: two.0!, target: plain, last: three, behavior: b).0
+        == Geometry.position("center-third", plain.areas[0]))
+}
+
+// Swift only: the minimum window size floors smaller and halve at its share of the area.
+@Test func testMinimumWindowSize() {
+    var b = Behaviors()
+    let wide = F(0, 0, 400, 800)
+    #expect(Actions.frame("halve-width-left", cur: wide, target: plain, behavior: b).0 == wide)
+    let box = F(100, 100, 300, 300)
+    #expect(Actions.frame("smaller", cur: box, target: plain, behavior: b).0 == F(100, 130, 300, 240))
+    b.minimumWindowWidth = 0.1
+    b.minimumWindowHeight = 0.1
+    #expect(Actions.frame("halve-width-left", cur: wide, target: plain, behavior: b).0 == F(0, 0, 200, 800))
+    #expect(Actions.frame("smaller", cur: box, target: plain, behavior: b).0 == F(130, 130, 240, 240))
+    #expect(Actions.frame("smaller-height", cur: F(0, 0, 1000, 100), target: plain, behavior: b).0
+        == F(0, 0, 1000, 100))
+}
+
+// Swift only: maximize pressed again restores only when the choice is on and the window has not moved.
+@Test func testRestoresMaximize() {
+    let full = F(0, 0, 1000, 800)
+    let last = LastPress(name: "maximize", press: 1, frame: full)
+    var b = Behaviors()
+    #expect(!Behavior.restoresMaximize("maximize", cur: full, last: last, b))
+    b.repeatedMaximizeRestores = true
+    #expect(Behavior.restoresMaximize("maximize", cur: full, last: last, b))
+    #expect(!Behavior.restoresMaximize("maximize", cur: F(0, 0, 900, 800), last: last, b))
+    #expect(!Behavior.restoresMaximize("left-half", cur: full, last: last, b))
+    #expect(!Behavior.restoresMaximize("maximize", cur: full, last: nil, b))
+}

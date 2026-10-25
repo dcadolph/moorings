@@ -171,8 +171,12 @@ public enum Actions {
             let spec = CustomSpec(width: behavior.specifiedWidth, height: behavior.specifiedHeight)
             return (Geometry.custom(area, spec, gap: gap), 1, name)
         }
+        let minimum = (w: behavior.minimumWindowWidth, h: behavior.minimumWindowHeight)
         if name == "larger" || name == "smaller" {
-            return (Geometry.resize(area, cur, name == "larger" ? step : -step, gap: gap), 1, name)
+            return (Geometry.resize(area, cur, name == "larger" ? step : -step, gap: gap, minimum: minimum), 1, name)
+        }
+        if let f = Geometry.shrink(name, area, cur, gap: gap, minimum: minimum) {
+            return (f, 1, name)
         }
         if name.hasPrefix(sizePrefix) {
             return (sizes[name].map { Geometry.custom(area, $0, gap: gap) }, 1, name)
@@ -186,11 +190,18 @@ public enum Actions {
             behavior.subsequentExecution, press: press, displayIndex: list.firstIndex(of: target.index) ?? 0,
             displayCount: list.count, direction: direction, half: opposites[name] != nil,
             corner: quadrants.contains(name))
+        let keep = { (f: Frame?, half: String) in
+            behavior.halvesPreserveOtherAxis ? f.map { Behavior.keepOtherAxis(half, $0, cur: cur, area: area) } : f
+        }
         switch outcome {
         case .place:
-            return (Geometry.cycle(name, 1, area, cur, gap: gap), 1, name)
+            return (keep(Geometry.cycle(name, 1, area, cur, gap: gap), name), 1, name)
         case .cycleSize:
-            return (Geometry.cycle(name, press, area, cur, gap: gap), press, name)
+            if behavior.centerHalfCycles, Geometry.aliases[name] ?? name == "center-half" {
+                let step = Behavior.centerCycle[(press - 1) % Behavior.centerCycle.count]
+                return (Geometry.position(step, area, cur, gap: gap), press, name)
+            }
+            return (keep(Geometry.cycle(name, press, area, cur, gap: gap), name), press, name)
         case let .moveToDisplay(i):
             let there = areaOf(list[i])
             if behavior.subsequentExecution != .cycleDisplays, let other = opposites[name] {
@@ -202,7 +213,7 @@ public enum Actions {
             return (Geometry.position(quadrants[(start + press - 1) % quadrants.count], area, cur, gap: gap), press, name)
         case .switchSide:
             let other = opposites[name] ?? name
-            return (Geometry.cycle(other, 1, area, cur, gap: gap), 1, other)
+            return (keep(Geometry.cycle(other, 1, area, cur, gap: gap), other), 1, other)
         }
     }
 

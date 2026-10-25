@@ -36,7 +36,8 @@ each part.
 - Rectangle's behavior preferences at Rectangle's defaults: repeat presses that cycle sizes,
   traverse or cycle displays, cycle quadrants or switch sides, screen edge gaps, room for the
   Stage Manager strip, Enhanced UI handling, a cursor that follows the window, a hidden menu bar
-  icon and display ordering.
+  icon, display ordering, maximize again to restore, center half cycling, halves that keep the
+  other axis, and the smallest size a window shrinks to.
 - Unsnap restore: dragging a placed window away gives it its earlier size back.
 - Double-click a title bar to maximize or restore, with apps you name left alone.
 - Chains: a named list of actions that runs one step per press on the same window, stopping on
@@ -98,6 +99,8 @@ each part.
 
 - Record shortcuts, edit custom sizes, manage workspaces, bind mouse buttons, and pick the keymap,
   snapping, gap, fullscreen handling and one of twelve themes.
+- A Behavior tab for repeat presses, minimum sizes, edge gaps, the pointer, the title bar and
+  display order.
 - A Menu tab to pin actions to the top of the Window folder, hide the ones you never use, and
   build chains.
 - Export every choice to one JSON file and import it on another Mac.

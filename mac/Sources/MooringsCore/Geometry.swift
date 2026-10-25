@@ -444,10 +444,11 @@ public enum Geometry {
 
     // halve halves the span lo to lo+len and keeps the start half when keepStart is true, the end
     // half otherwise. A span that would fall under the minimum share of the area is left alone.
-    private static func halve(_ lo: Double, _ len: Double, _ alo: Double, _ alen: Double, keepStart: Bool)
-        -> (Double, Double) {
+    private static func halve(
+        _ lo: Double, _ len: Double, _ alo: Double, _ alen: Double, keepStart: Bool, minimum: Double = minShare
+    ) -> (Double, Double) {
         let half = floor(len / 2)
-        if half < max(1, floor(alen * minShare)) {
+        if half < max(1, floor(alen * minimum)) {
             return (lo, len)
         }
         return (keepStart ? lo : lo + len - half, half)
@@ -499,7 +500,7 @@ public enum Geometry {
     }
 
     // minShare is the smallest share of the area resize will shrink an axis to.
-    private static let minShare = 0.25
+    public static let minShare = 0.25
 
     // touch is how many points from an area edge still count as touching it.
     private static let touch = 2.0
@@ -507,7 +508,9 @@ public enum Geometry {
     // grow moves the free edges of the span lo to lo+len by d within alo to alo+alen. An edge
     // touching the area stays put, like a curtain. When shrinking a span that touches both edges,
     // both edges move in.
-    private static func grow(_ lo: Double, _ len: Double, _ alo: Double, _ alen: Double, _ d: Double) -> (Double, Double) {
+    private static func grow(
+        _ lo: Double, _ len: Double, _ alo: Double, _ alen: Double, _ d: Double, minimum: Double = minShare
+    ) -> (Double, Double) {
         let hi = lo + len
         let ahi = alo + alen
         var atLo = lo <= alo + touch
@@ -518,20 +521,41 @@ public enum Geometry {
         }
         let nlo = atLo ? lo : max(alo, lo - d)
         let nhi = atHi ? hi : min(ahi, hi + d)
-        if d < 0 && nhi - nlo < alen * minShare {
+        if d < 0 && nhi - nlo < alen * minimum {
             return (lo, len)
         }
         return (nlo, nhi - nlo)
     }
 
-    // resize grows cur by d points on each free edge inside area, or shrinks it when d is negative.
-    // cur is first clamped into the area.
-    public static func resize(_ area: Frame, _ cur: Frame, _ d: Double, gap: Double = 0) -> Frame {
+    // resize grows cur by d points on each free edge inside area, or shrinks it when d is negative,
+    // never below minimum, a share of the area on each axis. cur is first clamped into the area.
+    public static func resize(
+        _ area: Frame, _ cur: Frame, _ d: Double, gap: Double = 0, minimum: (w: Double, h: Double) = (minShare, minShare)
+    ) -> Frame {
         let a = inset(area, gap)
         let f = clamp(cur, a)
-        let (x, w) = grow(f.x, f.w, a.x, a.w, d)
-        let (y, h) = grow(f.y, f.h, a.y, a.h, d)
+        let (x, w) = grow(f.x, f.w, a.x, a.w, d, minimum: minimum.w)
+        let (y, h) = grow(f.y, f.h, a.y, a.h, d, minimum: minimum.h)
         return Frame(x: x, y: y, w: w, h: h)
+    }
+
+    // shrink returns the frame of a one-axis shrink or halve action that stops at minimum, a share of
+    // the area on each axis, or nil when name is not one of them.
+    public static func shrink(
+        _ name: String, _ area: Frame, _ cur: Frame, gap: Double = 0, minimum: (w: Double, h: Double)
+    ) -> Frame? {
+        let step = -Actions.step
+        switch name {
+        case "smaller-width": return axis(area, cur, gap, .horizontal) { grow($0, $1, $2, $3, step, minimum: minimum.w) }
+        case "smaller-height": return axis(area, cur, gap, .vertical) { grow($0, $1, $2, $3, step, minimum: minimum.h) }
+        case "halve-width-left", "halve-width-right":
+            let keep = name == "halve-width-left"
+            return axis(area, cur, gap, .horizontal) { halve($0, $1, $2, $3, keepStart: keep, minimum: minimum.w) }
+        case "halve-height-up", "halve-height-down":
+            let keep = name == "halve-height-up"
+            return axis(area, cur, gap, .vertical) { halve($0, $1, $2, $3, keepStart: keep, minimum: minimum.h) }
+        default: return nil
+        }
     }
 
     // transfer maps cur from one area to another, keeping its relative position and size, so a left

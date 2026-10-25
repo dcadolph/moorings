@@ -182,6 +182,34 @@ public enum Behavior {
         }
     }
 
+    // centerCycle lists the positions center half steps through on repeat when centerHalfCycles is on.
+    public static let centerCycle = ["center-half", "center-two-thirds", "center-third"]
+
+    // keepOtherAxis returns f with cur's span on the axis a half does not set: y and height for the
+    // left and right halves, x and width for the top and bottom halves, kept inside area. Any other
+    // action returns f unchanged.
+    public static func keepOtherAxis(_ name: String, _ f: Frame, cur: Frame, area: Frame) -> Frame {
+        var out = f
+        switch Geometry.aliases[name] ?? name {
+        case "left-half", "right-half":
+            out.h = min(cur.h, area.h)
+            out.y = max(area.y, min(cur.y, area.y + area.h - out.h))
+        case "top-half", "bottom-half":
+            out.w = min(cur.w, area.w)
+            out.x = max(area.x, min(cur.x, area.x + area.w - out.w))
+        default:
+            break
+        }
+        return out
+    }
+
+    // restoresMaximize reports whether a maximize press restores the window instead: the choice is on
+    // and the window still sits where the last maximize press put it.
+    public static func restoresMaximize(_ name: String, cur: Frame, last: LastPress?, _ b: Behaviors) -> Bool {
+        guard b.repeatedMaximizeRestores, name == "maximize", let last, last.name == "maximize" else { return false }
+        return Actions.near(cur, last.frame)
+    }
+
     // chromiumBrowsers lists the bundle id families of the Chromium browsers, whose Enhanced UI is
     // left off because turning it back on slows them.
     public static let chromiumBrowsers = [
