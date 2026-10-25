@@ -151,3 +151,50 @@ let ultrawideCases: [UltrawideCase] = [
 func testUltrawide(test: UltrawideCase) {
     #expect(Layout.ultrawide(test.screens) == test.wantIndex)
 }
+
+// MenuBarCase is one menu bar inset expectation.
+struct MenuBarCase: Sendable, CustomTestStringConvertible {
+    // Usable are the usable frames the system reports.
+    let usable: [Frame]
+    // Full are the full frames.
+    let full: [Frame]
+    // Bars are the on-screen menu bar window bounds.
+    let bars: [Frame]
+    // WantUsable is the expected usable list.
+    let wantUsable: [Frame]
+
+    // testDescription labels the case in test output.
+    var testDescription: String { "usable \(usable) bars \(bars)" }
+}
+
+// menuBarCases uses this desk: the C49 at the origin and the ARZOPA to its right and lower.
+let menuBarCases: [MenuBarCase] = [
+    MenuBarCase( // Test 0: ARZOPA reports no menu bar but shows one.
+        usable: [F(0, 30, 5120, 1410), F(5120, 1381, 1920, 1080)],
+        full: [F(0, 0, 5120, 1440), F(5120, 1381, 1920, 1080)],
+        bars: [F(5120, 1381, 1920, 30), F(0, 0, 5120, 30)],
+        wantUsable: [F(0, 30, 5120, 1410), F(5120, 1411, 1920, 1050)]),
+    MenuBarCase( // Test 1: Usable already below the bar.
+        usable: [F(0, 30, 5120, 1410)], full: [F(0, 0, 5120, 1440)], bars: [F(0, 0, 5120, 30)],
+        wantUsable: [F(0, 30, 5120, 1410)]),
+    MenuBarCase( // Test 2: No bar on screen, as with an auto-hidden menu bar.
+        usable: [F(5120, 1381, 1920, 1080)], full: [F(5120, 1381, 1920, 1080)], bars: [],
+        wantUsable: [F(5120, 1381, 1920, 1080)]),
+    MenuBarCase( // Test 3: A bar on another screen does not count.
+        usable: [F(5120, 1381, 1920, 1080)], full: [F(5120, 1381, 1920, 1080)], bars: [F(0, 0, 5120, 30)],
+        wantUsable: [F(5120, 1381, 1920, 1080)]),
+    MenuBarCase( // Test 4: A bar below the top edge does not count.
+        usable: [F(5120, 1381, 1920, 1080)], full: [F(5120, 1381, 1920, 1080)], bars: [F(5120, 1400, 1920, 30)],
+        wantUsable: [F(5120, 1381, 1920, 1080)]),
+    MenuBarCase( // Test 5: A window too tall to be a menu bar does not count.
+        usable: [F(5120, 1381, 1920, 1080)], full: [F(5120, 1381, 1920, 1080)], bars: [F(5120, 1381, 1920, 600)],
+        wantUsable: [F(5120, 1381, 1920, 1080)]),
+    MenuBarCase( // Test 6: No screens.
+        usable: [], full: [], bars: [F(0, 0, 5120, 30)], wantUsable: []),
+]
+
+// testBelowMenuBars checks the usable frames are moved below a menu bar the system left out.
+@Test(arguments: menuBarCases)
+func testBelowMenuBars(test: MenuBarCase) {
+    #expect(Layout.belowMenuBars(usable: test.usable, full: test.full, bars: test.bars) == test.wantUsable)
+}

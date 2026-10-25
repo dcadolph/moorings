@@ -23,7 +23,23 @@ struct Screens {
         let primary = screens.first?.frame.height ?? 0
         let flip = { (r: NSRect) in Frame(x: r.minX, y: primary - r.maxY, w: r.width, h: r.height) }
         let full = screens.map { flip($0.frame) }
-        return Screens(full: full, usable: screens.map { flip($0.visibleFrame) }, ultrawide: Layout.ultrawide(full))
+        var usable = screens.map { flip($0.visibleFrame) }
+        if zip(usable, full).contains(where: { $0.y == $1.y }) {
+            usable = Layout.belowMenuBars(usable: usable, full: full, bars: menuBars())
+        }
+        return Screens(full: full, usable: usable, ultrawide: Layout.ultrawide(full))
+    }
+
+    // menuBars lists the on-screen menu bar windows, read only when a screen reports a usable frame
+    // that reaches its top edge, so the poll pays for it only on displays that need it.
+    private static func menuBars() -> [Frame] {
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        return list.compactMap { entry in
+            guard entry[kCGWindowLayer as String] as? Int == Int(CGWindowLevelForKey(.mainMenuWindow)),
+                  let b = entry[kCGWindowBounds as String] as? [String: Double],
+                  let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"] else { return nil }
+            return Frame(x: x, y: y, w: w, h: h)
+        }
     }
 
     // wide returns the ultrawide's usable frame, nil when none is attached.

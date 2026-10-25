@@ -176,4 +176,18 @@ public enum Layout {
         }
         return best
     }
+
+    // belowMenuBars returns usable with each screen's top moved below a menu bar window sitting at
+    // the top edge of that screen's full frame. The system reports a usable frame equal to the full
+    // frame on some secondary displays that still show a menu bar. Bars are the on-screen menu bar
+    // window bounds, and a bar taller than a quarter of the screen is ignored.
+    public static func belowMenuBars(usable: [Frame], full: [Frame], bars: [Frame]) -> [Frame] {
+        zip(usable, full).map { u, f in
+            let tops = bars.filter { b in
+                abs(b.y - f.y) < 1 && b.x < f.x + f.w && b.x + b.w > f.x && b.h > 0 && b.h < f.h / 4
+            }
+            guard let top = tops.map({ $0.y + $0.h }).max(), u.y < top, u.y + u.h > top else { return u }
+            return Frame(x: u.x, y: top, w: u.w, h: u.y + u.h - top)
+        }
+    }
 }
