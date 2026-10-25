@@ -15,6 +15,7 @@ struct SettingsView: View {
             sizes.tabItem { Text("Sizes") }
             workspaces.tabItem { Text("Workspaces") }
             layout.tabItem { Text("Layout") }
+            snapping.tabItem { Text("Snapping") }
             appearance.tabItem { Text("Appearance") }
             general.tabItem { Text("General") }
         }
@@ -116,6 +117,112 @@ struct SettingsView: View {
             Toggle("Fullscreen keeps anchored apps in their slots",
                    isOn: Binding(get: { model.choices.pinFullscreenFills },
                                  set: { v in model.change { $0.pinFullscreenFills = v } }))
+        }
+    }
+
+    // snapAreas lists the drag snap areas with their titles, in reading order.
+    private static let snapAreas = [
+        ("top-left", "Top left corner"), ("top", "Top edge"), ("top-right", "Top right corner"),
+        ("left", "Left edge"), ("right", "Right edge"),
+        ("bottom-left", "Bottom left corner"), ("bottom", "Bottom edge"), ("bottom-right", "Bottom right corner"),
+    ]
+
+    // snapCompounds lists the area values that pick an action from where the cursor sits, with their titles.
+    private static let snapCompounds = [
+        ("side-halves", "Side half, or a top or bottom half near a corner"), ("maximize-halves", "Maximize, or a half near a corner"),
+        ("thirds-halves", "Thirds, or a half near a corner"), ("top-sixths", "Top sixths"),
+        ("bottom-sixths", "Bottom sixths"),
+    ]
+
+    // snapping edits the drag snap areas, the keys that must be held, the edge margins and the footprint.
+    private var snapping: some View {
+        let s = model.choices.snapping
+        return Form {
+            Text("On the ultrawide, the strips and the channel keep their own zones. The keys to hold still apply.")
+                .font(.callout)
+            areaSection("Landscape displays", \.landscapeSnapAreas)
+            areaSection("Portrait displays", \.portraitSnapAreas)
+            Section("Hold these keys to snap") {
+                HStack {
+                    ForEach(["shift", "control", "option", "command"], id: \.self) { key in
+                        Toggle(key.capitalized, isOn: Binding(get: { s.snapModifiers.contains(key) },
+                                                              set: { v in model.change {
+                                                                  $0.snapping.snapModifiers.removeAll { $0 == key }
+                                                                  if v { $0.snapping.snapModifiers.append(key) }
+                                                              } }))
+                    }
+                }
+            }
+            Section("Edges") {
+                snapStepper("Snap before the edge", \.snapBeforeReachingEdges, 0...100, 5)
+                snapStepper("Top margin", \.edgeMarginTop, 0...50, 1)
+                snapStepper("Bottom margin", \.edgeMarginBottom, 0...50, 1)
+                snapStepper("Left margin", \.edgeMarginLeft, 0...50, 1)
+                snapStepper("Right margin", \.edgeMarginRight, 0...50, 1)
+                snapStepper("Corner size", \.cornerSize, 0...300, 5)
+                snapStepper("Half size on an edge", \.shortEdgeSize, 0...600, 5)
+            }
+            Section("Footprint") {
+                Stepper(value: Binding(get: { s.footprint.alpha },
+                                       set: { v in model.change { $0.snapping.footprint.alpha = min(max(v, 0), 1) } }),
+                        in: 0...1, step: 0.05) {
+                    Text("Fill opacity: \(Int((s.footprint.alpha * 100).rounded()))%")
+                }
+                snapStepper("Border width", \.footprint.borderWidth, 0...10, 1)
+                TextField("Color, #rrggbb, empty for the theme",
+                          text: Binding(get: { s.footprint.color ?? "" },
+                                        set: { v in model.change {
+                                            let t = v.trimmingCharacters(in: .whitespaces)
+                                            $0.snapping.footprint.color = t.isEmpty ? nil : t
+                                        } }))
+                if let c = s.footprint.color, RGB(hex: c) == nil {
+                    Text("Not a #rrggbb color, so the theme's accent is used.").foregroundStyle(.red).font(.callout)
+                }
+                Toggle("Fade in and out", isOn: Binding(get: { s.footprint.fade },
+                                                        set: { v in model.change { $0.snapping.footprint.fade = v } }))
+                Stepper(value: Binding(get: { s.footprint.animationSpeed },
+                                       set: { v in model.change { $0.snapping.footprint.animationSpeed = min(max(v, 0), 5) } }),
+                        in: 0...5, step: 0.5) {
+                    Text("Fade time: \(s.footprint.animationSpeed == 0 ? "standard" : "\(s.footprint.animationSpeed)x")")
+                }
+                .disabled(!s.footprint.fade)
+                Toggle("Tap the trackpad when the footprint moves",
+                       isOn: Binding(get: { s.footprint.haptic },
+                                     set: { v in model.change { $0.snapping.footprint.haptic = v } }))
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    // areaSection picks the action for each snap area in the map at path, and whether the area never snaps.
+    private func areaSection(_ title: String, _ path: WritableKeyPath<SnapChoices, [String: String]>) -> some View {
+        Section(title) {
+            ForEach(Self.snapAreas, id: \.0) { area, label in
+                HStack {
+                    Picker(label, selection: Binding(get: { model.choices.snapping[keyPath: path][area] ?? "" },
+                                                     set: { v in model.change { $0.snapping[keyPath: path][area] = v } })) {
+                        Text("Nothing").tag("")
+                        ForEach(Self.snapCompounds, id: \.0) { Text($0.1).tag($0.0) }
+                        ForEach(actionNames, id: \.self) { Text(Keymaps.label($0)).tag($0) }
+                    }
+                    Toggle("Never", isOn: Binding(get: { model.choices.snapping.ignoredSnapAreas.contains(area) },
+                                                  set: { v in model.change {
+                                                      $0.snapping.ignoredSnapAreas.removeAll { $0 == area }
+                                                      if v { $0.snapping.ignoredSnapAreas.append(area) }
+                                                  } }))
+                        .help("Never snap in this area on any display.")
+                }
+            }
+        }
+    }
+
+    // snapStepper edits the snap choice at path in points, clamped to range.
+    private func snapStepper(_ title: String, _ path: WritableKeyPath<SnapChoices, Double>, _ range: ClosedRange<Double>,
+                             _ step: Double) -> some View {
+        Stepper(value: Binding(get: { model.choices.snapping[keyPath: path] },
+                               set: { v in model.change { $0.snapping[keyPath: path] = min(max(v, range.lowerBound), range.upperBound) } }),
+                in: range, step: step) {
+            Text("\(title): \(Int(model.choices.snapping[keyPath: path])) pt")
         }
     }
 

@@ -8,12 +8,25 @@ final class Footprint {
     // panel is the footprint window, nil while hidden.
     private var panel: NSPanel?
 
-    // show draws the footprint at frame, in global top-left coordinates, in palette's accent.
-    func show(_ frame: Frame, palette: Palette) {
+    // fadeTime is how long the shown footprint takes to fade out.
+    private var fadeTime = 0.0
+
+    // show draws the footprint at frame, in global top-left coordinates, in style's colors on palette, fading
+    // it in when style fades.
+    func show(_ frame: Frame, palette: Palette, style: FootprintStyle) {
         let primary = NSScreen.screens.first?.frame.height ?? 0
         let rect = NSRect(x: frame.x, y: primary - frame.y - frame.h, width: frame.w, height: frame.h)
+        fadeTime = style.fadeTime
         if let panel {
-            panel.setFrame(rect, display: true)
+            Self.paint(panel.contentView, palette: palette, style: style)
+            if fadeTime > 0 {
+                NSAnimationContext.runAnimationGroup { ctx in
+                    ctx.duration = fadeTime
+                    panel.animator().setFrame(rect, display: true)
+                }
+            } else {
+                panel.setFrame(rect, display: true)
+            }
             return
         }
         let p = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
@@ -27,18 +40,41 @@ final class Footprint {
         view.autoresizingMask = [.width, .height]
         view.wantsLayer = true
         view.layer?.cornerRadius = 8
-        view.layer?.borderWidth = 2
-        view.layer?.backgroundColor = Self.color(palette.footprintFill).cgColor
-        view.layer?.borderColor = Self.color(palette.footprintStroke).cgColor
+        Self.paint(view, palette: palette, style: style)
         p.contentView = view
-        p.orderFrontRegardless()
         panel = p
+        guard fadeTime > 0 else {
+            p.orderFrontRegardless()
+            return
+        }
+        p.alphaValue = 0
+        p.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = fadeTime
+            p.animator().alphaValue = 1
+        }
     }
 
-    // hide removes the footprint.
+    // hide removes the footprint, fading it out when it faded in.
     func hide() {
-        panel?.orderOut(nil)
+        guard let p = panel else { return }
         panel = nil
+        guard fadeTime > 0 else {
+            p.orderOut(nil)
+            return
+        }
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = fadeTime
+            p.animator().alphaValue = 0
+        }, completionHandler: { MainActor.assumeIsolated { p.orderOut(nil) } })
+    }
+
+    // paint colors view's layer from style on palette.
+    private static func paint(_ view: NSView?, palette: Palette, style: FootprintStyle) {
+        let (fill, stroke) = style.tints(palette)
+        view?.layer?.borderWidth = max(0, style.borderWidth)
+        view?.layer?.backgroundColor = color(fill).cgColor
+        view?.layer?.borderColor = color(stroke).cgColor
     }
 
     // color returns tint as a color.
@@ -102,8 +138,17 @@ final class DragSnap {
         at = p
     }
 
-    // dragged follows the cursor at p and moves the footprint when the zone changes.
-    func dragged(_ p: CGPoint, option: Bool) {
+    // held returns the names of the snap modifiers down in flags.
+    static func held(_ flags: CGEventFlags) -> Set<String> {
+        let names: [(CGEventFlags, String)] = [(.maskShift, "shift"), (.maskControl, "control"),
+                                               (.maskAlternate, "option"), (.maskCommand, "command")]
+        return Set(names.filter { flags.contains($0.0) }.map(\.1))
+    }
+
+    // dragged follows the cursor at p with flags down and moves the footprint when the zone changes, with a
+    // haptic tap when the style asks for one.
+    func dragged(_ p: CGPoint, flags: CGEventFlags) {
+        let option = flags.contains(.maskAlternate)
         let choices = app.anchors.choices
         guard down, !done, !choices.paused, choices.snap || choices.behavior.unsnapRestore, isMoving(p),
               choices.snap, let w = win
@@ -121,7 +166,8 @@ final class DragSnap {
             prev = z
         }
         let next = Snap.drop(SnapPoint(p.x, p.y), screens.full[i], ch, prev: prev, option: option,
-                             parkable: true, pinned: app.anchors.pinned(w), castOff: app.anchors.isCastOff(w.id))
+                             parkable: true, pinned: app.anchors.pinned(w), castOff: app.anchors.isCastOff(w.id),
+                             snapping: choices.snapping, held: Self.held(flags))
         if next == drop && i == screen {
             return
         }
@@ -139,7 +185,11 @@ final class DragSnap {
             frame = nil
         }
         if let frame {
-            footprint.show(frame, palette: choices.theme.palette)
+            let style = choices.snapping.footprint
+            footprint.show(frame, palette: choices.theme.palette, style: style)
+            if style.haptic {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            }
         } else {
             footprint.hide()
         }

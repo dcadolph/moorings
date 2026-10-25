@@ -14,8 +14,8 @@ final class EventTap {
     // onDown is asked about each press with its point and whether Option is held, and returns true
     // to swallow the click.
     var onDown: (CGPoint, Bool) -> Bool = { _, _ in false }
-    // onDrag is told where the mouse is while the primary button is held, and whether Option is held.
-    var onDrag: (CGPoint, Bool) -> Void = { _, _ in }
+    // onDrag is told where the mouse is while the primary button is held, and which modifiers are held.
+    var onDrag: (CGPoint, CGEventFlags) -> Void = { _, _ in }
     // onUp is told where the primary button came up, for a click that was not swallowed.
     var onUp: (CGPoint, Bool) -> Void = { _, _ in }
     // onDoubleClick is told where the primary button came up to end a double-click that was not
@@ -87,7 +87,7 @@ final class EventTap {
             }
             return true
         case .leftMouseDragged:
-            onDrag(event.location, option)
+            onDrag(event.location, event.flags)
             return true
         case .otherMouseDown, .otherMouseUp:
             let button = Int(event.getIntegerValueField(.mouseEventButtonNumber))

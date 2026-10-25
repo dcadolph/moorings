@@ -209,7 +209,7 @@ ties a workspace to the displays attached now, and plugging into that set recall
 ### Settings window
 
 Open it from the menu, or open Moorings again while it runs. It records shortcuts, edits custom
-sizes, renames and ties workspaces, picks the keymap, snapping, gap, mouse buttons, fullscreen
+sizes, renames and ties workspaces, picks the keymap, snap areas, gap, mouse buttons, fullscreen
 handling and theme, and exports or imports every choice as one JSON file. Imported workspaces
 come back untied, since the file may come from another desk.
 
@@ -219,6 +219,12 @@ Drag a window to an edge or corner of any display and a footprint shows where it
 give halves, corners quarters, the top edge maximizes, and the bottom edge gives thirds. On the
 ultrawide the strips stand in for the screen edges. Hold Option while dropping a window on a
 strip to anchor its app in that slot. Window > Snap windows by dragging turns it off.
+
+Settings > Snapping changes the map on every display but the ultrawide: the action for each edge
+and corner on landscape and portrait displays, areas that never snap, keys that must be held to
+snap, edge margins and corner sizes. The keys to hold apply on the ultrawide too. It also styles
+the footprint (fill opacity, border, color, fade) and can add a haptic tap on a Force Touch
+trackpad as the footprint moves to a new zone.
 
 ### Anchored apps
 

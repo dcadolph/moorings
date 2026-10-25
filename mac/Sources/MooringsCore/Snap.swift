@@ -149,10 +149,13 @@ public enum Snap {
     }
 }
 
-// FootprintStyle holds how the drag footprint looks and feels, each at Rectangle's default.
+// FootprintStyle holds how the drag footprint looks and feels, each at today's look or Rectangle's default.
 public struct FootprintStyle: Equatable, Sendable, Codable {
+    // fadeSeconds is the fade time at an animation speed of 1.
+    public static let fadeSeconds = 0.2
+
     // alpha is the footprint fill opacity.
-    public var alpha: Double = 0.3
+    public var alpha: Double = Palette.footprintFillAlpha
     // borderWidth is the footprint border width in points.
     public var borderWidth: Double = 2
     // fade reports whether the footprint fades in and out.
@@ -175,12 +178,24 @@ public struct FootprintStyle: Equatable, Sendable, Codable {
     // init decodes a saved style, keeping the default for anything missing or unreadable.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        alpha = (try? c.decodeIfPresent(Double.self, forKey: .alpha)) ?? 0.3
+        alpha = (try? c.decodeIfPresent(Double.self, forKey: .alpha)) ?? Palette.footprintFillAlpha
         borderWidth = (try? c.decodeIfPresent(Double.self, forKey: .borderWidth)) ?? 2
         fade = (try? c.decodeIfPresent(Bool.self, forKey: .fade)) ?? false
         color = try? c.decodeIfPresent(String.self, forKey: .color)
         animationSpeed = (try? c.decodeIfPresent(Double.self, forKey: .animationSpeed)) ?? 0
         haptic = (try? c.decodeIfPresent(Bool.self, forKey: .haptic)) ?? false
+    }
+
+    // tints returns the footprint fill and stroke on palette: the accent, or color when it parses, with the
+    // fill at alpha and the stroke at the palette's stroke opacity.
+    public func tints(_ palette: Palette) -> (fill: Tint, stroke: Tint) {
+        let base = color.flatMap { RGB(hex: $0) } ?? palette.accent
+        return (Tint(color: base, alpha: max(0, min(1, alpha))), Tint(color: base, alpha: Palette.footprintStrokeAlpha))
+    }
+
+    // fadeTime is the fade time in seconds, 0 when fade is off. animationSpeed scales fadeSeconds, 0 keeps it.
+    public var fadeTime: Double {
+        fade ? Self.fadeSeconds * (animationSpeed > 0 ? animationSpeed : 1) : 0
     }
 }
 

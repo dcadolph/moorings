@@ -148,3 +148,44 @@ func snapZone(_ f: Frame, _ ch: Frame?, _ x: Double, _ y: Double, _ prev: String
     #expect(Snap.zone(SnapPoint(0, 540), snapScreen, nil, nil, snapping: m) == nil)
     #expect(Snap.zone(SnapPoint(0, 540), snapScreen, nil, nil, snapping: m, held: ["shift"]) == "left-half")
 }
+
+// Swift only: edge margins, the snap-before distance and the corner size move where areas start.
+@Test func testSnapMarginsAndSizes() {
+    var m = SnapChoices()
+    #expect(Snap.zone(SnapPoint(8, 540), snapScreen, nil, nil, snapping: m) == nil)
+    m.edgeMarginLeft = 10
+    #expect(Snap.zone(SnapPoint(8, 540), snapScreen, nil, nil, snapping: m) == "left-half")
+    m = SnapChoices()
+    m.snapBeforeReachingEdges = 20
+    #expect(Snap.zone(SnapPoint(20, 540), snapScreen, nil, nil, snapping: m) == "left-half")
+    m = SnapChoices()
+    #expect(Snap.zone(SnapPoint(0, 100), snapScreen, nil, nil, snapping: m) == "top-half")
+    m.cornerSize = 150
+    #expect(Snap.zone(SnapPoint(0, 100), snapScreen, nil, nil, snapping: m) == "top-left")
+}
+
+// Swift only: the default footprint style keeps the theme's look, a color override and alpha change it, and a
+// bad color falls back to the accent.
+@Test func testFootprintStyleTints() {
+    let p = ThemeName.dragonfire.palette
+    var s = FootprintStyle()
+    #expect(s.tints(p).fill == p.footprintFill)
+    #expect(s.tints(p).stroke == p.footprintStroke)
+    s.color = "#ff0000"
+    s.alpha = 0.5
+    #expect(s.tints(p).fill == Tint(color: RGB(red: 1, green: 0, blue: 0), alpha: 0.5))
+    #expect(s.tints(p).stroke == Tint(color: RGB(red: 1, green: 0, blue: 0), alpha: 0.70))
+    s.color = "red"
+    s.alpha = 4
+    #expect(s.tints(p).fill == Tint(color: p.accent, alpha: 1))
+}
+
+// Swift only: the footprint fades only when fade is on, scaled by the animation speed.
+@Test func testFootprintStyleFadeTime() {
+    var s = FootprintStyle()
+    #expect(s.fadeTime == 0)
+    s.fade = true
+    #expect(s.fadeTime == FootprintStyle.fadeSeconds)
+    s.animationSpeed = 2
+    #expect(s.fadeTime == FootprintStyle.fadeSeconds * 2)
+}

@@ -35,6 +35,11 @@ each part.
   Normal displays use Rectangle's map.
 - On the ultrawide, the strips stand in for the screen edges, and holding Option while dropping a
   window on a strip anchors its app there.
+- Settings > Snapping picks the action for each edge and corner, separately for landscape and
+  portrait displays, turns areas off, names keys that must be held to snap, and sets the edge
+  margins and corner sizes. The strips on the ultrawide keep their own zones.
+- The footprint's fill opacity, border width, color, fade and fade time are yours to set, and a
+  haptic tap can mark each new zone.
 
 ## Organize
 
