@@ -148,3 +148,30 @@ import Testing
     c.appRules = [AppRule(bundle: "a", action: "left-half"), AppRule(bundle: "b", frame: F(1, 2, 3, 4))]
     #expect(Choices.decode(try Choices.encode(c)) == c)
 }
+
+// Swift only: restoring defaults resets every preference and keeps the owner's own data.
+@Test func testChoicesRestoringDefaults() {
+    var c = Choices(slots: [.leftTop: "com.apple.Notes"], widths: Widths(left: 20, right: 30), paused: true,
+                    fullscreenFills: false, pinFullscreenFills: false)
+    c.keymap = "spectacle"
+    c.shortcuts = ["maximize": StoredShortcut(mods: ["ctrl", "alt"], key: "k")]
+    c.gapPx = 8
+    c.snap = false
+    c.theme = .rose
+    c.checkUpdates = false
+    c.mouseButtons = ["3": "maximize"]
+    c.snapping.footprint.color = "#ff0000"
+    c.ignores = ["com.apple.Terminal"]
+    c.sizes = [StoredSize(title: "Reading", x: 0.25, w: 0.5, shortcut: nil)]
+    c.workspaces = ["Desk": Workspace(name: "Desk")]
+    c.chains = [Chain(name: "left-then-max", steps: ["left-half", "maximize-height"])]
+    c.appRules = [AppRule(bundle: "com.apple.TextEdit", action: "left-half")]
+    var want = Choices(slots: c.slots, widths: c.widths, paused: true)
+    want.ignores = c.ignores
+    want.sizes = c.sizes
+    want.workspaces = c.workspaces
+    want.chains = c.chains
+    want.appRules = c.appRules
+    #expect(c.restoringDefaults() == want)
+    #expect(Choices().restoringDefaults() == Choices())
+}

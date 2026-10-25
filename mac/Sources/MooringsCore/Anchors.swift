@@ -162,6 +162,18 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(appRules, forKey: .appRules)
     }
 
+    // restoringDefaults returns the default choices with the owner's own data kept: anchored apps, strip
+    // sizes, the pause state, ignored apps, custom sizes, saved workspaces, chains and app rules.
+    public func restoringDefaults() -> Choices {
+        var c = Choices(slots: slots, widths: widths, heights: heights, paused: paused)
+        c.ignores = ignores
+        c.sizes = sizes
+        c.workspaces = workspaces
+        c.chains = chains
+        c.appRules = appRules
+        return c
+    }
+
     // encode returns choices as sorted JSON for saving.
     public static func encode(_ choices: Choices) throws -> Data {
         let encoder = JSONEncoder()

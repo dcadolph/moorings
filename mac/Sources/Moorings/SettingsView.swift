@@ -8,8 +8,31 @@ struct SettingsView: View {
     // model holds the choices and saves each change.
     @ObservedObject var model: SettingsModel
 
-    // body lays the sections out as tabs.
+    // body lays the tabs out above the restore defaults button every tab shares.
     var body: some View {
+        VStack(spacing: 0) {
+            tabs
+                .padding([.top, .horizontal])
+            HStack {
+                Spacer()
+                Button("Restore defaults…") { confirmRestore = true }
+            }
+            .padding()
+        }
+        .frame(width: 720, height: 640)
+        .confirmationDialog("Restore the default settings?", isPresented: $confirmRestore) {
+            Button("Restore defaults", role: .destructive) { model.change { $0 = $0.restoringDefaults() } }
+        } message: {
+            Text("Shortcuts, snapping, appearance and behavior go back to their defaults. Anchored apps, strip "
+                + "sizes, ignored apps, custom sizes, workspaces, chains and app rules stay.")
+        }
+    }
+
+    // confirmRestore reports whether the restore defaults question is showing.
+    @State private var confirmRestore = false
+
+    // tabs lays the sections out as tabs.
+    private var tabs: some View {
         TabView {
             shortcuts.tabItem { Label("Shortcuts", systemImage: "keyboard") }
             sizes.tabItem { Label("Sizes", systemImage: "aspectratio") }
@@ -19,8 +42,6 @@ struct SettingsView: View {
             appearance.tabItem { Label("Appearance", systemImage: "paintpalette") }
             general.tabItem { Label("General", systemImage: "gearshape") }
         }
-        .padding()
-        .frame(width: 720, height: 600)
     }
 
     // actionNames lists every action that can take a shortcut, in menu order.
@@ -150,7 +171,9 @@ struct SettingsView: View {
                                                                   $0.snapping.snapModifiers.removeAll { $0 == key }
                                                                   if v { $0.snapping.snapModifiers.append(key) }
                                                               } }))
+                        .toggleStyle(.checkbox)
                     }
+                    Spacer()
                 }
             }
             Section("Edges") {
