@@ -288,14 +288,29 @@ final class Windows {
         return (id, string(el, kAXSubroleAttribute))
     }
 
-    // raise brings the window with id to the front and activates its app.
+    // raiseSettle is how long in seconds raise waits after activating an app before it raises the
+    // window again, because activation can bring the app's previous main window back in front.
+    static let raiseSettle = 0.15
+
+    // raise brings the window with id to the front and activates its app. It makes the window its
+    // app's main window and raises it, activates the app, then does both again once activation has
+    // settled, since activating an app brings its main window forward.
     func raise(_ id: WindowID) {
         guard let el = elements[id] else { return }
-        AXUIElementPerformAction(el, kAXRaiseAction as CFString)
+        Self.makeFront(el)
         var pid: pid_t = 0
-        if AXUIElementGetPid(el, &pid) == .success {
-            NSRunningApplication(processIdentifier: pid)?.activate()
+        guard AXUIElementGetPid(el, &pid) == .success,
+              let app = NSRunningApplication(processIdentifier: pid) else { return }
+        app.activate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.raiseSettle) {
+            Self.makeFront(el)
         }
+    }
+
+    // makeFront makes el its app's main window and raises it.
+    private static func makeFront(_ el: AXUIElement) {
+        AXUIElementSetAttributeValue(el, kAXMainAttribute as CFString, kCFBooleanTrue)
+        AXUIElementPerformAction(el, kAXRaiseAction as CFString)
     }
 
     // alive returns the ids of every window that exists, on any Space.
