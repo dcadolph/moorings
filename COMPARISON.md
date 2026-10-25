@@ -159,19 +159,19 @@ Magnet is sold on the Mac App Store. Nothing here goes past Rectangle.
 
 Divvy costs $13.99 and Mosaic 14.99 GBP. The Lasso price is on a separate page and it covers 3 devices.
 
-| Feature                                       | Who has it           | Moorings          | Check                           |
-| --------------------------------------------- | -------------------- | ----------------- | ------------------------------- |
-| Drag over a grid to pick a span               | Divvy, Mosaic, Lasso | planned (unit 21) | unit 21 grid overlay drag       |
-| Quick positions without resizing              | Mosaic               | planned (unit 21) | unit 21 quick positions         |
-| Auto layout per app window                    | Mosaic               | planned (unit 17) | unit 17 per-app rules           |
-| Groups of layouts                             | Mosaic               | no (no unit yet, see the plan's Escalations) | not applicable |
-| Touch Bar                                     | Mosaic               | no (Apple dropped the Touch Bar from current Macs) | not applicable |
-| Window capture, iOS remote control            | Mosaic               | no (no unit yet, see the plan's Escalations) | not applicable |
-| Saved layouts with per-layout shortcuts       | Lasso                | yes               | testWorkspacesFitAndCodable     |
-| iCloud sync                                   | Lasso                | planned (unit 20) | unit 20 settings sync on iCloud |
-| Export and import                             | Lasso                | yes               | testSettingsBackupRoundTrip     |
-| Rectangle keymap preset                       | Lasso                | yes               | testRectangleDefaults           |
-| Magnet keymap preset                          | Lasso                | yes (Magnet's site lists no shortcuts; the table is the Magnet set Rectangle ships) | testMagnet |
+| Feature                                 | Who has it           | Moorings                                                                            | Check                               |
+|-----------------------------------------|----------------------|-------------------------------------------------------------------------------------|-------------------------------------|
+| Drag over a grid to pick a span         | Divvy, Mosaic, Lasso | planned (unit 21)                                                                   | unit 21 grid overlay drag           |
+| Quick positions without resizing        | Mosaic               | planned (unit 21)                                                                   | unit 21 quick positions             |
+| Auto layout per app window              | Mosaic               | planned (unit 17)                                                                   | unit 17 per-app rules               |
+| Groups of layouts, switchable profiles  | Mosaic               | yes                                                                                 | testProfileApplyTouchesOnlySettings |
+| Touch Bar                               | Mosaic               | no (Apple dropped the Touch Bar from current Macs)                                  | not applicable                      |
+| Window capture, iOS remote control      | Mosaic               | no (no unit yet, see the plan's Escalations)                                        | not applicable                      |
+| Saved layouts with per-layout shortcuts | Lasso                | yes                                                                                 | testWorkspacesFitAndCodable         |
+| iCloud sync                             | Lasso                | planned (unit 20)                                                                   | unit 20 settings sync on iCloud     |
+| Export and import                       | Lasso                | yes                                                                                 | testSettingsBackupRoundTrip         |
+| Rectangle keymap preset                 | Lasso                | yes                                                                                 | testRectangleDefaults               |
+| Magnet keymap preset                    | Lasso                | yes (Magnet's site lists no shortcuts; the table is the Magnet set Rectangle ships) | testMagnet                          |
 
 ## Raycast window management
 

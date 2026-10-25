@@ -230,11 +230,45 @@ final class Organizer {
         }
     }
 
-    // askName asks for a workspace name, nil when canceled or empty.
-    static func askName() -> String? {
+    // saveProfile saves the current shortcuts, snapping, behavior, menu, rules and theme as the profile
+    // name, keeping the workspace group of a profile already saved under it, and marks it active.
+    func saveProfile(_ name: String) {
+        let settings = anchors.choices.profileSettings()
+        if let i = anchors.choices.profiles.firstIndex(where: { $0.name == name }) {
+            anchors.choices.profiles[i].settings = settings
+        } else {
+            anchors.choices.profiles.append(Profile(name: name, settings: settings))
+        }
+        anchors.choices.activeProfile = name
+        app.save()
+    }
+
+    // applyProfile switches to the profile saved as name: its settings take effect, hotkeys and the
+    // theme follow, and its workspaces are recalled in order. Anchored apps and strip sizes stay.
+    @discardableResult
+    func applyProfile(_ name: String) -> Bool {
+        guard let profile = anchors.choices.profiles.first(where: { $0.name == name }) else {
+            logger.notice("no profile is named \(name, privacy: .public)")
+            return false
+        }
+        anchors.choices = anchors.choices.applying(profile)
+        app.save()
+        for ws in profile.workspaces {
+            recall(ws)
+        }
+        app.notify("Profile \(name)", profile.workspaces.isEmpty ? "Switched." :
+            "Switched and recalled \(profile.workspaces.joined(separator: ", ")).")
+        return true
+    }
+
+    // askName asks for a name, nil when canceled or empty. The default wording names a workspace.
+    static func askName(
+        _ title: String = "Save workspace",
+        _ info: String = "Name this layout: the slots, widths, heights and where each free window sits."
+    ) -> String? {
         let alert = NSAlert()
-        alert.messageText = "Save workspace"
-        alert.informativeText = "Name this layout: the slots, widths, heights and where each free window sits."
+        alert.messageText = title
+        alert.informativeText = info
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
         alert.accessoryView = field
         alert.addButton(withTitle: "Save")

@@ -68,6 +68,8 @@ each part.
 - Save the slots, widths, heights and the frame of every free window on every display under a
   name, then recall it from the menu, a shortcut or a link.
 - Tie a workspace to a set of displays, and plugging into that setup recalls it.
+- Profiles: save shortcuts, snapping, behavior, chains, menu and theme under a name with a group of
+  workspaces, and switch between them from the menu or a shortcut. Anchored apps stay put.
 
 ## Anchored apps on an ultrawide
 

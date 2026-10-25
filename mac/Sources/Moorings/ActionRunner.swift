@@ -163,6 +163,12 @@ final class ActionRunner {
         if name.hasPrefix(Keymaps.workspacePrefix) {
             return app.organizer.recall(String(name.dropFirst(Keymaps.workspacePrefix.count)))
         }
+        if name.hasPrefix(Profile.prefix) {
+            let title = String(name.dropFirst(Profile.prefix.count))
+            guard anchors.choices.profiles.contains(where: { $0.name == title }) else { return false }
+            DispatchQueue.main.async { [app] in app.organizer.applyProfile(title) }
+            return true
+        }
         let screens = Screens.current()
         let scan = app.windows.scan(screens)
         guard let w = window.flatMap({ id in scan.windows.first { $0.id == id } }) ?? scan.focused else {

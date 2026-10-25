@@ -98,23 +98,92 @@ struct SettingsView: View {
     // workspaces renames, ties and deletes the saved workspaces.
     private var workspaces: some View {
         let names = model.choices.workspaces.keys.sorted()
-        return VStack(alignment: .leading) {
-            if names.isEmpty {
-                Text("No workspaces yet. Save one from the Workspaces folder in the menu.").font(.callout)
+        return Form {
+            Section("Workspaces") {
+                if names.isEmpty {
+                    Text("No workspaces yet. Save one from the Workspaces folder in the menu.").font(.callout)
+                }
+                ForEach(names, id: \.self) { name in
+                    WorkspaceRow(name: name, tied: model.app.organizer.tied(name),
+                                 rename: { new in
+                                     model.change {
+                                         guard let ws = $0.workspaces.removeValue(forKey: name) else { return }
+                                         var renamed = ws
+                                         renamed.name = new
+                                         $0.workspaces[new] = renamed
+                                         for i in $0.profiles.indices {
+                                             $0.profiles[i].workspaces = $0.profiles[i].workspaces.map { $0 == name ? new : $0 }
+                                         }
+                                     }
+                                 },
+                                 tie: { model.app.organizer.tie(name); model.reload() },
+                                 delete: { model.change {
+                                     $0.workspaces[name] = nil
+                                     for i in $0.profiles.indices { $0.profiles[i].workspaces.removeAll { $0 == name } }
+                                 } })
+                }
             }
-            List(names, id: \.self) { name in
-                WorkspaceRow(name: name, tied: model.app.organizer.tied(name),
-                             rename: { new in
-                                 model.change {
-                                     guard let ws = $0.workspaces.removeValue(forKey: name) else { return }
-                                     var renamed = ws
-                                     renamed.name = new
-                                     $0.workspaces[new] = renamed
-                                 }
-                             },
-                             tie: { model.app.organizer.tie(name); model.reload() },
-                             delete: { model.change { $0.workspaces[name] = nil } })
+            profiles(names)
+        }
+        .formStyle(.grouped)
+    }
+
+    // profiles lists the saved profiles, each with its name, shortcut, the workspaces it recalls in order,
+    // and buttons to switch to it, save the current settings into it, or delete it.
+    private func profiles(_ workspaces: [String]) -> some View {
+        Section {
+            ForEach(Array(model.choices.profiles.enumerated()), id: \.element.name) { i, p in
+                VStack(alignment: .leading) {
+                    HStack {
+                        WorkspaceNameField(name: p.name) { new in
+                            guard !model.choices.profiles.contains(where: { $0.name == new }) else { return }
+                            model.change { $0.renameProfile(at: i, to: new) }
+                        }
+                        if model.choices.activeProfile == p.name {
+                            Text("Active").font(.callout).foregroundStyle(.secondary)
+                        }
+                        ShortcutRecorder(current: model.bindings.map[p.actionName], suspend: model.suspend) { sc in
+                            model.change { $0.shortcuts[p.actionName] = .some(sc) }
+                        }
+                    }
+                    HStack {
+                        Text("Recalls").font(.callout)
+                        ForEach(workspaces, id: \.self) { ws in
+                            Toggle(ws, isOn: Binding(get: { p.workspaces.contains(ws) }, set: { on in model.change {
+                                $0.profiles[i].workspaces.removeAll { $0 == ws }
+                                if on { $0.profiles[i].workspaces.append(ws) }
+                            } }))
+                        }
+                        if workspaces.isEmpty {
+                            Text("no workspaces saved").font(.callout).foregroundStyle(.secondary)
+                        }
+                    }
+                    HStack {
+                        Button("Switch to it") { model.app.organizer.applyProfile(p.name); model.reload() }
+                        Button("Save current settings into it") { model.app.organizer.saveProfile(p.name); model.reload() }
+                        Button("Delete") { model.change {
+                            $0.profiles.remove(at: i)
+                            $0.shortcuts[p.actionName] = nil
+                            $0.menu.order.removeAll { $0 == p.actionName }
+                            if $0.activeProfile == p.name { $0.activeProfile = nil }
+                        } }
+                    }
+                }
             }
+            Button("Save current as profile…") {
+                if let name = Organizer.askName("Save profile", "Name these settings. Switching to the profile later "
+                    + "brings them back, and anchored apps stay where they are.") {
+                    model.app.organizer.saveProfile(name)
+                    model.reload()
+                }
+            }
+        } header: {
+            Text("Profiles")
+        } footer: {
+            Text("A profile holds shortcuts, keymap, sizes, gap, snapping, behavior, stacking, chains, the menu, app "
+                + "rules, mouse buttons, title bar clicks and theme. Switching applies them and recalls the ticked "
+                + "workspaces in the order they were ticked. Anchored apps and strip sizes stay.")
+                .font(.callout)
         }
     }
 
@@ -534,20 +603,10 @@ struct WorkspaceRow: View {
     // delete forgets it.
     let delete: () -> Void
 
-    // draft is the name being typed.
-    @State private var draft = ""
-
     // body shows the name field, the tie switch and Delete.
     var body: some View {
         HStack {
-            TextField("Name", text: $draft)
-                .onAppear { draft = name }
-                .onSubmit {
-                    let new = draft.trimmingCharacters(in: .whitespaces)
-                    if !new.isEmpty && new != name {
-                        rename(new)
-                    }
-                }
+            WorkspaceNameField(name: name, rename: rename)
             Toggle("With these displays", isOn: Binding(get: { tied }, set: { _ in tie() }))
             Button("Delete", action: delete)
         }
@@ -600,5 +659,28 @@ struct ChainRow: View {
                 ForEach(steps, id: \.self) { Text(Keymaps.label($0)).tag($0) }
             }
         }
+    }
+}
+
+// WorkspaceNameField edits a saved name and stores it on Return when it changed and is not empty.
+struct WorkspaceNameField: View {
+    // name is the name as saved.
+    let name: String
+    // rename stores a new name.
+    let rename: (String) -> Void
+
+    // draft is the name being typed.
+    @State private var draft = ""
+
+    // body shows the field.
+    var body: some View {
+        TextField("Name", text: $draft)
+            .onAppear { draft = name }
+            .onSubmit {
+                let new = draft.trimmingCharacters(in: .whitespaces)
+                if !new.isEmpty && new != name {
+                    rename(new)
+                }
+            }
     }
 }

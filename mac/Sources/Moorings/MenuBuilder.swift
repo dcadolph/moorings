@@ -95,6 +95,7 @@ struct MenuBuilder {
         out.append(folder("Window", windowItems()))
         out.append(folder("Lift", liftItems(pinned)))
         out.append(folder("Workspaces", workspaceItems()))
+        out.append(folder("Profiles", profileItems()))
         out.append(folder("Widths", widthItems(screens.wide)))
         out.append(folder("Heights", heightItems()))
         out.append(.separator())
@@ -298,6 +299,29 @@ struct MenuBuilder {
                     app.organizer.delete(name)
                 },
             ]))
+        }
+        return out
+    }
+
+    // profileItems builds the Profiles folder: Save current as profile, then an entry per profile that
+    // switches to it, checked on the active one.
+    private func profileItems() -> [NSMenuItem] {
+        var out: [NSMenuItem] = [ActionItem("Save current as profile…", tip: "Save the shortcuts, snapping, behavior, "
+                + "menu, app rules and theme under a name. Settings > Workspaces picks the workspaces it recalls.") {
+            if let name = Organizer.askName("Save profile", "Name these settings. Switching to the profile later "
+                + "brings them back, and anchored apps stay where they are.") {
+                app.organizer.saveProfile(name)
+            }
+        }]
+        let profiles = anchors.choices.profiles
+        if !profiles.isEmpty {
+            out.append(.separator())
+        }
+        for p in profiles {
+            out.append(ActionItem(p.name, tip: "Switch to this profile.", checked: anchors.choices.activeProfile == p.name,
+                                  enabled: !anchors.choices.paused) {
+                app.organizer.applyProfile(p.name)
+            })
         }
         return out
     }

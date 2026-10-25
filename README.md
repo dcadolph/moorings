@@ -213,6 +213,15 @@ Workspaces > Save workspace stores the slots, widths, heights and the frame of e
 under a name. Recall puts it back, matching windows by app and title. Recall with these displays
 ties a workspace to the displays attached now, and plugging into that set recalls it.
 
+### Profiles
+
+Profiles > Save current as profile stores the shortcuts, keymap, custom sizes, gap, snapping,
+behavior, stacking, chains, menu, app rules, mouse buttons, title bar clicks and theme under a
+name. Switching to it, from the menu, a shortcut or `moorings://action?name=profile:<name>`, puts
+them back and recalls the workspaces it groups, in order. Settings > Workspaces renames a profile,
+picks its workspaces, records its shortcut, and saves the current settings into it. Anchored apps
+and strip sizes belong to the desk, so a profile never moves them.
+
 ### Settings window
 
 Open it from the menu, or open Moorings again while it runs. It records shortcuts, edits custom
