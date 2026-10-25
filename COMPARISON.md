@@ -205,6 +205,15 @@ For Moorings, top's energy impact equals its CPU percent in every sample. The wi
 
 The idle cells above predate the event-driven rest state. Until then a timer fired four times a second and looked at every window every two seconds even when nothing moved. Now no timer fires at rest: window, app, display and mouse-up events wake it, it looks every quarter second for two seconds after the last one, then stops. It looks every two seconds only while something is pending that sends no event (an app launched in the last 30 seconds, a recall waiting for an app it opened, Accessibility not yet granted) and once at each known deadline (an opened app's strip lapsing, a hold ending). The stack badge, when on, reads the pointer four times a second. testPaceNext and testDeadlinesHold cover the schedule. The after figure waits for the same sitting as the Rectangle and Loop cells.
 
+## Compatibility
+
+`moorings://selftest?apps=<bundle id>,<bundle id>` moves, resizes, snaps to the left half and restores the front free window of each named app, and logs PASS or FAIL per app and case with the app's version. An app that is not running is opened in the background and quit after. A window refused or rounded by its app shows the frame it kept in the FAIL line. The cases are the ones every window manager depends on: moves and sizes through Accessibility land exactly.
+
+| App | Version | Move | Resize | Snap left half | Restore |
+| --- | ------- | ---- | ------ | -------------- | ------- |
+
+Results wait for the batched live sitting (Slack, VLC, TextEdit, and Microsoft Word and a JetBrains IDE if installed). No row is filled from memory.
+
 ## What only Moorings has
 
 None of the products above hold apps at the edges of an ultrawide with a channel between them.

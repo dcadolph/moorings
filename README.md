@@ -290,6 +290,10 @@ Quit TextEdit, leave a slot empty, keep your hands off the mouse, and open
 checks each layout rule against them, then puts your slots back and quits TextEdit. Each check
 logs PASS or FAIL, and a banner gives the total.
 
+`moorings://selftest?apps=com.tinyspeck.slackmacgap,org.videolan.vlc` checks other apps instead:
+it moves, resizes, snaps and restores the front window of each, logs PASS or FAIL per case with
+the app's version, and puts the window back.
+
 ## Moving from the Hammerspoon version
 
 Versions before 1.5.0 ran inside Hammerspoon. To move over, run `moorings uninstall` and

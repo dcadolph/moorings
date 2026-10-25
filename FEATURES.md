@@ -157,6 +157,7 @@ each part.
 - Installs with `brew install --cask dcadolph/tap/moorings`, or from the signed and notarized zip
   on each release.
 - `moorings://selftest` checks the layout against real TextEdit windows, then puts your slots back.
+- `moorings://selftest?apps=<bundle ids>` checks move, resize, snap and restore on other apps' windows.
 - The layout is checked four times a second while windows change and every two seconds when
   nothing is moving.
 - Nothing moves while the mouse button is down, and a window that keeps fighting its place is

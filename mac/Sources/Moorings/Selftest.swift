@@ -6,7 +6,8 @@ import MooringsCore
 
 // Selftest drives real TextEdit windows through the layout on the ultrawide and logs PASS or FAIL
 // per check, then puts the owner's slots and anchor back and quits TextEdit. It runs from the
-// moorings://selftest link.
+// moorings://selftest link. With apps=, a comma-separated list of bundle ids, it instead moves,
+// resizes, snaps and restores a window of each named app and logs PASS or FAIL per app and case.
 @MainActor
 final class Selftest {
     // bundle is the app the run makes throwaway documents in.
@@ -66,14 +67,102 @@ final class Selftest {
     // anchors is the layout under test.
     private var anchors: Anchors { app.anchors }
 
-    // start runs the selftest unless one is going.
-    func start() {
+    // start runs the selftest unless one is going, or the compatibility cases when apps names any.
+    func start(apps: [String] = []) {
         guard !running else { return }
         running = true
         Task { @MainActor in
-            await self.run()
+            if apps.isEmpty {
+                await self.run()
+            } else {
+                await self.compatibility(apps)
+            }
             self.running = false
         }
+    }
+
+    // compatibility runs the move, resize, snap and restore cases against a window of each app in
+    // bundles and reports.
+    private func compatibility(_ bundles: [String]) async {
+        checks = []
+        let why = !app.windows.trusted ? "Accessibility is not granted" : anchors.choices.paused ? "moorings is paused" : nil
+        if let why {
+            logger.notice("selftest not run: \(why, privacy: .public)")
+            app.notify("Selftest not run", why + ".")
+            return
+        }
+        for bundle in bundles {
+            await compatible(bundle)
+        }
+        let failed = checks.filter { $0.ok == false }.count
+        let skipped = checks.filter { $0.ok == nil }.count
+        let summary = "\(checks.count) checks on \(bundles.count) apps, \(failed) failed, \(skipped) skipped"
+        logger.notice("selftest: \(summary, privacy: .public)")
+        app.notify(failed == 0 ? "Selftest passed" : "Selftest failed", summary + ". The log has each check.")
+    }
+
+    // compatible runs the cases against the front free window of the app with bundle, opening the
+    // app in the background when it is not running and quitting it after, and puts the window back
+    // where it was.
+    private func compatible(_ bundle: String) async {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else {
+            skip(bundle, "not installed")
+            return
+        }
+        let version = Bundle(url: url)?.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+        let tag = "\(bundle) \(version)"
+        let launched = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).isEmpty
+        if launched {
+            app.open(bundle, background: true)
+        }
+        defer {
+            if launched {
+                NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first?.terminate()
+            }
+        }
+        var found: WindowInfo?
+        _ = await settled({ found = self.free(bundle); return (found != nil, "") }, Self.openSeconds)
+        guard let w = found else {
+            skip(tag, "no free window. Open one that is not anchored, fullscreen, stashed or a panel")
+            return
+        }
+        let original = w.frame
+        let area = app.actions.area(for: w, screens: Screens.current())
+        let moved = Frame(x: area.x + 60, y: area.y + 60, w: min(w.frame.w, area.w - 120), h: min(w.frame.h, area.h - 120))
+        app.windows.move(w.id, to: moved)
+        check("\(tag): move", await settled { self.at(w.id, moved) })
+
+        let resized = Frame(x: area.x + 40, y: area.y + 40, w: min(900, area.w - 80), h: min(600, area.h - 80))
+        app.windows.move(w.id, to: resized)
+        check("\(tag): resize", await settled { self.at(w.id, resized) })
+
+        _ = anchors.restore(w.id)
+        let before = app.windows.frame(w.id) ?? resized
+        if let cur = info(w.id), let want = app.actions.frame("left-half", for: cur, screens: Screens.current()).0 {
+            app.actions.run("left-half", window: w.id)
+            check("\(tag): snap left half", await settled { self.at(w.id, want) })
+        } else {
+            check("\(tag): snap left half", (false, "left half gave no frame"))
+        }
+
+        app.actions.run("restore", window: w.id)
+        check("\(tag): restore", await settled { self.at(w.id, before) })
+        app.windows.move(w.id, to: original)
+    }
+
+    // free returns the front window of the app with bundle that moorings may move: not anchored,
+    // fullscreen, stashed or a file panel.
+    private func free(_ bundle: String) -> WindowInfo? {
+        app.windows.scan(Screens.current()).windows.first {
+            $0.bundle == bundle && !$0.isFilePanel && !$0.isFullScreen && !anchors.pinned($0)
+                && !anchors.stashed.contains($0.id)
+        }
+    }
+
+    // skip records a check that could not run and logs why.
+    private func skip(_ name: String, _ why: String) {
+        checks.append(Check(name: name, ok: nil, detail: why))
+        logger.notice("SKIP \(name, privacy: .public): \(why, privacy: .public)")
     }
 
     // run prepares, runs the scenarios, cleans up and reports.

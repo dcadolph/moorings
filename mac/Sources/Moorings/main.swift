@@ -206,7 +206,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "moor": moor()
             case "action": runLink(url)
             case "settings": settings.show()
-            case "selftest": selftest.start()
+            case "selftest":
+                let apps = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "apps" }?.value
+                selftest.start(apps: apps?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } ?? [])
             case "banner":
                 let text = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "text" }?.value
                 notify("Moorings", text ?? "")
