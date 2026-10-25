@@ -170,6 +170,13 @@ final class Windows {
         AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
     }
 
+    // position moves the window with id so its top-left corner is at x and y, leaving its size alone.
+    func position(_ id: WindowID, x: Double, y: Double) {
+        var origin = CGPoint(x: x, y: y)
+        guard let el = elements[id], let value = AXValueCreate(.cgPoint, &origin) else { return }
+        AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, value)
+    }
+
     // resize sets the size of the window with id and leaves its position to whatever is moving it.
     func resize(_ id: WindowID, w: Double, h: Double) {
         var size = CGSize(width: w, height: h)

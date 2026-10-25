@@ -144,6 +144,126 @@ func span(_ g: OverlayGrid) -> [Int] {
     #expect(one.frame(area) == area)
 }
 
+// Swift only: a drag across the grid picks every cell between the two points, either way round, and
+// a point off the area takes the nearest cell.
+@Test func testOverlayGridSpan() {
+    let area = F(100, 50, 1200, 800)
+    let tests: [(a: Point, b: Point, want: [Int])] = [
+        // Test 0: One cell, press and release in place.
+        (Point(x: 150, y: 60), Point(x: 160, y: 70), [0, 1, 0, 1]),
+        // Test 1: Top left to bottom right.
+        (Point(x: 150, y: 60), Point(x: 750, y: 500), [0, 4, 0, 3]),
+        // Test 2: Bottom right to top left gives the same span.
+        (Point(x: 750, y: 500), Point(x: 150, y: 60), [0, 4, 0, 3]),
+        // Test 3: Up and to the right.
+        (Point(x: 350, y: 800), Point(x: 1250, y: 300), [1, 6, 1, 4]),
+        // Test 4: Off the area clamps to the edge cells.
+        (Point(x: -500, y: -500), Point(x: 9000, y: 9000), [0, 6, 0, 4]),
+    ]
+    for (i, test) in tests.enumerated() {
+        #expect(span(OverlayGrid(cols: 6, rows: 4, from: test.a, to: test.b, in: area)) == test.want, "test \(i)")
+    }
+    let g = OverlayGrid(cols: 6, rows: 4, from: Point(x: 150, y: 60), to: Point(x: 750, y: 500), in: area)
+    #expect(g.frame(area) == F(100, 50, 800, 600))
+}
+
+// Swift only: grid takes the overlay's size, grid:CxR its own inside gridRange, and anything else is
+// no grid action.
+@Test func testOverlayGridSize() {
+    var o = OverlayChoices()
+    o.gridColumns = 5
+    o.gridRows = 3
+    let tests: [(name: String, want: [Int]?)] = [
+        // Test 0: Plain grid takes the choices.
+        ("grid", [5, 3]),
+        // Test 1: Own size.
+        ("grid:8x6", [8, 6]),
+        // Test 2: Bounds of the range.
+        ("grid:1x12", [1, 12]),
+        // Test 3: Past the range.
+        ("grid:13x2", nil),
+        // Test 4: Zero.
+        ("grid:0x4", nil),
+        // Test 5: Missing rows.
+        ("grid:8", nil),
+        // Test 6: Missing rows after the x.
+        ("grid:8x", nil),
+        // Test 7: Not a number.
+        ("grid:axb", nil),
+        // Test 8: Not a grid action.
+        ("grids", nil),
+    ]
+    for (i, test) in tests.enumerated() {
+        #expect(Overlay.gridSize(test.name, o).map { [$0.cols, $0.rows] } == test.want, "test \(i)")
+    }
+    #expect(Keymaps.known("grid") && Keymaps.known("grid:8x6"))
+    #expect(!Keymaps.known("grid:99x6"))
+    #expect(Keymaps.label("grid:8x6") == "Grid 8 by 6")
+    #expect(Keymaps.label("grid") == "Grid")
+}
+
+// Swift only: hover moves on exactly the move set and resizes on exactly the resize set; Shift alone,
+// an empty set and a resize set equal to the move set do nothing.
+@Test func testHoverMode() {
+    var o = OverlayChoices()
+    o.hoverMove = [.ctrl, .alt]
+    o.hoverResize = [.ctrl, .alt, .shift]
+    let tests: [(choices: OverlayChoices, flags: UInt64, want: HoverMode?)] = [
+        // Test 0: Exactly the move set.
+        (o, flagControl | flagOption, .move),
+        // Test 1: Device bits ride along.
+        (o, flagControl | flagOption | flagRightOption, .move),
+        // Test 2: Exactly the resize set.
+        (o, flagControl | flagOption | flagShift, .resize),
+        // Test 3: One more modifier than either set.
+        (o, flagControl | flagOption | flagCommand, nil),
+        // Test 4: Part of the move set.
+        (o, flagControl, nil),
+        // Test 5: Nothing held.
+        (o, 0, nil),
+        // Test 6: Off by default.
+        (OverlayChoices(), flagControl | flagOption, nil),
+        // Test 7: Shift alone never drives a hover.
+        ({ var c = OverlayChoices(); c.hoverMove = [.shift]; return c }(), flagShift, nil),
+        // Test 8: A resize set equal to the move set moves.
+        ({ var c = o; c.hoverResize = [.alt, .ctrl]; return c }(), flagControl | flagOption, .move),
+        // Test 9: Resize alone.
+        ({ var c = OverlayChoices(); c.hoverResize = [.cmd]; return c }(), flagCommand, .resize),
+    ]
+    for (i, test) in tests.enumerated() {
+        #expect(Hover.mode(test.flags, test.choices) == test.want, "test \(i)")
+    }
+}
+
+// Swift only: a hover move follows the pointer; a resize moves the nearest corner, keeps the opposite
+// one fixed and stops at the minimum.
+@Test func testHoverFrame() {
+    let start = F(100, 100, 400, 300)
+    #expect(Hover.corner(start, nearest: Point(x: 120, y: 110)) == .topLeft)
+    #expect(Hover.corner(start, nearest: Point(x: 480, y: 110)) == .topRight)
+    #expect(Hover.corner(start, nearest: Point(x: 120, y: 390)) == .bottomLeft)
+    #expect(Hover.corner(start, nearest: Point(x: 480, y: 390)) == .bottomRight)
+    let tests: [(mode: HoverMode, corner: HoverCorner, dx: Double, dy: Double, want: Frame)] = [
+        // Test 0: Move.
+        (.move, .topLeft, 30, -20, F(130, 80, 400, 300)),
+        // Test 1: Bottom right grows.
+        (.resize, .bottomRight, 50, 40, F(100, 100, 450, 340)),
+        // Test 2: Top left grows up and left, bottom right corner fixed.
+        (.resize, .topLeft, -50, -40, F(50, 60, 450, 340)),
+        // Test 3: Top right shrinks, bottom left corner fixed.
+        (.resize, .topRight, -100, 100, F(100, 200, 300, 200)),
+        // Test 4: Bottom left past the minimum stops there, right edge fixed.
+        (.resize, .bottomLeft, 1000, -1000, F(340, 100, 160, 100)),
+    ]
+    for (i, test) in tests.enumerated() {
+        #expect(Hover.frame(test.mode, start: start, corner: test.corner, dx: test.dx, dy: test.dy) == test.want,
+                "test \(i)")
+    }
+    // An app that keeps a larger size than asked moves only the corner that follows the pointer.
+    #expect(Hover.keep(start, corner: .topLeft, w: 380, h: 300) == F(120, 100, 380, 300))
+    #expect(Hover.keep(start, corner: .bottomRight, w: 380, h: 290) == F(100, 100, 380, 290))
+}
+
 // Swift only: overlay choices default to no trigger, load missing or bad fields as defaults, clamp the
 // grid and round trip.
 @Test func testOverlayChoicesDecode() throws {
@@ -156,5 +276,10 @@ func span(_ g: OverlayGrid) -> [Int] {
     var c = Choices()
     c.overlay.trigger = .fn
     c.overlay.gridColumns = 8
+    c.overlay.hoverMove = [.ctrl, .alt]
+    c.overlay.hoverResize = [.cmd]
     #expect(Choices.decode(try Choices.encode(c)) == c)
+    let mods = Data(#"{"hoverMove":["option","Control","option","hyper"],"hoverResize":7}"#.utf8)
+    let h = try JSONDecoder().decode(OverlayChoices.self, from: mods)
+    #expect(h.hoverMove == [.ctrl, .alt] && h.hoverResize.isEmpty)
 }

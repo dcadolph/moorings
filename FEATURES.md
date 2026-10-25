@@ -48,6 +48,14 @@ each part.
   window will land. Letting go sends the window that was under the pointer there, focused or not.
   Arrow keys switch to a grid of cells instead, Shift-arrows grow the pick, and Return applies it.
   Off until you pick a key.
+- The grid: the Grid action lays a grid of cells over the front window's area. Drag across the
+  cells you want and let go, or click one cell, and the window fills them. Arrow keys and Return
+  work too, and Escape or a click off the grid puts it away. Grid takes the size set in Settings >
+  Behavior, and an action named like grid:8x6 has its own.
+- Move and resize by hovering: pick the keys in Settings > Behavior, hold them and move the
+  pointer, no click needed. The window under the pointer follows it, or with the resize keys it
+  grows and shrinks from its nearest corner. Off until you pick keys. Anchored windows stay put.
+- Quick positions: move the front window to an edge, a corner or the center without resizing it.
 - Stash: park a window at the left, right or bottom edge with a sliver showing, by the Stash
   action or by dragging it to the edge with Command held. Rest the pointer on the sliver and it
   slides out, move away and it slides back. Clicking it, or Stash again, ends the stash, and

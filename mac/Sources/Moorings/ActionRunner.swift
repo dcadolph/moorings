@@ -42,7 +42,8 @@ final class ActionRunner {
                         ("Corner thirds", Geometry.grids["cornerThirds"] ?? [])]),
         Family(title: "Size and move", hint: nil,
                names: ["maximize", "almost-maximize", "maximize-height", "center", "center-prominently", "larger",
-                       "smaller", "move-left", "move-right", "move-up", "move-down", "specified", "restore"], groups: []),
+                       "smaller", "move-left", "move-right", "move-up", "move-down", "move-top-left", "move-top-right",
+                       "move-bottom-left", "move-bottom-right", "specified", "restore", Overlay.gridName], groups: []),
         Family(title: "One axis", hint: nil,
                names: ["larger-width", "smaller-width", "larger-height", "smaller-height", "double-width-left",
                        "double-width-right", "double-height-up", "double-height-down", "halve-width-left",
@@ -67,6 +68,12 @@ final class ActionRunner {
         "move-right": "Move the front window to the right edge, keeping its size.",
         "move-up": "Move the front window to the top edge, keeping its size.",
         "move-down": "Move the front window to the bottom edge, keeping its size.",
+        "move-top-left": "Move the front window to the top left corner, keeping its size.",
+        "move-top-right": "Move the front window to the top right corner, keeping its size.",
+        "move-bottom-left": "Move the front window to the bottom left corner, keeping its size.",
+        "move-bottom-right": "Move the front window to the bottom right corner, keeping its size.",
+        Overlay.gridName: "Show a grid over the front window's area and drag across cells to fill them. Arrow "
+            + "keys and Return work too, and Escape puts the grid away.",
         "specified": "Size the front window to the specified size, 1680 by 1050 points unless changed, centered, "
             + "shrunk to fit.",
         "restore": "Put the front window back where it was before moorings first moved it.",
@@ -98,6 +105,13 @@ final class ActionRunner {
             + "Rest the pointer on its edge to slide it out.",
         "unstash-all": "Bring every parked window back where it was.",
     ]
+
+    // placesFrame reports whether action name puts a window at a frame, so a snap area can take it.
+    // Front app actions, arrow mode, stash and the grid act on something else first.
+    static func placesFrame(_ name: String) -> Bool {
+        !Keymaps.windowNames.contains(name) && !Actions.arrowNames.contains(name) && !Keymaps.stashNames.contains(name)
+            && Overlay.gridSize(name, OverlayChoices()) == nil
+    }
 
     // app is the running app delegate.
     private unowned let app: AppDelegate
@@ -158,6 +172,9 @@ final class ActionRunner {
     // perform applies action name, which is not a chain, to the window with id window, or to the
     // focused window when nil. Actions on the front app or several windows act on the front app.
     private func perform(_ name: String, window: WindowID? = nil) -> Bool {
+        if let size = Overlay.gridSize(name, anchors.choices.overlay) {
+            return app.gridPicker.show(cols: size.cols, rows: size.rows, window: window)
+        }
         if Keymaps.windowNames.contains(name) {
             return frontApp(name)
         }

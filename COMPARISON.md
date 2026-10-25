@@ -60,34 +60,34 @@ Rectangle is free and MIT licensed. The action list and the hidden preferences c
 
 Moom costs $15.
 
-| Feature                                                  | Who has it                  | Moorings                                                                           | Check                                  |
-| -------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------- |
-| Pop-up palette on the green button with up to 61 actions | Moom                        | yes, as a menu at the pointer by shortcut or mouse button, not on the green button | live 10-24                             |
-| Saved layouts for an app's windows and recent windows    | Moom                        | yes                                                                                | testWorkspacesFitAndCodable            |
-| Snap zones                                               | Moom                        | yes                                                                                | testSnapEdges                          |
-| Drop zones from a saved layout                           | Moom                        | partial: custom areas drawn as shares, not made from a saved layout                | testSnapCustomAreas                    |
-| Chains of actions, in sequence or looped                 | Moom                        | yes                                                                                | testChainStepStops, testChainStepLoops |
-| Hover move and resize with modifiers, no click           | Moom, Lasso                 | planned (unit 21)                                                                  | unit 21 hover move and resize          |
-| Keyboard grid controller                                 | Moom                        | yes, arrows under the held key, Return applies                                     | testOverlayGrid; live check owed       |
-| Folders in the menu                                      | Moom                        | no (fixed folders by family; actions are pinned or hidden instead)                 | not applicable                         |
-| Per-action grid sizes                                    | Moom                        | planned (unit 21)                                                                  | unit 21 grid overlay                   |
-| Use active window size                                   | Moom                        | planned (unit 5)                                                                   | unit 5 specified size                  |
-| Display adjustment of layouts                            | Moom                        | yes                                                                                | testWorkspacesFitAndCodable            |
-| Dock, menu bar or invisible app modes                    | Moom                        | no (menu bar only by design)                                                       | not applicable                         |
-| Modifier drag to move or resize from anywhere            | Moom, BetterSnapTool, Lasso | planned (unit 21)                                                                  | unit 21 hover move and resize          |
+| Feature                                                  | Who has it                  | Moorings                                                                           | Check                                          |
+| -------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------- |
+| Pop-up palette on the green button with up to 61 actions | Moom                        | yes, as a menu at the pointer by shortcut or mouse button, not on the green button | live 10-24                                     |
+| Saved layouts for an app's windows and recent windows    | Moom                        | yes                                                                                | testWorkspacesFitAndCodable                    |
+| Snap zones                                               | Moom                        | yes                                                                                | testSnapEdges                                  |
+| Drop zones from a saved layout                           | Moom                        | partial: custom areas drawn as shares, not made from a saved layout                | testSnapCustomAreas                            |
+| Chains of actions, in sequence or looped                 | Moom                        | yes                                                                                | testChainStepStops, testChainStepLoops         |
+| Hover move and resize with modifiers, no click           | Moom, Lasso                 | yes, keys picked in Settings > Behavior, resize from the nearest corner            | testHoverMode, testHoverFrame; live check owed |
+| Keyboard grid controller                                 | Moom                        | yes, arrows under the held key, Return applies                                     | testOverlayGrid; live check owed               |
+| Folders in the menu                                      | Moom                        | no (fixed folders by family; actions are pinned or hidden instead)                 | not applicable                                 |
+| Per-action grid sizes                                    | Moom                        | yes, grid takes the set size and grid:8x6 its own                                  | testOverlayGridSize                            |
+| Use active window size                                   | Moom                        | planned (unit 5)                                                                   | unit 5 specified size                          |
+| Display adjustment of layouts                            | Moom                        | yes                                                                                | testWorkspacesFitAndCodable                    |
+| Dock, menu bar or invisible app modes                    | Moom                        | no (menu bar only by design)                                                       | not applicable                                 |
+| Modifier drag to move or resize from anywhere            | Moom, BetterSnapTool, Lasso | yes, by hover: hold the keys and move, no click needed                             | testHoverMode, testHoverFrame; live check owed |
 
 ## BetterSnapTool
 
 It is sold on the Mac App Store. The price is not on the page.
 
-| Feature                                         | Who has it             | Moorings               | Check                                |
-|-------------------------------------------------|------------------------|------------------------|--------------------------------------|
-| Corner and edge snapping                        | BetterSnapTool, Magnet | yes                    | testSnapEdges                        |
-| Custom snap areas anywhere                      | BetterSnapTool         | yes, off the ultrawide | testSnapCustomAreas; live check owed |
-| Custom shortcuts                                | BetterSnapTool         | yes                    | testSizeShortcuts                    |
-| Green button lifts or fills instead of zoom     | BetterSnapTool         | yes                    | testLiftGreenButton                  |
-| Customized clicks on the red and yellow buttons | BetterSnapTool         | yes                    | testButtonClicksAction               |
-| Move or resize while holding a key              | BetterSnapTool         | planned (unit 21)      | unit 21 hover move and resize        |
+| Feature                                         | Who has it             | Moorings               | Check                                          |
+|-------------------------------------------------|------------------------|------------------------|------------------------------------------------|
+| Corner and edge snapping                        | BetterSnapTool, Magnet | yes                    | testSnapEdges                                  |
+| Custom snap areas anywhere                      | BetterSnapTool         | yes, off the ultrawide | testSnapCustomAreas; live check owed           |
+| Custom shortcuts                                | BetterSnapTool         | yes                    | testSizeShortcuts                              |
+| Green button lifts or fills instead of zoom     | BetterSnapTool         | yes                    | testLiftGreenButton                            |
+| Customized clicks on the red and yellow buttons | BetterSnapTool         | yes                    | testButtonClicksAction                         |
+| Move or resize while holding a key              | BetterSnapTool         | yes                    | testHoverMode, testHoverFrame; live check owed |
 
 ## Loop
 
@@ -162,8 +162,8 @@ Divvy costs $13.99 and Mosaic 14.99 GBP. The Lasso price is on a separate page a
 
 | Feature                                 | Who has it           | Moorings                                                                            | Check                                                      |
 |-----------------------------------------|----------------------|-------------------------------------------------------------------------------------|------------------------------------------------------------|
-| Drag over a grid to pick a span         | Divvy, Mosaic, Lasso | planned (unit 21)                                                                   | unit 21 grid overlay drag                                  |
-| Quick positions without resizing        | Mosaic               | planned (unit 21)                                                                   | unit 21 quick positions                                    |
+| Drag over a grid to pick a span         | Divvy, Mosaic, Lasso | yes, the grid action, by mouse or by arrow keys                                     | testOverlayGridSpan; live check owed                       |
+| Quick positions without resizing        | Mosaic               | yes, edges, corners and center                                                      | testPosition                                               |
 | Auto layout per app window              | Mosaic               | yes, app rules place the first window                                               | testWorkspacesAppRule; selftest rule case, live check owed |
 | Groups of layouts, switchable profiles  | Mosaic               | yes                                                                                 | testProfileApplyTouchesOnlySettings                        |
 | Touch Bar                               | Mosaic               | no (Apple dropped the Touch Bar from current Macs)                                  | not applicable                                             |

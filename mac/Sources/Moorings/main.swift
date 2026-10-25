@@ -73,6 +73,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var overlay = TriggerOverlay(app: self)
     // stasher parks windows at a screen edge.
     lazy var stasher = Stasher(app: self)
+    // gridPicker pops a grid of cells for the grid actions.
+    lazy var gridPicker = GridPicker(app: self)
+    // hover moves or resizes the window under the pointer while the hover modifiers are held.
+    lazy var hover = HoverMover(app: self)
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     // timer runs tick every pollSeconds.
@@ -123,6 +127,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         _ = organizer
         tap.onDown = { [weak self] p, flags in
             guard let self else { return false }
+            if self.gridPicker.showing {
+                if self.gridPicker.contains(p) {
+                    return false
+                }
+                self.gridPicker.cancel()
+            }
             self.stasher.clicked(p)
             if self.buttonDown(p, flags: flags) || self.zoomDown(p, option: flags.contains(.maskAlternate)) {
                 return true
@@ -134,8 +144,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         tap.onDrag = { [weak self] p, flags in self?.snap.dragged(p, flags: flags) }
         tap.onUp = { [weak self] _, _ in self?.snap.released() }
         tap.onOther = { [weak self] button, down in self?.mouseButton(button, down: down) ?? false }
-        tap.onFlags = { [weak self] flags, p in self?.overlay.flagsChanged(flags, at: p) }
-        hotkeys.onGrab = { [weak self] tag in self?.overlay.key(tag) }
+        tap.onFlags = { [weak self] flags, p in
+            self?.overlay.flagsChanged(flags, at: p)
+            self?.hover.flagsChanged(flags, at: p)
+        }
+        hotkeys.onGrab = { [weak self] tag in
+            guard let self else { return }
+            if self.gridPicker.showing {
+                self.gridPicker.key(tag)
+            } else {
+                self.overlay.key(tag)
+            }
+        }
         tap.start()
         rebind()
         refreshShortcuts()
@@ -240,7 +260,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             anchors.prune(alive: Windows.alive())
         }
         let scene = Scene(screen: screens.wide, windows: list, focused: focused?.id,
-                          mouseHeld: NSEvent.pressedMouseButtons & 1 != 0, now: Self.now)
+                          mouseHeld: NSEvent.pressedMouseButtons & 1 != 0 || hover.active, now: Self.now)
         for move in anchors.moor(scene) {
             apply(move)
         }

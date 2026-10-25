@@ -59,6 +59,12 @@ public struct OverlayChoices: Equatable, Sendable, Codable {
     public var gridColumns: Int = 6
     // gridRows is how many rows the keyboard grid has.
     public var gridRows: Int = 4
+    // hoverMove lists the modifiers that, held with no button down, move the window under the pointer
+    // as the pointer moves. Empty turns it off.
+    public var hoverMove: [Modifier] = []
+    // hoverResize lists the modifiers that, held with no button down, resize the window under the
+    // pointer from its nearest corner. Empty turns it off.
+    public var hoverResize: [Modifier] = []
 
     // gridRange bounds the grid columns and rows.
     public static let gridRange = 1...12
@@ -68,17 +74,34 @@ public struct OverlayChoices: Equatable, Sendable, Codable {
 
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
-        case trigger, gridColumns, gridRows
+        case trigger, gridColumns, gridRows, hoverMove, hoverResize
     }
 
-    // init decodes overlay choices, keeping the default for any field missing or unreadable and
-    // clamping the grid size to gridRange.
+    // init decodes overlay choices, keeping the default for any field missing or unreadable, clamping
+    // the grid size to gridRange and dropping modifier names it does not know.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let r = Self.gridRange
         trigger = (try? c.decodeIfPresent(OverlayTrigger.self, forKey: .trigger)) ?? .none
         gridColumns = min(r.upperBound, max(r.lowerBound, (try? c.decodeIfPresent(Int.self, forKey: .gridColumns)) ?? 6))
         gridRows = min(r.upperBound, max(r.lowerBound, (try? c.decodeIfPresent(Int.self, forKey: .gridRows)) ?? 4))
+        hoverMove = Self.mods((try? c.decodeIfPresent([String].self, forKey: .hoverMove)) ?? [])
+        hoverResize = Self.mods((try? c.decodeIfPresent([String].self, forKey: .hoverResize)) ?? [])
+    }
+
+    // encode writes the overlay choices, modifiers by name.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(trigger, forKey: .trigger)
+        try c.encode(gridColumns, forKey: .gridColumns)
+        try c.encode(gridRows, forKey: .gridRows)
+        try c.encode(hoverMove.map(\.rawValue), forKey: .hoverMove)
+        try c.encode(hoverResize.map(\.rawValue), forKey: .hoverResize)
+    }
+
+    // mods resolves modifier names in menu order without repeats, dropping unknown names.
+    static func mods(_ names: [String]) -> [Modifier] {
+        Array(Set(names.compactMap(Modifier.parse))).sorted()
     }
 }
 
@@ -114,6 +137,18 @@ public struct OverlayGrid: Equatable, Sendable {
         r0 = min(self.rows - 1, max(0, Int(floor(fy * Double(self.rows)))))
         c1 = c0 + 1
         r1 = r0 + 1
+    }
+
+    // init builds a grid of cols by rows with the span of cells from the cell under a to the cell
+    // under b picked, either way round, each point taken to the nearest cell when it is outside area.
+    public init(cols: Int, rows: Int, from a: Point, to b: Point, in area: Frame) {
+        let p = OverlayGrid(cols: cols, rows: rows, at: a, in: area)
+        let q = OverlayGrid(cols: cols, rows: rows, at: b, in: area)
+        self = p
+        c0 = min(p.c0, q.c0)
+        c1 = max(p.c1, q.c1)
+        r0 = min(p.r0, q.r0)
+        r1 = max(p.r1, q.r1)
     }
 
     // moved returns the span shifted one cell toward step, kept inside the grid.
@@ -173,5 +208,103 @@ public enum Overlay {
         }
         let sector = Int((deg + 22.5) / 45) % 8
         return (d < ring ? inner : outer)[sector]
+    }
+}
+
+// Overlay grid actions: grid pops a grid of cells over the window's area at the overlay's grid size,
+// and grid:<columns>x<rows> at a size of its own. Dragging across cells picks the span to fill.
+extension Overlay {
+    // gridName is the action that pops the grid at the size in the overlay choices.
+    public static let gridName = "grid"
+    // gridPrefix starts the action name of a grid with a size of its own, such as grid:8x6.
+    public static let gridPrefix = "grid:"
+
+    // gridSize returns the columns and rows grid action name asks for, the overlay choices' size for
+    // plain grid, or nil when name is not a grid action or its size is outside gridRange.
+    public static func gridSize(_ name: String, _ choices: OverlayChoices) -> (cols: Int, rows: Int)? {
+        if name == gridName {
+            return (choices.gridColumns, choices.gridRows)
+        }
+        guard name.hasPrefix(gridPrefix) else { return nil }
+        let parts = name.dropFirst(gridPrefix.count).split(separator: "x", omittingEmptySubsequences: false)
+        let r = OverlayChoices.gridRange
+        guard parts.count == 2, let c = Int(parts[0]), let rows = Int(parts[1]), r.contains(c), r.contains(rows)
+        else { return nil }
+        return (c, rows)
+    }
+}
+
+// HoverMode is what holding the hover modifiers does to the window under the pointer.
+public enum HoverMode: Sendable {
+    case move, resize
+}
+
+// HoverCorner names the corner of a window that follows the pointer while it is resized.
+public enum HoverCorner: Sendable {
+    case topLeft, topRight, bottomLeft, bottomRight
+
+    // left reports whether the corner is on the window's left edge.
+    var left: Bool { self == .topLeft || self == .bottomLeft }
+    // top reports whether the corner is on the window's top edge.
+    var top: Bool { self == .topLeft || self == .topRight }
+}
+
+// Hover moves or resizes the window under the pointer while modifiers are held and no button is down.
+// Every frame is computed from where the window and pointer were when the modifiers went down, so a
+// size the app refuses never builds up drift.
+public enum Hover {
+    // bits pairs each modifier with its device-independent bit in a CGEventFlags value.
+    static let bits: [(Modifier, UInt64)] = [(.shift, 0x20000), (.ctrl, 0x40000), (.alt, 0x80000), (.cmd, 0x100000)]
+    // minimum is the smallest width and height in points a hover resize shrinks a window to.
+    public static let minimum = (w: 160.0, h: 100.0)
+
+    // usable reports whether mods can drive a hover: at least one of Control, Option and Command,
+    // since Shift alone is held for typing and selecting.
+    public static func usable(_ mods: [Modifier]) -> Bool {
+        mods.contains { $0 != .shift }
+    }
+
+    // mode returns what the modifiers in flags do: move when they are exactly the move set, resize
+    // when they are exactly the resize set, nil otherwise. A set that is not usable, or a resize set
+    // equal to the move set, does nothing.
+    public static func mode(_ flags: UInt64, _ choices: OverlayChoices) -> HoverMode? {
+        let held = Set(bits.filter { flags & $0.1 != 0 }.map(\.0))
+        if usable(choices.hoverMove), Set(choices.hoverMove) == held {
+            return .move
+        }
+        if usable(choices.hoverResize), Set(choices.hoverResize) == held, Set(choices.hoverResize) != Set(choices.hoverMove) {
+            return .resize
+        }
+        return nil
+    }
+
+    // corner returns the corner of f nearest p, by which half of f p is in.
+    public static func corner(_ f: Frame, nearest p: Point) -> HoverCorner {
+        let left = p.x < f.x + f.w / 2
+        let top = p.y < f.y + f.h / 2
+        switch (top, left) {
+        case (true, true): return .topLeft
+        case (true, false): return .topRight
+        case (false, true): return .bottomLeft
+        case (false, false): return .bottomRight
+        }
+    }
+
+    // frame returns where start goes when the pointer has moved dx and dy points since the modifiers
+    // went down: moved by that much, or resized with corner following the pointer and the opposite
+    // corner fixed, no smaller than minimum.
+    public static func frame(_ mode: HoverMode, start: Frame, corner: HoverCorner, dx: Double, dy: Double) -> Frame {
+        guard mode == .resize else {
+            return Frame(x: start.x + dx, y: start.y + dy, w: start.w, h: start.h)
+        }
+        let w = max(minimum.w, start.w + (corner.left ? -dx : dx))
+        let h = max(minimum.h, start.h + (corner.top ? -dy : dy))
+        return keep(start, corner: corner, w: w, h: h)
+    }
+
+    // keep returns a frame of w by h whose corner opposite corner sits where start's does, so a size
+    // the app rounds or refuses moves only the corner that follows the pointer.
+    public static func keep(_ start: Frame, corner: HoverCorner, w: Double, h: Double) -> Frame {
+        Frame(x: corner.left ? start.x + start.w - w : start.x, y: corner.top ? start.y + start.h - h : start.y, w: w, h: h)
     }
 }

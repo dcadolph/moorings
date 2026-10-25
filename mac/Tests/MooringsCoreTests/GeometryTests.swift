@@ -79,6 +79,11 @@ let positionCases: [PositionCase] = [
     PositionCase(name: "move-right", area: channel, cur: window, gap: 0, wantFrame: F(1816, 333, 1000, 800)), // Test 11: Move right.
     PositionCase(name: "move-up", area: channel, cur: window, gap: 0, wantFrame: F(1164, 25, 1000, 800)), // Test 11: Move up.
     PositionCase(name: "move-down", area: channel, cur: window, gap: 0, wantFrame: F(1164, 640, 1000, 800)), // Test 11: Move down.
+    PositionCase(name: "move-top-left", area: channel, cur: window, gap: 0, wantFrame: F(512, 25, 1000, 800)), // Test 11: Top left corner.
+    PositionCase(name: "move-top-right", area: channel, cur: window, gap: 0, wantFrame: F(1816, 25, 1000, 800)), // Test 11: Top right corner.
+    PositionCase(name: "move-bottom-left", area: channel, cur: window, gap: 0, wantFrame: F(512, 640, 1000, 800)), // Test 11: Bottom left corner.
+    PositionCase(name: "move-bottom-right", area: channel, cur: window, gap: 10, wantFrame: F(1806, 630, 1000, 800)), // Test 11: Bottom right corner, gap.
+    PositionCase(name: "move-top-right", area: channel, cur: F(0, 0, 3000, 800), gap: 0, wantFrame: F(512, 25, 2304, 800)), // Test 11: Corner, too wide.
 ]
 
 // testPosition checks each named position against the Lua frames.
@@ -261,7 +266,7 @@ func testFinerCover(family: String, wantCount: Int) throws {
         #expect(f.map { inside($0, channel) } == true, "\(name) \(String(describing: f))")
     }
     #expect(Geometry.position("sideways", channel, window) == nil)
-    #expect(Geometry.names().count == 117)
+    #expect(Geometry.names().count == 121)
 }
 
 // Test 13: Edge, slot, regions and clamp keep their v2 results.

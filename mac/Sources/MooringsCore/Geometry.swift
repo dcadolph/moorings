@@ -359,7 +359,17 @@ public enum Geometry {
 
     // slide returns cur pushed against one edge of area, centered on the other axis.
     private static func slide(_ area: Frame, _ cur: Frame, _ dir: Direction) -> Frame {
-        var f = center(area, cur)
+        push(center(area, cur), area, dir)
+    }
+
+    // corner returns cur pushed into the corner of area where the vertical and horizontal edges meet.
+    private static func corner(_ area: Frame, _ cur: Frame, _ vertical: Direction, _ horizontal: Direction) -> Frame {
+        push(slide(area, cur, vertical), area, horizontal)
+    }
+
+    // push returns f moved against one edge of area.
+    private static func push(_ f: Frame, _ area: Frame, _ dir: Direction) -> Frame {
+        var f = f
         switch dir {
         case .left: f.x = area.x
         case .right: f.x = area.x + area.w - f.w
@@ -393,6 +403,10 @@ public enum Geometry {
         "move-right": { area, cur, gap in slide(inset(area, gap), cur, .right) },
         "move-up": { area, cur, gap in slide(inset(area, gap), cur, .up) },
         "move-down": { area, cur, gap in slide(inset(area, gap), cur, .down) },
+        "move-top-left": { area, cur, gap in corner(inset(area, gap), cur, .up, .left) },
+        "move-top-right": { area, cur, gap in corner(inset(area, gap), cur, .up, .right) },
+        "move-bottom-left": { area, cur, gap in corner(inset(area, gap), cur, .down, .left) },
+        "move-bottom-right": { area, cur, gap in corner(inset(area, gap), cur, .down, .right) },
         "larger-width": { area, cur, gap in axis(area, cur, gap, .horizontal) { grow($0, $1, $2, $3, Actions.step) } },
         "smaller-width": { area, cur, gap in axis(area, cur, gap, .horizontal) { grow($0, $1, $2, $3, -Actions.step) } },
         "larger-height": { area, cur, gap in axis(area, cur, gap, .vertical) { grow($0, $1, $2, $3, Actions.step) } },

@@ -499,8 +499,33 @@ struct SettingsView: View {
                     + "Moorings.")
                     .font(.callout).foregroundStyle(.secondary)
             }
+            Section("Move and resize by hovering") {
+                hoverKeys("Move with", \.hoverMove)
+                hoverKeys("Resize with", \.hoverResize)
+                Text("Hold these keys and move the pointer, no click needed, to move the window under the pointer, "
+                    + "or to resize it from its nearest corner. Pick at least Control, Option or Command, and give "
+                    + "resize a different set from move, such as the same keys plus Shift. Anchored windows stay put.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
+    }
+
+    // hoverKeys shows a checkbox per modifier for the hover modifier set at path.
+    private func hoverKeys(_ title: String, _ path: WritableKeyPath<OverlayChoices, [Modifier]>) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            ForEach(Modifier.allCases, id: \.self) { m in
+                Toggle(m.word, isOn: Binding(get: { model.choices.overlay[keyPath: path].contains(m) },
+                                             set: { v in model.change {
+                                                 var mods = Set($0.overlay[keyPath: path])
+                                                 if v { mods.insert(m) } else { mods.remove(m) }
+                                                 $0.overlay[keyPath: path] = mods.sorted()
+                                             } }))
+                    .toggleStyle(.checkbox)
+            }
+        }
     }
 
     // behaviorToggle switches the behavior choice at path.
@@ -536,7 +561,7 @@ struct SettingsView: View {
 
     // snapTargets lists the actions a custom snap area can take.
     private var snapTargets: [String] {
-        actionNames.filter { !Keymaps.windowNames.contains($0) && !Actions.arrowNames.contains($0) }
+        actionNames.filter(ActionRunner.placesFrame)
             + model.bindings.sizes.map(\.name)
     }
 
@@ -549,7 +574,7 @@ struct SettingsView: View {
                                                      set: { v in model.change { $0.snapping[keyPath: path][area] = v } })) {
                         Text("Nothing").tag("")
                         ForEach(Self.snapCompounds, id: \.0) { Text($0.1).tag($0.0) }
-                        ForEach(actionNames.filter { !Keymaps.windowNames.contains($0) && !Actions.arrowNames.contains($0) },
+                        ForEach(actionNames.filter(ActionRunner.placesFrame),
                                 id: \.self) {
                             Text(Keymaps.label($0)).tag($0)
                         }

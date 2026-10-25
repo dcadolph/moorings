@@ -349,6 +349,7 @@ public enum Keymaps {
             || (name.hasPrefix(workspacePrefix) && name.count > workspacePrefix.count)
             || (name.hasPrefix(Profile.prefix) && name.count > Profile.prefix.count)
             || (name.hasPrefix(Chain.prefix) && name.count > Chain.prefix.count) || name == menuName
+            || Overlay.gridSize(name, OverlayChoices()) != nil
             || Geometry.position(name, Frame(x: 0, y: 0, w: 100, h: 100)) != nil
     }
 
@@ -363,6 +364,9 @@ public enum Keymaps {
         }
         if name == menuName {
             return "Moorings menu at the pointer"
+        }
+        if name.hasPrefix(Overlay.gridPrefix), let size = Overlay.gridSize(name, OverlayChoices()) {
+            return "Grid \(size.cols) by \(size.rows)"
         }
         let s = name.replacingOccurrences(of: "-", with: " ")
         return s.prefix(1).uppercased() + s.dropFirst()
