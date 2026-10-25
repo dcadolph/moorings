@@ -2,7 +2,7 @@
   "use strict";
 
   // Themes mirror mac/Sources/MooringsCore/Theme.swift: bg, surface, text, muted, accent. The page's
-  // own ocean palette in style.css shows until a visitor picks one.
+  // own ocean palette in style.css, with its sand and palm touches, shows until a visitor picks one.
   var themes = [
     ["Harbor", "#0f1012", "#0f1012", "#ffffff", "#aaa59b", "#f3e3b8"],
     ["Dragonfire", "#0d0a08", "#1a1310", "#f4e6d8", "#b89c86", "#ff7a1a"],
@@ -43,6 +43,8 @@
     s.setProperty("--text", t[3]);
     s.setProperty("--muted", t[4]);
     s.setProperty("--accent", t[5]);
+    s.setProperty("--sand", t[5]);
+    s.setProperty("--palm", t[5]);
     s.setProperty("--on", onAccent(t[1], t[5]));
     s.colorScheme = lum(t[1]) > 0.4 ? "light" : "dark";
     try { localStorage.setItem("theme", t[0]); } catch (e) {}
