@@ -192,14 +192,16 @@ Divvy costs $13.99 and Mosaic 14.99 GBP. The Lasso price is on a separate page a
 
 ## Energy
 
-Cells stay empty until unit 2 measures them with mac/scripts/energy.sh. Idle means ten minutes with no window moving. Churn means ten minutes with a window moved every two seconds. Each app runs alone on the same Mac.
+Measured with mac/scripts/energy.sh on an M1 Max, macOS 26.6.1. Idle means no window moving. Churn means the app itself moves a TextEdit window between halves every two seconds through its own links (`energy.sh -c`), so the work measured is the app's. Each app runs alone on the same Mac. The protocol is ten minutes per cell. The Moorings cells below came from shorter runs and say so. The Rectangle and Loop cells wait for a sitting with both installed.
 
-| Measure                   | Moorings | Rectangle | Loop |
-| ------------------------- | -------- | --------- | ---- |
-| Idle mean CPU percent     |          |           |      |
-| Idle energy impact        |          |           |      |
-| Churn mean CPU percent    |          |           |      |
-| Churn energy impact       |          |           |      |
+| Measure                   | Moorings                     | Rectangle | Loop |
+| ------------------------- | ---------------------------- | --------- | ---- |
+| Idle mean CPU percent     | 0.98 (1 min, 2026-10-25)     |           |      |
+| Idle energy impact        | 0.98 (1 min, 2026-10-25)     |           |      |
+| Churn mean CPU percent    | 8.88 (2 min, 2026-10-25)     |           |      |
+| Churn energy impact       | 8.88 (2 min, 2026-10-25)     |           |      |
+
+For Moorings, top's energy impact equals its CPU percent in every sample. The window animation switch (Settings > Behavior) changed churn from 8.88 off to 8.68 on in the same two-minute protocol, which is inside the run-to-run spread. With the stack badge on and showing, idle read 1.12.
 
 ## What only Moorings has
 

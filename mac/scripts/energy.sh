@@ -1,11 +1,12 @@
 #!/bin/sh
 # Sample one process's CPU percent and energy impact over a fixed window.
 #
-# Usage: energy.sh [-m minutes] [-i seconds] [-c] [-p] app-name
+# Usage: energy.sh [-m minutes] [-i seconds] [-c] [-u left-url,right-url] [-p] app-name
 #
 #   -m  Minutes to sample (default 10).
 #   -i  Seconds between samples (default 5).
-#   -c  Churn: move a TextEdit window every 2 seconds while sampling.
+#   -c  Churn: the app itself moves TextEdit between halves every 2 seconds.
+#   -u  Churn links for an app with no built-in route (Moorings and Rectangle have one).
 #   -p  Also sample with powermetrics (needs sudo).
 #
 # Prints the raw samples to stderr and one summary line to stdout:
@@ -15,21 +16,23 @@ set -eu
 minutes=10
 interval=5
 churn=0
+urls=""
 pm=0
 
 usage() {
-	sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+	sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'
 }
 
 if [ "${1:-}" = "--help" ]; then
 	usage
 	exit 0
 fi
-while getopts "m:i:cph" opt; do
+while getopts "m:i:cu:ph" opt; do
 	case "$opt" in
 	m) minutes=$OPTARG ;;
 	i) interval=$OPTARG ;;
 	c) churn=1 ;;
+	u) urls=$OPTARG ;;
 	p) pm=1 ;;
 	h) usage; exit 0 ;;
 	*) usage >&2; exit 2 ;;
@@ -62,14 +65,30 @@ trap cleanup EXIT INT TERM
 
 if [ "$churn" -eq 1 ]; then
 	mode=churn
+	# Churn goes through the measured app's own links, sent to the running copy by path so a
+	# second copy elsewhere on disk never launches. Moving a window from outside the app would
+	# measure nothing the app does.
+	bundle=$(ps -o comm= -p "$pid" | sed 's|/Contents/MacOS/.*||')
+	if [ -z "$urls" ]; then
+		case "$app" in
+		Moorings) urls="moorings://action?name=left-half,moorings://action?name=right-half" ;;
+		Rectangle) urls="rectangle://execute-action?name=left-half,rectangle://execute-action?name=right-half" ;;
+		*)
+			echo "energy: no churn links for $app, pass -u left-url,right-url" >&2
+			exit 2
+			;;
+		esac
+	fi
+	left=${urls%%,*}
+	right=${urls#*,}
 	open -a TextEdit
 	sleep 2
 	osascript -e 'tell application "TextEdit" to if (count of documents) is 0 then make new document'
 	(
-		x=100
+		url=$left
 		while :; do
-			osascript -e "tell application \"TextEdit\" to set bounds of front window to {$x, 200, $((x + 700)), 700}" >/dev/null 2>&1 || true
-			if [ "$x" -eq 100 ]; then x=400; else x=100; fi
+			open -g -a "$bundle" "$url" >/dev/null 2>&1 || true
+			if [ "$url" = "$left" ]; then url=$right; else url=$left; fi
 			sleep 2
 		done
 	) &
