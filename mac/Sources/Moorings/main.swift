@@ -71,6 +71,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
     // overlay throws a window while the overlay's trigger key is held.
     lazy var overlay = TriggerOverlay(app: self)
+    // stasher parks windows at a screen edge.
+    lazy var stasher = Stasher(app: self)
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     // timer runs tick every pollSeconds.
@@ -121,6 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         _ = organizer
         tap.onDown = { [weak self] p, flags in
             guard let self else { return false }
+            self.stasher.clicked(p)
             if self.buttonDown(p, flags: flags) || self.zoomDown(p, option: flags.contains(.maskAlternate)) {
                 return true
             }
@@ -141,6 +144,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             MainActor.assumeIsolated { self.tick() }
         }
         moor()
+    }
+
+    // applicationWillTerminate puts stashed windows back, so none is left parked off screen.
+    func applicationWillTerminate(_ notification: Notification) {
+        stasher.unstashAll()
     }
 
     // applicationShouldHandleReopen opens the settings window when Moorings is opened again while it

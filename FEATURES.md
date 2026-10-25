@@ -48,6 +48,11 @@ each part.
   window will land. Letting go sends the window that was under the pointer there, focused or not.
   Arrow keys switch to a grid of cells instead, Shift-arrows grow the pick, and Return applies it.
   Off until you pick a key.
+- Stash: park a window at the left, right or bottom edge with a sliver showing, by the Stash
+  action or by dragging it to the edge with Command held. Rest the pointer on the sliver and it
+  slides out, move away and it slides back. Clicking it, or Stash again, ends the stash, and
+  Unstash all brings every parked window back. An edge another display touches is skipped, and on
+  the ultrawide a side with anchored apps is too. Parked windows go back when Moorings quits.
 
 ## Snap by dragging
 

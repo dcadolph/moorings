@@ -49,6 +49,7 @@ final class ActionRunner {
                        "halve-width-right", "halve-height-up", "halve-height-down"], groups: []),
         Family(title: "Arrow mode", hint: nil, names: Actions.arrowNames + Actions.fillNames, groups: []),
         Family(title: "Front app", hint: nil, names: Keymaps.windowNames, groups: []),
+        Family(title: "Stash", hint: nil, names: Keymaps.stashNames, groups: []),
         Family(title: "Displays", hint: "Send the front window to this display, keeping its place in the layout.",
                names: ["previous-display", "next-display"] + Actions.displayNames, groups: []),
     ]
@@ -93,6 +94,9 @@ final class ActionRunner {
         "close-window": "Close the front window, as its close button does.",
         "minimize-others": "Send every other window of the front app to the Dock. Anchored windows stay.",
         "close-others": "Close every other window of the front app. Anchored windows stay.",
+        "stash": "Park the front window at the nearest free screen edge, or bring it back if it is parked. "
+            + "Rest the pointer on its edge to slide it out.",
+        "unstash-all": "Bring every parked window back where it was.",
     ]
 
     // app is the running app delegate.
@@ -156,6 +160,9 @@ final class ActionRunner {
     private func perform(_ name: String, window: WindowID? = nil) -> Bool {
         if Keymaps.windowNames.contains(name) {
             return frontApp(name)
+        }
+        if Keymaps.stashNames.contains(name) {
+            return app.stasher.run(name)
         }
         if Tile.handles(name) {
             return app.organizer.run(name)

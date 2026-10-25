@@ -391,6 +391,29 @@ func testSlotFrames(test: SlotCase) {
     #expect(inChannel(anchors, world.frame(w)))
 }
 
+// Swift only: a stashed window parked over a strip is never pulled back into the channel, and once
+// unstashed it is held in the channel again.
+@Test func testStashedStaysPut() {
+    let anchors = anchored()
+    var world = TestWorld()
+    world.add(slack, leftFull)
+    world.add(iterm, rightFull)
+    let w = world.add("com.apple.Safari", Frame(x: 1000, y: 100, w: 800, h: 600))
+    world.pass(anchors)
+    let parked = Frame(x: 5108, y: 100, w: 800, h: 600)
+    anchors.stashed.insert(w)
+    world.set(w, parked)
+    for _ in 0..<10 { world.pass(anchors) }
+    #expect(world.frame(w) == parked)
+    #expect(world.moves[w] == nil)
+    anchors.stashed.remove(w)
+    world.pass(anchors)
+    #expect(inChannel(anchors, world.frame(w)))
+    anchors.stashed.insert(w)
+    anchors.prune(alive: [])
+    #expect(anchors.stashed.isEmpty)
+}
+
 // Test 17: Cast off drops the record of a window the channel narrowed, so it does not grow back
 // when the channel widens after the cast off ends, as anchors_test.lua test 203.
 @Test func testCastOffDropsClamp() {

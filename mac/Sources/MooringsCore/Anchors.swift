@@ -374,6 +374,8 @@ public final class Anchors {
     var clamped: [WindowID: Clamp] = [:]
     // castOff holds the windows let free over the strips.
     var castOff: Set<WindowID> = []
+    // stashed holds the windows parked at a screen edge, which the channel never pulls back in.
+    public var stashed: Set<WindowID> = []
     // bursts counts recent moves per window.
     var bursts: [WindowID: Burst] = [:]
     // holders maps each pinned bundle to the window its pin holds.
@@ -625,6 +627,7 @@ public final class Anchors {
     // held in the channel.
     public func prune(alive: Set<WindowID>) {
         castOff.formIntersection(alive)
+        stashed.formIntersection(alive)
     }
 
     // place returns a move of w to frame unless it is already there. A window that keeps moving
@@ -740,6 +743,8 @@ public final class Anchors {
                     if let move = now - started <= Self.pendingSeconds ? place(w, ch) : settle(w, ch) {
                         moves.append(move)
                     }
+                } else if stashed.contains(w.id) {
+                    clamped[w.id] = nil
                 } else if castOff.contains(w.id) {
                     // A cast-off window loses its clamped width, so it never grows back to it later.
                     clamped[w.id] = nil

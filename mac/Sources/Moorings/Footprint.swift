@@ -125,6 +125,8 @@ final class DragSnap {
     // placed is the frame the dragged window's last action gave it, nil unless the window still sat
     // there when the drag began.
     private var placed: Frame?
+    // stashAt is the edge a Command-drag would stash the window at, nil when it would not.
+    private var stashAt: StashEdge?
 
     // init builds a drag follower for app.
     init(app: AppDelegate) {
@@ -153,6 +155,12 @@ final class DragSnap {
         guard down, !done, !choices.paused, choices.snap || choices.behavior.unsnapRestore, isMoving(p),
               choices.snap, let w = win
         else { return }
+        stashAt = app.anchors.pinned(w) ? nil : app.stasher.dropEdge(p, flags: flags)
+        if stashAt != nil {
+            drop = nil
+            footprint.hide()
+            return
+        }
         let screens = Screens.current()
         guard let i = screens.full.firstIndex(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
         else {
@@ -195,11 +203,18 @@ final class DragSnap {
         }
     }
 
-    // released snaps the window, or anchors its app, when the drag ended in a zone. The work runs
-    // after the event, so the tap never waits on a window.
+    // released snaps the window, or anchors its app, when the drag ended in a zone, or stashes it when a
+    // Command-drag ended at an edge. The work runs after the event, so the tap never waits on a window.
     func released() {
-        let (w, drop, screen) = (win, drop, screen)
+        let (w, drop, screen, stashAt) = (win, drop, screen, stashAt)
         reset()
+        if var w, let stashAt {
+            DispatchQueue.main.async { [app] in
+                w.frame = app.windows.frame(w.id) ?? w.frame
+                app.stasher.stash(w, edge: stashAt)
+            }
+            return
+        }
         guard var w, let drop else { return }
         DispatchQueue.main.async { [app] in
             switch drop {
@@ -233,6 +248,7 @@ final class DragSnap {
         screen = nil
         at = nil
         placed = nil
+        stashAt = nil
     }
 
     // isMoving reports whether the drag is moving a window, queueing one read of it at a time once
