@@ -101,8 +101,8 @@ How Moorings compares with every other Mac window manager, row by row with a che
 The menu rebuilds each time it opens. From the top: an update offer when one is waiting, the
 anchor toggle (Weigh anchor lets windows drift, Drop anchor holds them again), Re-moor now,
 Anchor or Unanchor the front app, Cast off this window, a Re-moor entry for each released app,
-then the Anchored apps, Window, Lift, Workspaces, Widths and Heights folders, Settings, Launch
-at login, Check for updates, Tip the harbormaster, and Quit.
+then the Anchored apps, Window, Lift, Workspaces, Profiles, Widths and Heights folders, Settings,
+Launch at login, Check for updates, Tip the harbormaster, and Quit.
 
 ### Window actions
 
@@ -138,6 +138,20 @@ the halves. On an anchored window, Maximize lifts it and Restore puts it back in
 Ignore shortcuts in *app* turns the shortcuts off while that app is in front, so its own keys
 work.
 
+Window > Size and move also moves the window to an edge, a corner or the center without resizing
+it. Undo move and Redo move step a window back through its last ten moves by Moorings and forward
+again, and each window keeps its own history.
+
+Window > Arrow mode has four actions that read where the window is. Left and right take a half,
+then step across quarters and on to the next display. Up maximizes a free window or moves a half
+or quarter up a step. Down restores a maximized window, steps a half or quarter down, or
+minimizes a free one. Window > Keymap > Windows puts them on Control-Option arrows. Fill left and
+Fill right grow the window sideways to the next window or the edge of the area and keep its far
+edge.
+
+Window > Front app brings the app's next or previous window forward, minimizes or closes the
+front window, or minimizes or closes every other window of the app. Anchored windows stay put.
+
 ### Links
 
 Scripts, launchers and Stream Decks can drive Moorings with links:
@@ -151,16 +165,27 @@ open "moorings://status"
 open "moorings://selftest"
 ```
 
+Shortcuts can run any action too. Run Moorings Action takes an action name and offers the list,
+chains, workspaces and profiles included, so a shortcut, Spotlight or Siri can move a window.
+
 `status` writes the screens, slots and every window Moorings sees to the unified log under the
 `com.dcadolph.moorings` subsystem.
 
-### Custom sizes, gap and mouse buttons
+### Custom sizes, gap, buttons and chains
 
 Settings > Sizes adds sizes as shares of the area: x and y place the top left corner, w and h set
 the size, from 0 to 1. Each size can take a shortcut and shows in Window > Custom sizes. Window >
 Gap leaves 4 to 16 points around each window an action places, and Settings > Layout sets any gap
 up to 100. Settings > Layout > Mouse buttons binds the middle, back and forward buttons to any
-action.
+action. Settings > Layout > Title bar buttons binds a click on the red, yellow or green button,
+plain or with Shift, Option or Command, to any action. A click you leave unbound keeps the
+button's own behavior.
+
+Settings > Menu builds chains: a named list of actions that runs one step per press on the same
+window, and stops on the last step or loops back to the first. A chain takes its own shortcut,
+mouse button and menu entry. The same tab pins actions to the top of the Window folder and hides
+the ones you never use. The `show-menu` action opens the Moorings menu under the pointer, from a
+shortcut or a mouse button, without bringing Moorings to the front.
 
 ### Behavior choices
 
@@ -204,6 +229,35 @@ Settings > Behavior sets each of these, and the JSON file Settings exports keeps
   over 150 ms instead of jumping. Drag snap, anchors, push back and lift never animate, and the
   last write always lands on the exact frame.
 
+### Throw, grid and hover
+
+Settings > Behavior > Throw with a held key picks Right Option, Right Command, Right Control or
+Fn. Hold it and move the pointer. A short move toward a side or corner picks a half or a quarter,
+a longer one picks thirds, sixths, maximize or center, and a footprint shows where the window
+will land. Let go and the window that was under the pointer goes there, focused or not. Arrow
+keys switch to a grid of cells instead, Shift-arrows grow the pick, Return applies it and Escape
+cancels. It is off until you pick a key.
+
+Window > Size and move > Grid lays a grid of cells over the front window's area. Drag across the
+cells you want, or click one, and the window fills them. Arrow keys and Return work too, and
+Escape or a click off the grid puts it away. Grid uses the size set in Settings > Behavior, and an
+action named like `grid:8x6` has its own.
+
+Settings > Behavior > Move and resize by hovering takes two sets of keys. Hold the move keys and
+the window under the pointer follows it, no click needed. Hold the resize keys and it grows and
+shrinks from its nearest corner. The same section takes keys for shared edge resize: hold them and
+drag the edge two side by side windows share, and both resize as one divider. All three are off
+until you pick keys, and anchored windows stay put.
+
+### Stash
+
+Window > Stash parks the front window at the left, right or bottom edge with a sliver showing.
+Dragging a window to one of those edges with Command held does the same. Rest the pointer on the
+sliver and the window slides out, move away and it slides back. Click in it, or choose Stash
+again, to end the stash, and Unstash all brings every parked window back. An edge another display
+touches is skipped, and on the ultrawide so is a side with anchored apps. Parked windows go back
+when Moorings quits.
+
 ### Organize
 
 Window > Organize tiles the free windows on the front window's display in columns, rows or a
@@ -215,11 +269,22 @@ step of each other, whatever their size. With Settings > Behavior > Show how man
 stacked on, resting the pointer at a window's top-left corner shows the count at its top-right
 corner, and moving the pointer hides it.
 
+Window > Tiling keeps the free windows of each display in a tall, wide, columns, rows or BSP
+layout as windows open and close, inside the channel on the ultrawide. A window you drag floats
+until you choose a layout again. Grow main and Shrink main change the main window's share, and
+the focus and swap actions reach the window to the left, right, above or below, with tiling on or
+off. Tiling actions have no keys until you record them.
+
 ### Workspaces
 
 Workspaces > Save workspace stores the slots, widths, heights and the frame of every free window
 under a name. Recall puts it back, matching windows by app and title. Recall with these displays
 ties a workspace to the displays attached now, and plugging into that set recalls it.
+
+Settings > Workspaces has two switches per workspace. Open missing apps makes a recall open the
+apps it names that are not running and place their windows once they show. Recall on any display
+change brings it back whenever a display comes or goes. App rules, on the same tab, name an app
+and an action, and the app's first window goes there when it appears.
 
 ### Profiles
 
@@ -252,6 +317,13 @@ snap, edge margins and corner sizes. The keys to hold apply on the ultrawide too
 the footprint (fill opacity, border, color, fade) and can add a haptic tap on a Force Touch
 trackpad as the footprint moves to a new zone.
 
+Custom areas map any part of a display, as shares from 0 to 1, to an action or a size of your
+own, and they come before the edges. The snap panel, once turned on, appears when you pause for a
+moment while dragging: a row of targets above the pointer, each drawn as the part of the screen
+it fills. Drop the window on one to apply it. Settings > Snapping picks and orders the targets.
+Custom areas work on every display but the ultrawide, where the strips keep their zones. The
+panel works everywhere.
+
 ### Anchored apps
 
 An ultrawide has four slots, a top and bottom on each side. An app alone on its side takes the
@@ -281,7 +353,8 @@ app puts it back in its slot. The Lift folder has a switch for each.
 
 Nothing moves while the mouse button is down. A window that keeps fighting its place is left
 alone for a minute. Weigh anchor freezes everything, including the shortcuts and the green
-button.
+button. Moorings checks the layout when a window opens, closes or moves, when an app launches or hides,
+and when displays change. No layout timer runs while nothing moves.
 
 ### Selftest
 

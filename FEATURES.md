@@ -158,8 +158,8 @@ each part.
   on each release.
 - `moorings://selftest` checks the layout against real TextEdit windows, then puts your slots back.
 - `moorings://selftest?apps=<bundle ids>` checks move, resize, snap and restore on other apps' windows.
-- The layout is checked four times a second while windows change and every two seconds when
-  nothing is moving.
+- The layout is checked when a window opens, closes or moves, when an app launches or hides, and
+  when displays change. No layout timer runs while nothing moves.
 - Nothing moves while the mouse button is down, and a window that keeps fighting its place is
   left alone for a minute.
 - Without Accessibility access, a warning sign and one banner lead to the right settings page.

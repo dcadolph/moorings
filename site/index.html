@@ -144,6 +144,9 @@
       <p style="margin-top:16px">Settings decides what each edge and corner does on landscape and portrait displays, which
         areas never snap, and which keys must be held. The footprint takes your color, opacity and
         fade, and a Force Touch trackpad taps as it crosses into a new zone.</p>
+      <p style="margin-top:16px">Custom areas send a window dropped on any part of a display to an
+        action of your own. Turn on the snap panel and a pause mid-drag shows a row of targets above
+        the pointer, each drawn as the part of the screen it fills.</p>
     </div>
     <div class="vis">
       <div class="mock mini"><div class="mscreen"><div class="mfp"></div><div class="mwin"><i></i><i></i><i></i></div>
@@ -159,8 +162,11 @@
       <h2>Save a layout. Get it back.</h2>
       <p>Save where every window sits on every display under a name, then recall it from the menu,
         a shortcut or a link. Tie one to a set of displays and plugging into that desk recalls it.</p>
-      <p>Profiles go further. Save your shortcuts, snapping, behavior and theme under a name with a
+      <p style="margin-top:16px">Profiles go further. Save your shortcuts, snapping, behavior and theme under a name with a
         group of workspaces, then switch the whole setup with one key. Anchored apps stay put.</p>
+      <p style="margin-top:16px">A recall can open the apps it names that are not running and place their windows when
+        they show. App rules send an app's first window to the action you pick, every time it
+        opens.</p>
     </div>
     <div class="vis">
       <div class="mock menu">
@@ -182,9 +188,10 @@
       <p class="small">Shortcuts</p>
       <h2>Every size, one key away.</h2>
       <p>Halves that step through 1/2, 2/3 and 1/3, quarters, thirds, maximize, center and next
-        display are bound from the first launch. Sixths, eighths, twelfths, sixteenths and one-axis
-        resizes wait in the Window folder for a key of your choice. Every action is also a
-        <b>moorings://</b> link, so anything that opens a URL can run it.</p>
+        display are bound from the first launch. Sixths, eighths, twelfths, sixteenths, one-axis
+        resizes, moves to an edge or corner, and Arrow mode wait in the Window folder for a key of
+        your choice. Every action is also a <b>moorings://</b> link, so anything that opens a URL
+        can run it, and Shortcuts can run it as Run Moorings Action.</p>
     </div>
     <div class="lists">
       <div class="lst"><p class="small palm">Displays</p><ul>
@@ -199,6 +206,8 @@
         <li><b>Mouse buttons</b><span>Bound to actions</span></li>
         <li><b>Menu under the pointer</b><span>From a key or a button</span></li>
         <li><b>Launchers and Stream Deck</b><span>Through links</span></li>
+        <li><b>Shortcuts and Siri</b><span>Run Moorings Action</span></li>
+        <li><b>A held key</b><span>Point where it goes</span></li>
       </ul></div>
     </div>
   </div>
@@ -222,6 +231,52 @@
       <div class="mock"><h3>To the point</h3>
         <div class="dots"><span>Slack lands exactly</span></div>
         <p>Apps that resize in steps land on the exact frame. A title bar double-click can maximize and restore, and the pointer can follow the window it moved.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="band lift">
+  <div class="w grid">
+    <div class="head">
+      <p class="small palm">With the pointer</p>
+      <h2 style="margin:16px 0 22px">Hold a key and point.</h2>
+      <p>Pick the keys in Settings &gt; Behavior, hold them and move the pointer. Throw and hover
+        act on the window under the pointer, focused or not, and a footprint shows where a throw
+        will land. <b>Both stay off until you pick their keys.</b></p>
+    </div>
+    <div class="three">
+      <div class="mock"><h3>Throw</h3>
+        <div class="dots"><span>Right Option, then a nudge right</span></div>
+        <p>A short move toward a side or corner picks a half or a quarter. A longer one picks thirds, sixths, maximize or center. Let go to send the window there.</p></div>
+      <div class="mock"><h3>Grid</h3>
+        <div class="dots"><span>Drag across the cells you want</span></div>
+        <p>The Grid action lays cells over the screen. Drag across a span, or click one cell, and the window fills it. Arrow keys and Return work too.</p></div>
+      <div class="mock"><h3>Hover</h3>
+        <div class="dots"><span>No click needed</span></div>
+        <p>Hold the move keys and the window follows the pointer, or the resize keys to grow it from its nearest corner. Drag the edge two windows share and both resize.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="w grid">
+    <div class="head">
+      <p class="small sand">Tile and stash</p>
+      <h2 style="margin:16px 0 22px">Windows that keep their places.</h2>
+      <p>Tiling keeps the free windows of a display in a tall, wide, columns, rows or BSP layout as
+        windows open and close, inside the channel on an ultrawide. Drag one away and it floats until
+        you pick a layout again.</p>
+    </div>
+    <div class="three">
+      <div class="mock"><h3>Tiling</h3>
+        <div class="dots"><span>Tall, wide, columns, rows, BSP</span></div>
+        <p>Grow or shrink the main window, and focus or swap the window to the left, right, above or below, with tiling on or off.</p></div>
+      <div class="mock"><h3>Stash</h3>
+        <div class="dots"><span>A sliver at the edge</span></div>
+        <p>Park a window at a screen edge with a sliver showing. Rest the pointer on it and it slides out. Move away and it slides back.</p></div>
+      <div class="mock"><h3>Undo move</h3>
+        <div class="dots"><span>Ten steps per window</span></div>
+        <p>Undo move and Redo move step a window back through its last ten moves and forward again, each window on its own.</p></div>
     </div>
   </div>
 </section>
