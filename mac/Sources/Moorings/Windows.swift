@@ -238,6 +238,28 @@ final class Windows {
         AXUIElementPerformAction(button, kAXPressAction as CFString)
     }
 
+    // cancel presses the Cancel button of the open or save panel with id and reports whether it
+    // found one. Keys posted to the app miss the panel, which is served out of process.
+    func cancel(_ id: WindowID) -> Bool {
+        guard let el = elements[id], let button = Self.descendant(el, depth: 8, where: {
+            Self.string($0, kAXIdentifierAttribute) == "CancelButton"
+        }) else { return false }
+        return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
+    }
+
+    // descendant returns the first element under el, breadth first and at most depth levels down,
+    // that match accepts.
+    private static func descendant(_ el: AXUIElement, depth: Int, where match: (AXUIElement) -> Bool) -> AXUIElement? {
+        var level = array(el, kAXChildrenAttribute)
+        for _ in 0..<depth where !level.isEmpty {
+            if let found = level.first(where: match) {
+                return found
+            }
+            level = level.flatMap { array($0, kAXChildrenAttribute) }
+        }
+        return nil
+    }
+
     // minimize sends the window with id to the Dock.
     func minimize(_ id: WindowID) {
         guard let el = elements[id] else { return }

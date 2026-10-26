@@ -488,9 +488,10 @@ final class Selftest {
         made.removeAll { $0 == id }
     }
 
-    // dismissPanels presses Escape in each open panel TextEdit shows.
+    // dismissPanels presses Cancel in each open panel TextEdit shows, or Escape when a panel has no
+    // Cancel button.
     private func dismissPanels() async throws {
-        for p in windows(panels: true) {
+        for p in windows(panels: true) where !app.windows.cancel(p.id) {
             app.windows.raise(p.id)
             try await Task.sleep(for: .seconds(0.3))
             if let te = textEdit() {
