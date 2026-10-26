@@ -1,0 +1,12 @@
+{
+  "name": "macmoorings",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "site",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "macmoorings.com", "custom_domain": true },
+    { "pattern": "www.macmoorings.com", "custom_domain": true }
+  ]
+}
