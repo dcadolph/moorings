@@ -13,6 +13,8 @@ struct PaceCase: Sendable {
     var Busy = false
     // Deadlines lists the times a pass decides differently.
     var Deadlines: [Double] = []
+    // Still reports whether the pass read the same windows as the one before and moved none.
+    var Still = false
     // WantNext is the time of the next pass, nil when none is due until an event.
     var WantNext: Double?
 }
@@ -37,11 +39,17 @@ let paceCases: [PaceCase] = [
     PaceCase(Now: 200, Woke: 100, Busy: true, Deadlines: [230], WantNext: 202),
     // Test 8: Spent deadlines never keep it awake.
     PaceCase(Now: 200, Woke: 100, Deadlines: [150, 200], WantNext: nil),
+    // Test 9: A still pass right after an event ends the settle window, so no pass is due.
+    PaceCase(Now: 100.25, Woke: 100, Still: true, WantNext: nil),
+    // Test 10: A still pass while busy waits busySeconds, not pollSeconds.
+    PaceCase(Now: 100.25, Woke: 100, Busy: true, Still: true, WantNext: 102.25),
+    // Test 11: A still pass keeps a pending deadline.
+    PaceCase(Now: 100.25, Woke: 100, Deadlines: [101], Still: true, WantNext: 101.05),
 ]
 
 @Test(arguments: paceCases)
 func testPaceNext(test: PaceCase) {
-    let got = Pace.next(now: test.Now, woke: test.Woke, busy: test.Busy, deadlines: test.Deadlines)
+    let got = Pace.next(now: test.Now, woke: test.Woke, busy: test.Busy, deadlines: test.Deadlines, still: test.Still)
     #expect(got == test.WantNext)
 }
 

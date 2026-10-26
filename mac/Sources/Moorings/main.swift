@@ -88,6 +88,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var due: Double?
     // woke is when the last window event came.
     private var woke = 0.0
+    // lastRead holds each window id the last pass read, front-most first.
+    private var lastRead: [WindowID] = []
+    // lastFrames holds the frames that match lastRead.
+    private var lastFrames: [Frame] = []
+    // still reports whether the last pass read what the pass before it read and moved nothing.
+    private var still = false
     // launching is when passes stop looking for the first window of an app that just launched.
     private var launching = 0.0
     // badgeTimer reads the pointer for the stack badge while the badge is on.
@@ -303,7 +309,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func pace() {
         let t = Self.now
         let busy = !windows.trusted || watcher.waiting || organizer.waiting || t < launching
-        schedule(Pace.next(now: t, woke: woke, busy: busy, deadlines: anchors.deadlines() + organizer.deadlines()))
+        schedule(Pace.next(now: t, woke: woke, busy: busy, deadlines: anchors.deadlines() + organizer.deadlines(),
+                           still: still))
         if anchors.choices.stacking.badge, badgeTimer == nil {
             badgeTimer = Timer.scheduledTimer(withTimeInterval: Pace.pollSeconds, repeats: true) { _ in
                 MainActor.assumeIsolated { self.updateBadge() }
@@ -337,6 +344,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // moor runs one pass and applies its moves. The first pass after launch opens the anchored apps
     // that have no window, in the background.
     func moor() {
+        still = false
         defer { pace() }
         logger.debug("pass")
         guard windows.trusted else { return }
@@ -352,9 +360,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let scene = Scene(screen: screens.wide, windows: list, focused: focused?.id,
                           mouseHeld: NSEvent.pressedMouseButtons & 1 != 0 || hover.active, now: Self.now)
-        for move in anchors.moor(scene) {
+        let moves = anchors.moor(scene)
+        for move in moves {
             apply(move)
         }
+        let read = list.map(\.id)
+        let frames = list.map(\.frame)
+        still = moves.isEmpty && !scene.mouseHeld && read == lastRead && frames == lastFrames
+        lastRead = read
+        lastFrames = frames
         organizer.seen(list, screens: screens)
         tiler.pass(list, screens: screens, mouseHeld: scene.mouseHeld)
         for id in anchors.justReleased {

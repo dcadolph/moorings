@@ -12,10 +12,12 @@ public enum Pace {
     static let slack = 0.05
 
     // next returns when the pass after one at now runs, given the last event at woke, whether
-    // something pending needs a look without an event, and the times a pass decides differently.
-    // Deadlines at or before now are spent. It returns nil when no pass is due until an event.
-    public static func next(now: Double, woke: Double, busy: Bool, deadlines: [Double]) -> Double? {
-        if now - woke < settleSeconds {
+    // something pending needs a look without an event, the times a pass decides differently, and
+    // whether the pass read the same windows as the one before and moved none, which ends the
+    // settle window early. Deadlines at or before now are spent. It returns nil when no pass is due
+    // until an event.
+    public static func next(now: Double, woke: Double, busy: Bool, deadlines: [Double], still: Bool = false) -> Double? {
+        if !still && now - woke < settleSeconds {
             return now + pollSeconds
         }
         var at: Double? = busy ? now + busySeconds : nil
