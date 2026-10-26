@@ -192,18 +192,16 @@ Divvy costs $13.99 and Mosaic 14.99 GBP. The Lasso price is on a separate page a
 
 ## Energy
 
-Measured with mac/scripts/energy.sh on an M1 Max, macOS 26.6.1. Idle means no window moving. Churn means the app itself moves a TextEdit window between halves every two seconds through its own links (`energy.sh -c`), so the work measured is the app's. Each app runs alone on the same Mac. The protocol is ten minutes per cell. The Moorings cells below came from shorter runs and say so. The Rectangle and Loop cells wait for a sitting with both installed.
+Measured with mac/scripts/energy.sh on an M1 Max, macOS 26.6.1, on 2026-10-26 with Moorings at 47aeb60, Rectangle 2.0.4 and Loop 1.4.2, each with Accessibility granted. Idle ran all three side by side for ten minutes, 120 samples each, so they shared one stretch of light use: browsing and typing, no window dragged. Churn ran each app alone for two minutes while the app itself moved a TextEdit window between halves every two seconds through its own links (`energy.sh -c`), so the work measured is the app's. Before each churn run a check confirmed that the app's links moved the window. top's energy impact equals the CPU percent in every sample for all three apps, so one row per mode is shown.
 
-| Measure                   | Moorings                     | Rectangle | Loop |
-| ------------------------- | ---------------------------- | --------- | ---- |
-| Idle mean CPU percent     | 0.25 (10 min, 2026-10-25)    |           |      |
-| Idle energy impact        | 0.25 (10 min, 2026-10-25)    |           |      |
-| Churn mean CPU percent    | 8.88 (2 min, 2026-10-25)     |           |      |
-| Churn energy impact       | 8.88 (2 min, 2026-10-25)     |           |      |
+| Measure                | Moorings | Rectangle | Loop |
+| ---------------------- | -------- | --------- | ---- |
+| Idle mean CPU percent  | 0.10     | 0.00      | 0.02 |
+| Churn mean CPU percent | 1.83     | 0.04      | 0.69 |
 
-For Moorings, top's energy impact equals its CPU percent in every sample. The window animation switch (Settings > Behavior) changed churn from 8.88 off to 8.68 on in the same two-minute protocol, which is inside the run-to-run spread. With the stack badge on and showing, idle read 1.12.
+Moorings does more than either app between shortcuts: it holds anchored apps in their slots and keeps free windows in the channel, so it reads windows whenever they change. On the same desk earlier that day, before two fixes, Moorings read 1.37 idle beside Rectangle's 0.00 and Loop's 0.12, and 8.88 under churn on 2026-10-25. A debug log traced the idle cost to Safari, whose previews and popovers fire moved, resized and created events many times a minute. Each one started two seconds of passes four times a second, and each pass reads every window of every app. Now a move, resize or birth wakes the passes only for a window a scan keeps, and a pass that reads the same windows as the one before it and moves nothing ends the polling at once, so an app switch costs one pass. Passes over ten minutes of light use fell from about 700 to 16. testPaceWakes and testPaceNext cover both rules, each with a negative control that fails. Under churn every move still costs a few full passes, while Rectangle sets one window and stops. A pass that reads only the app whose window moved is the next step.
 
-The idle cells above come from the event-driven rest state, measured on a build of main with 120 samples over ten minutes. 103 samples read 0.0. The rest fell in two bursts of under two minutes while other work was running on the same Mac. A one-minute run on the same build read 0.01. The same one-minute protocol on release 1.9.1 read 0.90 for both, and an earlier one-minute run read 0.98. Before it a timer fired four times a second and looked at every window every two seconds even when nothing moved. Now no timer fires at rest: window, app, display and mouse-up events wake it, it looks every quarter second for two seconds after the last one, then stops. It looks every two seconds only while something is pending that sends no event (an app launched in the last 30 seconds, a recall waiting for an app it opened, Accessibility not yet granted) and once at each known deadline (an opened app's strip lapsing, a hold ending). The stack badge, when on, reads the pointer four times a second. A stashed window adds no timer: while something is stashed, mouse-moved and mouse-up events wake the stash, plus one check when the pointer has rested long enough to slide a window out. A one-minute run with one window stashed and the pointer still read 0.01 on a3da6b2, against 0.27 when a 20 Hz timer watched the pointer. testPaceNext and testDeadlinesHold cover the schedule. A debug log stream showed no pass over a minute at rest, and passes that started at once and stopped two seconds after a window drag.
+No timer fires at rest. The stack badge, when on, reads the pointer four times a second. While something is stashed, mouse-moved and mouse-up events wake the stash, plus one check when the pointer has rested long enough to slide a window out.
 
 ## Compatibility
 
