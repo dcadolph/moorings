@@ -136,7 +136,10 @@ extension Anchors {
         if got.w <= move.frame.w + Self.tolerance && got.h <= move.frame.h + Self.tolerance {
             return nil
         }
-        floors[move.id] = Floor(w: max(got.w, move.frame.w), h: max(got.h, move.frame.h))
+        // Only an axis the window refused is learned, so a slot's own size never becomes a minimum.
+        let prior = floors[move.id]
+        floors[move.id] = Floor(w: got.w > move.frame.w + Self.tolerance ? got.w : prior?.w ?? 0,
+                                h: got.h > move.frame.h + Self.tolerance ? got.h : prior?.h ?? 0)
         let want = fit(move.id, move.target, move.anchor)
         if Actions.near(got, want, tolerance: Self.tolerance) {
             return nil

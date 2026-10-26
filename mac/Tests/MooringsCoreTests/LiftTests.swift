@@ -284,7 +284,7 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
         world.pass(anchors)
     }
     #expect(world.moves[w] == 1)
-    #expect(anchors.floors[w] == Floor(w: 668, h: 1415))
+    #expect(anchors.floors[w] == Floor(w: 668, h: 0))
 }
 
 // Lua case 166: A right pin that will not shrink keeps its right edge on the screen edge.
@@ -628,7 +628,7 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     }
     #expect(world.released.isEmpty)
     #expect(!anchors.isReleased(w))
-    #expect(anchors.floors[w] == Floor(w: 723, h: 1415))
+    #expect(anchors.floors[w] == Floor(w: 723, h: 0))
 }
 
 // Swift only: a player read back while it still resizes itself to its video learns no floor wider
@@ -691,4 +691,43 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     #expect(!Hover.holds(0x40000 | 0x80000 | 0x20000, [.ctrl, .alt]))
     #expect(!Hover.holds(0, []))
     #expect(!Hover.holds(0x20000, [.shift]))
+}
+
+// Swift only: a pin that refuses its strip's width while alone learns no height, so when a second
+// app takes the side's other row, it moves into its own row and never covers that app.
+@Test func testLiftFloorWidthOnly() {
+    let anchors = liftAnchors()
+    var world = LiftWorld()
+    let s = world.add(slack, Frame(x: 900, y: 100, w: 800, h: 600))
+    world.minSize[s] = (668, 300)
+    world.add(iterm, Frame(x: 3000, y: 100, w: 800, h: 600))
+    let f = world.add("com.apple.finder", Frame(x: 1000, y: 300, w: 900, h: 400))
+    for _ in 0..<3 {
+        world.pass(anchors)
+        world.clock += 0.25
+    }
+    #expect(world.frame(s) == Frame(x: 0, y: 25, w: 668, h: 1415))
+    world.clock += 5
+    anchors.assign(.leftBottom, "com.apple.finder")
+    for _ in 0..<4 {
+        world.pass(anchors)
+        world.clock += 0.25
+    }
+    #expect(world.frame(s).y + world.frame(s).h <= world.frame(f).y)
+    #expect(world.frame(f).x == 0 && world.frame(f).w == 668)
+    #expect(anchors.floors[s] == Floor(w: 668, h: 0))
+}
+
+// Swift only: a pin that refuses a height keeps it learned.
+@Test func testLiftFloorHeight() {
+    let anchors = liftAnchors(Choices(slots: [.leftTop: slack, .leftBottom: notes]))
+    var world = LiftWorld()
+    let s = world.add(slack, Frame(x: 900, y: 100, w: 400, h: 600))
+    world.minSize[s] = (300, 900)
+    world.add(notes, Frame(x: 1000, y: 300, w: 400, h: 400))
+    for _ in 0..<3 {
+        world.pass(anchors)
+        world.clock += 0.25
+    }
+    #expect(anchors.floors[s] == Floor(w: 0, h: 900))
 }
