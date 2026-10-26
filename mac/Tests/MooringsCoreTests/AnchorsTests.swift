@@ -417,8 +417,8 @@ func testSlotFrames(test: SlotCase) {
     #expect(anchors.stashed.isEmpty)
 }
 
-// Test 17: Cast off drops the record of a window the channel narrowed, so it does not grow back
-// when the channel widens after the cast off ends, as anchors_test.lua test 203.
+// Test 17: Cast off drops the record of a window the channel narrowed, so after the cast off ends
+// it no longer grows back to its own width and instead keeps filling the wider channel.
 @Test func testCastOffDropsClamp() {
     for cast in [true, false] {
         let anchors = anchored()
@@ -436,7 +436,7 @@ func testSlotFrames(test: SlotCase) {
         }
         anchors.setWidths(Widths(left: 10, right: 20))
         world.pass(anchors)
-        #expect(world.frame(w).w == (cast ? 2304 : 3000))
+        #expect(world.frame(w).w == (cast ? anchors.channel(wide).w : 3000))
     }
 }
 
@@ -557,4 +557,42 @@ func testCastReason(test: CastReasonCase) {
     let w = WindowInfo(id: 9, bundle: iterm, frame: Frame(x: 1000, y: 200, w: 800, h: 600), onUltrawide: true, isMain: false)
     #expect(!anchors.pinned(w))
     #expect(anchors.pinned(WindowInfo.promotingLone([w])[0]))
+}
+
+// testSplitSides checks that only a side with two anchored apps showing splits into rows.
+@Test func testSplitSides() {
+    let anchors = Anchors(choices: Choices(slots: [.leftTop: slack, .leftBottom: "com.apple.finder", .rightTop: iterm]))
+    var world = TestWorld()
+    world.add(slack, leftFull)
+    world.add(iterm, rightFull)
+    world.pass(anchors)
+    #expect(anchors.splitSides().isEmpty)
+    world.add("com.apple.finder", Frame(x: 1000, y: 300, w: 900, h: 400))
+    world.pass(anchors)
+    #expect(anchors.splitSides() == [.left])
+}
+
+// testChannelEdgesFollow checks that when the channel moves, a window filling it keeps filling it,
+// a window on one edge slides with that edge at its own width, and one off both edges stays.
+@Test func testChannelEdgesFollow() {
+    let anchors = anchored()
+    var world = TestWorld()
+    world.add(slack, leftFull)
+    world.add(iterm, rightFull)
+    let fill = world.add("com.apple.TextEdit", Frame(x: 512, y: 25, w: 2304, h: 1415))
+    let half = world.add("com.apple.Safari", Frame(x: 512, y: 100, w: 1000, h: 800))
+    let rightSide = world.add("com.apple.Notes", Frame(x: 2016, y: 100, w: 800, h: 800))
+    let mid = world.add("com.apple.Preview", Frame(x: 1200, y: 200, w: 600, h: 500))
+    world.pass(anchors)
+    #expect(world.moves.isEmpty)
+    anchors.setWidths(Widths(left: 16, right: 40))
+    world.pass(anchors)
+    let ch = anchors.channel(wide)
+    #expect(world.frame(fill) == Frame(x: ch.x, y: 25, w: ch.w, h: 1415))
+    #expect(world.frame(half) == Frame(x: ch.x, y: 100, w: 1000, h: 800))
+    #expect(world.frame(rightSide) == Frame(x: ch.x + ch.w - 800, y: 100, w: 800, h: 800))
+    #expect(world.moves[mid] == nil)
+    anchors.setWidths(Widths(left: 10, right: 45))
+    world.pass(anchors)
+    #expect(world.frame(fill) == Frame(x: 512, y: 25, w: 2304, h: 1415))
 }

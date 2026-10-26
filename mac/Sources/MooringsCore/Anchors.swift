@@ -391,6 +391,8 @@ public final class Anchors {
     public var choices: Choices
     // clamped records the windows the channel narrowed.
     var clamped: [WindowID: Clamp] = [:]
+    // lastChannel is the channel of the last pass, nil before the first.
+    var lastChannel: Frame?
     // castOff holds the windows let free over the strips.
     var castOff: Set<WindowID> = []
     // stashed holds the windows parked at a screen edge, which the channel never pulls back in.
@@ -536,6 +538,12 @@ public final class Anchors {
     public func emptySides() -> [Side] {
         let held = Set(pins().filter { holdsSpace($0.bundle) }.map(\.slot.side))
         return [Side.left, .right].filter { !held.contains($0) }
+    }
+
+    // splitSides returns the sides where two anchored apps keep their strip, so each takes a row.
+    public func splitSides() -> [Side] {
+        let held = pins().filter { holdsSpace($0.bundle) }.map(\.slot.side)
+        return [Side.left, .right].filter { side in held.filter { $0 == side }.count > 1 }
     }
 
     // inUse returns the strip widths in use: the chosen widths, with 0 for an empty side. On screen,
@@ -689,10 +697,28 @@ public final class Anchors {
 
     // settle keeps free window w inside channel ch, and lets a window the channel once narrowed grow
     // back toward its own width when the channel widens. A zoomed window is the owner's own request,
-    // so pulling it back never counts toward a hold.
-    func settle(_ w: WindowInfo, _ ch: Frame, zoomed: Bool = false) -> Move? {
+    // so pulling it back never counts toward a hold. When the channel moved from old, a window on
+    // its old edges that the channel did not narrow follows them: one filling it keeps filling it,
+    // and one on a single edge slides with that edge at its own width.
+    func settle(_ w: WindowInfo, _ ch: Frame, zoomed: Bool = false, old: Frame? = nil) -> Move? {
         if zoomed {
             bursts[w.id] = nil
+        }
+        let narrowed = clamped[w.id].map { abs(w.frame.w - $0.set) <= Self.tolerance } ?? false
+        if let old, !narrowed, !Actions.near(old, ch, tolerance: Self.tolerance) {
+            let left = abs(w.frame.x - old.x) <= Self.tolerance
+            let right = abs(w.frame.x + w.frame.w - (old.x + old.w)) <= Self.tolerance
+            if left || right {
+                var f = w.frame
+                if left && right {
+                    f.x = ch.x
+                    f.w = ch.w
+                } else {
+                    f.x = left ? ch.x : ch.x + ch.w - f.w
+                }
+                clamped[w.id] = nil
+                return place(w, Geometry.clamp(f, ch))
+            }
         }
         var c = clamped[w.id]
         if let current = c, abs(w.frame.w - current.set) > Self.tolerance {
@@ -739,6 +765,8 @@ public final class Anchors {
         let use = inUse(screen)
         let h = heights
         let ch = Geometry.regions(screen, use.left, use.right).channel
+        let old = lastChannel
+        lastChannel = ch
         var moves: [Move] = []
         var seen: Set<WindowID> = []
         for w in scene.windows {
@@ -780,7 +808,7 @@ public final class Anchors {
                     // A cast-off window loses its clamped width, so it never grows back to it later.
                     clamped[w.id] = nil
                     cacheZoom(w, w.frame, free: true)
-                } else if let move = settle(w, ch, zoomed: w.id == scene.focused && Self.spans(w.frame, ch)) {
+                } else if let move = settle(w, ch, zoomed: w.id == scene.focused && Self.spans(w.frame, ch), old: old) {
                     moves.append(move)
                 } else {
                     cacheZoom(w, w.frame, free: true)
