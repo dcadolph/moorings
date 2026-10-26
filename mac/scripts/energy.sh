@@ -6,7 +6,7 @@
 #   -m  Minutes to sample (default 10).
 #   -i  Seconds between samples (default 5).
 #   -c  Churn: the app itself moves TextEdit between halves every 2 seconds.
-#   -u  Churn links for an app with no built-in route (Moorings and Rectangle have one).
+#   -u  Churn links for an app with no built-in route (Moorings, Rectangle and Loop have one).
 #   -p  Also sample with powermetrics (needs sudo).
 #
 # Prints the raw samples to stderr and one summary line to stdout:
@@ -73,6 +73,7 @@ if [ "$churn" -eq 1 ]; then
 		case "$app" in
 		Moorings) urls="moorings://action?name=left-half,moorings://action?name=right-half" ;;
 		Rectangle) urls="rectangle://execute-action?name=left-half,rectangle://execute-action?name=right-half" ;;
+		Loop) urls="loop://direction/left,loop://direction/right" ;;
 		*)
 			echo "energy: no churn links for $app, pass -u left-url,right-url" >&2
 			exit 2
