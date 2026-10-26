@@ -285,7 +285,7 @@ func span(_ g: OverlayGrid) -> [Int] {
 }
 
 // Swift only: the macOS Option tiling note shows for a Right Option trigger and for hover keys that
-// are Option alone, and for nothing else.
+// are Option alone, and the Spaces note only for a Right Control trigger.
 @Test func testOverlayMeetsTiling() {
     let tests: [(trigger: OverlayTrigger, move: [Modifier], resize: [Modifier], wantTrigger: Bool, wantHover: Bool)] = [
         // Test 0: Defaults show neither note.
@@ -304,6 +304,8 @@ func span(_ g: OverlayGrid) -> [Int] {
         (.none, [.ctrl, .alt], [.ctrl, .alt, .shift], false, false),
         // Test 7: Both at once.
         (.rightOption, [.alt], [], true, true),
+        // Test 8: Right Control trigger shows only the Spaces note.
+        (.rightControl, [], [], false, false),
     ]
     for (i, test) in tests.enumerated() {
         var o = OverlayChoices()
@@ -312,5 +314,6 @@ func span(_ g: OverlayGrid) -> [Int] {
         o.hoverResize = test.resize
         #expect(o.triggerMeetsTiling == test.wantTrigger, "test \(i)")
         #expect(o.hoverMeetsTiling == test.wantHover, "test \(i)")
+        #expect(o.gridMeetsSpaces == (test.trigger == .rightControl), "test \(i)")
     }
 }

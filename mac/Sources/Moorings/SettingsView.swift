@@ -501,6 +501,12 @@ struct SettingsView: View {
                 if model.choices.overlay.triggerMeetsTiling {
                     optionTilingNote
                 }
+                if model.choices.overlay.gridMeetsSpaces {
+                    Text("Under Right Control the grid's arrow keys do not reach Moorings, because macOS keeps "
+                        + "Control-arrow keys for Mission Control and Spaces. Moving the pointer still throws. Pick "
+                        + "Right Option or Right Command to use the grid.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
             }
             Section("Move and resize by hovering") {
                 hoverKeys("Move with", \.hoverMove)

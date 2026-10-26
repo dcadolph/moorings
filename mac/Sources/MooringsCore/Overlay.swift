@@ -80,6 +80,10 @@ public struct OverlayChoices: Equatable, Sendable, Codable {
     // as the key that tiles a window dragged while it is held.
     public var hoverMeetsTiling: Bool { hoverMove == [.alt] || hoverResize == [.alt] }
 
+    // gridMeetsSpaces reports whether the trigger is Right Control, whose arrow keys macOS keeps for
+    // Mission Control and Spaces, so the keyboard grid never sees them.
+    public var gridMeetsSpaces: Bool { trigger == .rightControl }
+
     // init builds overlay choices at the defaults.
     public init() {}
 
