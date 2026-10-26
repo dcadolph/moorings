@@ -196,14 +196,14 @@ Measured with mac/scripts/energy.sh on an M1 Max, macOS 26.6.1. Idle means no wi
 
 | Measure                   | Moorings                     | Rectangle | Loop |
 | ------------------------- | ---------------------------- | --------- | ---- |
-| Idle mean CPU percent     | 0.98 (1 min, 2026-10-25)     |           |      |
-| Idle energy impact        | 0.98 (1 min, 2026-10-25)     |           |      |
+| Idle mean CPU percent     | 0.01 (1 min, 2026-10-25)     |           |      |
+| Idle energy impact        | 0.01 (1 min, 2026-10-25)     |           |      |
 | Churn mean CPU percent    | 8.88 (2 min, 2026-10-25)     |           |      |
 | Churn energy impact       | 8.88 (2 min, 2026-10-25)     |           |      |
 
 For Moorings, top's energy impact equals its CPU percent in every sample. The window animation switch (Settings > Behavior) changed churn from 8.88 off to 8.68 on in the same two-minute protocol, which is inside the run-to-run spread. With the stack badge on and showing, idle read 1.12.
 
-The idle cells above predate the event-driven rest state. Until then a timer fired four times a second and looked at every window every two seconds even when nothing moved. Now no timer fires at rest: window, app, display and mouse-up events wake it, it looks every quarter second for two seconds after the last one, then stops. It looks every two seconds only while something is pending that sends no event (an app launched in the last 30 seconds, a recall waiting for an app it opened, Accessibility not yet granted) and once at each known deadline (an opened app's strip lapsing, a hold ending). The stack badge, when on, reads the pointer four times a second. testPaceNext and testDeadlinesHold cover the schedule. The after figure waits for the same sitting as the Rectangle and Loop cells.
+The idle cells above come from the event-driven rest state, measured on a build of main with twelve samples over one minute. The same protocol on release 1.9.1, just before, read 0.90 for both, and an earlier one-minute run read 0.98. Before it a timer fired four times a second and looked at every window every two seconds even when nothing moved. Now no timer fires at rest: window, app, display and mouse-up events wake it, it looks every quarter second for two seconds after the last one, then stops. It looks every two seconds only while something is pending that sends no event (an app launched in the last 30 seconds, a recall waiting for an app it opened, Accessibility not yet granted) and once at each known deadline (an opened app's strip lapsing, a hold ending). The stack badge, when on, reads the pointer four times a second. testPaceNext and testDeadlinesHold cover the schedule. A debug log stream showed no pass over a minute at rest, and passes that started at once and stopped two seconds after a window drag.
 
 ## Compatibility
 
