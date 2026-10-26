@@ -179,7 +179,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         hotkeys.onGrab = { [weak self] tag in
             guard let self else { return }
-            if self.gridPicker.showing {
+            if self.strips.showing {
+                self.strips.key(tag)
+            } else if self.gridPicker.showing {
                 self.gridPicker.key(tag)
             } else {
                 self.overlay.key(tag)

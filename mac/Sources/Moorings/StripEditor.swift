@@ -43,6 +43,8 @@ final class StripState: ObservableObject {
     var finish: (Bool) -> Void = { _ in }
     // dropped is told when a drag ends, so the windows follow once the mouse is up.
     var dropped: () -> Void = {}
+    // current is the field the arrows and Return act on: the one last focused, the left width at first.
+    var current: StripField = .leftWidth
 
     // init builds the state from the values in effect and the limits on them.
     init(widths: Widths, heights: Heights, screenWidth: Double, minPoints: [Side: Double], minNames: [Side: String],
@@ -123,11 +125,42 @@ final class StripState: ObservableObject {
         changed(widths, heights)
     }
 
-    // commit reads field's draft and applies it, putting the draft back when it is not a number.
+    // commit reads field's draft and applies it, putting the draft back when it is not a number. An
+    // untouched draft applies nothing, so a width an app holds wider keeps its chosen value.
     func commit(_ field: StripField) {
         let text = (drafts[field] ?? "").trimmingCharacters(in: CharacterSet(charactersIn: " %"))
-        guard let pct = Double(text) else { return refreshDrafts() }
+        guard let pct = Double(text), text != String(format: "%.0f", value(field)) else { return refreshDrafts() }
         set(field, pct)
+    }
+
+    // key handles a grabbed key by its tag, whatever holds focus. Escape puts the edits back, Return
+    // keeps them, and the arrows step the current field, Shift by five.
+    func key(_ tag: String) {
+        switch tag {
+        case "escape":
+            finish(false)
+        case "return":
+            commit(current)
+            finish(true)
+        default:
+            guard let dir = tag.split(separator: "-").last else { return }
+            commit(current)
+            step(current, Self.delta(current, String(dir)) * (tag.hasPrefix("grow-") ? 5 : 1))
+        }
+    }
+
+    // delta returns which way the arrow dir moves field: up and down raise and lower a width, left and
+    // right move a width's edge that way, and up and down move a row line that way.
+    static func delta(_ field: StripField, _ dir: String) -> Double {
+        if !field.isWidth {
+            return dir == "up" || dir == "left" ? -1 : 1
+        }
+        switch dir {
+        case "up": return 1
+        case "down": return -1
+        case "left": return field.side == .left ? -1 : 1
+        default: return field.side == .left ? 1 : -1
+        }
     }
 
     // refreshDrafts writes every field's value into its draft.
@@ -138,7 +171,8 @@ final class StripState: ObservableObject {
     }
 }
 
-// StripPanel is the editor's borderless panel. It takes the keyboard without activating Moorings.
+// StripPanel is the editor's borderless panel. Moorings is made active while it is open, since only a
+// window of the active app gets the keyboard without a click.
 final class StripPanel: NSPanel {
     // canBecomeKey lets the fields take typing.
     override var canBecomeKey: Bool { true }
@@ -204,7 +238,8 @@ struct StripEditorView: View {
             if let old {
                 state.commit(old)
             }
-            if new != nil {
+            if let new {
+                state.current = new
                 DispatchQueue.main.async { NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil) }
             }
         }
@@ -350,8 +385,7 @@ struct StripEditorView: View {
         }
     }
 
-    // numberField is field's typed percent. Arrow keys step it, Shift by five, and Return keeps
-    // every edit.
+    // numberField is field's typed percent. The grabbed arrows step it and Return keeps it.
     private func numberField(_ field: StripField) -> some View {
         HStack(spacing: 2) {
             TextField("", text: Binding(get: { state.drafts[field] ?? "" }, set: { state.drafts[field] = $0 }))
@@ -360,31 +394,8 @@ struct StripEditorView: View {
                 .font(.system(size: 15).monospacedDigit())
                 .frame(width: 52)
                 .focused($focus, equals: field)
-                .onSubmit {
-                    state.commit(field)
-                    state.finish(true)
-                }
-                .onKeyPress(keys: [.upArrow, .downArrow, .leftArrow, .rightArrow]) { press in
-                    state.commit(field)
-                    state.step(field, Self.delta(field, press.key) * (press.modifiers.contains(.shift) ? 5 : 1))
-                    return .handled
-                }
             Text("%")
                 .foregroundStyle(.white)
-        }
-    }
-
-    // delta returns which way key moves field: up and down raise and lower a width, left and right
-    // move a width's edge that way, and up and down move a row line that way.
-    private static func delta(_ field: StripField, _ key: KeyEquivalent) -> Double {
-        if !field.isWidth {
-            return key == .upArrow || key == .leftArrow ? -1 : 1
-        }
-        switch key {
-        case .upArrow: return 1
-        case .downArrow: return -1
-        case .leftArrow: return field.side == .left ? -1 : 1
-        default: return field.side == .left ? 1 : -1
         }
     }
 
@@ -428,6 +439,8 @@ final class StripEditor {
     private var state: StripState?
     // start holds the saved widths and heights from when the editor opened.
     private var start: (widths: Widths?, heights: Heights?)
+    // front is the app that was in front when the editor opened, given the keyboard back on close.
+    private var front: NSRunningApplication?
 
     // init builds a strip editor for app.
     init(app: AppDelegate) {
@@ -438,10 +451,12 @@ final class StripEditor {
     var showing: Bool { panel != nil }
 
     // show opens the editor over the ultrawide and reports whether it opened. It brings an open
-    // editor forward instead of opening another.
+    // editor forward instead of opening another. Moorings is made active so typing reaches the fields,
+    // and Escape, Return and the arrows are grabbed so they reach the editor whatever holds focus.
     @discardableResult
     func show() -> Bool {
         if let panel {
+            NSApp.activate()
             panel.makeKeyAndOrderFront(nil)
             return true
         }
@@ -467,7 +482,7 @@ final class StripEditor {
         state = s
         let primary = NSScreen.screens.first?.frame.height ?? 0
         let rect = NSRect(x: wide.x, y: primary - wide.y - wide.h, width: wide.w, height: wide.h)
-        let p = StripPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
+        let p = StripPanel(contentRect: rect, styleMask: [.borderless], backing: .buffered,
                            defer: false)
         p.isOpaque = false
         p.backgroundColor = .clear
@@ -477,22 +492,38 @@ final class StripEditor {
         p.isReleasedWhenClosed = false
         p.contentView = NSHostingView(rootView: StripEditorView(state: s))
         panel = p
+        let current = NSWorkspace.shared.frontmostApplication
+        front = current?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : current
+        NSApp.activate()
         p.makeKeyAndOrderFront(nil)
+        app.hotkeys.grab(TriggerOverlay.keys(.none))
         return true
     }
 
     // close puts the editor away, keeping the edits or putting back the ones from when it opened,
-    // and saves so the windows settle where the kept values put them.
+    // and saves so the windows settle where the kept values put them. The app that was in front gets
+    // the keyboard back.
     func close(keep: Bool) {
         guard let p = panel else { return }
         panel = nil
         state = nil
         p.orderOut(nil)
+        app.hotkeys.ungrab()
+        if let front {
+            NSApp.yieldActivation(to: front)
+            front.activate()
+        }
+        front = nil
         if !keep {
             app.anchors.choices.widths = start.widths
             app.anchors.choices.heights = start.heights
         }
         app.save()
+    }
+
+    // key hands a grabbed key to the editor while it is open.
+    func key(_ tag: String) {
+        state?.key(tag)
     }
 
     // preview applies w and h without saving them, so the windows follow while the editor is open.
