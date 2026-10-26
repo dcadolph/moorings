@@ -531,6 +531,23 @@ func testCastReason(test: CastReasonCase) {
     #expect(got == [true, false, false, false, true, false])
 }
 
+// Swift only: a busy app's windows from the last scan are carried while still on screen, at their
+// current frame with the green button moved alongside, and dropped once off screen.
+@Test func testCarrying() {
+    let last = [
+        WindowInfo(id: 1, bundle: "com.apple.systempreferences", frame: Frame(x: 0, y: 30, w: 723, h: 1410),
+                   onUltrawide: true, isMain: true, zoomRect: Frame(x: 52, y: 36, w: 14, h: 14)),
+        WindowInfo(id: 2, bundle: "com.apple.systempreferences", frame: Frame(x: 900, y: 200, w: 400, h: 300),
+                   onUltrawide: true, isMain: false),
+    ]
+    let got = WindowInfo.carrying(last, frames: [1: Frame(x: 100, y: 40, w: 723, h: 1400)])
+    #expect(got.map(\.id) == [1])
+    #expect(got.first?.frame == Frame(x: 100, y: 40, w: 723, h: 1400))
+    #expect(got.first?.zoomRect == Frame(x: 152, y: 46, w: 14, h: 14))
+    #expect(got.first?.isMain == true)
+    #expect(WindowInfo.carrying([], frames: [1: Frame(x: 0, y: 0, w: 1, h: 1)]).isEmpty)
+    #expect(WindowInfo.carrying(last, frames: [:]).isEmpty)
+}
 // Swift only: a pin holds an app whose only on-screen window is not its main window.
 @Test func testPinHoldsLoneWindow() {
     let anchors = anchored()

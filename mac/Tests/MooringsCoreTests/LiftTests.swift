@@ -33,6 +33,8 @@ struct LiftWorld {
     var clock = 1000.0
     // MouseHeld reports whether the primary button is down.
     var mouseHeld = false
+    // Unreadable holds the windows whose frame cannot be read back after a move, as with a busy app.
+    var unreadable: Set<WindowID> = []
 
     // add appends a window that reports a green button and returns its id.
     @discardableResult
@@ -97,6 +99,10 @@ struct LiftWorld {
                 continue
             }
             let got = take(move.id, move.frame)
+            if unreadable.contains(move.id) {
+                anchors.unread(move)
+                continue
+            }
             if let again = anchors.landed(move, got: got) {
                 _ = take(again.id, again.frame)
             }
@@ -603,6 +609,26 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     #expect(world.frame(f) == tiled)
     #expect(anchors.unfill(f) == nil)
     #expect(anchors.undo() == [f: start])
+}
+
+// Swift only: a pin that will not shrink and could not be read back after its first move is placed
+// again on the next pass and learns its floor, rather than being released as moved by hand.
+@Test func testLiftUnreadNoRelease() {
+    let anchors = liftAnchors()
+    var world = LiftWorld()
+    let w = world.add(slack, Frame(x: 300, y: 100, w: 900, h: 700))
+    world.minSize[w] = (723, 0)
+    world.unreadable = [w]
+    world.pass(anchors)
+    #expect(world.frame(w) == Frame(x: 0, y: 25, w: 723, h: 1415))
+    world.unreadable = []
+    for _ in 1...3 {
+        world.clock += 3
+        world.pass(anchors)
+    }
+    #expect(world.released.isEmpty)
+    #expect(!anchors.isReleased(w))
+    #expect(anchors.floors[w] == Floor(w: 723, h: 1415))
 }
 
 // Swift only: a player read back while it still resizes itself to its video learns no floor wider

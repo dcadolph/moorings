@@ -276,6 +276,20 @@ public struct WindowInfo: Equatable, Sendable {
             return out
         }
     }
+
+    // carrying returns the windows of last still on screen, each moved to its frame in frames with
+    // its green button alongside, for an app too busy to answer a pass.
+    public static func carrying(_ last: [WindowInfo], frames: [WindowID: Frame]) -> [WindowInfo] {
+        last.compactMap { w in
+            guard let f = frames[w.id] else { return nil }
+            var out = w
+            out.frame = f
+            out.zoomRect = w.zoomRect.map {
+                Frame(x: $0.x + f.x - w.frame.x, y: $0.y + f.y - w.frame.y, w: $0.w, h: $0.h)
+            }
+            return out
+        }
+    }
 }
 
 // Scene is what one pass sees.

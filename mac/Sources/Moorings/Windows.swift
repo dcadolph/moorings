@@ -62,6 +62,9 @@ final class Windows {
     private var apps: [pid_t: AXUIElement] = [:]
     // scanned holds the processes the last scan read windows from.
     private(set) var scanned: Set<pid_t> = []
+    // last holds each process's windows from the last scan, carried through a pass the app is too
+    // busy to answer.
+    private var last: [pid_t: [WindowInfo]] = [:]
 
     // lastFront is the last app other than moorings to come to the front.
     var lastFront: pid_t?
@@ -83,27 +86,42 @@ final class Windows {
         var found: [WindowInfo] = []
         var seen: [WindowID: AXUIElement] = [:]
         var focusedID: WindowID?
+        var byPid: [pid_t: [WindowInfo]] = [:]
         scanned = []
         let front = front
+        let frames = Dictionary(order.map { ($0.id, $0.frame) }, uniquingKeysWith: { a, _ in a })
         for running in NSWorkspace.shared.runningApplications where pids.contains(running.processIdentifier) {
             guard let bundle = running.bundleIdentifier, !running.isHidden,
                   running.processIdentifier != ProcessInfo.processInfo.processIdentifier
             else { continue }
-            let app = appElement(running.processIdentifier)
-            scanned.insert(running.processIdentifier)
+            let pid = running.processIdentifier
+            let app = appElement(pid)
+            scanned.insert(pid)
+            var raw: CFTypeRef?
+            if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw) == .cannotComplete {
+                let carried = WindowInfo.carrying(last[pid] ?? [], frames: frames)
+                for w in carried {
+                    seen[w.id] = elements[w.id]
+                }
+                byPid[pid] = carried
+                found += carried
+                continue
+            }
             let main = Self.element(app, kAXMainWindowAttribute).flatMap { Self.id($0) }
-            for el in Self.array(app, kAXWindowsAttribute) {
+            for el in raw as? [AXUIElement] ?? [] {
                 guard let id = Self.id(el), rank[id] != nil,
                       let info = info(el, id: id, bundle: bundle, isMain: id == main, screens: screens)
                 else { continue }
                 seen[id] = el
                 found.append(info)
+                byPid[pid, default: []].append(info)
             }
             if running.processIdentifier == front, let el = Self.element(app, kAXFocusedWindowAttribute) {
                 focusedID = Self.id(el)
             }
         }
         found = WindowInfo.promotingLone(found)
+        last = byPid
         elements = seen
         panels = panels.filter { seen[$0.key] != nil }
         zooms = zooms.filter { seen[$0.key] != nil }
@@ -408,16 +426,17 @@ final class Windows {
     }
 
     // onScreen returns the on-screen windows at the normal layer, front-most first, with their
-    // owners.
-    private static func onScreen() -> [(id: WindowID, pid: pid_t)] {
+    // owners and frames.
+    private static func onScreen() -> [(id: WindowID, pid: pid_t, frame: Frame)] {
         let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]] ?? []
         return list.compactMap { entry in
             guard entry[kCGWindowLayer as String] as? Int == 0,
                   let id = entry[kCGWindowNumber as String] as? WindowID,
-                  let pid = entry[kCGWindowOwnerPID as String] as? pid_t
+                  let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
+                  let b = entry[kCGWindowBounds as String] as? [String: Double]
             else { return nil }
-            return (id, pid)
+            return (id, pid, Frame(x: b["X"] ?? 0, y: b["Y"] ?? 0, w: b["Width"] ?? 0, h: b["Height"] ?? 0))
         }
     }
 

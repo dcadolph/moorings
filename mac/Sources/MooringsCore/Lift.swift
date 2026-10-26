@@ -145,6 +145,14 @@ extension Anchors {
         return Move(id: move.id, frame: want, target: move.target, anchor: move.anchor)
     }
 
+    // unread forgets where move put a pin when its frame could not be read back, so the next pass
+    // places it again rather than releasing it against a frame that was never confirmed.
+    public func unread(_ move: Move) {
+        if let p = placed[move.id], Actions.near(p.target, move.target, tolerance: Self.tolerance) {
+            placed[move.id] = nil
+        }
+    }
+
     // cacheZoom keeps the green button rect of w as it will sit with w at frame.
     func cacheZoom(_ w: WindowInfo, _ frame: Frame, free: Bool) {
         let rect = w.zoomRect.map {
