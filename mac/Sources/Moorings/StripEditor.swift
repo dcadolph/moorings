@@ -33,6 +33,8 @@ final class StripState: ObservableObject {
     let minNames: [Side: String]
     // empty lists the sides with nothing anchored.
     let empty: [Side]
+    // split lists the sides holding two anchored apps, the only ones with a row line.
+    let split: [Side]
     // presets lists the built-in and saved width pairs offered as quick picks.
     let presets: [Widths]
     // changed is told about every new pair of widths and heights.
@@ -42,13 +44,14 @@ final class StripState: ObservableObject {
 
     // init builds the state from the values in effect and the limits on them.
     init(widths: Widths, heights: Heights, screenWidth: Double, minPoints: [Side: Double], minNames: [Side: String],
-         empty: [Side], presets: [Widths]) {
+         empty: [Side], split: [Side], presets: [Widths]) {
         self.widths = widths
         self.heights = heights
         self.screenWidth = screenWidth
         self.minPoints = minPoints
         self.minNames = minNames
         self.empty = empty
+        self.split = split
         self.presets = presets
         refreshDrafts()
     }
@@ -68,9 +71,22 @@ final class StripState: ObservableObject {
         Layout.widthRange(widths, side, minPoints: minPoints[side] ?? 0, screenWidth: screenWidth)
     }
 
-    // points returns how many points side's strip covers.
+    // shown returns the share side's strip covers on screen: its chosen width, or more when an
+    // anchored app there will not shrink to it.
+    func shown(_ side: Side) -> Double {
+        let pct = side == .left ? widths.left : widths.right
+        guard !empty.contains(side), screenWidth > 0 else { return pct }
+        return max(pct, (minPoints[side] ?? 0) * 100 / screenWidth)
+    }
+
+    // channel returns the share the channel covers on screen, which takes an empty side.
+    var channel: Double {
+        100 - [Side.left, .right].filter { !empty.contains($0) }.map(shown).reduce(0, +)
+    }
+
+    // points returns how many points side's strip covers on screen.
     func points(_ side: Side) -> Double {
-        Layout.points(side == .left ? widths.left : widths.right, screenWidth: screenWidth)
+        Layout.points(shown(side), screenWidth: screenWidth)
     }
 
     // set puts field at pct, kept inside its limits, and passes the change on when it moved.
@@ -126,6 +142,19 @@ final class StripPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     // canBecomeMain keeps the front app's main window where it is.
     override var canBecomeMain: Bool { false }
+
+    // performKeyEquivalent gives the fields select all, copy, cut and paste, which Moorings has no
+    // Edit menu to supply.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let actions: [String: Selector] = ["a": #selector(NSText.selectAll(_:)), "c": #selector(NSText.copy(_:)),
+                                           "x": #selector(NSText.cut(_:)), "v": #selector(NSText.paste(_:))]
+        if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           let key = event.charactersIgnoringModifiers, let action = actions[key],
+           NSApp.sendAction(action, to: nil, from: self) {
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
+    }
 }
 
 // StripEditorView draws the strips over the ultrawide with a handle on each inner edge and row line.
@@ -148,14 +177,18 @@ struct StripEditorView: View {
     var body: some View {
         GeometryReader { geo in
             let size = geo.size
-            let lx = size.width * state.widths.left / 100
-            let rx = size.width - size.width * state.widths.right / 100
+            let lx = size.width * state.shown(.left) / 100
+            let rx = size.width - size.width * state.shown(.right) / 100
             ZStack(alignment: .topLeading) {
                 Color.black.opacity(0.3)
                 strip(.left, x: 0, width: lx, size: size)
                 strip(.right, x: rx, width: size.width - rx, size: size)
-                rowLine(.leftTop, x: 0, width: lx, size: size)
-                rowLine(.rightTop, x: rx, width: size.width - rx, size: size)
+                if state.split.contains(.left) {
+                    rowLine(.leftTop, x: 0, width: lx, size: size)
+                }
+                if state.split.contains(.right) {
+                    rowLine(.rightTop, x: rx, width: size.width - rx, size: size)
+                }
                 edge(.leftWidth, x: lx, size: size)
                 edge(.rightWidth, x: rx, size: size)
                 header
@@ -165,9 +198,12 @@ struct StripEditorView: View {
         }
         .onExitCommand { state.finish(false) }
         .onAppear { focus = .leftWidth }
-        .onChange(of: focus) { old, _ in
+        .onChange(of: focus) { old, new in
             if let old {
                 state.commit(old)
+            }
+            if new != nil {
+                DispatchQueue.main.async { NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: nil) }
             }
         }
     }
@@ -175,7 +211,7 @@ struct StripEditorView: View {
     // header shows the channel share, the quick picks, the keys and the buttons.
     private var header: some View {
         VStack(spacing: 12) {
-            Text(String(format: "Channel %.0f%%", 100 - state.widths.left - state.widths.right))
+            Text(String(format: "Channel %.0f%%", state.channel))
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(.white)
             HStack(spacing: 8) {
@@ -421,7 +457,8 @@ final class StripEditor {
         }
         let presets = Layout.presets + anchors.choices.widthPresets.filter { !Layout.presets.contains($0) }
         let s = StripState(widths: anchors.widths, heights: anchors.heights, screenWidth: wide.w, minPoints: mins,
-                           minNames: names, empty: anchors.emptySides(), presets: presets)
+                           minNames: names, empty: anchors.emptySides(), split: anchors.splitSides(),
+                           presets: presets)
         s.changed = { [unowned self] w, h in preview(w, h) }
         s.finish = { [unowned self] keep in close(keep: keep) }
         state = s
