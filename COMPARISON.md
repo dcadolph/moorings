@@ -209,10 +209,17 @@ The idle cells above come from the event-driven rest state, measured on a build 
 
 `moorings://selftest?apps=<bundle id>,<bundle id>` moves, resizes, snaps to the left half and restores the front free window of each named app, and logs PASS or FAIL per app and case with the app's version. An app that is not running is opened in the background and quit after. A window refused or rounded by its app shows the frame it kept in the FAIL line. The cases are the ones every window manager depends on: moves and sizes through Accessibility land exactly.
 
-| App | Version | Move | Resize | Snap left half | Restore |
-| --- | ------- | ---- | ------ | -------------- | ------- |
+Run on October 26, 2026, macOS 26.6.1, Moorings at commit 707f3a6, on a 5120 by 1440 display with apps anchored at both edges.
 
-Results wait for the batched live sitting (Slack, VLC, TextEdit, and Microsoft Word and a JetBrains IDE if installed). No row is filled from memory.
+| App                       | Version       | Move | Resize | Snap left half | Restore |
+| ------------------------- | ------------- | ---- | ------ | -------------- | ------- |
+| Docker Desktop (Electron) | 4.13.0        | PASS | PASS   | PASS           | PASS    |
+| VLC                       | 3.0.24        | PASS | PASS   | PASS           | PASS    |
+| TextEdit                  | 1.20          | PASS | PASS   | PASS           | PASS    |
+| Preview                   | 11.0          | PASS | PASS   | PASS           | PASS    |
+| Google Chrome             | 155.0.8059.86 | PASS | FAIL   | PASS           | PASS    |
+
+Chrome's resize case asks for 900 by 600 and Chrome keeps 900 by 652. A direct Accessibility resize from System Events gets the same 652, so that height is Chrome's own minimum for the window, not a frame Moorings lost. Slack, Microsoft Word and a JetBrains IDE are not in the table yet. Docker Desktop stands in for Electron apps until Slack is run.
 
 ## What only Moorings has
 
