@@ -349,7 +349,7 @@ struct StripEditorView: View {
     private func rowLine(_ field: StripField, x: Double, width: Double, size: CGSize) -> some View {
         let y = size.height * state.value(field) / 100
         let drag = DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space)).onChanged { v in
-            state.set(field, v.location.y / size.height * 100)
+            state.set(field, Double(v.location.y / size.height) * 100)
         }.onEnded { _ in state.dropped() }
         let line = Rectangle()
             .fill(Self.accent.opacity(0.8))
