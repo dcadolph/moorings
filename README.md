@@ -366,7 +366,8 @@ logs PASS or FAIL, and a banner gives the total.
 
 `moorings://selftest?apps=com.tinyspeck.slackmacgap,org.videolan.vlc` checks other apps instead:
 it moves, resizes, snaps and restores the front window of each, logs PASS or FAIL per case with
-the app's version, and puts the window back.
+the app's version, and puts the window back. A resize the app holds at its own minimum size logs
+MIN instead of FAIL.
 
 ## Moving from the Hammerspoon version
 
