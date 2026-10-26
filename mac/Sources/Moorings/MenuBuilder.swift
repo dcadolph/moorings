@@ -480,13 +480,15 @@ struct MenuBuilder {
         return out
     }
 
-    // widthItems builds the Widths folder: the channel label, a label per empty side, the steppers
-    // and the presets.
+    // widthItems builds the Widths folder: a status label for the shared display, a label per empty side and per
+    // side held wider by its app, the Adjust strips action, and a Presets folder holding the built-in presets,
+    // the saved presets and the save and remove actions.
     private func widthItems(_ wide: Frame?) -> [NSMenuItem] {
         let w = anchors.widths
         let use = wide != nil ? anchors.inUse(wide) : w
-        var out = [label(String(format: "Channel %.0f%%", 100 - use.left - use.right),
-                         tip: "The share of the display left between the strips for free windows.")]
+        var out = [label(String(format: "Left %.0f%% · Channel %.0f%% · Right %.0f%%", use.left,
+                                100 - use.left - use.right, use.right),
+                         tip: "How the display is shared right now.")]
         for side in anchors.emptySides() {
             out.append(label("\(side == .left ? "Left" : "Right") side empty: part of the channel",
                              tip: "Nothing is anchored on this side, so free windows use it until an app is."))
@@ -497,35 +499,53 @@ struct MenuBuilder {
                                     side == .left ? use.left : use.right, name, anchors.minWidth(side)),
                              tip: "This app will not shrink to the chosen width, so its strip is wider."))
         }
+        out.append(adjustStripsItem())
         let held = { (side: Side, pct: Double) -> Bool in
             guard let wide else { return false }
             return Layout.held(minPoints: anchors.minWidth(side), screenWidth: wide.w, pct: pct)
         }
-        for (title, side, delta) in [("Left wider", Side.left, 1.0), ("Left narrower", .left, -1),
-                                     ("Right wider", .right, 1), ("Right narrower", .right, -1)] {
-            let (next, ok) = Layout.stepped(w, side, delta * Layout.widthStep, minPoints: anchors.minWidth(side),
-                                            screenWidth: wide?.w)
-            out.append(ActionItem(title, tip: "Move the strip's inner edge by one percent of the display.", enabled: ok) {
-                anchors.setWidths(next)
-                app.save()
-            })
-        }
-        for preset in Layout.presets {
-            out.append(ActionItem(String(format: "Left %.0f%%, right %.0f%%", preset.left, preset.right),
-                                  tip: "Set both strips to these shares of the display.", checked: preset == w,
-                                  enabled: !held(.left, preset.left) && !held(.right, preset.right)) {
+        let presetItem = { (preset: Widths, tip: String) -> NSMenuItem in
+            ActionItem(String(format: "Left %.0f%%, right %.0f%%", preset.left, preset.right), tip: tip,
+                       checked: preset == w, enabled: !held(.left, preset.left) && !held(.right, preset.right)) {
                 anchors.setWidths(preset)
                 app.save()
-            })
+            }
         }
+        var presets = Layout.presets.map { presetItem($0, "Set both strips to these shares of the display.") }
+        let owned = anchors.choices.widthPresets
+        if !owned.isEmpty {
+            presets.append(.separator())
+            presets += owned.map { presetItem($0, "Set both strips to this saved pair of shares.") }
+        }
+        presets.append(.separator())
+        presets.append(ActionItem("Save current as preset",
+                                  tip: "Keep the current strip widths in this list for later.",
+                                  enabled: !Layout.presets.contains(w) && !owned.contains(w)) {
+            anchors.choices.widthPresets.append(w)
+            app.save()
+        })
+        presets.append(ActionItem("Remove current preset", tip: "Delete the current strip widths from the saved list.",
+                                  enabled: owned.contains(w)) {
+            anchors.choices.widthPresets.removeAll { $0 == w }
+            app.save()
+        })
+        out.append(folder("Presets", presets))
         return out
     }
 
-    // heightItems builds the Heights folder: a label per side, the taller and shorter steppers, and
-    // a folder of presets per side.
+    // adjustStripsItem builds the action that opens the on-screen strip editor.
+    private func adjustStripsItem() -> NSMenuItem {
+        ActionItem("Adjust strips…", tip: "Step, type or drag each strip's edge and row line on screen. "
+                   + "Windows follow as you go.") {
+            app.strips.show()
+        }
+    }
+
+    // heightItems builds the Heights folder: the Adjust strips action, a label per side, the taller and
+    // shorter steppers, and a folder of presets per side.
     private func heightItems() -> [NSMenuItem] {
         let h = anchors.heights
-        var out: [NSMenuItem] = []
+        var out: [NSMenuItem] = [adjustStripsItem()]
         for (name, side) in [("Left", Side.left), ("Right", .right)] {
             out.append(label(String(format: "%@ top %g%%, bottom %g%%", name, h[side], 100 - h[side]),
                              tip: "How this strip's height splits between its two rows."))
