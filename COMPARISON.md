@@ -8,8 +8,8 @@ Price is not on the product page. A 2022 article gave 10 EUR. It has a 10-day tr
 
 | Feature                                                | Who has it    | Moorings                                                        | Check                                                                                  |
 |--------------------------------------------------------|---------------|-----------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| Window throw, 16 sizes, works on an unfocused window   | Rectangle Pro | yes, by a held key, on the window under the pointer             | testOverlayPick, testOverlayTargetsKnown, testOverlayTriggerHeld; live check owed      |
-| Quick throw and throw by cursor direction              | Rectangle Pro | yes, by cursor direction                                        | testOverlayPick; live check owed                                                       |
+| Window throw, 16 sizes, works on an unfocused window   | Rectangle Pro | yes, by a held key, on the window under the pointer             | testOverlayPick, testOverlayTargetsKnown, testOverlayTriggerHeld; live PASS 10-25      |
+| Quick throw and throw by cursor direction              | Rectangle Pro | yes, by cursor direction                                        | testOverlayPick; live PASS 10-25                                                       |
 | Custom snap targets and a configurable snap panel      | Rectangle Pro | yes, custom areas off the ultrawide and a snap panel on a pause | testSnapCustomAreas, testSnapPanelLayout, testSnapChoicesCustomDecode; live check owed |
 | Custom sizes with repeat behavior                      | Rectangle Pro | yes                                                             | testCustomSize, testSizeShortcuts                                                      |
 | Workspace arrangement by shortcut                      | Rectangle Pro | yes                                                             | testWorkspacesMatch, testWorkspacesFitAndCodable                                       |
@@ -68,7 +68,7 @@ Moom costs $15.
 | Drop zones from a saved layout                           | Moom                        | partial: custom areas drawn as shares, not made from a saved layout                | testSnapCustomAreas                            |
 | Chains of actions, in sequence or looped                 | Moom                        | yes                                                                                | testChainStepStops, testChainStepLoops         |
 | Hover move and resize with modifiers, no click           | Moom, Lasso                 | yes, keys picked in Settings > Behavior, resize from the nearest corner            | testHoverMode, testHoverFrame; live check owed |
-| Keyboard grid controller                                 | Moom                        | yes, arrows under the held key, Return applies                                     | testOverlayGrid; live check owed               |
+| Keyboard grid controller                                 | Moom                        | yes, arrows under the held key, Return applies                                     | testOverlayGrid; live PASS 10-25               |
 | Folders in the menu                                      | Moom                        | no (fixed folders by family; actions are pinned or hidden instead)                 | not applicable                                 |
 | Per-action grid sizes                                    | Moom                        | yes, grid takes the set size and grid:8x6 its own                                  | testOverlayGridSize                            |
 | Use active window size                                   | Moom                        | planned (unit 5)                                                                   | unit 5 specified size                          |
@@ -95,9 +95,9 @@ Loop is free and GPL-3 licensed.
 
 | Feature                        | Who has it | Moorings                                                                             | Check                                                    |
 | ------------------------------ | ---------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| Radial menu on a trigger key   | Loop       | yes, 16 targets in two rings                                                         | testOverlayPick, testOverlayTriggerHeld; live check owed |
-| Preview outline while choosing | Loop       | yes, the snap footprint                                                              | live check owed                                          |
-| Trigger-key chords             | Loop       | partial: arrows, Shift-arrows, Return and Escape under the trigger; no custom chords | testOverlayTriggerHeld; live check owed                  |
+| Radial menu on a trigger key   | Loop       | yes, 16 targets in two rings                                                         | testOverlayPick, testOverlayTriggerHeld; live PASS 10-25 |
+| Preview outline while choosing | Loop       | yes, the snap footprint                                                              | live PASS 10-25                                          |
+| Trigger-key chords             | Loop       | partial: arrows, Shift-arrows, Return and Escape under the trigger; no custom chords | testOverlayTriggerHeld; live PASS 10-25                  |
 | Cycles                         | Loop       | yes                                                                                  | testCycle, testPressCycle                                |
 | Stash                          | Loop       | yes, left, right and bottom edges                                                    | testStashFrames, testStashHover; live check owed         |
 | Theming                        | Loop       | yes                                                                                  | testThemeList, testThemeContrast                         |
