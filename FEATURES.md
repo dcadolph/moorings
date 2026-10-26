@@ -115,7 +115,17 @@ each part.
 - Nothing is anchored until you choose an app, so a first start moves no window. On an ultrawide,
   one message says how to anchor the first app.
 - Anchor *app* at the top of the menu holds the app you were just using.
-- Width and height presets and steppers, with a label that says how wide the channel is.
+- Width and height presets, with a label that says how wide the channel is. Widths holds a
+  Presets folder with the built-ins and your own saved pairs. Heights keeps its taller and shorter
+  items and per-side presets.
+- Adjust strips opens an on-screen editor over the ultrawide. Drag each strip edge or row line,
+  use the arrows or type a percent. Arrow keys step 1 percent and Shift steps 5. Tab moves between
+  fields, Return keeps the changes and Escape puts back the widths and heights from when it opened.
+  The arrows, Return and Escape reach it whichever app is in front, and go back when it closes.
+  Windows move live. Typed values clamp so a strip never goes below its app's minimum and the
+  channel keeps its minimum share. It is also a bindable shortcut action, adjust-strips.
+- Settings, Layout, has a Strips section with number fields for left width, right width and each
+  side's top row.
 - Click an anchored window's green button to lift it over the channel at full height, and click
   again to lower it.
 - Drag an anchored window away and Moorings lets it go, with a message that says how to bring it

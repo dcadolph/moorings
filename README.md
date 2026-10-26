@@ -329,11 +329,21 @@ panel works everywhere.
 
 An ultrawide has four slots, a top and bottom on each side. An app alone on its side takes the
 full height. A side with nothing anchored gives its width to the channel. Widths and Heights set
-the strip widths and the split between rows, with steppers and presets. Anchored apps that are
-not running open in the background at launch.
+the strip widths and the split between rows, with presets. Anchored apps that are not running
+open in the background at launch.
+
+Adjust strips, in either menu, a bindable shortcut action named adjust-strips, opens an editor
+over the ultrawide. Each inner strip edge has a drag bar, arrows and a typed percent field, and
+each strip's row line has up and down arrows and a field. Arrow keys step 1 percent and Shift
+steps 5. Tab moves between fields, Return keeps the changes and Escape puts back the widths and
+heights from when it opened. The arrows, Return and Escape reach the editor whichever app is in
+front, and go back to your apps when it closes. Windows move live. Typed values clamp so a strip
+never goes narrower than its app's minimum and the channel keeps its minimum share. Settings,
+Layout, has a Strips section with number fields for left width, right width and each side's top
+row.
 
 An app that will not shrink to its strip keeps its own width, and its strip grows to fit. Widths
-names the app and disables the steps that would squeeze it.
+names the app and disables the presets that would squeeze it.
 
 ### Lift and release
 
