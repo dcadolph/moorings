@@ -7,7 +7,8 @@ import MooringsCore
 // Selftest drives real TextEdit windows through the layout on the ultrawide and logs PASS or FAIL
 // per check, then puts the owner's slots and anchor back and quits TextEdit. It runs from the
 // moorings://selftest link. With apps=, a comma-separated list of bundle ids, it instead moves,
-// resizes, snaps and restores a window of each named app and logs PASS or FAIL per app and case.
+// resizes, snaps and restores a window of each named app and logs PASS or FAIL per app and case,
+// or MIN when the app keeps a minimum size above the one asked.
 @MainActor
 final class Selftest {
     // bundle is the app the run makes throwaway documents in.
@@ -33,6 +34,8 @@ final class Selftest {
         let ok: Bool?
         // detail says what was seen when it failed or why it was skipped.
         let detail: String
+        // minimum reports whether it passed with the app keeping a minimum size above the one asked.
+        var minimum = false
     }
 
     // Stop ends a run early with a reason.
@@ -96,7 +99,9 @@ final class Selftest {
         }
         let failed = checks.filter { $0.ok == false }.count
         let skipped = checks.filter { $0.ok == nil }.count
-        let summary = "\(checks.count) checks on \(bundles.count) apps, \(failed) failed, \(skipped) skipped"
+        let kept = checks.filter(\.minimum).count
+        let summary = "\(checks.count) checks on \(bundles.count) apps, \(failed) failed, \(skipped) skipped, "
+            + "\(kept) kept an app minimum"
         logger.notice("selftest: \(summary, privacy: .public)")
         app.notify(failed == 0 ? "Selftest passed" : "Selftest failed", summary + ". The log has each check.")
     }
@@ -133,8 +138,20 @@ final class Selftest {
         check("\(tag): move", await settled { self.at(w.id, moved) })
 
         let resized = Frame(x: area.x + 40, y: area.y + 40, w: min(900, area.w - 80), h: min(600, area.h - 80))
+        let start = app.windows.frame(w.id) ?? moved
         app.windows.move(w.id, to: resized)
-        check("\(tag): resize", await settled { self.at(w.id, resized) })
+        let landed = await settled { self.at(w.id, resized) }
+        if !landed.0, let got = app.windows.frame(w.id), Actions.keptMinimum(start: start, asked: resized, got: got) {
+            app.windows.move(w.id, to: resized)
+            try? await Task.sleep(for: .seconds(Self.stepSeconds * 5))
+            if let again = app.windows.frame(w.id), Actions.near(again, got) {
+                minimum("\(tag): resize", "kept \(Int(got.w))x\(Int(got.h)) for \(Int(resized.w))x\(Int(resized.h))")
+            } else {
+                check("\(tag): resize", (false, "stopped at \(got), then moved on a second set"))
+            }
+        } else {
+            check("\(tag): resize", landed)
+        }
 
         _ = anchors.restore(w.id)
         let before = app.windows.frame(w.id) ?? resized
@@ -157,6 +174,12 @@ final class Selftest {
             $0.bundle == bundle && !$0.isFilePanel && !$0.isFullScreen && !anchors.pinned($0)
                 && !anchors.stashed.contains($0.id)
         }
+    }
+
+    // minimum records a check that passed with the app keeping a minimum size and logs what it kept.
+    private func minimum(_ name: String, _ detail: String) {
+        checks.append(Check(name: name, ok: true, detail: detail, minimum: true))
+        logger.notice("MIN \(name, privacy: .public): \(detail, privacy: .public)")
     }
 
     // skip records a check that could not run and logs why.

@@ -400,3 +400,17 @@ let plain = ActionTarget(screens: [F(0, 0, 1000, 800)], areas: [F(0, 0, 1000, 80
     #expect(!Behavior.restoresMaximize("left-half", cur: full, last: last, b))
     #expect(!Behavior.restoresMaximize("maximize", cur: full, last: nil, b))
 }
+
+// Test 16: A resize an app stops above the asked size on the way down kept a minimum, and a window
+// that did not resize, grew past its start, or landed elsewhere did not.
+@Test func testKeptMinimum() {
+    let start = F(100, 100, 1400, 1000)
+    let asked = F(40, 40, 900, 600)
+    #expect(Actions.keptMinimum(start: start, asked: asked, got: F(40, 40, 900, 652)))
+    #expect(Actions.keptMinimum(start: start, asked: asked, got: F(40, 40, 1000, 700)))
+    #expect(!Actions.keptMinimum(start: start, asked: asked, got: asked))
+    #expect(!Actions.keptMinimum(start: start, asked: asked, got: F(40, 40, 1400, 1000)))
+    #expect(!Actions.keptMinimum(start: start, asked: asked, got: F(40, 40, 900, 1100)))
+    #expect(!Actions.keptMinimum(start: start, asked: asked, got: F(40, 40, 800, 652)))
+    #expect(!Actions.keptMinimum(start: start, asked: asked, got: F(300, 40, 900, 652)))
+}

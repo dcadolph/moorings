@@ -95,6 +95,25 @@ public enum Actions {
             && abs(a.w - b.w) <= tolerance && abs(a.h - b.h) <= tolerance
     }
 
+    // keptMinimum reports whether a window asked to go from start to asked landed at got because the app
+    // keeps a minimum size: got sits at asked's origin, changed size from start, and on each axis either
+    // matches asked or stopped above it on the way down, with at least one axis stopped above.
+    public static func keptMinimum(start: Frame, asked: Frame, got: Frame, tolerance: Double = tolerance) -> Bool {
+        guard abs(got.x - asked.x) <= tolerance, abs(got.y - asked.y) <= tolerance,
+              abs(got.w - start.w) > tolerance || abs(got.h - start.h) > tolerance
+        else { return false }
+        let axes = [(start.w, asked.w, got.w), (start.h, asked.h, got.h)]
+        var above = false
+        for (from, want, size) in axes {
+            if abs(size - want) <= tolerance {
+                continue
+            }
+            guard size > want, size <= from + tolerance else { return false }
+            above = true
+        }
+        return above
+    }
+
     // order returns screen indexes in display order. yThenMinX puts a row of screens above another
     // first and orders each row left to right, minX orders by left edge then top, and midX orders by
     // center.
