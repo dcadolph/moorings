@@ -3,7 +3,7 @@ import SwiftUI
 import MooringsCore
 
 // SettingsView is the settings window's content: shortcuts, sizes, workspaces, layout, snapping, behavior,
-// menu, appearance and general choices.
+// menu and general choices.
 struct SettingsView: View {
     // model holds the choices and saves each change.
     @ObservedObject var model: SettingsModel
@@ -23,7 +23,7 @@ struct SettingsView: View {
         .confirmationDialog("Restore the default settings?", isPresented: $confirmRestore) {
             Button("Restore defaults", role: .destructive) { model.change { $0 = $0.restoringDefaults() } }
         } message: {
-            Text("Shortcuts, snapping, appearance and behavior go back to their defaults. Anchored apps, strip "
+            Text("Shortcuts, snapping and behavior go back to their defaults. Anchored apps, strip "
                 + "sizes, ignored apps, custom sizes, workspaces, chains and app rules stay.")
         }
     }
@@ -41,7 +41,6 @@ struct SettingsView: View {
             snapping.tabItem { Label("Snapping", systemImage: "square.on.square.dashed") }
             behavior.tabItem { Label("Behavior", systemImage: "arrow.triangle.2.circlepath") }
             menu.tabItem { Label("Menu", systemImage: "list.bullet") }
-            appearance.tabItem { Label("Appearance", systemImage: "paintpalette") }
             general.tabItem { Label("General", systemImage: "gearshape") }
         }
     }
@@ -228,7 +227,7 @@ struct SettingsView: View {
             Text("Profiles")
         } footer: {
             Text("A profile holds shortcuts, keymap, sizes, gap, snapping, behavior, stacking, chains, the menu, app "
-                + "rules, mouse buttons, title bar clicks and theme. Switching applies them and recalls the ticked "
+                + "rules, mouse buttons, title bar clicks. Switching applies them and recalls the ticked "
                 + "workspaces in the order they were ticked. Anchored apps and strip sizes stay.")
                 .font(.callout)
         }
@@ -365,14 +364,14 @@ struct SettingsView: View {
                     Text("Fill opacity: \(Int((s.footprint.alpha * 100).rounded()))%")
                 }
                 snapStepper("Border width", \.footprint.borderWidth, 0...10, 1)
-                TextField("Color, #rrggbb, empty for the theme",
+                TextField("Color, #rrggbb, empty for the default",
                           text: Binding(get: { s.footprint.color ?? "" },
                                         set: { v in model.change {
                                             let t = v.trimmingCharacters(in: .whitespaces)
                                             $0.snapping.footprint.color = t.isEmpty ? nil : t
                                         } }))
                 if let c = s.footprint.color, RGB(hex: c) == nil {
-                    Text("Not a #rrggbb color, so the theme's accent is used.").foregroundStyle(.red).font(.callout)
+                    Text("Not a #rrggbb color, so the default color is used.").foregroundStyle(.red).font(.callout)
                 }
                 Toggle("Fade in and out", isOn: Binding(get: { s.footprint.fade },
                                                         set: { v in model.change { $0.snapping.footprint.fade = v } }))
@@ -691,16 +690,6 @@ struct SettingsView: View {
         Picker(prompt, selection: Binding(get: { "" }, set: { v in if !v.isEmpty { add(v) } })) {
             Text("Choose…").tag("")
             ForEach(names, id: \.self) { Text(Keymaps.label($0)).tag($0) }
-        }
-    }
-
-    // appearance picks the theme.
-    private var appearance: some View {
-        Form {
-            Picker("Theme", selection: Binding(get: { model.choices.theme }, set: { v in model.change { $0.theme = v } })) {
-                ForEach(ThemeName.allCases) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.radioGroup)
         }
     }
 

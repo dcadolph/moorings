@@ -68,8 +68,6 @@ public struct Choices: Equatable, Sendable, Codable {
     public var ignores: [String] = []
     // snap reports whether dragging a window to an edge snaps it.
     public var snap: Bool = true
-    // theme names the color theme for the footprint, banners and settings.
-    public var theme: ThemeName = .harbor
     // workspaces holds the saved workspaces by name.
     public var workspaces: [String: Workspace] = [:]
     // checkUpdates reports whether moorings looks for a new release once a day.
@@ -114,7 +112,7 @@ public struct Choices: Equatable, Sendable, Codable {
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
-        case ignores, snap, theme, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
+        case ignores, snap, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
         case chains, menu, appRules, buttonClicks, profiles, activeProfile, overlay, tiling
     }
 
@@ -134,7 +132,6 @@ public struct Choices: Equatable, Sendable, Codable {
         gapPx = (try? c.decodeIfPresent(Double.self, forKey: .gapPx)) ?? 0
         ignores = (try? c.decodeIfPresent([String].self, forKey: .ignores)) ?? []
         snap = (try? c.decodeIfPresent(Bool.self, forKey: .snap)) ?? true
-        theme = (try? c.decodeIfPresent(ThemeName.self, forKey: .theme)) ?? .harbor
         workspaces = (try? c.decodeIfPresent([String: Workspace].self, forKey: .workspaces)) ?? [:]
         checkUpdates = (try? c.decodeIfPresent(Bool.self, forKey: .checkUpdates)) ?? true
         mouseButtons = (try? c.decodeIfPresent([String: String].self, forKey: .mouseButtons)) ?? [:]
@@ -166,7 +163,6 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(gapPx, forKey: .gapPx)
         try c.encode(ignores, forKey: .ignores)
         try c.encode(snap, forKey: .snap)
-        try c.encode(theme, forKey: .theme)
         try c.encode(workspaces, forKey: .workspaces)
         try c.encode(checkUpdates, forKey: .checkUpdates)
         try c.encode(mouseButtons, forKey: .mouseButtons)

@@ -158,7 +158,6 @@ import Testing
     c.shortcuts = ["maximize": StoredShortcut(mods: ["ctrl", "alt"], key: "k")]
     c.gapPx = 8
     c.snap = false
-    c.theme = .rose
     c.checkUpdates = false
     c.mouseButtons = ["3": "maximize"]
     c.buttonClicks = ["red+option": "left-half"]

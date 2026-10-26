@@ -164,7 +164,7 @@ public struct FootprintStyle: Equatable, Sendable, Codable {
     public var borderWidth: Double = 2
     // fade reports whether the footprint fades in and out.
     public var fade: Bool = false
-    // color is a hex color overriding the theme color, or nil to use the theme.
+    // color is a hex color overriding the palette's accent, or nil to use the accent.
     public var color: String? = nil
     // animationSpeed is the footprint animation duration multiplier, 0 for the system default.
     public var animationSpeed: Double = 0

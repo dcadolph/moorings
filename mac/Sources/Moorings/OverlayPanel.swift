@@ -176,7 +176,7 @@ final class TriggerOverlay {
             grid = g
             pick = nil
             footprint.hide()
-            gridPanel.show(g, in: a, gap: choices.gapPx, palette: choices.theme.palette,
+            gridPanel.show(g, in: a, gap: choices.gapPx, palette: .harbor,
                            style: choices.snapping.footprint)
         }
     }
@@ -184,7 +184,7 @@ final class TriggerOverlay {
     // show draws the footprint at f in the snapping style.
     private func show(_ f: Frame) {
         let choices = app.anchors.choices
-        footprint.show(f, palette: choices.theme.palette, style: choices.snapping.footprint)
+        footprint.show(f, palette: .harbor, style: choices.snapping.footprint)
     }
 
     // step returns the direction a grid key's tag names.
@@ -467,7 +467,7 @@ final class GridPicker {
     private func draw() {
         guard let g = grid else { return }
         let choices = app.anchors.choices
-        panel.show(g, in: area, gap: choices.gapPx, palette: choices.theme.palette, style: choices.snapping.footprint)
+        panel.show(g, in: area, gap: choices.gapPx, palette: .harbor, style: choices.snapping.footprint)
     }
 }
 

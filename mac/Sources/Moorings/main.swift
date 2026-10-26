@@ -203,7 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let rect = win.convertToScreen(button.convert(button.bounds, to: nil))
         button.image = NSImage(size: button.image?.size ?? NSSize(width: 18, height: 18))
         sinking.play(over: rect, appearance: button.effectiveAppearance,
-                     accent: BannerPanel.color(anchors.choices.theme.palette.accent)) {
+                     accent: BannerPanel.color(Palette.harbor.accent)) {
             NSApp.terminate(nil)
         }
     }
@@ -305,7 +305,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // updateBadge shows or hides the stack badge for the pointer's place.
     private func updateBadge() {
-        stackBadge.update(palette: anchors.choices.theme.palette, choices: anchors.choices.stacking,
+        stackBadge.update(palette: .harbor, choices: anchors.choices.stacking,
                           gap: anchors.choices.gapPx)
     }
 
@@ -475,10 +475,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             + "Moorings menu and pick a slot.")
     }
 
-    // notify shows a banner in the chosen theme. A click on it runs action.
+    // notify shows a banner in the harbor palette. A click on it runs action.
     func notify(_ title: String, _ body: String, action: (@MainActor () -> Void)? = nil) {
         logger.notice("banner: \(body, privacy: .public)")
-        banner.show(title, body, palette: anchors.choices.theme.palette, action: action)
+        banner.show(title, body, palette: .harbor, action: action)
     }
 
     // showTrust shows a warning mark on the menu bar icon while Accessibility is missing.

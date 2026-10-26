@@ -290,7 +290,7 @@ and an action, and the app's first window goes there when it appears.
 ### Profiles
 
 Profiles > Save current as profile stores the shortcuts, keymap, custom sizes, gap, snapping,
-behavior, stacking, chains, menu, app rules, mouse buttons, title bar clicks and theme under a
+behavior, stacking, chains, menu, app rules, mouse buttons and title bar clicks under a
 name. Switching to it, from the menu, a shortcut or `moorings://action?name=profile:<name>`, puts
 them back and recalls the workspaces it groups, in order. Settings > Workspaces renames a profile,
 picks its workspaces, records its shortcut, and saves the current settings into it. Anchored apps
@@ -299,10 +299,10 @@ and strip sizes belong to the desk, so a profile never moves them.
 ### Settings window
 
 Open it from the menu, or open Moorings again while it runs. It records shortcuts, edits custom
-sizes, renames and ties workspaces, picks the keymap, snap areas, gap, mouse buttons, fullscreen
-handling and theme, and exports or imports every choice as one JSON file. Imported workspaces
+sizes, renames and ties workspaces, picks the keymap, snap areas, gap, mouse buttons and fullscreen
+handling, and exports or imports every choice as one JSON file. Imported workspaces
 come back untied, since the file may come from another desk. Restore defaults, under the tabs,
-asks once and then puts shortcuts, snapping, appearance and behavior back to their defaults.
+asks once and then puts shortcuts, snapping and behavior back to their defaults.
 Anchored apps, strip sizes, ignored apps, custom sizes and workspaces stay.
 
 ### Snap by dragging

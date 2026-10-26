@@ -28,8 +28,6 @@ public struct ProfileSettings: Equatable, Sendable, Codable {
     public var mouseButtons: [String: String] = [:]
     // buttonClicks maps a title bar button and modifier to the action a click runs.
     public var buttonClicks: [String: String] = [:]
-    // theme names the color theme.
-    public var theme: ThemeName = .harbor
 
     // init builds settings at the defaults.
     public init() {}
@@ -37,7 +35,7 @@ public struct ProfileSettings: Equatable, Sendable, Codable {
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
         case keymap, shortcuts, sizes, gapPx, snap, snapping, behavior, stacking, chains, menu, appRules
-        case mouseButtons, buttonClicks, theme
+        case mouseButtons, buttonClicks
     }
 
     // init decodes saved settings, keeping what is readable and defaulting the rest.
@@ -56,7 +54,6 @@ public struct ProfileSettings: Equatable, Sendable, Codable {
         appRules = (try? c.decodeIfPresent([AppRule].self, forKey: .appRules)) ?? []
         mouseButtons = (try? c.decodeIfPresent([String: String].self, forKey: .mouseButtons)) ?? [:]
         buttonClicks = (try? c.decodeIfPresent([String: String].self, forKey: .buttonClicks)) ?? [:]
-        theme = (try? c.decodeIfPresent(ThemeName.self, forKey: .theme)) ?? .harbor
     }
 }
 
@@ -152,7 +149,6 @@ extension Choices {
         s.appRules = appRules
         s.mouseButtons = mouseButtons
         s.buttonClicks = buttonClicks
-        s.theme = theme
         return s
     }
 
@@ -175,7 +171,6 @@ extension Choices {
         c.appRules = s.appRules
         c.mouseButtons = s.mouseButtons
         c.buttonClicks = s.buttonClicks
-        c.theme = s.theme
         c.activeProfile = profile.name
         return c
     }

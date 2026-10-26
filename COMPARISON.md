@@ -53,7 +53,7 @@ Rectangle is free and MIT licensed. The action list and the hidden preferences c
 | Hide menu bar icon, screens ordered by x                                                                                                                                                                                                                                       | Rectangle                  | yes               | testOrderRows, behavior.hideMenuBarIcon                                                           |
 | Snap area configuration, ignored areas, snap modifiers, margins                                                                                                                                                                                                                | Rectangle                  | yes               | testSnapCustomMapAndIgnoredArea, testSnapModifiersGate, testSnapMarginsAndSizes                   |
 | Footprint style                                                                                                                                                                                                                                                                | Rectangle                  | yes               | testFootprintStyleTints, testFootprintStyleFadeTime                                               |
-| Drag to an edge or corner with a footprint                                                                                                                                                                                                                                     | Rectangle, Magnet          | yes               | testSnapEdges, testThemeFootprint                                                                 |
+| Drag to an edge or corner with a footprint                                                                                                                                                                                                                                     | Rectangle, Magnet          | yes               | testSnapEdges, testPaletteFootprint                                                                 |
 | Other hidden preferences (resizeOnDirectionalMove, centeredDirectionalMove, sizeOffset, curtainChangeSize, smallerShrinksMaximizedHeight, autoMaximize, attemptMatchOnNextPrevDisplay, moveFixedSizeToEdge, directAnimationNativeResizeApps, almost maximize width and height) | Rectangle                  | planned (unit 6)  | unit 6 behavior choices                                                                           |
 
 ## Moom
@@ -93,14 +93,14 @@ It is sold on the Mac App Store. The price is not on the page.
 
 Loop is free and GPL-3 licensed.
 
-| Feature                        | Who has it | Moorings                                                                             | Check                                                                          |
-| ------------------------------ | ---------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| Radial menu on a trigger key   | Loop       | yes, 16 targets in two rings                                                         | testOverlayPick, testOverlayTriggerHeld; live PASS 10-25                       |
-| Preview outline while choosing | Loop       | yes, the snap footprint                                                              | live PASS 10-25                                                                |
-| Trigger-key chords             | Loop       | partial: arrows, Shift-arrows, Return and Escape under the trigger; no custom chords | testOverlayTriggerHeld; live PASS 10-25                                        |
-| Cycles                         | Loop       | yes                                                                                  | testCycle, testPressCycle                                                      |
-| Stash                          | Loop       | yes, left, right and bottom edges                                                    | testStashFrames, testStashHover, testStashArms; live PASS 10-26 on one display |
-| Theming                        | Loop       | yes                                                                                  | testThemeList, testThemeContrast                                               |
+| Feature                        | Who has it | Moorings                                                                                     | Check                                                                          |
+| ------------------------------ | ---------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Radial menu on a trigger key   | Loop       | yes, 16 targets in two rings                                                                 | testOverlayPick, testOverlayTriggerHeld; live PASS 10-25                       |
+| Preview outline while choosing | Loop       | yes, the snap footprint                                                                      | live PASS 10-25                                                                |
+| Trigger-key chords             | Loop       | partial: arrows, Shift-arrows, Return and Escape under the trigger; no custom chords         | testOverlayTriggerHeld; live PASS 10-25                                        |
+| Cycles                         | Loop       | yes                                                                                          | testCycle, testPressCycle                                                      |
+| Stash                          | Loop       | yes, left, right and bottom edges                                                            | testStashFrames, testStashHover, testStashArms; live PASS 10-26 on one display |
+| Theming                        | Loop       | partial: the footprint's color, opacity, border and fade; one palette for banners and panels | testFootprintStyleTints, testPaletteHarborContrast                             |
 
 ## Swish
 

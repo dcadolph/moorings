@@ -165,10 +165,10 @@ func snapZone(_ f: Frame, _ ch: Frame?, _ x: Double, _ y: Double, _ prev: String
     #expect(Snap.zone(SnapPoint(0, 100), snapScreen, nil, nil, snapping: m) == "top-left")
 }
 
-// Swift only: the default footprint style keeps the theme's look, a color override and alpha change it, and a
+// Swift only: the default footprint style keeps the palette's look, a color override and alpha change it, and a
 // bad color falls back to the accent.
 @Test func testFootprintStyleTints() {
-    let p = ThemeName.dragonfire.palette
+    let p = Palette.harbor
     var s = FootprintStyle()
     #expect(s.tints(p).fill == p.footprintFill)
     #expect(s.tints(p).stroke == p.footprintStroke)

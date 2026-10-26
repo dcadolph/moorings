@@ -105,7 +105,7 @@ each part.
 - Open missing apps: a recall opens the apps a workspace names that are not running, with the file
   or URL an imported settings file names, and places their windows once they show.
 - App rules: name an app and an action, and its first window goes there when it appears.
-- Profiles: save shortcuts, snapping, behavior, chains, menu and theme under a name with a group of
+- Profiles: save shortcuts, snapping, behavior, chains and menu under a name with a group of
   workspaces, and switch between them from the menu or a shortcut. Anchored apps stay put.
 
 ## Anchored apps on an ultrawide
@@ -137,19 +137,19 @@ each part.
 ## Settings window
 
 - Record shortcuts, edit custom sizes, manage workspaces, bind mouse buttons, and pick the keymap,
-  snapping, gap, fullscreen handling and one of twelve themes.
+  snapping, gap and fullscreen handling.
 - A Behavior tab for repeat presses, minimum sizes, edge gaps, the pointer, the title bar and
   display order.
 - A Menu tab to pin actions to the top of the Window folder, hide the ones you never use, and
   build chains.
 - Export every choice to one JSON file and import it on another Mac.
-- Restore defaults resets shortcuts, snapping, appearance and behavior, and keeps your anchored
+- Restore defaults resets shortcuts, snapping and behavior, and keeps your anchored
   apps, sizes and workspaces.
 
 ## Out of sight
 
 - One sailboat in the menu bar and no Dock icon.
-- Messages appear in a themed banner at the top right, not in macOS notifications, so there is no
+- Messages appear in a banner at the top right, not in macOS notifications, so there is no
   notification permission to grant.
 - Quit Moorings from the menu and an octopus pulls the sailboat under the water. With Reduce
   Motion on it just quits.

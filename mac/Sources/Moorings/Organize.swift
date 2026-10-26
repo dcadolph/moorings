@@ -339,7 +339,7 @@ final class Organizer {
         }
     }
 
-    // saveProfile saves the current shortcuts, snapping, behavior, menu, rules and theme as the profile
+    // saveProfile saves the current shortcuts, snapping, behavior, menu and rules as the profile
     // name, keeping the workspace group of a profile already saved under it, and marks it active.
     func saveProfile(_ name: String) {
         let settings = anchors.choices.profileSettings()
@@ -352,8 +352,8 @@ final class Organizer {
         app.save()
     }
 
-    // applyProfile switches to the profile saved as name: its settings take effect, hotkeys and the
-    // theme follow, and its workspaces are recalled in order. Anchored apps and strip sizes stay.
+    // applyProfile switches to the profile saved as name: its settings take effect, hotkeys
+    // follow, and its workspaces are recalled in order. Anchored apps and strip sizes stay.
     @discardableResult
     func applyProfile(_ name: String) -> Bool {
         guard let profile = anchors.choices.profiles.first(where: { $0.name == name }) else {

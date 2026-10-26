@@ -99,7 +99,7 @@ struct MenuBuilder {
         out.append(folder("Widths", widthItems(screens.wide)))
         out.append(folder("Heights", heightItems()))
         out.append(.separator())
-        out.append(ActionItem("Settings…", tip: "Shortcuts, custom sizes, workspaces, layout, theme, and settings "
+        out.append(ActionItem("Settings…", tip: "Shortcuts, custom sizes, workspaces, layout and settings "
                 + "export and import.") {
             app.settings.show()
         })
@@ -307,7 +307,7 @@ struct MenuBuilder {
     // switches to it, checked on the active one.
     private func profileItems() -> [NSMenuItem] {
         var out: [NSMenuItem] = [ActionItem("Save current as profile…", tip: "Save the shortcuts, snapping, behavior, "
-                + "menu, app rules and theme under a name. Settings > Workspaces picks the workspaces it recalls.") {
+                + "menu and app rules under a name. Settings > Workspaces picks the workspaces it recalls.") {
             if let name = Organizer.askName("Save profile", "Name these settings. Switching to the profile later "
                 + "brings them back, and anchored apps stay where they are.") {
                 app.organizer.saveProfile(name)

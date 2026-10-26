@@ -213,7 +213,7 @@ final class DragSnap {
         }
         if let frame {
             let style = choices.snapping.footprint
-            footprint.show(frame, palette: choices.theme.palette, style: style)
+            footprint.show(frame, palette: .harbor, style: style)
             if style.haptic {
                 NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
             }
@@ -305,7 +305,7 @@ final class DragSnap {
         guard !names.isEmpty else { return }
         let layout = SnapPanel.layout(names.count, at: SnapPoint(p.x, p.y), screen: f)
         cells = layout.cells
-        panel.show(layout.panel, cells: layout.cells, names: names, palette: choices.theme.palette)
+        panel.show(layout.panel, cells: layout.cells, names: names, palette: .harbor)
     }
 
     // isMoving reports whether the drag is moving a window, queueing one read of it at a time once

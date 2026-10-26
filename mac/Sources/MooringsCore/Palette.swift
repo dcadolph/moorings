@@ -55,7 +55,7 @@ public struct Tint: Sendable, Equatable {
     public var alpha: Double
 }
 
-// Palette is the set of colors one theme gives moorings.
+// Palette is the set of colors moorings draws its banners, footprint and panels in.
 public struct Palette: Sendable, Equatable {
     // background is behind the whole surface.
     public var background: RGB
@@ -96,65 +96,9 @@ public struct Palette: Sendable, Equatable {
 
     // footprintStroke is the accent at 70% opacity, drawn around the snap footprint.
     public var footprintStroke: Tint { Tint(color: accent, alpha: Self.footprintStrokeAlpha) }
-}
 
-// ThemeName is a color theme shared by name and colors with sheepdog.
-public enum ThemeName: String, Sendable, Codable, CaseIterable, Identifiable {
-    case harbor
-    case dragonfire
-    case wildfire
-    case phosphor
-    case rose
-    case hussar
-    case grapes
-    case coast
-    case verdigris
-    case copper
-    case babyBlue
-    case concierge
-
-    // id identifies the theme in pickers.
-    public var id: String { rawValue }
-
-    // label is the theme's user-facing name.
-    public var label: String {
-        switch self {
-        case .harbor: return "Harbor"
-        case .dragonfire: return "Dragonfire"
-        case .wildfire: return "Wildfire"
-        case .phosphor: return "Phosphor"
-        case .rose: return "Rose"
-        case .hussar: return "Hussar"
-        case .grapes: return "Grapes"
-        case .coast: return "Coast"
-        case .verdigris: return "Verdigris"
-        case .copper: return "Copper"
-        case .babyBlue: return "Baby Blue"
-        case .concierge: return "Concierge"
-        }
-    }
-
-    // palette is the theme's colors, in background, surface, text, muted, accent order.
-    public var palette: Palette {
-        switch self {
-        case .harbor: return Self.make("#0f1012", "#0f1012", "#ffffff", "#aaa59b", "#f3e3b8")
-        case .dragonfire: return Self.make("#0d0a08", "#1a1310", "#f4e6d8", "#b89c86", "#ff7a1a")
-        case .wildfire: return Self.make("#120805", "#24100a", "#ffe9c2", "#c99a6b", "#ffb000")
-        case .phosphor: return Self.make("#050a05", "#0b160b", "#b8ffb0", "#5fae5a", "#33ff33")
-        case .rose: return Self.make("#0e0c0c", "#1c1919", "#f4f1ee", "#a9a3a0", "#d6282f")
-        case .hussar: return Self.make("#1a0608", "#2b0c10", "#f3e3c0", "#c2a272", "#d4a63a")
-        case .grapes: return Self.make("#140816", "#231027", "#f0e2f5", "#b597bf", "#b04cc8")
-        case .coast: return Self.make("#060b1f", "#0e1736", "#e3e9ff", "#8e9cc9", "#4f78ff")
-        case .verdigris: return Self.make("#0a1614", "#12241f", "#dff3ec", "#86b3a5", "#43b39a")
-        case .copper: return Self.make("#0c0c0d", "#18181a", "#f5f5f2", "#a8a8a3", "#c07a44")
-        case .babyBlue: return Self.make("#0a1218", "#13212a", "#eaf6fc", "#8fa9b8", "#89cff0")
-        case .concierge: return Self.make("#ece4cf", "#f6f0dd", "#1a1a17", "#5c5748", "#7a2e12")
-        }
-    }
-
-    // make builds a palette from hex strings that are known to parse.
-    private static func make(_ hexes: String...) -> Palette {
-        let c = hexes.map { RGB(hex: $0)! }
-        return Palette(background: c[0], surface: c[1], text: c[2], muted: c[3], accent: c[4])
-    }
+    // harbor is the one palette moorings uses: near-black surfaces, white text and a cream accent.
+    public static let harbor = Palette(background: RGB(hex: "#0f1012")!, surface: RGB(hex: "#0f1012")!,
+                                       text: RGB(hex: "#ffffff")!, muted: RGB(hex: "#aaa59b")!,
+                                       accent: RGB(hex: "#f3e3b8")!)
 }
