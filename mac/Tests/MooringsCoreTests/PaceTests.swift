@@ -91,3 +91,39 @@ func testPaceNext(test: PaceCase) {
     #expect(world.frame(w).x == 512)
     #expect(anchors.deadlines().isEmpty)
 }
+
+// Test 12: A focused window macOS zooms across both strips goes back to the channel on every zoom,
+// and is never put on hold for it.
+@Test func testZoomFillsChannel() {
+    let anchors = anchored()
+    var world = TestWorld()
+    world.add(slack, leftFull)
+    world.add(iterm, rightFull)
+    let w = world.add("com.google.Chrome", Frame(x: 600, y: 25, w: 2000, h: 1415))
+    world.focused = w
+    world.pass(anchors)
+    for _ in 0..<6 {
+        world.clock += 1
+        world.set(w, wide)
+        world.pass(anchors)
+        #expect(world.frame(w) == Frame(x: 512, y: 25, w: 2304, h: 1415))
+    }
+    #expect(anchors.deadlines().isEmpty)
+}
+
+// Test 13: A window that is not focused and keeps spreading across both strips is still put on hold.
+@Test func testSpreadUnfocusedHolds() {
+    let anchors = anchored()
+    var world = TestWorld()
+    world.add(slack, leftFull)
+    world.add(iterm, rightFull)
+    let w = world.add("com.google.Chrome", Frame(x: 600, y: 25, w: 2000, h: 1415))
+    world.pass(anchors)
+    for _ in 0..<5 {
+        world.clock += 1
+        world.set(w, wide)
+        world.pass(anchors)
+    }
+    #expect(world.frame(w) == wide)
+    #expect(anchors.deadlines().count == 1)
+}

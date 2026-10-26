@@ -681,9 +681,19 @@ public final class Anchors {
         return Move(id: w.id, frame: frame, target: target, anchor: anchor)
     }
 
+    // spans reports whether frame f reaches past both edges of channel ch, as a window macOS zoomed
+    // to the whole display does.
+    static func spans(_ f: Frame, _ ch: Frame) -> Bool {
+        f.x < ch.x - tolerance && f.x + f.w > ch.x + ch.w + tolerance
+    }
+
     // settle keeps free window w inside channel ch, and lets a window the channel once narrowed grow
-    // back toward its own width when the channel widens.
-    func settle(_ w: WindowInfo, _ ch: Frame) -> Move? {
+    // back toward its own width when the channel widens. A zoomed window is the owner's own request,
+    // so pulling it back never counts toward a hold.
+    func settle(_ w: WindowInfo, _ ch: Frame, zoomed: Bool = false) -> Move? {
+        if zoomed {
+            bursts[w.id] = nil
+        }
         var c = clamped[w.id]
         if let current = c, abs(w.frame.w - current.set) > Self.tolerance {
             c = nil
@@ -770,7 +780,7 @@ public final class Anchors {
                     // A cast-off window loses its clamped width, so it never grows back to it later.
                     clamped[w.id] = nil
                     cacheZoom(w, w.frame, free: true)
-                } else if let move = settle(w, ch) {
+                } else if let move = settle(w, ch, zoomed: w.id == scene.focused && Self.spans(w.frame, ch)) {
                     moves.append(move)
                 } else {
                     cacheZoom(w, w.frame, free: true)
