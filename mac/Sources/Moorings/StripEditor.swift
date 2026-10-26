@@ -41,6 +41,8 @@ final class StripState: ObservableObject {
     var changed: (Widths, Heights) -> Void = { _, _ in }
     // finish is told whether to keep the edits when the editor closes.
     var finish: (Bool) -> Void = { _ in }
+    // dropped is told when a drag ends, so the windows follow once the mouse is up.
+    var dropped: () -> Void = {}
 
     // init builds the state from the values in effect and the limits on them.
     init(widths: Widths, heights: Heights, screenWidth: Double, minPoints: [Side: Double], minNames: [Side: String],
@@ -263,7 +265,7 @@ struct StripEditorView: View {
         let drag = DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space)).onChanged { v in
             let pct = side == .left ? v.location.x / size.width * 100 : (size.width - v.location.x) / size.width * 100
             state.set(field, pct)
-        }
+        }.onEnded { _ in state.dropped() }
         let bar = Rectangle()
             .fill(Self.accent)
             .frame(width: 6, height: size.height)
@@ -313,7 +315,7 @@ struct StripEditorView: View {
         let y = size.height * state.value(field) / 100
         let drag = DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.space)).onChanged { v in
             state.set(field, v.location.y / size.height * 100)
-        }
+        }.onEnded { _ in state.dropped() }
         let line = Rectangle()
             .fill(Self.accent.opacity(0.8))
             .frame(width: max(0, width), height: 4)
@@ -461,6 +463,7 @@ final class StripEditor {
                            presets: presets)
         s.changed = { [unowned self] w, h in preview(w, h) }
         s.finish = { [unowned self] keep in close(keep: keep) }
+        s.dropped = { [unowned self, unowned s] in preview(s.widths, s.heights) }
         state = s
         let primary = NSScreen.screens.first?.frame.height ?? 0
         let rect = NSRect(x: wide.x, y: primary - wide.y - wide.h, width: wide.w, height: wide.h)
