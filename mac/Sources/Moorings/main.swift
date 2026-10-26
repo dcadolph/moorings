@@ -348,8 +348,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         organizer.seen(list, screens: screens)
         tiler.pass(list, screens: screens, mouseHeld: scene.mouseHeld)
         for id in anchors.justReleased {
-            logger.notice("window \(id) was moved by hand: released")
-            let name = list.first { $0.id == id }.map { appName($0.bundle) } ?? "The window"
+            let w = list.first { $0.id == id }
+            let now = w.map { "\($0.frame)" } ?? "?"
+            let back = anchors.readBack(id).map { "\($0)" } ?? "?"
+            let asked = anchors.target(id).map { "\($0)" } ?? "?"
+            logger.notice("""
+                window \(id) was moved by hand: released at \(now, privacy: .public), \
+                read back \(back, privacy: .public), asked \(asked, privacy: .public)
+                """)
+            let name = w.map { appName($0.bundle) } ?? "The window"
             let how = Bindings(anchors.choices).map["restore"].map { ",\nor press \($0.spelled)" } ?? ""
             notify("\(name) released", "Click its green button to put it back\(how).")
         }

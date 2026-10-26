@@ -165,9 +165,15 @@ extension Anchors {
     }
 
     // moorPin places pinned window w at target, or releases it when the owner has moved it since
-    // moorings last left it.
+    // moorings last left it. A pin on the frame moorings last asked for is where moorings put it, even
+    // when the read-back caught it partway through its own animation.
     func moorPin(_ w: WindowInfo, _ target: Frame, _ anchor: Edges) -> Move? {
-        let last = placed[w.id]
+        var last = placed[w.id]
+        if let p = last, Actions.near(w.frame, p.target, tolerance: Self.tolerance)
+            || Actions.near(w.frame, fit(w.id, p.target, anchor), tolerance: Self.tolerance) {
+            last?.at = w.frame
+            placed[w.id]?.at = w.frame
+        }
         if let last, now - last.t > Self.releaseGrace, !Actions.near(w.frame, last.at, tolerance: Self.tolerance),
            !released.contains(w.id) {
             released.insert(w.id)
@@ -210,6 +216,11 @@ extension Anchors {
     // target returns the frame moorings last gave the pin with id, or nil.
     public func target(_ id: WindowID) -> Frame? {
         placed[id]?.target
+    }
+
+    // readBack returns the frame the pin with id was read back at after moorings last placed it, or nil.
+    public func readBack(_ id: WindowID) -> Frame? {
+        placed[id]?.at
     }
 
     // toggleLift lifts pinned window w over its strip and the channel, or lowers it back into its

@@ -21,6 +21,9 @@ struct LiftWorld {
     var aspect: [WindowID: Double] = [:]
     // Late holds the frame a window reports once, on its next move, while still resizing itself.
     var late: [WindowID: Frame] = [:]
+    // Midway holds the frame a window reports once, on its next move, while it animates on to the
+    // frame it was given.
+    var midway: [WindowID: Frame] = [:]
     // Stuck holds the windows that ignore a request to leave fullscreen.
     var stuck: Set<WindowID> = []
     // Moves counts the frame changes each window was given.
@@ -98,7 +101,10 @@ struct LiftWorld {
                 }
                 continue
             }
-            let got = take(move.id, move.frame)
+            var got = take(move.id, move.frame)
+            if let m = midway.removeValue(forKey: move.id) {
+                got = m
+            }
             if unreadable.contains(move.id) {
                 anchors.unread(move)
                 continue
@@ -417,6 +423,35 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     anchors.remoorNow()
     world.pass(anchors)
     #expect(world.frame(s) == leftFull)
+}
+
+// Swift only: a pin read back partway through its own lift animation is not released when the
+// animation ends where moorings put it, and a hand move from the lifted frame still releases it.
+@Test func testLiftAnimationNoRelease() {
+    let anchors = liftAnchors()
+    var world = LiftWorld()
+    let term = world.add(iterm, Frame(x: 3000, y: 100, w: 900, h: 700))
+    world.pass(anchors)
+    #expect(world.frame(term) == rightFull)
+    world.clock += 3
+    anchors.toggleLift(world.info(term))
+    world.midway[term] = Frame(x: 2000, y: 25, w: 3120, h: 1415)
+    world.pass(anchors)
+    let lifted = Frame(x: 512, y: 25, w: 4608, h: 1415)
+    #expect(world.frame(term) == lifted)
+    for _ in 1...3 {
+        world.clock += 3
+        world.pass(anchors)
+    }
+    #expect(world.released.isEmpty)
+    #expect(anchors.isLifted(term))
+    #expect(world.frame(term) == lifted)
+    #expect(anchors.readBack(term) == lifted)
+    let moved = Frame(x: 1200, y: 200, w: 1800, h: 900)
+    world.set(term, moved)
+    world.pass(anchors)
+    #expect(world.released == [term])
+    #expect(world.frame(term) == moved)
 }
 
 // Lua case 174: Width changes re-place a pin and never release it, and a pin settling on its own
