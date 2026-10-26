@@ -409,6 +409,16 @@ final class Windows {
         )
     }
 
+    // keeps reports whether the last scan kept window el.
+    func keeps(_ el: AXUIElement) -> Bool {
+        Self.id(el).map { elements[$0] != nil } ?? false
+    }
+
+    // eligible reports whether a scan would keep el by its kind: a document window or a file panel.
+    static func eligible(_ el: AXUIElement) -> Bool {
+        document(el) || filePanel(el)
+    }
+
     // document reports whether el is a document window: a standard window, or a dialog with a zoom
     // button, which is how TextEdit's documents report themselves.
     private static func document(_ el: AXUIElement) -> Bool {

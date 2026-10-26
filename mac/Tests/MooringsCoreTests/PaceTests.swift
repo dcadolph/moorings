@@ -127,3 +127,44 @@ func testPaceNext(test: PaceCase) {
     #expect(world.frame(w) == wide)
     #expect(anchors.deadlines().count == 1)
 }
+
+// WakeCase is one window event and whether it must wake the passes.
+struct WakeCase: Sendable {
+    // Note is the Accessibility notification name.
+    var Note: String
+    // Kept reports whether the last scan kept the window.
+    var Kept = false
+    // Eligible reports whether a scan would keep the window.
+    var Eligible = false
+    // WantWake reports whether a pass must follow.
+    var WantWake: Bool
+}
+
+// wakeCases covers kept, eligible and dropped windows for each kind of event.
+let wakeCases: [WakeCase] = [
+    // Test 0: A helper window no scan keeps moves, so nothing wakes.
+    WakeCase(Note: "AXWindowMoved", WantWake: false),
+    // Test 1: A helper window resizes, so nothing wakes.
+    WakeCase(Note: "AXWindowResized", WantWake: false),
+    // Test 2: A popover is born, so nothing wakes.
+    WakeCase(Note: "AXWindowCreated", WantWake: false),
+    // Test 3: A kept window moves, so a pass follows.
+    WakeCase(Note: "AXWindowMoved", Kept: true, WantWake: true),
+    // Test 4: A kept window resizes, so a pass follows.
+    WakeCase(Note: "AXWindowResized", Kept: true, WantWake: true),
+    // Test 5: A new document window is born, so a pass places it.
+    WakeCase(Note: "AXWindowCreated", Eligible: true, WantWake: true),
+    // Test 6: A document window the last scan missed moves, so a pass follows.
+    WakeCase(Note: "AXWindowMoved", Eligible: true, WantWake: true),
+    // Test 7: Focus moves to a helper window, which still wakes as before.
+    WakeCase(Note: "AXFocusedWindowChanged", WantWake: true),
+    // Test 8: A window is minimized, which still wakes as before.
+    WakeCase(Note: "AXWindowMiniaturized", WantWake: true),
+    // Test 9: A window closes, which still wakes as before.
+    WakeCase(Note: "AXUIElementDestroyed", WantWake: true),
+]
+
+@Test(arguments: wakeCases)
+func testPaceWakes(test: WakeCase) {
+    #expect(Pace.wakes(test.Note, kept: test.Kept, eligible: test.Eligible) == test.WantWake)
+}

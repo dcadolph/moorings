@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // windows reads and moves windows.
     let windows = Windows()
     // watcher wakes the passes on window events.
-    private lazy var watcher = Watcher { [weak self] in self?.wake() }
+    private lazy var watcher = Watcher { [weak self] el, note in self?.windowEvent(el, note) }
     // actions applies window actions to the focused window.
     lazy var actions = ActionRunner(app: self)
     // accessibilityPane is the Privacy and Security pane that grants Accessibility.
@@ -262,6 +262,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(entry)
         }
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
+    }
+
+    // windowEvent wakes the passes for a window event a pass acts on, and drops the moves, resizes
+    // and births of windows no scan keeps.
+    private func windowEvent(_ el: AXUIElement, _ note: String) {
+        if Pace.wakes(note, kept: windows.keeps(el), eligible: Windows.eligible(el)) {
+            wake()
+        }
     }
 
     // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle.

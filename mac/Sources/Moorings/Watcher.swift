@@ -16,8 +16,8 @@ final class Watcher {
     // tries is how many passes an app that is not ready for observers is asked again.
     private static let tries = 20
 
-    // handler runs on every event.
-    private let handler: () -> Void
+    // handler runs on every event with the element and the notification name.
+    private let handler: (AXUIElement, String) -> Void
     // observers holds one observer per watched process.
     private var observers: [pid_t: AXObserver] = [:]
     // pending counts the tries left for processes whose window created event did not register,
@@ -27,7 +27,7 @@ final class Watcher {
     private var closing: Set<WindowID> = []
 
     // init builds a watcher that calls handler on each window event.
-    init(_ handler: @escaping () -> Void) {
+    init(_ handler: @escaping (AXUIElement, String) -> Void) {
         self.handler = handler
     }
 
@@ -86,10 +86,10 @@ final class Watcher {
             return observer
         }
         var created: AXObserver?
-        let callback: AXObserverCallback = { _, _, _, refcon in
+        let callback: AXObserverCallback = { _, el, note, refcon in
             guard let refcon else { return }
             let watcher = Unmanaged<Watcher>.fromOpaque(refcon).takeUnretainedValue()
-            MainActor.assumeIsolated { watcher.handler() }
+            MainActor.assumeIsolated { watcher.handler(el, note as String) }
         }
         guard AXObserverCreate(pid, callback, &created) == .success, let observer = created else { return nil }
         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
