@@ -5,12 +5,13 @@ import MooringsCore
 
 // Stasher parks windows at a screen edge with a sliver left on screen. Resting the pointer on the
 // sliver slides the window out, and moving the pointer off it slides the window back. A click in a
-// slid-out window, the stash action again, or unstash-all ends the stash. The pointer is read only
-// while a window is stashed, and stashed windows go back where they were when Moorings quits.
+// slid-out window, the stash action again, or unstash-all ends the stash. The pointer is watched only
+// while a window is stashed, by mouse-moved events rather than a timer, so a still pointer costs
+// nothing, and stashed windows go back where they were when Moorings quits.
 @MainActor
 final class Stasher {
-    // tickSeconds is how often the pointer is read while a window is stashed.
-    static let tickSeconds = 0.05
+    // restMargin is how long in seconds past the rest time the rest check runs, so it lands after it.
+    static let restMargin = 0.01
     // edgeReach is how close in points to a screen edge a Command-drag must end to stash there.
     static let edgeReach = 2.0
 
@@ -28,8 +29,10 @@ final class Stasher {
     private let logger = Logger(subsystem: "com.dcadolph.moorings", category: "stash")
     // entries lists the stashed windows.
     private(set) var entries: [Entry] = []
-    // timer reads the pointer while a window is stashed.
-    private var timer: Timer?
+    // monitors watch the pointer move while a window is stashed, over other apps and over Moorings.
+    private var monitors: [Any] = []
+    // rest checks the pointer once more when it may have rested on a sliver long enough.
+    private var rest: Timer?
 
     // init builds a stasher for app.
     init(app: AppDelegate) {
@@ -103,7 +106,7 @@ final class Stasher {
         }
         entries.removeAll { $0.s.id == w.id }
         entries.append(Entry(s: s, area: area))
-        startTimer()
+        watch()
         app.wake()
         return true
     }
@@ -128,8 +131,7 @@ final class Stasher {
         entries.removeAll { $0.s.id == id }
         app.anchors.stashed.remove(id)
         if entries.isEmpty {
-            timer?.invalidate()
-            timer = nil
+            unwatch()
         }
     }
 
@@ -165,11 +167,49 @@ final class Stasher {
         return nil
     }
 
-    // startTimer reads the pointer while a window is stashed.
-    private func startTimer() {
-        guard timer == nil else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: Self.tickSeconds, repeats: true) { _ in
+    // watched lists the events that make the pointer worth reading: a move, and a button let go, since a
+    // held button stops a window sliding out.
+    private static let watched: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseUp, .rightMouseUp, .otherMouseUp]
+
+    // watch starts reading the pointer each time it moves while a window is stashed.
+    private func watch() {
+        guard monitors.isEmpty else { return }
+        if let m = NSEvent.addGlobalMonitorForEvents(matching: Self.watched, handler: { _ in
             MainActor.assumeIsolated { self.tick() }
+        }) {
+            monitors.append(m)
+        }
+        if let m = NSEvent.addLocalMonitorForEvents(matching: Self.watched, handler: { event in
+            MainActor.assumeIsolated { self.tick() }
+            return event
+        }) {
+            monitors.append(m)
+        }
+    }
+
+    // unwatch stops reading the pointer once nothing is stashed.
+    private func unwatch() {
+        for m in monitors {
+            NSEvent.removeMonitor(m)
+        }
+        monitors = []
+        rest?.invalidate()
+        rest = nil
+    }
+
+    // scheduleRest checks the pointer again when the earliest parked window resting under it has rested
+    // for Stash.restSeconds, since a still pointer sends no events.
+    private func scheduleRest(now: Double) {
+        rest?.invalidate()
+        rest = nil
+        let due = entries.compactMap { e in e.s.out || !e.s.armed ? nil : e.s.restSince }.min()
+        guard let due else { return }
+        let wait = max(0, due + Stash.restSeconds + Self.restMargin - now)
+        rest = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { _ in
+            MainActor.assumeIsolated {
+                self.rest = nil
+                self.tick()
+            }
         }
     }
 
@@ -209,6 +249,7 @@ final class Stasher {
                 slide(e.s.id, from: f, to: e.s.hidden)
             }
         }
+        scheduleRest(now: now)
     }
 
     // slide moves the window with id from start to frame, sliding it when animation is on.
