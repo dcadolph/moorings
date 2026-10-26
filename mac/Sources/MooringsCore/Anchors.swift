@@ -50,6 +50,8 @@ public struct Choices: Equatable, Sendable, Codable {
     public var widths: Widths?
     // heights is the chosen top row heights, nil until one is chosen.
     public var heights: Heights?
+    // widthPresets lists the width pairs the owner saved as presets, in the order saved.
+    public var widthPresets: [Widths] = []
     // paused reports whether the anchor is weighed, so nothing is held.
     public var paused: Bool
     // fullscreenFills reports whether native fullscreen on a free window is turned into a channel fill.
@@ -111,7 +113,7 @@ public struct Choices: Equatable, Sendable, Codable {
 
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
-        case slots, widths, heights, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
+        case slots, widths, heights, widthPresets, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
         case ignores, snap, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
         case chains, menu, appRules, buttonClicks, profiles, activeProfile, overlay, tiling
     }
@@ -123,6 +125,7 @@ public struct Choices: Equatable, Sendable, Codable {
         slots = Dictionary(uniqueKeysWithValues: raw.compactMap { k, v in SlotKey(rawValue: k).map { ($0, v) } })
         widths = try? c.decodeIfPresent(Widths.self, forKey: .widths)
         heights = try? c.decodeIfPresent(Heights.self, forKey: .heights)
+        widthPresets = (try? c.decodeIfPresent([Widths].self, forKey: .widthPresets)) ?? []
         paused = (try? c.decodeIfPresent(Bool.self, forKey: .paused)) ?? false
         fullscreenFills = (try? c.decodeIfPresent(Bool.self, forKey: .fullscreenFills)) ?? true
         pinFullscreenFills = (try? c.decodeIfPresent(Bool.self, forKey: .pinFullscreenFills)) ?? true
@@ -154,6 +157,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(Dictionary(uniqueKeysWithValues: slots.map { ($0.key.rawValue, $0.value) }), forKey: .slots)
         try c.encodeIfPresent(widths, forKey: .widths)
         try c.encodeIfPresent(heights, forKey: .heights)
+        try c.encode(widthPresets, forKey: .widthPresets)
         try c.encode(paused, forKey: .paused)
         try c.encode(fullscreenFills, forKey: .fullscreenFills)
         try c.encode(pinFullscreenFills, forKey: .pinFullscreenFills)
@@ -180,9 +184,10 @@ public struct Choices: Equatable, Sendable, Codable {
     }
 
     // restoringDefaults returns the default choices with the owner's own data kept: anchored apps, strip
-    // sizes, the pause state, ignored apps, custom sizes, saved workspaces, chains, app rules and profiles.
+    // sizes and width presets, the pause state, ignored apps, custom sizes, saved workspaces, chains, app rules and profiles.
     public func restoringDefaults() -> Choices {
         var c = Choices(slots: slots, widths: widths, heights: heights, paused: paused)
+        c.widthPresets = widthPresets
         c.ignores = ignores
         c.sizes = sizes
         c.workspaces = workspaces

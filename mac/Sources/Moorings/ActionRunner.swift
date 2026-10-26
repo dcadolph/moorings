@@ -146,6 +146,10 @@ final class ActionRunner {
             DispatchQueue.main.async { [app] in app.popMenu() }
             return true
         }
+        if name == Keymaps.stripsName {
+            DispatchQueue.main.async { [app] in app.strips.show() }
+            return true
+        }
         guard !anchors.choices.paused, app.windows.trusted else { return false }
         if let window {
             app.windows.raise(window)

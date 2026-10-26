@@ -72,6 +72,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var stasher = Stasher(app: self)
     // gridPicker pops a grid of cells for the grid actions.
     lazy var gridPicker = GridPicker(app: self)
+    // strips edits the strip widths and row heights on screen.
+    lazy var strips = StripEditor(app: self)
     // tiler keeps free windows in the tiling mode's layout.
     lazy var tiler = Tiler(app: self)
     // edges moves the edge two windows share for both while the edge resize keys are held.

@@ -151,3 +151,64 @@ let ultrawideCases: [UltrawideCase] = [
 func testUltrawide(test: UltrawideCase) {
     #expect(Layout.ultrawide(test.screens) == test.wantIndex)
 }
+
+// ClampedCase is one typed strip width expectation.
+struct ClampedCase: Sendable, CustomTestStringConvertible {
+    // Start is the pair before the edit.
+    let start: Widths
+    // Side is the side edited.
+    let side: Side
+    // Pct is the typed percent.
+    let pct: Double
+    // MinPoints is the learned minimum width of the side's pin.
+    let minPoints: Double
+    // WantWidths is the expected pair after the edit.
+    let wantWidths: Widths
+    // WantRange is the expected range for the side before the edit.
+    let wantRange: ClosedRange<Double>
+
+    // testDescription labels the case in test output.
+    var testDescription: String { "\(side) to \(pct) from \(start)" }
+}
+
+// clampedCases runs on the 5120 point ultrawide.
+let clampedCases: [ClampedCase] = [
+    ClampedCase(start: Widths(left: 10, right: 45), side: .left, pct: 20, minPoints: 0, wantWidths: Widths(left: 20, right: 45), wantRange: 1...45), // Test 0: In range.
+    ClampedCase(start: Widths(left: 10, right: 45), side: .left, pct: 70, minPoints: 0, wantWidths: Widths(left: 45, right: 45), wantRange: 1...45), // Test 1: Channel ceiling.
+    ClampedCase(start: Widths(left: 10, right: 45), side: .right, pct: 0, minPoints: 0, wantWidths: Widths(left: 10, right: 1), wantRange: 1...80), // Test 2: Floor of one.
+    ClampedCase(start: Widths(left: 13, right: 45), side: .left, pct: 8, minPoints: 668, wantWidths: Widths(left: 14, right: 45), wantRange: 14...45), // Test 3: App floor rounds up.
+    ClampedCase(start: Widths(left: 10, right: 45), side: .left, pct: 12.4, minPoints: 0, wantWidths: Widths(left: 12, right: 45), wantRange: 1...45), // Test 4: Whole percent.
+    ClampedCase(start: Widths(left: 10, right: 85), side: .left, pct: 10, minPoints: 1000, wantWidths: Widths(left: 5, right: 85), wantRange: 5...5), // Test 5: App wider than room.
+]
+
+// testClamped checks the typed widths and the range each side may take.
+@Test(arguments: clampedCases)
+func testClamped(test: ClampedCase) {
+    let r = Layout.widthRange(test.start, test.side, minPoints: test.minPoints, screenWidth: 5120)
+    #expect(r == test.wantRange)
+    let got = Layout.clamped(test.start, test.side, test.pct, minPoints: test.minPoints, screenWidth: 5120)
+    #expect(got == test.wantWidths)
+    #expect(Layout.validSplit(got))
+}
+
+// Test 7: Typed row heights stay inside the row minimum and round to a whole percent.
+@Test func testClampedTop() {
+    #expect(Layout.clampedTop(3) == Layout.minRowPct)
+    #expect(Layout.clampedTop(97) == 100 - Layout.minRowPct)
+    #expect(Layout.clampedTop(33.4) == 33)
+}
+
+// Test 8: Points round down, so a strip never claims a point it does not cover.
+@Test func testPoints() {
+    #expect(Layout.points(13, screenWidth: 5120) == 665)
+    #expect(Layout.points(0, screenWidth: 5120) == 0)
+}
+
+// Test 9: The built-in presets differ by at least five points on some side.
+@Test func testPresetsSpaced() {
+    for (i, a) in Layout.presets.enumerated() {
+        for b in Layout.presets.dropFirst(i + 1) {
+            #expect(max(abs(a.left - b.left), abs(a.right - b.right)) >= 5, "\(a) \(b)")
+        }
+    }
+}

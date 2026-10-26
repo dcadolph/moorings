@@ -319,6 +319,9 @@ public enum Keymaps {
     // menuName is the action that opens the moorings menu under the pointer.
     public static let menuName = "show-menu"
 
+    // stripsName is the action that opens the on-screen strip editor.
+    public static let stripsName = "adjust-strips"
+
     // maxGap is the widest gap the config may ask for.
     public static let maxGap = 100.0
 
@@ -351,6 +354,7 @@ public enum Keymaps {
             || (name.hasPrefix(workspacePrefix) && name.count > workspacePrefix.count)
             || (name.hasPrefix(Profile.prefix) && name.count > Profile.prefix.count)
             || (name.hasPrefix(Chain.prefix) && name.count > Chain.prefix.count) || name == menuName
+            || name == stripsName
             || Overlay.gridSize(name, OverlayChoices()) != nil
             || Geometry.position(name, Frame(x: 0, y: 0, w: 100, h: 100)) != nil
     }
@@ -366,6 +370,9 @@ public enum Keymaps {
         }
         if name == menuName {
             return "Moorings menu at the pointer"
+        }
+        if name == stripsName {
+            return "Adjust strips"
         }
         if let mode = Tiling.mode(name) {
             return mode == .off ? "Tiling off" : mode == .bsp ? "BSP layout" : mode.rawValue.capitalized + " layout"

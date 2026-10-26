@@ -53,7 +53,7 @@ struct SettingsView: View {
     // runNames lists every action a shortcut or mouse button can run: the window actions, the menu
     // at the pointer and the chains.
     private var runNames: [String] {
-        actionNames + [Keymaps.menuName] + model.choices.chains.map(\.actionName)
+        actionNames + [Keymaps.menuName, Keymaps.stripsName] + model.choices.chains.map(\.actionName)
     }
 
     // shortcuts lists every action with its shortcut, a recorder, and a way back to the keymap's.
@@ -651,7 +651,7 @@ struct SettingsView: View {
                         Button("Remove") { model.change { _ = $0.menu.order.remove(at: i) } }
                     }
                 }
-                adder("Pin an action", runNames.filter { $0 != Keymaps.menuName && !m.order.contains($0) }) { name in
+                adder("Pin an action", runNames.filter { $0 != Keymaps.menuName && $0 != Keymaps.stripsName && !m.order.contains($0) }) { name in
                     model.change { $0.menu.order.append(name) }
                 }
             }

@@ -77,15 +77,11 @@ public enum Layout {
     // heightStep is how many percentage points a height stepper moves.
     public static let heightStep = 5.0
 
-    // presets are the width pairs offered in the menu.
+    // presets are the built-in width pairs offered in the menu, far enough apart to look different.
     public static let presets: [Widths] = [
-        Widths(left: 8, right: 46),
-        Widths(left: 10, right: 45),
-        Widths(left: 10, right: 40),
         Widths(left: 10, right: 30),
         Widths(left: 15, right: 40),
-        Widths(left: 15, right: 30),
-        Widths(left: 20, right: 40),
+        Widths(left: 20, right: 45),
     ]
 
     // heightPresets are the top row heights offered for each side in the menu.
@@ -113,6 +109,44 @@ public enum Layout {
     // screen screenWidth points wide.
     public static func held(minPoints: Double, screenWidth: Double, pct: Double) -> Bool {
         minPoints > floor(screenWidth * pct / 100)
+    }
+
+    // widthRange returns the whole percentages side may take with the other side as in w: from the
+    // smallest that holds an app minPoints wide, at least 1, to the most that leaves the channel at
+    // minChannelPct. The floor rises to the ceiling when the app cannot fit.
+    public static func widthRange(_ w: Widths, _ side: Side, minPoints: Double = 0, screenWidth: Double? = nil)
+        -> ClosedRange<Double> {
+        let other = side == .left ? w.right : w.left
+        let hi = max(1, floor(100 - minChannelPct - other))
+        var lo = 1.0
+        if let screenWidth, screenWidth > 0, minPoints > 0 {
+            lo = max(lo, ceil(minPoints * 100 / screenWidth))
+        }
+        return min(lo, hi)...hi
+    }
+
+    // clamped returns w with side set to pct, rounded to a whole percent and kept inside widthRange.
+    public static func clamped(_ w: Widths, _ side: Side, _ pct: Double, minPoints: Double = 0,
+                               screenWidth: Double? = nil) -> Widths {
+        let r = widthRange(w, side, minPoints: minPoints, screenWidth: screenWidth)
+        let v = min(max(pct.rounded(), r.lowerBound), r.upperBound)
+        var out = w
+        if side == .left {
+            out.left = v
+        } else {
+            out.right = v
+        }
+        return out
+    }
+
+    // clampedTop returns pct rounded to a whole percent and kept between minRowPct and 100 - minRowPct.
+    public static func clampedTop(_ pct: Double) -> Double {
+        min(max(pct.rounded(), minRowPct), 100 - minRowPct)
+    }
+
+    // points returns how many points pct of a screen screenWidth points wide covers, rounded down.
+    public static func points(_ pct: Double, screenWidth: Double) -> Double {
+        floor(screenWidth * pct / 100)
     }
 
     // stepped returns the widths after moving side by delta, and whether they still leave a usable

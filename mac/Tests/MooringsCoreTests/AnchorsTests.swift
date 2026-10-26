@@ -349,8 +349,10 @@ func testSlotFrames(test: SlotCase) {
     c.widths = Widths(left: 8, right: 46)
     c.heights = Heights(left: 33, right: 75)
     c.paused = true
+    c.widthPresets = [Widths(left: 12, right: 38)]
     let data = try Choices.encode(c)
     #expect(Choices.decode(data) == c)
+    #expect(c.restoringDefaults().widthPresets == [Widths(left: 12, right: 38)])
     let reopened = Anchors(choices: Choices.decode(data))
     #expect(reopened.widths == Widths(left: 8, right: 46))
     #expect(reopened.heights == Heights(left: 33, right: 75))
@@ -361,6 +363,7 @@ func testSlotFrames(test: SlotCase) {
     #expect(fixed.pins() == [Pin(bundle: "a", slot: .leftTop)])
     #expect(fixed.widths == Layout.defaultWidths)
     #expect(fixed.heights == Heights(left: 50, right: 50))
+    #expect(fixed.choices.widthPresets.isEmpty)
 }
 
 // Test 16: A cast-off window stays over a strip and keeps a width wider than the channel through
