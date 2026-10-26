@@ -233,9 +233,106 @@ struct SettingsView: View {
         }
     }
 
+    // stripsSection edits the strip widths and top row heights.
+    private var stripsSection: some View {
+        Section("Strips") {
+            widthRow("Left width", .left)
+            widthRow("Right width", .right)
+            heightRow("Left top row", .left)
+            heightRow("Right top row", .right)
+        }
+    }
+
+    // presetsSection lists the saved width pairs and saves the current one.
+    private var presetsSection: some View {
+        Section("Saved width presets") {
+            ForEach(Array(model.choices.widthPresets.enumerated()), id: \.offset) { i, w in
+                HStack {
+                    Text("Left \(Int(w.left))%, right \(Int(w.right))%")
+                    Spacer()
+                    Button("Remove") { model.change { $0.widthPresets.remove(at: i) } }
+                }
+            }
+            Button("Save current widths") {
+                let w = model.app.anchors.widths
+                model.change { if !$0.widthPresets.contains(w) { $0.widthPresets.append(w) } }
+            }
+        }
+    }
+
+    // widthRow edits one strip's width with a field, a stepper and the points it covers.
+    private func widthRow(_ title: String, _ side: Side) -> some View {
+        let anchors = model.app.anchors
+        let w = anchors.widths
+        let minPoints = anchors.minWidth(side)
+        let screenWidth = Screens.current().wide?.w
+        let pct = side == .left ? w.left : w.right
+        let range = Layout.widthRange(w, side, minPoints: minPoints, screenWidth: screenWidth)
+        let value = Binding(get: { pct }, set: { v in
+            let next = Layout.clamped(w, side, v, minPoints: minPoints, screenWidth: screenWidth)
+            model.change { $0.widths = next }
+        })
+        return VStack(alignment: .leading) {
+            percentRow(title, value, range) {
+                if let screenWidth {
+                    Text("\(Int(Layout.points(pct, screenWidth: screenWidth))) pt").foregroundStyle(.secondary)
+                }
+            }
+            if minPoints > 0 {
+                let name = anchors.minBy[side].map { model.app.appName($0) } ?? "An app"
+                let floorPct = Int(range.lowerBound)
+                Text("\(name) needs \(Int(minPoints)) pt, so the \(side == .left ? "left" : "right") strip is "
+                    + "at least \(floorPct)%.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    // heightRow edits one strip's top row height.
+    private func heightRow(_ title: String, _ side: Side) -> some View {
+        let h = model.app.anchors.heights
+        let value = Binding(get: { h[side] }, set: { v in
+            let top = Layout.clampedTop(v)
+            model.change {
+                var next = $0.heights ?? h
+                next[side] = top
+                $0.heights = next
+            }
+        })
+        return percentRow(title, value, Layout.minRowPct...(100 - Layout.minRowPct)) { EmptyView() }
+    }
+
+    // percentRow draws a title, a whole-percent field, a percent sign, a stepper and trailing content.
+    private func percentRow<T: View>(_ title: String, _ value: SwiftUI.Binding<Double>, _ range: ClosedRange<Double>,
+                                     @ViewBuilder trailing: () -> T) -> some View {
+        HStack {
+            Text(title)
+            Spacer()
+            TextField(title, value: value, format: .number.precision(.fractionLength(0)))
+                .labelsHidden().multilineTextAlignment(.trailing).frame(width: 52)
+            Text("%")
+            Stepper("", value: value, in: range, step: 1).labelsHidden()
+            trailing()
+        }
+    }
+
     // layout picks the keymap, snapping and the gap.
     private var layout: some View {
         Form {
+            stripsSection
+            Section("Adjust strips on screen") {
+                HStack {
+                    Text("Step, type or drag the strips on the display")
+                    Spacer()
+                    ShortcutRecorder(current: model.bindings.map[Keymaps.stripsName], suspend: model.suspend) { sc in
+                        model.change { $0.shortcuts[Keymaps.stripsName] = .some(sc) }
+                    }
+                    Button("Clear") { model.change { $0.shortcuts[Keymaps.stripsName] = .some(nil) } }
+                        .help("Turn this shortcut off.")
+                    Button("Open") { model.app.strips.show() }
+                }
+            }
+            presetsSection
             Picker("Keymap", selection: Binding(get: { model.choices.keymap },
                                                 set: { v in model.change { $0.keymap = v; $0.shortcuts = [:] } })) {
                 ForEach(Keymap.allCases, id: \.rawValue) { Text($0.rawValue.capitalized).tag($0.rawValue) }
