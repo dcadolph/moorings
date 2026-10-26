@@ -283,3 +283,34 @@ func span(_ g: OverlayGrid) -> [Int] {
     let h = try JSONDecoder().decode(OverlayChoices.self, from: mods)
     #expect(h.hoverMove == [.ctrl, .alt] && h.hoverResize.isEmpty)
 }
+
+// Swift only: the macOS Option tiling note shows for a Right Option trigger and for hover keys that
+// are Option alone, and for nothing else.
+@Test func testOverlayMeetsTiling() {
+    let tests: [(trigger: OverlayTrigger, move: [Modifier], resize: [Modifier], wantTrigger: Bool, wantHover: Bool)] = [
+        // Test 0: Defaults show neither note.
+        (.none, [], [], false, false),
+        // Test 1: Right Option trigger.
+        (.rightOption, [], [], true, false),
+        // Test 2: Right Command trigger.
+        (.rightCommand, [], [], false, false),
+        // Test 3: Fn trigger.
+        (.fn, [], [], false, false),
+        // Test 4: Hover move is Option alone.
+        (.none, [.alt], [], false, true),
+        // Test 5: Hover resize is Option alone.
+        (.none, [.ctrl], [.alt], false, true),
+        // Test 6: Option with Control is a different chord.
+        (.none, [.ctrl, .alt], [.ctrl, .alt, .shift], false, false),
+        // Test 7: Both at once.
+        (.rightOption, [.alt], [], true, true),
+    ]
+    for (i, test) in tests.enumerated() {
+        var o = OverlayChoices()
+        o.trigger = test.trigger
+        o.hoverMove = test.move
+        o.hoverResize = test.resize
+        #expect(o.triggerMeetsTiling == test.wantTrigger, "test \(i)")
+        #expect(o.hoverMeetsTiling == test.wantHover, "test \(i)")
+    }
+}

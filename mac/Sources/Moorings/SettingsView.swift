@@ -498,6 +498,9 @@ struct SettingsView: View {
                     + "applies it. Escape cancels. While the key is held, its arrow, Return and Escape keys go to "
                     + "Moorings.")
                     .font(.callout).foregroundStyle(.secondary)
+                if model.choices.overlay.triggerMeetsTiling {
+                    optionTilingNote
+                }
             }
             Section("Move and resize by hovering") {
                 hoverKeys("Move with", \.hoverMove)
@@ -506,12 +509,24 @@ struct SettingsView: View {
                     + "or to resize it from its nearest corner. Pick at least Control, Option or Command, and give "
                     + "resize a different set from move, such as the same keys plus Shift. Anchored windows stay put.")
                     .font(.callout).foregroundStyle(.secondary)
+                if model.choices.overlay.hoverMeetsTiling {
+                    optionTilingNote
+                }
                 hoverKeys("Shared edge with", \.edgeResize)
                 Text("Hold these keys and drag the edge two side by side windows share to resize both at once.")
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
+    }
+
+    // optionTilingNote warns that macOS tiles a window dragged with Option held and names the switch
+    // that turns it off.
+    private var optionTilingNote: some View {
+        Text("Hold Option with no mouse button down. Dragging a window while Option is held starts macOS "
+            + "tiling instead. To turn that off, open System Settings > Desktop & Dock and switch off "
+            + "\u{201C}Hold \u{2325} key while dragging windows to tile.\u{201D}")
+            .font(.callout).foregroundStyle(.secondary)
     }
 
     // hoverKeys shows a checkbox per modifier for the hover modifier set at path.

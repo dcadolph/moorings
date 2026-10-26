@@ -72,6 +72,14 @@ public struct OverlayChoices: Equatable, Sendable, Codable {
     // gridRange bounds the grid columns and rows.
     public static let gridRange = 1...12
 
+    // triggerMeetsTiling reports whether the trigger is Right Option, which macOS also reads as the
+    // key that tiles a window dragged while it is held.
+    public var triggerMeetsTiling: Bool { trigger == .rightOption }
+
+    // hoverMeetsTiling reports whether hover move or resize is Option alone, which macOS also reads
+    // as the key that tiles a window dragged while it is held.
+    public var hoverMeetsTiling: Bool { hoverMove == [.alt] || hoverResize == [.alt] }
+
     // init builds overlay choices at the defaults.
     public init() {}
 
