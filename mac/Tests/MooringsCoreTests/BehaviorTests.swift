@@ -157,6 +157,17 @@ private let behaviorScreen = Frame(x: 0, y: 0, w: 1000, h: 800)
     #expect(!Behavior.snapped(placed, start: Frame(x: 0, y: 0, w: 600, h: 700), moved: 8))
 }
 
+// Swift only: a still window ends a drag only after enough reads and enough time, since Accessibility
+// lags the screen while a window is dragged.
+@Test func testStillDrag() {
+    #expect(!Behavior.stillDrag(reads: 0, seconds: 0))
+    #expect(!Behavior.stillDrag(reads: 3, seconds: 0.06))
+    #expect(!Behavior.stillDrag(reads: 3, seconds: 0.49))
+    #expect(!Behavior.stillDrag(reads: 2, seconds: 2))
+    #expect(Behavior.stillDrag(reads: 3, seconds: 0.5))
+    #expect(Behavior.stillDrag(reads: 9, seconds: 1))
+}
+
 // Swift only: unsnap keeps the top left unless the cursor would fall off the narrower window.
 @Test func testUnsnapFrame() {
     let cur = Frame(x: 100, y: 50, w: 1000, h: 800)

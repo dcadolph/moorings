@@ -90,9 +90,6 @@ final class Footprint {
 final class DragSnap {
     // travel is how many points the cursor must move between reads of the dragged window.
     static let travel = 8.0
-    // maxChecks is how many reads may find the window still before the drag is taken as not
-    // moving a window.
-    static let maxChecks = 3
 
     // app is the running app delegate.
     private unowned let app: AppDelegate
@@ -108,6 +105,8 @@ final class DragSnap {
     private var start: Frame?
     // checks counts the reads that found the window still.
     private var checks = 0
+    // firstRead is when a read first found the dragged window still, nil before.
+    private var firstRead: Double?
     // moving reports whether the drag is moving the window.
     private var moving = false
     // from is where the cursor was at the last read.
@@ -224,14 +223,14 @@ final class DragSnap {
     }
 
     // released snaps the window, or anchors its app, when the drag ended in a zone, or stashes it when a
-    // Command-drag ended at an edge. The work runs after the event, so the tap never waits on a window.
+    // Command-drag ended at an edge, to come back where the drag began. The work runs after the event, so the tap never waits on a window.
     func released() {
-        let (w, drop, screen, stashAt) = (win, drop, screen, stashAt)
+        let (w, drop, screen, stashAt, start) = (win, drop, screen, stashAt, start)
         reset()
         if var w, let stashAt {
             DispatchQueue.main.async { [app] in
                 w.frame = app.windows.frame(w.id) ?? w.frame
-                app.stasher.stash(w, edge: stashAt)
+                app.stasher.stash(w, edge: stashAt, original: start)
             }
             return
         }
@@ -261,6 +260,7 @@ final class DragSnap {
         win = nil
         start = nil
         checks = 0
+        firstRead = nil
         moving = false
         from = nil
         pending = false
@@ -332,7 +332,7 @@ final class DragSnap {
     }
 
     // look reads the dragged window: the focused window the first time, then its frame, until it
-    // moves, resizes, or maxChecks reads pass. A snapped window that starts moving gets its size from
+    // moves, resizes, or Behavior.stillDrag gives up on it. A snapped window that starts moving gets its size from
     // before the snap back.
     private func look() {
         guard let w = win, let s = start else {
@@ -362,7 +362,10 @@ final class DragSnap {
             }
         } else {
             checks += 1
-            done = checks >= Self.maxChecks
+            let now = AppDelegate.now
+            let first = firstRead ?? now
+            firstRead = first
+            done = Behavior.stillDrag(reads: checks, seconds: now - first)
         }
     }
 }

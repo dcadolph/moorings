@@ -57,10 +57,25 @@ let stashArea = F(0, 25, 1920, 1055)
 }
 
 // Swift only: resting on the sliver for the rest time slides the window out, leaving it slides it
+// Swift only: a fresh stash ignores the pointer on its sliver until the pointer has been off it once.
+@Test func testStashArms() throws {
+    var s = try #require(Stash.stash(7, F(100, 300, 400, 300), area: stashArea, allowed: [.left]))
+    let on = Point(x: 5, y: 400)
+    #expect(!s.armed)
+    #expect(Stash.hover(&s, on, screen: stashArea, now: 10, mouseHeld: false) == .none)
+    #expect(Stash.hover(&s, on, screen: stashArea, now: 11, mouseHeld: false) == .none)
+    #expect(Stash.hover(&s, on, screen: stashArea, now: 12, mouseHeld: false) == .none)
+    #expect(Stash.hover(&s, Point(x: 600, y: 400), screen: stashArea, now: 13, mouseHeld: false) == .none)
+    #expect(s.armed)
+    #expect(Stash.hover(&s, on, screen: stashArea, now: 14, mouseHeld: false) == .none)
+    #expect(Stash.hover(&s, on, screen: stashArea, now: 14.2, mouseHeld: false) == .slideOut)
+}
+
 // back, and a pointer off the sliver or a held button does nothing.
 @Test func testStashHover() throws {
     var s = try #require(Stash.stash(7, F(100, 300, 400, 300), area: stashArea, allowed: [.left]))
     let on = Point(x: 5, y: 400)
+    #expect(Stash.hover(&s, Point(x: 600, y: 400), screen: stashArea, now: 9, mouseHeld: false) == .none)
     #expect(Stash.hover(&s, on, screen: stashArea, now: 10, mouseHeld: false) == .none)
     #expect(s.restSince == 10)
     #expect(Stash.hover(&s, on, screen: stashArea, now: 10.1, mouseHeld: false) == .none)

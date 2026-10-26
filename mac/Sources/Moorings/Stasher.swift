@@ -57,10 +57,10 @@ final class Stasher {
     }
 
     // stash parks w at edge, or at the nearest edge that can take it when nil, and reports whether it
-    // parked. An edge another display touches cannot take it, and on the ultrawide neither can a side
+    // parked. Unstashing puts it back at original, or where it is now when nil. An edge another display touches cannot take it, and on the ultrawide neither can a side
     // with an anchored app, so a stash never covers a strip. A move macOS refuses is undone.
     @discardableResult
-    func stash(_ w: WindowInfo, edge: StashEdge?) -> Bool {
+    func stash(_ w: WindowInfo, edge: StashEdge?, original: Frame? = nil) -> Bool {
         guard !app.anchors.choices.paused, !app.anchors.pinned(w), !w.isFullScreen else {
             logger.notice("stash: pinned and fullscreen windows are not stashed")
             return false
@@ -98,6 +98,9 @@ final class Stasher {
             return false
         }
         s.hidden = landed
+        if let original {
+            s.original = original
+        }
         entries.removeAll { $0.s.id == w.id }
         entries.append(Entry(s: s, area: area))
         startTimer()

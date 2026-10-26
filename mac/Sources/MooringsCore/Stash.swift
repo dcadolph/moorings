@@ -23,6 +23,9 @@ public struct Stashed: Equatable, Sendable {
     public var out: Bool = false
     // restSince is when the pointer came to rest on the sliver, nil while it is elsewhere.
     public var restSince: Double?
+    // armed reports whether the pointer has been off the sliver since the stash, so a window stashed
+    // by a drag that let go on its own sliver does not slide straight back out.
+    public var armed: Bool = false
 
     // init builds a stashed window.
     public init(id: WindowID, original: Frame, edge: StashEdge, hidden: Frame, shown: Frame) {
@@ -141,7 +144,8 @@ public enum Stash {
     }
 
     // hover decides what the pointer at p at time now asks of s on screen, and updates its rest time.
-    // A parked window slides out once the pointer has stayed on its sliver for restSeconds. A slid-out
+    // A parked window slides out once the pointer has stayed on its sliver for restSeconds, after it
+    // has been off the sliver once since the stash. A slid-out
     // window slides back once the pointer leaves it by more than slack. Nothing happens while a mouse
     // button is held.
     public static func hover(_ s: inout Stashed, _ p: Point, screen: Frame, now: Double, mouseHeld: Bool) -> StashHover {
@@ -157,8 +161,10 @@ public enum Stash {
         let r = sliverRect(s.hidden, screen: screen)
         guard r.w > 0, r.h > 0, p.x >= r.x, p.x <= r.x + r.w, p.y >= r.y, p.y <= r.y + r.h else {
             s.restSince = nil
+            s.armed = true
             return .none
         }
+        guard s.armed else { return .none }
         guard let since = s.restSince else {
             s.restSince = now
             return .none

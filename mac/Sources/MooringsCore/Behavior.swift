@@ -288,6 +288,19 @@ public enum Behavior {
             && abs(placed.x - start.x) + abs(placed.y - start.y) <= moved + t
     }
 
+    // stillReads is how many reads must find a dragged window still before the drag is taken as not
+    // moving a window.
+    public static let stillReads = 3
+    // stillSeconds is how long after the first still read a window may still start moving.
+    // Accessibility reports a dragged window's position 100 ms or more behind the screen.
+    public static let stillSeconds = 0.5
+
+    // stillDrag reports whether a drag has stopped being a window drag: reads reads found the window
+    // still and the first of them was seconds ago.
+    public static func stillDrag(reads: Int, seconds: Double) -> Bool {
+        reads >= stillReads && seconds >= stillSeconds
+    }
+
     // unsnapFrame returns the frame of a window at current resized to size. The top left stays put
     // unless the cursor, grab points from the left edge, would fall off the narrower window. Then it
     // shifts right only as far as keeps the cursor over the window, as Rectangle does.
