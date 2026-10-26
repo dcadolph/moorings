@@ -6,21 +6,21 @@ Every row names its check. A row reads yes only when that check passes. Rows tha
 
 Price is not on the product page. A 2022 article gave 10 EUR. It has a 10-day trial and covers 3 devices. Charmstone, its separate app switcher, is out of scope because it is not a window manager.
 
-| Feature                                                | Who has it    | Moorings                                                        | Check                                                                                  |
-|--------------------------------------------------------|---------------|-----------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| Window throw, 16 sizes, works on an unfocused window   | Rectangle Pro | yes, by a held key, on the window under the pointer             | testOverlayPick, testOverlayTargetsKnown, testOverlayTriggerHeld; live PASS 10-25      |
-| Quick throw and throw by cursor direction              | Rectangle Pro | yes, by cursor direction                                        | testOverlayPick; live PASS 10-25                                                       |
-| Custom snap targets and a configurable snap panel      | Rectangle Pro | yes, custom areas off the ultrawide and a snap panel on a pause | testSnapCustomAreas, testSnapPanelLayout, testSnapChoicesCustomDecode; live check owed |
-| Custom sizes with repeat behavior                      | Rectangle Pro | yes                                                             | testCustomSize, testSizeShortcuts                                                      |
-| Workspace arrangement by shortcut                      | Rectangle Pro | yes                                                             | testWorkspacesMatch, testWorkspacesFitAndCodable                                       |
-| Workspace arrangement on display connect or disconnect | Rectangle Pro | yes                                                             | testWorkspacesSignature                                                                |
-| Stash at a screen edge with slide-out on hover         | Rectangle Pro | yes, left, right and bottom edges, no top edge                  | testStashFrames, testStashHover, testStashEdges, testStashedStaysPut; live check owed  |
-| Pin one app to a side                                  | Rectangle Pro | yes                                                             | selftest "anchored window lands in its slot"                                           |
-| Todo mode with more settings                           | Rectangle Pro | no (anchored apps cover the pinning, no separate mode)          | not applicable                                                                         |
-| Menu customization, by shortcut or as a context menu   | Rectangle Pro | yes                                                             | testMenuVisible, testMenuPinned, live 10-24                                            |
-| Import from Rectangle, export file or live settings    | Rectangle Pro | yes                                                             | testRectangleImportRoundTrip, testRectangleImportLive                                  |
-| iCloud sync                                            | Rectangle Pro | planned (unit 20)                                               | unit 20 settings sync on iCloud                                                        |
-| Windows-style arrow keys and left/right fill           | Rectangle Pro | yes                                                             | testArrowWalk, testFillLeftStops, testWindowsKeymap                                    |
+| Feature                                                | Who has it    | Moorings                                                        | Check                                                                                                                    |
+|--------------------------------------------------------|---------------|-----------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| Window throw, 16 sizes, works on an unfocused window   | Rectangle Pro | yes, by a held key, on the window under the pointer             | testOverlayPick, testOverlayTargetsKnown, testOverlayTriggerHeld; live PASS 10-25                                        |
+| Quick throw and throw by cursor direction              | Rectangle Pro | yes, by cursor direction                                        | testOverlayPick; live PASS 10-25                                                                                         |
+| Custom snap targets and a configurable snap panel      | Rectangle Pro | yes, custom areas off the ultrawide and a snap panel on a pause | testSnapCustomAreas, testSnapPanelLayout, testSnapChoicesCustomDecode; snap panel live PASS 10-26, custom area drop owed |
+| Custom sizes with repeat behavior                      | Rectangle Pro | yes                                                             | testCustomSize, testSizeShortcuts                                                                                        |
+| Workspace arrangement by shortcut                      | Rectangle Pro | yes                                                             | testWorkspacesMatch, testWorkspacesFitAndCodable                                                                         |
+| Workspace arrangement on display connect or disconnect | Rectangle Pro | yes                                                             | testWorkspacesSignature                                                                                                  |
+| Stash at a screen edge with slide-out on hover         | Rectangle Pro | yes, left, right and bottom edges, no top edge                  | testStashFrames, testStashHover, testStashArms, testStashEdges, testStashedStaysPut; live PASS 10-26 on one display      |
+| Pin one app to a side                                  | Rectangle Pro | yes                                                             | selftest "anchored window lands in its slot"                                                                             |
+| Todo mode with more settings                           | Rectangle Pro | no (anchored apps cover the pinning, no separate mode)          | not applicable                                                                                                           |
+| Menu customization, by shortcut or as a context menu   | Rectangle Pro | yes                                                             | testMenuVisible, testMenuPinned, live 10-24                                                                              |
+| Import from Rectangle, export file or live settings    | Rectangle Pro | yes                                                             | testRectangleImportRoundTrip, testRectangleImportLive                                                                    |
+| iCloud sync                                            | Rectangle Pro | planned (unit 20)                                               | unit 20 settings sync on iCloud                                                                                          |
+| Windows-style arrow keys and left/right fill           | Rectangle Pro | yes                                                             | testArrowWalk, testFillLeftStops, testWindowsKeymap                                                                      |
 
 ## Rectangle
 
@@ -67,14 +67,14 @@ Moom costs $15.
 | Snap zones                                               | Moom                        | yes                                                                                | testSnapEdges                                  |
 | Drop zones from a saved layout                           | Moom                        | partial: custom areas drawn as shares, not made from a saved layout                | testSnapCustomAreas                            |
 | Chains of actions, in sequence or looped                 | Moom                        | yes                                                                                | testChainStepStops, testChainStepLoops         |
-| Hover move and resize with modifiers, no click           | Moom, Lasso                 | yes, keys picked in Settings > Behavior, resize from the nearest corner            | testHoverMode, testHoverFrame; live check owed |
+| Hover move and resize with modifiers, no click           | Moom, Lasso                 | yes, keys picked in Settings > Behavior, resize from the nearest corner            | testHoverMode, testHoverFrame; live PASS 10-25 |
 | Keyboard grid controller                                 | Moom                        | yes, arrows under the held key, Return applies                                     | testOverlayGrid; live PASS 10-25               |
 | Folders in the menu                                      | Moom                        | no (fixed folders by family; actions are pinned or hidden instead)                 | not applicable                                 |
 | Per-action grid sizes                                    | Moom                        | yes, grid takes the set size and grid:8x6 its own                                  | testOverlayGridSize                            |
 | Use active window size                                   | Moom                        | planned (unit 5)                                                                   | unit 5 specified size                          |
 | Display adjustment of layouts                            | Moom                        | yes                                                                                | testWorkspacesFitAndCodable                    |
 | Dock, menu bar or invisible app modes                    | Moom                        | no (menu bar only by design)                                                       | not applicable                                 |
-| Modifier drag to move or resize from anywhere            | Moom, BetterSnapTool, Lasso | yes, by hover: hold the keys and move, no click needed                             | testHoverMode, testHoverFrame; live check owed |
+| Modifier drag to move or resize from anywhere            | Moom, BetterSnapTool, Lasso | yes, by hover: hold the keys and move, no click needed                             | testHoverMode, testHoverFrame; live PASS 10-25 |
 
 ## BetterSnapTool
 
@@ -87,20 +87,20 @@ It is sold on the Mac App Store. The price is not on the page.
 | Custom shortcuts                                | BetterSnapTool         | yes                    | testSizeShortcuts                              |
 | Green button lifts or fills instead of zoom     | BetterSnapTool         | yes                    | testLiftGreenButton                            |
 | Customized clicks on the red and yellow buttons | BetterSnapTool         | yes                    | testButtonClicksAction                         |
-| Move or resize while holding a key              | BetterSnapTool         | yes                    | testHoverMode, testHoverFrame; live check owed |
+| Move or resize while holding a key              | BetterSnapTool         | yes                    | testHoverMode, testHoverFrame; live PASS 10-25 |
 
 ## Loop
 
 Loop is free and GPL-3 licensed.
 
-| Feature                        | Who has it | Moorings                                                                             | Check                                                    |
-| ------------------------------ | ---------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------- |
-| Radial menu on a trigger key   | Loop       | yes, 16 targets in two rings                                                         | testOverlayPick, testOverlayTriggerHeld; live PASS 10-25 |
-| Preview outline while choosing | Loop       | yes, the snap footprint                                                              | live PASS 10-25                                          |
-| Trigger-key chords             | Loop       | partial: arrows, Shift-arrows, Return and Escape under the trigger; no custom chords | testOverlayTriggerHeld; live PASS 10-25                  |
-| Cycles                         | Loop       | yes                                                                                  | testCycle, testPressCycle                                |
-| Stash                          | Loop       | yes, left, right and bottom edges                                                    | testStashFrames, testStashHover; live check owed         |
-| Theming                        | Loop       | yes                                                                                  | testThemeList, testThemeContrast                         |
+| Feature                        | Who has it | Moorings                                                                             | Check                                                                          |
+| ------------------------------ | ---------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Radial menu on a trigger key   | Loop       | yes, 16 targets in two rings                                                         | testOverlayPick, testOverlayTriggerHeld; live PASS 10-25                       |
+| Preview outline while choosing | Loop       | yes, the snap footprint                                                              | live PASS 10-25                                                                |
+| Trigger-key chords             | Loop       | partial: arrows, Shift-arrows, Return and Escape under the trigger; no custom chords | testOverlayTriggerHeld; live PASS 10-25                                        |
+| Cycles                         | Loop       | yes                                                                                  | testCycle, testPressCycle                                                      |
+| Stash                          | Loop       | yes, left, right and bottom edges                                                    | testStashFrames, testStashHover, testStashArms; live PASS 10-26 on one display |
+| Theming                        | Loop       | yes                                                                                  | testThemeList, testThemeContrast                                               |
 
 ## Swish
 
@@ -125,14 +125,14 @@ Swish costs $16.
 
 Amethyst is free and MIT licensed.
 
-| Feature                                                                              | Who has it | Moorings            | Check                       |
-| ------------------------------------------------------------------------------------ | ---------- | ------------------- | --------------------------- |
-| Layouts tall, tall-right, wide, two pane, 3column, widescreen-tall, column, row, BSP | Amethyst   | partial (tall, wide, columns, rows, BSP; retiled as windows come and go; not tall-right, two pane, 3column or widescreen-tall) | testTilingLayout; live check owed |
-| Fullscreen and floating layouts                                                      | Amethyst   | partial (a dragged window floats until a layout is chosen again; no fullscreen layout) | live check owed |
-| Custom JS layouts                                                                    | Amethyst   | no (out of scope, chains and profiles cover it) | not applicable |
-| Focus and swap by direction, layout cycling                                          | Amethyst   | yes (focus and swap work with tiling off too; grow and shrink the main pane) | testTilingToward, testTilingOrder, testTilingNames |
-| Per-space layouts                                                                    | Amethyst   | planned (unit 24)   | unit 24 spaces spike        |
-| YAML config                                                                          | Amethyst   | yes (one JSON file) | testSettingsBackupRoundTrip |
+| Feature                                                                              | Who has it | Moorings                                                                                                                       | Check                                              |
+| ------------------------------------------------------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| Layouts tall, tall-right, wide, two pane, 3column, widescreen-tall, column, row, BSP | Amethyst   | partial (tall, wide, columns, rows, BSP; retiled as windows come and go; not tall-right, two pane, 3column or widescreen-tall) | testTilingLayout; live PASS 10-26                  |
+| Fullscreen and floating layouts                                                      | Amethyst   | partial (a dragged window floats until a layout is chosen again; no fullscreen layout)                                         | live PASS 10-26                                    |
+| Custom JS layouts                                                                    | Amethyst   | no (out of scope, chains and profiles cover it)                                                                                | not applicable                                     |
+| Focus and swap by direction, layout cycling                                          | Amethyst   | yes (focus and swap work with tiling off too; grow and shrink the main pane)                                                   | testTilingToward, testTilingOrder, testTilingNames |
+| Per-space layouts                                                                    | Amethyst   | planned (unit 24)                                                                                                              | unit 24 spaces spike                               |
+| YAML config                                                                          | Amethyst   | yes (one JSON file)                                                                                                            | testSettingsBackupRoundTrip                        |
 
 ## yabai
 
@@ -162,9 +162,9 @@ Divvy costs $13.99 and Mosaic 14.99 GBP. The Lasso price is on a separate page a
 
 | Feature                                 | Who has it           | Moorings                                                                            | Check                                                      |
 |-----------------------------------------|----------------------|-------------------------------------------------------------------------------------|------------------------------------------------------------|
-| Drag over a grid to pick a span         | Divvy, Mosaic, Lasso | yes, the grid action, by mouse or by arrow keys                                     | testOverlayGridSpan; live check owed                       |
+| Drag over a grid to pick a span         | Divvy, Mosaic, Lasso | yes, the grid action, by mouse or by arrow keys                                     | testOverlayGridSpan; live PASS 10-25                       |
 | Quick positions without resizing        | Mosaic               | yes, edges, corners and center                                                      | testPosition                                               |
-| Auto layout per app window              | Mosaic               | yes, app rules place the first window                                               | testWorkspacesAppRule; selftest rule case, live check owed |
+| Auto layout per app window              | Mosaic               | yes, app rules place the first window                                               | testWorkspacesAppRule; selftest rule case, live PASS 10-26 |
 | Groups of layouts, switchable profiles  | Mosaic               | yes                                                                                 | testProfileApplyTouchesOnlySettings                        |
 | Touch Bar                               | Mosaic               | no (Apple dropped the Touch Bar from current Macs)                                  | not applicable                                             |
 | Window capture, iOS remote control      | Mosaic               | partial: window capture by app rules; iOS remote control later                      | testWorkspacesAppRule                                      |
@@ -186,7 +186,7 @@ Divvy costs $13.99 and Mosaic 14.99 GBP. The Lasso price is on a separate page a
 | Focus next or previous app window                      | Raycast    | yes (focus-next-window, focus-previous-window)                                 | testTileNeighbor, selftest focus case   |
 | Exact size and position commands in points             | Raycast    | yes                                                                            | testPointsSpec, testSpecified           |
 | Size and position as shares of the screen              | Raycast    | yes                                                                            | testCustomShare                         |
-| Layouts of up to eight windows with launch arguments   | Raycast    | yes, no window limit, opens missing apps with a file or URL                    | testWorkspacesLaunches; live check owed |
+| Layouts of up to eight windows with launch arguments   | Raycast    | yes, no window limit, opens missing apps with a file or URL                    | testWorkspacesLaunches; live PASS 10-26 |
 | Other windows behavior (minimize or close others)      | Raycast    | yes (minimize-others, close-others; anchored windows stay)                     | testKnown                               |
 | Deeplinks                                              | Raycast    | yes (moorings:// links, Run Moorings Action in Shortcuts)                      | testKnown; Shortcuts live check owed    |
 
@@ -203,7 +203,7 @@ Measured with mac/scripts/energy.sh on an M1 Max, macOS 26.6.1. Idle means no wi
 
 For Moorings, top's energy impact equals its CPU percent in every sample. The window animation switch (Settings > Behavior) changed churn from 8.88 off to 8.68 on in the same two-minute protocol, which is inside the run-to-run spread. With the stack badge on and showing, idle read 1.12.
 
-The idle cells above come from the event-driven rest state, measured on a build of main with 120 samples over ten minutes. 103 samples read 0.0. The rest fell in two bursts of under two minutes while other work was running on the same Mac. A one-minute run on the same build read 0.01. The same one-minute protocol on release 1.9.1 read 0.90 for both, and an earlier one-minute run read 0.98. Before it a timer fired four times a second and looked at every window every two seconds even when nothing moved. Now no timer fires at rest: window, app, display and mouse-up events wake it, it looks every quarter second for two seconds after the last one, then stops. It looks every two seconds only while something is pending that sends no event (an app launched in the last 30 seconds, a recall waiting for an app it opened, Accessibility not yet granted) and once at each known deadline (an opened app's strip lapsing, a hold ending). The stack badge, when on, reads the pointer four times a second. testPaceNext and testDeadlinesHold cover the schedule. A debug log stream showed no pass over a minute at rest, and passes that started at once and stopped two seconds after a window drag.
+The idle cells above come from the event-driven rest state, measured on a build of main with 120 samples over ten minutes. 103 samples read 0.0. The rest fell in two bursts of under two minutes while other work was running on the same Mac. A one-minute run on the same build read 0.01. The same one-minute protocol on release 1.9.1 read 0.90 for both, and an earlier one-minute run read 0.98. Before it a timer fired four times a second and looked at every window every two seconds even when nothing moved. Now no timer fires at rest: window, app, display and mouse-up events wake it, it looks every quarter second for two seconds after the last one, then stops. It looks every two seconds only while something is pending that sends no event (an app launched in the last 30 seconds, a recall waiting for an app it opened, Accessibility not yet granted) and once at each known deadline (an opened app's strip lapsing, a hold ending). The stack badge, when on, reads the pointer four times a second. A stashed window adds no timer: while something is stashed, mouse-moved and mouse-up events wake the stash, plus one check when the pointer has rested long enough to slide a window out. A one-minute run with one window stashed and the pointer still read 0.01 on a3da6b2, against 0.27 when a 20 Hz timer watched the pointer. testPaceNext and testDeadlinesHold cover the schedule. A debug log stream showed no pass over a minute at rest, and passes that started at once and stopped two seconds after a window drag.
 
 ## Compatibility
 

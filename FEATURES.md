@@ -160,6 +160,7 @@ each part.
   on each release.
 - `moorings://selftest` checks the layout against real TextEdit windows, then puts your slots back.
 - `moorings://selftest?apps=<bundle ids>` checks move, resize, snap and restore on other apps' windows.
+  A resize the app holds at its own minimum size reads MIN instead of FAIL.
 - The layout is checked when a window opens, closes or moves, when an app launches or hides, and
   when displays change. No layout timer runs while nothing moves.
 - Nothing moves while the mouse button is down, and a window that keeps fighting its place is
