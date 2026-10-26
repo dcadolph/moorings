@@ -4,6 +4,24 @@ import os
 
 import MooringsCore
 
+// holdBlocker names why a held-key throw or hover may not start, or returns nil when it may.
+@MainActor
+func holdBlocker(_ app: AppDelegate) -> String? {
+    if app.anchors.choices.paused {
+        return "moorings is paused"
+    }
+    if !app.hotkeys.enabled {
+        return "shortcuts are off"
+    }
+    if !app.windows.trusted {
+        return "no Accessibility access"
+    }
+    if NSEvent.pressedMouseButtons != 0 {
+        return "a mouse button is down"
+    }
+    return nil
+}
+
 // TriggerOverlay throws a window while the overlay's trigger key is held. Moving the pointer picks
 // one of 16 targets by direction and distance, and arrow keys pick a span on a keyboard grid. A
 // footprint previews the pick, and letting go of the trigger applies it to the window that was
@@ -66,12 +84,12 @@ final class TriggerOverlay {
         pick = nil
         grid = nil
         area = nil
-        let choices = app.anchors.choices
-        guard !choices.paused, app.hotkeys.enabled, app.windows.trusted, NSEvent.pressedMouseButtons == 0 else {
+        if let why = holdBlocker(app) {
+            logger.notice("overlay: trigger held but \(why, privacy: .public): nothing to throw")
             done = true
             return
         }
-        app.hotkeys.grab(Self.keys(choices.overlay.trigger))
+        app.hotkeys.grab(Self.keys(app.anchors.choices.overlay.trigger))
         timer = Timer.scheduledTimer(withTimeInterval: Self.tickSeconds, repeats: true) { _ in
             MainActor.assumeIsolated { self.tick() }
         }
@@ -94,7 +112,11 @@ final class TriggerOverlay {
         let (w, pick, grid, area, done) = (target, pick, grid, area, done)
         held = false
         reset()
-        guard !done, let w, NSEvent.pressedMouseButtons == 0 else { return }
+        guard !done, let w else { return }
+        guard NSEvent.pressedMouseButtons == 0 else {
+            logger.notice("overlay: trigger let go while a mouse button is down: nothing thrown")
+            return
+        }
         if let grid, let area {
             app.actions.applyFrame(grid.frame(area, gap: app.anchors.choices.gapPx), to: w.id)
         } else if let pick {
@@ -498,8 +520,10 @@ final class HoverMover {
 
     // begin starts a hover of mode at p and reads the window under p after the event.
     private func begin(_ mode: HoverMode, at p: CGPoint) {
-        let choices = app.anchors.choices
-        guard !choices.paused, app.hotkeys.enabled, app.windows.trusted, NSEvent.pressedMouseButtons == 0 else { return }
+        if let why = holdBlocker(app) {
+            logger.notice("hover: keys held but \(why, privacy: .public): nothing moves")
+            return
+        }
         self.mode = mode
         origin = p
         timer = Timer.scheduledTimer(withTimeInterval: Self.tickSeconds, repeats: true) { _ in
