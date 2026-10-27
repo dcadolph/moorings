@@ -17,6 +17,8 @@ struct ShortcutRecorder: View {
     @State private var recording = false
     // monitor is the local key monitor while recording.
     @State private var monitor: Any?
+    // watchers observe the recording window closing or losing key status while recording.
+    @State private var watchers: [NSObjectProtocol] = []
 
     // body shows the shortcut, or a prompt while recording.
     var body: some View {
@@ -34,11 +36,18 @@ struct ShortcutRecorder: View {
     }
 
     // start begins recording in the key window. A key pressed in any other window ends the recording
-    // and goes to that window, so closing Settings mid-recording never leaves keys being eaten.
+    // and goes to that window, and so does that window closing or losing key status, so closing
+    // Settings mid-recording never leaves keys being eaten or the window shortcuts off.
     private func start() {
         suspend(true)
         recording = true
         let window = NSApp.keyWindow
+        let center = NotificationCenter.default
+        watchers = [NSWindow.willCloseNotification, NSWindow.didResignKeyNotification].map {
+            center.addObserver(forName: $0, object: window, queue: .main) { _ in
+                MainActor.assumeIsolated { stop() }
+            }
+        }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             guard event.window === window, window?.isVisible == true else {
                 stop()
@@ -64,6 +73,10 @@ struct ShortcutRecorder: View {
             NSEvent.removeMonitor(monitor)
         }
         monitor = nil
+        for w in watchers {
+            NotificationCenter.default.removeObserver(w)
+        }
+        watchers = []
         recording = false
         suspend(false)
     }
