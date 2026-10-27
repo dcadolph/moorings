@@ -196,9 +196,10 @@ public enum RectangleImport {
     }
 
     // liveValue decodes one plain defaults value, telling a stored bool from a number by its CoreFoundation
-    // type, since both arrive as NSNumber.
+    // type, since both arrive as NSNumber. Without CoreFoundation the values are plain Swift types.
     private static func liveValue(_ value: Any) -> RectangleValue? {
         if let s = value as? String { return .string(s) }
+        #if canImport(Darwin)
         guard let n = value as? NSNumber else { return nil }
         if CFGetTypeID(n) == CFBooleanGetTypeID() { return .bool(n.boolValue) }
         switch String(cString: n.objCType) {
@@ -206,6 +207,15 @@ public enum RectangleImport {
         case "d": return .double(n.doubleValue)
         default: return .int(n.intValue)
         }
+        #else
+        switch value {
+        case let b as Bool: return .bool(b)
+        case let f as Float: return .float(f)
+        case let d as Double: return .double(d)
+        case let i as Int: return .int(i)
+        default: return nil
+        }
+        #endif
     }
 
     // carry applies shortcuts and defaults. Quiet skips defaults with no moorings setting without a warning.
