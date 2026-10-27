@@ -265,18 +265,22 @@ final class Windows {
         return out
     }
 
-    // move puts the window with id at frame. Size goes first and again last, so a window crossing
-    // displays lands at the size asked for.
-    func move(_ id: WindowID, to frame: Frame) {
+    // move puts the window with id at frame with the writes MoveSteps picks from current, the frame
+    // the window has now when the caller just read it. Without it, size goes first and again last, so
+    // a window crossing displays lands at the size asked for.
+    func move(_ id: WindowID, to frame: Frame, from current: Frame? = nil) {
         guard let el = elements[id] else { return }
         var size = CGSize(width: frame.w, height: frame.h)
         var origin = CGPoint(x: frame.x, y: frame.y)
         guard let sizeValue = AXValueCreate(.cgSize, &size), let originValue = AXValueCreate(.cgPoint, &origin) else {
             return
         }
-        AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
-        AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, originValue)
-        AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
+        for step in MoveSteps.steps(from: current, to: frame) {
+            switch step {
+            case .size: AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
+            case .position: AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, originValue)
+            }
+        }
     }
 
     // position moves the window with id so its top-left corner is at x and y, leaving its size alone.
@@ -310,11 +314,11 @@ final class Windows {
     }
 
     // move puts the window with id at frame with its app's Enhanced UI off for the move, and turns it
-    // back on afterward when mode says to.
-    func move(_ id: WindowID, to frame: Frame, enhancedUI mode: EnhancedUIMode) {
+    // back on afterward when mode says to. current is the frame the window has now, when known.
+    func move(_ id: WindowID, to frame: Frame, enhancedUI mode: EnhancedUIMode, from current: Frame? = nil) {
         var pid: pid_t = 0
         guard let el = elements[id], AXUIElementGetPid(el, &pid) == .success else {
-            move(id, to: frame)
+            move(id, to: frame, from: current)
             return
         }
         let app = AXUIElementCreateApplication(pid)
@@ -324,7 +328,7 @@ final class Windows {
         if on {
             AXUIElementSetAttributeValue(app, Self.enhancedUIKey, kCFBooleanFalse)
         }
-        move(id, to: frame)
+        move(id, to: frame, from: current)
         let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
         if on, Behavior.restoresEnhancedUI(mode, bundle: bundle, assistive: NSWorkspace.shared.isVoiceOverEnabled) {
             AXUIElementSetAttributeValue(app, Self.enhancedUIKey, kCFBooleanTrue)

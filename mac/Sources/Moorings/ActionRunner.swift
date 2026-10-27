@@ -371,7 +371,7 @@ final class ActionRunner {
         if b.animate {
             app.windows.slide(w.id, from: w.frame, to: frame, enhancedUI: b.enhancedUI)
         } else {
-            app.windows.move(w.id, to: frame, enhancedUI: b.enhancedUI)
+            app.windows.move(w.id, to: frame, enhancedUI: b.enhancedUI, from: w.frame)
         }
         let landed = app.windows.frame(w.id) ?? frame
         last[w.id] = LastPress(name: name, press: press, frame: landed)
