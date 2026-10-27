@@ -181,7 +181,9 @@ final class ActionRunner {
 
     // perform applies action name, which is not a chain, to the window with id window, or to the
     // focused window when nil. Actions on the front app or several windows act on the front app.
-    // A placement reads only the front app and the apps whose windows changed since the last scan.
+    // A placement reads only its window, and scans the front app and the apps whose windows changed
+    // since the last scan when that window cannot be read alone or belongs to an anchored app, whose
+    // pin depends on every window of the app.
     private func perform(_ name: String, window: WindowID? = nil) -> Bool {
         if let size = Overlay.gridSize(name, anchors.choices.overlay) {
             return app.gridPicker.show(cols: size.cols, rows: size.rows, window: window)
@@ -208,10 +210,7 @@ final class ActionRunner {
             return true
         }
         let screens = Screens.current()
-        let scan = app.windows.scan(screens) { listed, previous, slow in
-            .apps(PassPlan.changed(listed: listed, previous: previous, slow: slow))
-        }
-        guard let w = window.flatMap({ id in scan.windows.first { $0.id == id } }) ?? scan.focused else {
+        guard let w = subject(window, screens: screens) else {
             logger.notice("\(name, privacy: .public): no focused window")
             return false
         }
@@ -220,6 +219,19 @@ final class ActionRunner {
             CGWarpMouseCursorPosition(CGPoint(x: f.x + f.w / 2, y: f.y + f.h / 2))
         }
         return true
+    }
+
+    // subject returns the window with id window, or the focused window when nil, read alone when it
+    // can be and scanned otherwise.
+    private func subject(_ window: WindowID?, screens: Screens) -> WindowInfo? {
+        let alone = if let window { app.windows.window(window, screens: screens) } else { app.windows.focused(screens) }
+        if let alone, !anchors.pins().contains(where: { $0.bundle == alone.bundle }) {
+            return alone
+        }
+        let scan = app.windows.scan(screens) { listed, previous, slow, front in
+            .apps(PassPlan.changed(listed: listed, previous: previous, slow: slow).union(front.map { [$0] } ?? []))
+        }
+        return window.flatMap { id in scan.windows.first { $0.id == id } } ?? scan.focused
     }
 
     // frontApp runs a window action on the focused app's windows: bring its next or previous window
@@ -364,8 +376,8 @@ final class ActionRunner {
         let landed = app.windows.frame(w.id) ?? frame
         last[w.id] = LastPress(name: name, press: press, frame: landed)
         app.landed(w.id, at: landed)
-        if let pid = app.windows.pid(w.id) {
-            app.wake(pid)
+        if app.windows.pid(w.id) != nil {
+            app.echo(w.id, at: landed)
         } else {
             app.wake()
         }

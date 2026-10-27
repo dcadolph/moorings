@@ -22,41 +22,57 @@ public enum PassPlan: Equatable, Sendable {
     }
 
     // plan returns .full when forced, when a full pass is overdue, or when no app was named by a
-    // recent wake, and otherwise the apps that woke recently plus the apps whose listed windows
-    // differ from the previous pass. A slow app is read only when it woke recently.
+    // recent wake and no action's move is still echoing, and otherwise the apps that woke recently,
+    // the apps whose listed windows differ from the previous pass, and the front app. A slow app is
+    // read only when it woke recently. echoes holds the frames recent actions read back after moving
+    // a window. The front app is left out when a listed window of it has an echo and it neither woke
+    // nor changed, so the pass after an action reads nothing the action already read.
     public static func plan(
         now: Double, forced: Bool, lastFull: Double, fullWoke: Double, woke: [Int32: Double],
-        listed: [Int32: [WindowID: Frame]], previous: [Int32: [WindowID: Frame]], slow: Set<Int32>
+        listed: [Int32: [WindowID: Frame]], previous: [Int32: [WindowID: Frame]], slow: Set<Int32>,
+        front: Int32? = nil, echoes: [WindowID: Frame] = [:]
     ) -> PassPlan {
         if forced || now - lastFull >= fullSeconds || now - fullWoke < Pace.settleSeconds {
             return .full
         }
         let recent = Set(woke.filter { now - $0.value < Pace.settleSeconds }.keys)
-        if recent.isEmpty {
+        if recent.isEmpty && echoes.isEmpty {
             return .full
         }
-        return .apps(recent.union(changed(listed: listed, previous: previous, slow: slow)))
+        var reads = recent.union(changed(listed: listed, previous: previous, slow: slow, echoes: echoes))
+        if let front, !(listed[front] ?? [:]).keys.contains(where: { echoes[$0] != nil }) {
+            reads.insert(front)
+        }
+        return .apps(reads)
     }
 
-    // changed returns the apps not in slow whose listed windows differ from the previous ones.
+    // changed returns the apps not in slow whose listed windows differ from the previous ones. A
+    // window listed within tolerance of its echo counts as unchanged.
     public static func changed(
-        listed: [Int32: [WindowID: Frame]], previous: [Int32: [WindowID: Frame]], slow: Set<Int32>
+        listed: [Int32: [WindowID: Frame]], previous: [Int32: [WindowID: Frame]], slow: Set<Int32>,
+        echoes: [WindowID: Frame] = [:]
     ) -> Set<Int32> {
-        Set(listed.filter { !slow.contains($0.key) && differs($0.value, previous[$0.key]) }.keys)
+        Set(listed.filter { !slow.contains($0.key) && differs($0.value, previous[$0.key], echoes: echoes) }.keys)
     }
 
     // differs reports whether the listed windows have other ids than the previous ones or any frame
-    // drifted by more than tolerance.
-    static func differs(_ listed: [WindowID: Frame], _ previous: [WindowID: Frame]?) -> Bool {
+    // drifted by more than tolerance from both its previous frame and its echo.
+    static func differs(_ listed: [WindowID: Frame], _ previous: [WindowID: Frame]?, echoes: [WindowID: Frame] = [:])
+        -> Bool
+    {
         guard let previous, Set(listed.keys) == Set(previous.keys) else { return true }
         for (id, now) in listed {
             guard let was = previous[id] else { return true }
-            if abs(now.x - was.x) > tolerance || abs(now.y - was.y) > tolerance
-                || abs(now.w - was.w) > tolerance || abs(now.h - was.h) > tolerance
-            {
+            if !near(now, was) && !(echoes[id].map { near(now, $0) } ?? false) {
                 return true
             }
         }
         return false
+    }
+
+    // near reports whether a and b differ by at most tolerance on every edge.
+    static func near(_ a: Frame, _ b: Frame) -> Bool {
+        abs(a.x - b.x) <= tolerance && abs(a.y - b.y) <= tolerance
+            && abs(a.w - b.w) <= tolerance && abs(a.h - b.h) <= tolerance
     }
 }

@@ -20,11 +20,21 @@ struct PassPlanCase: Sendable {
     var Previous: [Int32: [WindowID: Frame]] = [:]
     // Slow holds the apps whose reads cost too much to repeat without a wake.
     var Slow: Set<Int32> = []
+    // Front is the front app.
+    var Front: Int32?
+    // Echoes holds the frames recent actions read back after moving a window.
+    var Echoes: [WindowID: Frame] = [:]
     // WantPlan is the plan the pass follows.
     var WantPlan: PassPlan
 }
 
 let planA: [WindowID: Frame] = [1: Frame(x: 0, y: 0, w: 100, h: 100)]
+// planMoved is planA after an action moved its window.
+let planMoved: [WindowID: Frame] = [1: Frame(x: 500, y: 0, w: 300, h: 100)]
+// planOther is another app's window.
+let planOther: [WindowID: Frame] = [3: Frame(x: 0, y: 0, w: 100, h: 100)]
+// planTwo is two windows of one app before an action moved window 1.
+let planTwo: [WindowID: Frame] = [1: Frame(x: 0, y: 0, w: 100, h: 100), 2: Frame(x: 0, y: 200, w: 100, h: 100)]
 
 // passPlanCases covers each rule of the plan in order.
 let passPlanCases: [PassPlanCase] = [
@@ -69,13 +79,43 @@ let passPlanCases: [PassPlanCase] = [
     PassPlanCase(
         Woke: [10: 99, 11: 99], Listed: [10: planA, 11: planA], Previous: [10: planA, 11: planA],
         Slow: [11], WantPlan: .apps([10, 11])),
+    // Test 18: A window listed at its echo is not a change.
+    PassPlanCase(
+        Listed: [10: planMoved], Previous: [10: planA], Echoes: [1: planMoved[1]!], WantPlan: .apps([])),
+    // Test 19: A window off both its echo and its previous frame is a change.
+    PassPlanCase(
+        Listed: [10: [1: Frame(x: 600, y: 0, w: 300, h: 100)]], Previous: [10: planA], Echoes: [1: planMoved[1]!],
+        WantPlan: .apps([10])),
+    // Test 20: A quiet front app with an echoed window is not read.
+    PassPlanCase(
+        Listed: [10: planMoved, 11: planOther], Previous: [10: planA, 11: planOther], Front: 10,
+        Echoes: [1: planMoved[1]!], WantPlan: .apps([])),
+    // Test 21: A front app with an echoed window that also woke is read.
+    PassPlanCase(
+        Woke: [10: 99], Listed: [10: planMoved], Previous: [10: planA], Front: 10, Echoes: [1: planMoved[1]!],
+        WantPlan: .apps([10])),
+    // Test 22: A front app with no echo is read.
+    PassPlanCase(
+        Woke: [11: 99], Listed: [10: planA, 11: planA], Previous: [10: planA, 11: planA], Front: 10,
+        WantPlan: .apps([10, 11])),
+    // Test 23: A front app with an echoed window whose other window moved is read.
+    PassPlanCase(
+        Listed: [10: [1: planMoved[1]!, 2: Frame(x: 0, y: 400, w: 100, h: 100)]], Previous: [10: planTwo],
+        Front: 10, Echoes: [1: planMoved[1]!], WantPlan: .apps([10])),
+    // Test 24: No recent wake and no echo plans a full pass.
+    PassPlanCase(Listed: [10: planA], Previous: [10: planA], Front: 10, WantPlan: .full),
+    // Test 25: No recent wake and a live echo plans an apps pass.
+    PassPlanCase(
+        Listed: [10: planMoved, 11: planOther], Previous: [10: planA, 11: planOther], Front: 11,
+        Echoes: [1: planMoved[1]!], WantPlan: .apps([11])),
 ]
 
 @Test(arguments: passPlanCases)
 func testPassPlan(test: PassPlanCase) {
     let got = PassPlan.plan(
         now: test.Now, forced: test.Forced, lastFull: test.LastFull, fullWoke: test.FullWoke,
-        woke: test.Woke, listed: test.Listed, previous: test.Previous, slow: test.Slow)
+        woke: test.Woke, listed: test.Listed, previous: test.Previous, slow: test.Slow, front: test.Front,
+        echoes: test.Echoes)
     #expect(got == test.WantPlan)
 }
 

@@ -84,6 +84,9 @@ final class Windows {
     private var slow: Set<pid_t> = []
     // lastPlan is which apps the last scan read.
     private(set) var lastPlan: PassPlan = .full
+    // focus is the front app and its focused window at the last scan that read the front app, so a
+    // scan that carries the front app keeps its focus.
+    private var focus: (pid: pid_t, id: WindowID?)?
 
     // lastFront is the last app other than moorings to come to the front.
     var lastFront: pid_t?
@@ -99,12 +102,15 @@ final class Windows {
 
     // scan returns the movable windows on screen, front-most first, and the focused one. decide
     // picks the apps read through Accessibility from the window server's frames by process now, at
-    // the last scan, and the slow processes. The front app and any app not read before are always
-    // read, and every other app is carried from the last scan at its window server frames.
+    // the last scan, the slow processes and the front app. Any app not read before is always read,
+    // and every other app is carried from the last scan at its window server frames. The front app
+    // is carried with its focus only when the last scan that read it saw it in front.
     func scan(
         _ screens: Screens,
-        decide: (_ listed: [pid_t: [WindowID: Frame]], _ previous: [pid_t: [WindowID: Frame]], _ slow: Set<pid_t>)
-            -> PassPlan = { _, _, _ in .full }
+        decide: (
+            _ listed: [pid_t: [WindowID: Frame]], _ previous: [pid_t: [WindowID: Frame]], _ slow: Set<pid_t>,
+            _ front: pid_t?
+        ) -> PassPlan = { _, _, _, _ in .full }
     ) -> (windows: [WindowInfo], focused: WindowInfo?) {
         let order = Self.onScreen()
         let rank = Dictionary(order.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { a, _ in a })
@@ -120,7 +126,7 @@ final class Windows {
         for w in order {
             now[w.pid, default: [:]][w.id] = w.frame
         }
-        let plan = decide(now, listed, slow)
+        let plan = decide(now, listed, slow, front)
         listed = now
         lastPlan = plan
         running = running.filter { pids.contains($0.key) }
@@ -132,7 +138,12 @@ final class Windows {
                 running[pid]?.hidden = app.isHidden
             }
             guard let cached = running[pid], let bundle = cached.bundle, !cached.hidden else { continue }
-            if case let .apps(reads) = plan, pid != front, !reads.contains(pid), let kept = last[pid] {
+            if case let .apps(reads) = plan, !reads.contains(pid), let kept = last[pid],
+               pid != front || focus?.pid == pid
+            {
+                if pid == front {
+                    focusedID = focus?.id
+                }
                 let carried = WindowInfo.carrying(kept, frames: frames)
                 for w in carried {
                     seen[w.id] = elements[w.id]
@@ -164,8 +175,9 @@ final class Windows {
                 found.append(info)
                 byPid[pid, default: []].append(info)
             }
-            if pid == front, let el = Self.element(app, kAXFocusedWindowAttribute) {
-                focusedID = Self.id(el)
+            if pid == front {
+                focusedID = Self.element(app, kAXFocusedWindowAttribute).flatMap { Self.id($0) }
+                focus = (pid, focusedID)
             }
         }
         found = WindowInfo.promotingLone(found)
@@ -178,6 +190,37 @@ final class Windows {
             found.insert(found.remove(at: i), at: 0)
         }
         return (found, found.first { $0.id == focusedID })
+    }
+
+    // focused reads the front app's focused window alone, without a scan, and caches its element so
+    // it can be moved. It returns nil when the window is not one a scan would keep or anything
+    // cannot be read, and the caller then scans.
+    func focused(_ screens: Screens) -> WindowInfo? {
+        guard let pid = front, pid != ProcessInfo.processInfo.processIdentifier,
+              let el = Self.element(appElement(pid), kAXFocusedWindowAttribute), let id = Self.id(el)
+        else { return nil }
+        return read(el, id: id, pid: pid, screens: screens)
+    }
+
+    // window reads the window with id alone, without a scan, when the last scan kept it, and returns
+    // nil otherwise or when it cannot be read.
+    func window(_ id: WindowID, screens: Screens) -> WindowInfo? {
+        guard let el = elements[id], let pid = Self.pid(el) else { return nil }
+        return read(el, id: id, pid: pid, screens: screens)
+    }
+
+    // read describes window el with id of the app with pid as a scan would, and caches its element.
+    // It returns nil when the app is hidden or has no bundle id, or when a scan would drop the window.
+    private func read(_ el: AXUIElement, id: WindowID, pid: pid_t, screens: Screens) -> WindowInfo? {
+        guard Self.onScreen().contains(where: { $0.id == id && $0.pid == pid }) else { return nil }
+        if running[pid] == nil, let app = NSRunningApplication(processIdentifier: pid) {
+            running[pid] = RunningApp(app: app, bundle: app.bundleIdentifier, hidden: app.isHidden)
+        }
+        guard let cached = running[pid], let bundle = cached.bundle, !cached.hidden else { return nil }
+        let main = Self.element(appElement(pid), kAXMainWindowAttribute).flatMap { Self.id($0) }
+        guard let info = info(el, id: id, bundle: bundle, isMain: id == main, screens: screens) else { return nil }
+        elements[id] = el
+        return info
     }
 
     // explain returns one line per app with on-screen windows saying what the scan reads from it,
@@ -515,7 +558,7 @@ final class Windows {
     }
 
     // id returns the window id of el.
-    private static func id(_ el: AXUIElement) -> WindowID? {
+    static func id(_ el: AXUIElement) -> WindowID? {
         var id: CGWindowID = 0
         return axWindowID(el, &id) == .success && id != 0 ? id : nil
     }

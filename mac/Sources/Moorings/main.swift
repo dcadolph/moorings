@@ -92,6 +92,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var fullWoke = 0.0
     // appWoke holds when each app last sent a window event or had a window moved by an action.
     private var appWoke: [pid_t: Double] = [:]
+    // echoes holds the frame an action read back after moving each window, with when it did, so the
+    // window's own move events and the pass after read nothing the action already read.
+    private var echoes: [WindowID: (frame: Frame, at: Double)] = [:]
     // lastFull is when the last pass that read every app ran.
     private var lastFull = -Double.infinity
     // lastApps is when a full pass last asked every running app for its kind, nil before the first.
@@ -286,6 +289,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func windowEvent(_ el: AXUIElement, _ note: String) {
         let kept = windows.keeps(el)
         guard Pace.wakes(note, kept: kept, eligible: !kept && Windows.eligible(el)) else { return }
+        if note == kAXWindowMovedNotification || note == kAXWindowResizedNotification, let id = Windows.id(el),
+           let echo = echoes[id], Self.now - echo.at < Pace.settleSeconds
+        {
+            poll()
+            return
+        }
         if let pid = Windows.pid(el) {
             wake(pid)
         } else {
@@ -304,6 +313,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // until they settle, and read that app.
     func wake(_ pid: pid_t) {
         appWoke[pid] = Self.now
+        poll()
+    }
+
+    // echo records frame as where an action just read back the window with id after moving it, and
+    // runs passes until windows settle. The window's own move events then only poll, and the pass
+    // after reads its app only when the window server lists it somewhere else.
+    func echo(_ id: WindowID, at frame: Frame) {
+        echoes[id] = (frame, Self.now)
         poll()
     }
 
@@ -390,12 +407,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let screens = Screens.current()
         let t = Self.now
         appWoke = appWoke.filter { t - $0.value < Pace.settleSeconds }
+        echoes = echoes.filter { t - $0.value.at < Pace.settleSeconds }
+        let echoed = echoes.mapValues(\.frame)
         let forced = !started || watcher.waiting || organizer.waiting || t < launching
-        let (list, focused) = windows.scan(screens) { [self] listed, previous, slow in
+        let (list, focused) = windows.scan(screens) { [self] listed, previous, slow, front in
             PassPlan.plan(now: t, forced: forced, lastFull: lastFull, fullWoke: fullWoke, woke: appWoke,
-                          listed: listed, previous: previous, slow: slow)
+                          listed: listed, previous: previous, slow: slow, front: front, echoes: echoed)
         }
-        logger.debug("pass \(self.windows.lastPlan == .full ? "full" : "apps", privacy: .public)")
+        logger.debug("pass \(self.windows.lastPlan == .full ? "full" : "apps", privacy: .public) read \(self.windows.scanned.count)")
         if windows.lastPlan == .full {
             lastFull = t
             if PassPlan.refreshesApps(now: t, last: lastApps, waiting: watcher.waiting) {
