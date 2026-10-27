@@ -32,23 +32,26 @@ final class EventTap {
     // onFlags is told the modifiers held and where the pointer is each time a modifier key goes down
     // or up. It must return at once and never read a window.
     var onFlags: (CGEventFlags, CGPoint) -> Void = { _, _ in }
-    // port is the tap, nil until it starts.
+    // port is the tap, nil until it starts and after it stops.
     private var port: CFMachPort?
+    // source is the tap's run loop source, nil while port is.
+    private var source: CFRunLoopSource?
     // press is the primary button's state as the tap saw it.
     private var press = TapPress()
     // disabled counts how often the system turned the tap off.
     private(set) var disabled = 0
 
-    // running reports whether the tap is installed.
-    var running: Bool { port != nil }
+    // running reports whether the tap is installed and the system has not invalidated it.
+    var running: Bool { port.map(CFMachPortIsValid) ?? false }
 
-    // start installs the tap on the main run loop and reports whether it is running. It fails
-    // without Accessibility access.
+    // start installs the tap on the main run loop and reports whether it is running. A tap the
+    // system invalidated is torn down and made again. It fails without Accessibility access.
     @discardableResult
     func start() -> Bool {
-        if port != nil {
+        if running {
             return true
         }
+        stop()
         Self.current = self
         let mask = (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.leftMouseUp.rawValue)
             | (1 << CGEventType.leftMouseDragged.rawValue) | (1 << CGEventType.otherMouseDown.rawValue)
@@ -64,7 +67,22 @@ final class EventTap {
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         port = tap
+        self.source = source
         return true
+    }
+
+    // stop removes the tap, as when Accessibility is turned off, and ends a press and any held
+    // modifiers it would otherwise never see released.
+    func stop() {
+        guard let port else { return }
+        CGEvent.tapEnable(tap: port, enable: false)
+        if let source {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        CFMachPortInvalidate(port)
+        self.port = nil
+        source = nil
+        resync(released: true)
     }
 
     // handle routes one event and returns false to swallow it.
@@ -112,15 +130,17 @@ final class EventTap {
 
     // resync ends a press whose release came while the system had the tap off and tells the
     // handlers which modifiers are held now, so no swallowed release, drag or trigger key is left
-    // waiting for an event the tap never saw.
-    private func resync() {
+    // waiting for an event the tap never saw. With released set, as when the tap stops, it treats
+    // the button as up and no modifier as held.
+    private func resync(released: Bool = false) {
         let at = CGEvent(source: nil)?.location ?? .zero
-        switch press.recover(buttonDown: CGEventSource.buttonState(.combinedSessionState, button: .left)) {
+        let down = !released && CGEventSource.buttonState(.combinedSessionState, button: .left)
+        switch press.recover(buttonDown: down) {
         case .swallowed: onSwallowedUp(at)
         case .plain: onUp(at, false)
         case .none: break
         }
-        onFlags(CGEventSource.flagsState(.combinedSessionState), at)
+        onFlags(released ? [] : CGEventSource.flagsState(.combinedSessionState), at)
     }
 }
 

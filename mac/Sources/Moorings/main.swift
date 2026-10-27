@@ -384,14 +384,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                           gap: anchors.choices.gapPx)
     }
 
-    // tick catches an Accessibility grant, then runs the pass that was due.
+    // tick catches an Accessibility grant or loss, then runs the pass that was due. A loss tears
+    // down the tap and every observer and a grant builds them again, since what was made under the
+    // old grant may never deliver another event.
     private func tick() {
         if windows.trusted != wasTrusted {
             wasTrusted = windows.trusted
             showTrust()
             if wasTrusted {
+                logger.notice("Accessibility is on: starting the tap and watching every app again")
                 tap.start()
+                watcher.watch(Self.regularApps())
                 notify("Moorings is ready", "Accessibility is on. Anchored apps take their slots now.")
+            } else {
+                logger.notice("Accessibility is off: stopping the tap and every observer")
+                tap.stop()
+                watcher.reset()
             }
         }
         moor()
@@ -729,7 +737,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func status() {
         let screens = Screens.current()
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        logger.notice("status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.anchors.choices.paused)")
+        logger.notice("status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.anchors.choices.paused) tap=\(self.tap.running) observed=\(self.watcher.count) hotkeys=\(self.hotkeys.enabled)")
         for (key, bundle) in anchors.assignments().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             logger.notice("slot \(key.rawValue, privacy: .public): \(bundle, privacy: .public)")
         }

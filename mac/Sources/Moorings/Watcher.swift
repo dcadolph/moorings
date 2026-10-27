@@ -74,6 +74,19 @@ final class Watcher {
         }
     }
 
+    // count is how many processes are observed.
+    var count: Int { observers.count }
+
+    // reset drops every observer, as when Accessibility is turned off, so the next watch registers
+    // each app again instead of trusting observers made under the old grant.
+    func reset() {
+        for pid in Array(observers.keys) {
+            forget(pid)
+        }
+        pending = [:]
+        closing = []
+    }
+
     // forget stops observing a process that quit.
     func forget(_ pid: pid_t) {
         pending[pid] = nil
