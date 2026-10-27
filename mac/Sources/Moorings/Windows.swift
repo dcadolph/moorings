@@ -520,9 +520,9 @@ final class Windows {
         )
     }
 
-    // keeps reports whether the last scan kept window el.
-    func keeps(_ el: AXUIElement) -> Bool {
-        Self.id(el).map { elements[$0] != nil } ?? false
+    // keeps reports whether the last scan kept the window with id.
+    func keeps(_ id: WindowID?) -> Bool {
+        id.map { elements[$0] != nil } ?? false
     }
 
     // eligible reports whether a scan would keep el by its kind: a document window or a file panel.

@@ -28,13 +28,14 @@ public enum Pace {
     }
 
     // geometryEvents lists the window notifications that report a window's place or birth.
-    static let geometryEvents: Set<String> = ["AXWindowMoved", "AXWindowResized", "AXWindowCreated"]
+    public static let geometryEvents: Set<String> = ["AXWindowMoved", "AXWindowResized", "AXWindowCreated"]
 
     // wakes reports whether a window event named note asks for a pass, given whether the last scan
     // kept the window and whether a scan would keep it. A move, resize or birth of a window no scan
-    // keeps, such as a browser's previews and popovers, changes nothing a pass decides.
-    public static func wakes(_ note: String, kept: Bool, eligible: Bool) -> Bool {
-        !geometryEvents.contains(note) || kept || eligible
+    // keeps, such as a browser's previews and popovers, changes nothing a pass decides. eligible is
+    // asked only for such an event, since asking costs a round trip to the window's app.
+    public static func wakes(_ note: String, kept: Bool, eligible: @autoclosure () -> Bool) -> Bool {
+        !geometryEvents.contains(note) || kept || eligible()
     }
 }
 

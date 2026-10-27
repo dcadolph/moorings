@@ -146,24 +146,26 @@ struct WakeCase: Sendable {
     var Eligible = false
     // WantWake reports whether a pass must follow.
     var WantWake: Bool
+    // WantAsked reports whether the window's kind must be asked, which costs a round trip.
+    var WantAsked = false
 }
 
 // wakeCases covers kept, eligible and dropped windows for each kind of event.
 let wakeCases: [WakeCase] = [
     // Test 0: A helper window no scan keeps moves, so nothing wakes.
-    WakeCase(Note: "AXWindowMoved", WantWake: false),
+    WakeCase(Note: "AXWindowMoved", WantWake: false, WantAsked: true),
     // Test 1: A helper window resizes, so nothing wakes.
-    WakeCase(Note: "AXWindowResized", WantWake: false),
+    WakeCase(Note: "AXWindowResized", WantWake: false, WantAsked: true),
     // Test 2: A popover is born, so nothing wakes.
-    WakeCase(Note: "AXWindowCreated", WantWake: false),
+    WakeCase(Note: "AXWindowCreated", WantWake: false, WantAsked: true),
     // Test 3: A kept window moves, so a pass follows.
     WakeCase(Note: "AXWindowMoved", Kept: true, WantWake: true),
     // Test 4: A kept window resizes, so a pass follows.
     WakeCase(Note: "AXWindowResized", Kept: true, WantWake: true),
     // Test 5: A new document window is born, so a pass places it.
-    WakeCase(Note: "AXWindowCreated", Eligible: true, WantWake: true),
+    WakeCase(Note: "AXWindowCreated", Eligible: true, WantWake: true, WantAsked: true),
     // Test 6: A document window the last scan missed moves, so a pass follows.
-    WakeCase(Note: "AXWindowMoved", Eligible: true, WantWake: true),
+    WakeCase(Note: "AXWindowMoved", Eligible: true, WantWake: true, WantAsked: true),
     // Test 7: Focus moves to a helper window, which still wakes as before.
     WakeCase(Note: "AXFocusedWindowChanged", WantWake: true),
     // Test 8: A window is minimized, which still wakes as before.
@@ -174,5 +176,18 @@ let wakeCases: [WakeCase] = [
 
 @Test(arguments: wakeCases)
 func testPaceWakes(test: WakeCase) {
-    #expect(Pace.wakes(test.Note, kept: test.Kept, eligible: test.Eligible) == test.WantWake)
+    var asked = false
+    func ask() -> Bool {
+        asked = true
+        return test.Eligible
+    }
+    #expect(Pace.wakes(test.Note, kept: test.Kept, eligible: ask()) == test.WantWake)
+    #expect(asked == test.WantAsked)
+}
+
+// testGeometryEvents checks the events the app reads a window id for, which must include the moves
+// and resizes it matches against an action's echo.
+@Test func testGeometryEvents() {
+    #expect(Pace.geometryEvents == ["AXWindowMoved", "AXWindowResized", "AXWindowCreated"])
+    #expect(!Pace.geometryEvents.contains("AXFocusedWindowChanged"))
 }

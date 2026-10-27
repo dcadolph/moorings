@@ -284,12 +284,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // windowEvent wakes the passes for a window event a pass acts on, and drops the moves, resizes
-    // and births of windows no scan keeps. A kept window's event wakes without asking its kind, and
-    // an event names its app so the passes read only that app.
+    // and births of windows no scan keeps. A kept window's event wakes without asking its kind, any
+    // other event wakes without reading the window at all, and an event names its app so the passes
+    // read only that app.
     private func windowEvent(_ el: AXUIElement, _ note: String) {
-        let kept = windows.keeps(el)
-        guard Pace.wakes(note, kept: kept, eligible: !kept && Windows.eligible(el)) else { return }
-        if note == kAXWindowMovedNotification || note == kAXWindowResizedNotification, let id = Windows.id(el),
+        let id = Pace.geometryEvents.contains(note) ? Windows.id(el) : nil
+        guard Pace.wakes(note, kept: windows.keeps(id), eligible: Windows.eligible(el)) else { return }
+        if note == kAXWindowMovedNotification || note == kAXWindowResizedNotification, let id,
            let echo = echoes[id], Self.now - echo.at < Pace.settleSeconds
         {
             poll()
