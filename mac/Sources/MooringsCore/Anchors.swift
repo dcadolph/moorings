@@ -364,6 +364,8 @@ public final class Anchors {
     static let burstSeconds = 10.0
     // holdSeconds is how long a window that fights its place is left alone.
     static let holdSeconds = 60.0
+    // titleBand is how much of a free window's top stays on the channel when it hangs off the bottom.
+    static let titleBand = 40.0
     // openSeconds is how long an anchored app being opened keeps its strip before its window shows.
     static let openSeconds = 30.0
 
@@ -423,6 +425,12 @@ public final class Anchors {
     public var history = History()
     // floors records the smallest size each window was seen to keep.
     var floors: [WindowID: Floor] = [:]
+    // dragging reports whether a pass saw the mouse button down since the last pass that acted.
+    var dragging = false
+    // seenAt records where each free window was left by the last pass that acted.
+    var seenAt: [WindowID: Frame] = [:]
+    // hung holds the free windows the owner dropped by hand, which may hang off the channel bottom.
+    var hung: Set<WindowID> = []
     // pendingFill records when each window was asked to leave native fullscreen.
     var pendingFill: [WindowID: Double] = [:]
     // minPoints is the widest floor among the pins on each side.
@@ -695,12 +703,40 @@ public final class Anchors {
         f.x < ch.x - tolerance && f.x + f.w > ch.x + ch.w + tolerance
     }
 
+    // keep returns f no wider or taller than channel ch and between its side edges. Below ch's top
+    // it stays where it is when open, so a window the owner dragged down hangs off the screen as
+    // macOS allows with at least titleBand of its top on the channel. Otherwise f is kept wholly
+    // inside ch, so an app that grows its own window past the bottom keeps its controls on screen.
+    static func keep(_ f: Frame, _ ch: Frame, open: Bool) -> Frame {
+        var k = Geometry.clamp(f, ch)
+        if open {
+            k.y = max(ch.y, min(f.y, ch.y + ch.h - min(k.h, titleBand)))
+        }
+        return k
+    }
+
+    // drop marks free window w as hung when it moved since the last pass while the mouse button was
+    // down, so the owner dragged it, and clears the mark when anything else moved it. It records
+    // where w is now; settle overwrites that with any move it makes.
+    func drop(_ w: WindowInfo, dropped: Bool) {
+        if let last = seenAt[w.id], !Actions.near(last, w.frame, tolerance: Self.tolerance) {
+            if dropped {
+                hung.insert(w.id)
+            } else {
+                hung.remove(w.id)
+            }
+        }
+        seenAt[w.id] = w.frame
+    }
+
     // settle keeps free window w inside channel ch, and lets a window the channel once narrowed grow
     // back toward its own width when the channel widens. A zoomed window is the owner's own request,
     // so pulling it back never counts toward a hold. When the channel moved from old, a window on
     // its old edges that the channel did not narrow follows them: one filling it keeps filling it,
-    // and one on a single edge slides with that edge at its own width.
+    // and one on a single edge slides with that edge at its own width. A window in hung may hang
+    // off the bottom.
     func settle(_ w: WindowInfo, _ ch: Frame, zoomed: Bool = false, old: Frame? = nil) -> Move? {
+        let open = hung.contains(w.id)
         if zoomed {
             bursts[w.id] = nil
         }
@@ -717,7 +753,7 @@ public final class Anchors {
                     f.x = left ? ch.x : ch.x + ch.w - f.w
                 }
                 clamped[w.id] = nil
-                return place(w, Geometry.clamp(f, ch))
+                return place(w, Self.keep(f, ch, open: open))
             }
         }
         var c = clamped[w.id]
@@ -728,7 +764,7 @@ public final class Anchors {
         if let c {
             f.w = c.natural
         }
-        let want = Geometry.clamp(f, ch)
+        let want = Self.keep(f, ch, open: open)
         clamped[w.id] = want.w < f.w ? Clamp(natural: f.w, set: want.w) : nil
         return place(w, want)
     }
@@ -744,7 +780,12 @@ public final class Anchors {
             placed = [:]
             return []
         }
+        if scene.mouseHeld {
+            dragging = true
+        }
         guard !scene.mouseHeld, let screen = scene.screen else { return [] }
+        let dropped = dragging
+        dragging = false
         now = scene.now
         let pins = pins()
         var shown: Set<String> = []
@@ -792,6 +833,7 @@ public final class Anchors {
                 }
             } else if w.onUltrawide {
                 cap(w.id, ch)
+                drop(w, dropped: dropped)
                 if w.isFullScreen {
                     if choices.fullscreenFills, let exit = leaveFullScreen(w) {
                         moves.append(exit)
@@ -809,6 +851,7 @@ public final class Anchors {
                     clamped[w.id] = nil
                     cacheZoom(w, w.frame, free: true)
                 } else if let move = settle(w, ch, zoomed: w.id == scene.focused && Self.spans(w.frame, ch), old: old) {
+                    seenAt[w.id] = move.frame
                     moves.append(move)
                 } else {
                     cacheZoom(w, w.frame, free: true)
@@ -823,6 +866,8 @@ public final class Anchors {
         placed = placed.filter { seen.contains($0.key) }
         zoom = zoom.filter { seen.contains($0.key) }
         filled = filled.filter { seen.contains($0.key) }
+        seenAt = seenAt.filter { seen.contains($0.key) }
+        hung.formIntersection(seen)
         released.formIntersection(seen)
         lifted.formIntersection(seen)
         return moves

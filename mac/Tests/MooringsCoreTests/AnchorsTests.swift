@@ -596,3 +596,60 @@ func testCastReason(test: CastReasonCase) {
     world.pass(anchors)
     #expect(world.frame(fill) == Frame(x: 512, y: 25, w: 2304, h: 1415))
 }
+
+// testHangOffBottom checks that a free window the owner drags down in the channel stays where it
+// was dropped with its top band on screen, is still held between the strips side to side and below
+// the channel top, and keeps hanging on later passes.
+@Test func testHangOffBottom() {
+    let anchors = anchored()
+    var world = TestWorld()
+    world.add(slack, leftFull)
+    world.add(iterm, rightFull)
+    let full = world.add("com.apple.Safari", Frame(x: 512, y: 25, w: 2304, h: 1415))
+    let deep = world.add("com.apple.Notes", Frame(x: 1000, y: 200, w: 800, h: 600))
+    let side = world.add("com.apple.TextEdit", Frame(x: 600, y: 100, w: 800, h: 1000))
+    let high = world.add("com.apple.Preview", Frame(x: 1200, y: 200, w: 600, h: 500))
+    world.pass(anchors)
+    world.mouseHeld = true
+    world.pass(anchors)
+    world.set(full, Frame(x: 512, y: 400, w: 2304, h: 1415))
+    world.set(deep, Frame(x: 1000, y: 1420, w: 800, h: 600))
+    world.set(side, Frame(x: 100, y: 900, w: 800, h: 1000))
+    world.set(high, Frame(x: 1200, y: 0, w: 600, h: 500))
+    world.mouseHeld = false
+    for _ in 1...3 {
+        world.clock += 1
+        world.pass(anchors)
+    }
+    #expect(world.frame(full) == Frame(x: 512, y: 400, w: 2304, h: 1415))
+    #expect(world.moves[full] == nil)
+    #expect(world.frame(deep) == Frame(x: 1000, y: 1400, w: 800, h: 600))
+    #expect(world.frame(side) == Frame(x: 512, y: 900, w: 800, h: 1000))
+    #expect(world.frame(high) == Frame(x: 1200, y: 25, w: 600, h: 500))
+}
+
+// testAppMoveStaysInside checks that a window its own app moves past the channel bottom is pulled
+// back inside, and that a window the owner hung is pulled back once its app moves it.
+@Test func testAppMoveStaysInside() {
+    let anchors = anchored()
+    var world = TestWorld()
+    world.add(slack, leftFull)
+    world.add(iterm, rightFull)
+    let own = world.add("com.apple.Safari", Frame(x: 512, y: 25, w: 2304, h: 1415))
+    let hung = world.add("com.apple.Notes", Frame(x: 1000, y: 200, w: 800, h: 600))
+    world.pass(anchors)
+    world.set(own, Frame(x: 512, y: 400, w: 2304, h: 1415))
+    world.clock += 1
+    world.pass(anchors)
+    world.mouseHeld = true
+    world.pass(anchors)
+    world.set(hung, Frame(x: 1000, y: 1000, w: 800, h: 600))
+    world.mouseHeld = false
+    world.pass(anchors)
+    #expect(world.frame(own) == Frame(x: 512, y: 25, w: 2304, h: 1415))
+    #expect(world.frame(hung) == Frame(x: 1000, y: 1000, w: 800, h: 600))
+    world.set(hung, Frame(x: 1000, y: 1100, w: 800, h: 600))
+    world.clock += 1
+    world.pass(anchors)
+    #expect(world.frame(hung) == Frame(x: 1000, y: 840, w: 800, h: 600))
+}
