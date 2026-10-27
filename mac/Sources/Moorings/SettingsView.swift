@@ -795,7 +795,7 @@ struct SettingsView: View {
         Form {
             Toggle("Launch at login", isOn: Binding(get: { model.app.launchAtLogin },
                                                     set: { v in model.app.setLaunchAtLogin(v); model.reload() }))
-            Toggle("Check for updates once a day", isOn: Binding(get: { model.choices.checkUpdates },
+            Toggle("Check for updates every few hours", isOn: Binding(get: { model.choices.checkUpdates },
                                                                  set: { v in model.change { $0.checkUpdates = v } }))
             HStack {
                 Button("Export settings…") { model.exportSettings() }

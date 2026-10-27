@@ -115,13 +115,17 @@ public struct UpdateChecker: Sendable {
 
 // UpdateSchedule decides when the next check is due.
 public enum UpdateSchedule {
-    // everySeconds is how long one check stays fresh.
-    public static let everySeconds: TimeInterval = 24 * 60 * 60
+    // everySeconds is how long one check stays fresh for the timer.
+    public static let everySeconds: TimeInterval = 6 * 60 * 60
+    // menuSeconds is how long one check stays fresh when the menu opens.
+    public static let menuSeconds: TimeInterval = 60 * 60
     // firstSeconds is how long after launch the first check waits, so it never slows a login.
     public static let firstSeconds: TimeInterval = 60
 
-    // isDue reports whether a check should run now. A clock set behind the last check counts as due.
-    public static func isDue(lastChecked: Date?, launched: Date, now: Date) -> Bool {
+    // isDue reports whether a check older than fresh seconds should run now. A clock set behind the
+    // last check counts as due.
+    public static func isDue(lastChecked: Date?, launched: Date, now: Date,
+                             fresh: TimeInterval = everySeconds) -> Bool {
         guard now.timeIntervalSince(launched) >= firstSeconds else {
             return false
         }
@@ -129,6 +133,6 @@ public enum UpdateSchedule {
             return true
         }
         let age = now.timeIntervalSince(lastChecked)
-        return age >= everySeconds || age < 0
+        return age >= fresh || age < 0
     }
 }

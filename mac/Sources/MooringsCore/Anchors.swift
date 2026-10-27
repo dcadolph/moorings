@@ -72,7 +72,7 @@ public struct Choices: Equatable, Sendable, Codable {
     public var snap: Bool = true
     // workspaces holds the saved workspaces by name.
     public var workspaces: [String: Workspace] = [:]
-    // checkUpdates reports whether moorings looks for a new release once a day.
+    // checkUpdates reports whether moorings looks for a new release every few hours.
     public var checkUpdates: Bool = true
     // mouseButtons maps an extra mouse button, numbered from 2, to the action it runs.
     public var mouseButtons: [String: String] = [:]

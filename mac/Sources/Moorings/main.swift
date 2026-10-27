@@ -46,13 +46,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let banner = BannerPanel()
     // stackBadge counts the stacked windows under the pointer when the choice is on.
     let stackBadge = StackBadge()
-    // update is a newer release found by the daily check, nil when none.
+    // update is a newer release found by the update check, nil when none.
     var update: ReleaseInfo?
     // launched is when moorings started.
     private let launched = Date()
     // wasTrusted is the Accessibility state at the last tick, to catch the grant.
     private var wasTrusted = true
-    // updateTimer runs the daily update check.
+    // updateTimer runs the update check.
     private var updateTimer: Timer?
     // tap watches the primary mouse button for green button clicks and drags.
     let tap = EventTap()
@@ -258,8 +258,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // menuNeedsUpdate rebuilds the menu from the current state each time it opens.
+    // menuNeedsUpdate rebuilds the menu from the current state each time it opens, and checks for a
+    // release when the last check is over an hour old so the next open can offer it.
     func menuNeedsUpdate(_ menu: NSMenu) {
+        checkUpdate(fresh: UpdateSchedule.menuSeconds)
         menu.removeAllItems()
         for entry in MenuBuilder(app: self).items() {
             menu.addItem(entry)
@@ -574,12 +576,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // checkUpdate looks for a newer release once a day, a minute after launch at the earliest.
-    private func checkUpdate() {
+    // checkUpdate looks for a newer release when the last check is older than fresh seconds, a minute
+    // after launch at the earliest.
+    private func checkUpdate(fresh: TimeInterval = UpdateSchedule.everySeconds) {
         guard anchors.choices.checkUpdates, update == nil else { return }
         let defaults = UserDefaults.standard
         let last = defaults.object(forKey: Self.checkedKey) as? Date
-        guard UpdateSchedule.isDue(lastChecked: last, launched: launched, now: Date()),
+        guard UpdateSchedule.isDue(lastChecked: last, launched: launched, now: Date(), fresh: fresh),
               let current = ReleaseVersion(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")
         else { return }
         defaults.set(Date(), forKey: Self.checkedKey)

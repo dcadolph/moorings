@@ -165,15 +165,27 @@ func testUpdateChecker(test: UpdateCase) async throws {
     await #expect(throws: Down.self) { try await checker.check() }
 }
 
-// testUpdateSchedule checks the launch delay, the daily freshness and a clock set backward.
+// testUpdateSchedule checks the launch delay, the six-hour freshness and a clock set backward.
 @Test func testUpdateSchedule() {
     let launched = updateStamp("2026-10-23 09:00")
     let last = updateStamp("2026-10-23 09:01")
     #expect(!UpdateSchedule.isDue(lastChecked: nil, launched: launched, now: updateStamp("2026-10-23 09:00")))
     #expect(UpdateSchedule.isDue(lastChecked: nil, launched: launched, now: updateStamp("2026-10-23 09:01")))
-    #expect(!UpdateSchedule.isDue(lastChecked: last, launched: launched, now: updateStamp("2026-10-24 09:00")))
-    #expect(UpdateSchedule.isDue(lastChecked: last, launched: launched, now: updateStamp("2026-10-24 09:01")))
+    #expect(!UpdateSchedule.isDue(lastChecked: last, launched: launched, now: updateStamp("2026-10-23 15:00")))
+    #expect(UpdateSchedule.isDue(lastChecked: last, launched: launched, now: updateStamp("2026-10-23 15:01")))
     #expect(UpdateSchedule.isDue(lastChecked: updateStamp("2026-10-25 09:00"), launched: launched, now: last))
+}
+
+// testUpdateScheduleMenu checks that a menu open counts a check older than an hour as due.
+@Test func testUpdateScheduleMenu() {
+    let launched = updateStamp("2026-10-23 09:00")
+    let last = updateStamp("2026-10-23 09:01")
+    let fresh = UpdateSchedule.menuSeconds
+    let hour = updateStamp("2026-10-23 10:00")
+    let past = updateStamp("2026-10-23 10:01")
+    #expect(!UpdateSchedule.isDue(lastChecked: last, launched: launched, now: hour, fresh: fresh))
+    #expect(UpdateSchedule.isDue(lastChecked: last, launched: launched, now: past, fresh: fresh))
+    #expect(!UpdateSchedule.isDue(lastChecked: last, launched: launched, now: past))
 }
 
 // updateStamp parses a UTC "yyyy-MM-dd HH:mm" string.
