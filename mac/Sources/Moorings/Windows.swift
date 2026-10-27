@@ -53,8 +53,6 @@ final class Windows {
 
     // elements maps each window seen in the last scan to its element.
     private(set) var elements: [WindowID: AXUIElement] = [:]
-    // panels caches whether a window is an open or save panel, read once per window.
-    private var panels: [WindowID: Bool] = [:]
     // zooms caches each window's green button rect with the frame it was read at, so it is asked
     // for again only when the window moves.
     private var zooms: [WindowID: (frame: Frame, rect: Frame?)] = [:]
@@ -183,7 +181,6 @@ final class Windows {
         found = WindowInfo.promotingLone(found)
         last = byPid
         elements = seen
-        panels = panels.filter { seen[$0.key] != nil }
         zooms = zooms.filter { seen[$0.key] != nil }
         found.sort { rank[$0.id, default: .max] < rank[$1.id, default: .max] }
         if let focusedID, let i = found.firstIndex(where: { $0.id == focusedID }) {
@@ -246,15 +243,16 @@ final class Windows {
                     continue
                 }
                 let why: String
+                let traits = rank.contains(id) ? Self.traits(el).traits : WindowTraits()
                 if !rank.contains(id) {
                     why = "drop: not on screen"
-                } else if Self.string(el, kAXRoleAttribute) != kAXWindowRole {
-                    why = "drop: role \(Self.string(el, kAXRoleAttribute) ?? "nil")"
-                } else if !Self.document(el) {
-                    why = "drop: subrole \(Self.string(el, kAXSubroleAttribute) ?? "nil")"
-                } else if Self.bool(el, kAXMinimizedAttribute) {
+                } else if traits.role != kAXWindowRole {
+                    why = "drop: role \(traits.role ?? "nil")"
+                } else if !traits.document {
+                    why = "drop: subrole \(traits.subrole ?? "nil")"
+                } else if traits.minimized {
                     why = "drop: minimized"
-                } else if Self.frame(el) == nil {
+                } else if traits.frame == nil {
                     why = "drop: no frame"
                 } else {
                     why = "keep"
@@ -498,14 +496,11 @@ final class Windows {
     // window, it is minimized, or its frame cannot be read. isMain is whether the app names el its
     // main window, which an app reports even while it is not active.
     private func info(_ el: AXUIElement, id: WindowID, bundle: String, isMain: Bool, screens: Screens) -> WindowInfo? {
-        guard Self.string(el, kAXRoleAttribute) == kAXWindowRole, Self.document(el),
-              !Self.bool(el, kAXMinimizedAttribute), let frame = Self.frame(el)
-        else { return nil }
-        let panel = panels[id] ?? Self.filePanel(el)
-        panels[id] = panel
+        let (traits, zoomButton) = Self.traits(el)
+        guard traits.movable, let frame = traits.frame else { return nil }
         var zoom = zooms[id]
         if zoom == nil || zoom!.frame != frame {
-            zoom = (frame, Self.element(el, kAXZoomButtonAttribute).flatMap { Self.frame($0) })
+            zoom = (frame, zoomButton.flatMap { Self.frame($0) })
             zooms[id] = zoom
         }
         return WindowInfo(
@@ -514,8 +509,8 @@ final class Windows {
             frame: frame,
             onUltrawide: screens.ultrawide != nil && screens.index(frame) == screens.ultrawide,
             isMain: isMain,
-            isFilePanel: panel,
-            isFullScreen: Self.bool(el, "AXFullScreen"),
+            isFilePanel: traits.filePanel,
+            isFullScreen: traits.fullScreen,
             zoomRect: zoom?.rect
         )
     }
@@ -530,20 +525,63 @@ final class Windows {
         document(el) || filePanel(el)
     }
 
-    // document reports whether el is a document window: a standard window, or a dialog with a zoom
-    // button, which is how TextEdit's documents report themselves.
+    // document reports whether el is a document window by the rule in WindowTraits, asking for the
+    // zoom button only for a dialog.
     private static func document(_ el: AXUIElement) -> Bool {
-        switch string(el, kAXSubroleAttribute) {
-        case kAXStandardWindowSubrole: true
-        case kAXDialogSubrole: element(el, kAXZoomButtonAttribute) != nil
-        default: false
-        }
+        let subrole = string(el, kAXSubroleAttribute)
+        let zoom = subrole == kAXDialogSubrole && element(el, kAXZoomButtonAttribute) != nil
+        return WindowTraits(subrole: subrole, hasZoomButton: zoom).document
     }
 
     // filePanel reports whether el is an open or save panel, which AppKit names by AXIdentifier.
     private static func filePanel(_ el: AXUIElement) -> Bool {
-        let ident = string(el, kAXIdentifierAttribute)
-        return ident == "open-panel" || ident == "save-panel"
+        WindowTraits(identifier: string(el, kAXIdentifierAttribute)).filePanel
+    }
+
+    // traitNames are the attributes traits asks for, in the order it reads the answers.
+    private static let traitNames = [
+        kAXRoleAttribute, kAXSubroleAttribute, kAXMinimizedAttribute, kAXPositionAttribute, kAXSizeAttribute,
+        "AXFullScreen", kAXZoomButtonAttribute, kAXIdentifierAttribute,
+    ]
+
+    // traits reads what decides whether el may be moved, and its zoom button, in one Accessibility
+    // call. An attribute el lacks comes back as an error in its place and counts as missing. When the
+    // app rejects the call as a whole, each attribute is asked on its own.
+    static func traits(_ el: AXUIElement) -> (traits: WindowTraits, zoomButton: AXUIElement?) {
+        var raw: CFArray?
+        let values: [CFTypeRef?]
+        if AXUIElementCopyMultipleAttributeValues(el, traitNames as CFArray, [], &raw) == .success,
+           let list = raw as [AnyObject]?, list.count == traitNames.count
+        {
+            values = list.map { present($0) }
+        } else {
+            values = traitNames.map { value(el, $0) }
+        }
+        let zoom = values[6].flatMap {
+            CFGetTypeID($0) == AXUIElementGetTypeID() ? unsafeDowncast($0, to: AXUIElement.self) : nil
+        }
+        let traits = WindowTraits(
+            role: values[0] as? String,
+            subrole: values[1] as? String,
+            minimized: values[2] as? Bool ?? false,
+            fullScreen: values[5] as? Bool ?? false,
+            identifier: values[7] as? String,
+            hasZoomButton: zoom != nil,
+            frame: frame(position: values[3], size: values[4])
+        )
+        return (traits, zoom)
+    }
+
+    // present returns v, or nil when it is the error or null a multiple-attribute read puts in place of
+    // an attribute it could not read.
+    private static func present(_ v: AnyObject) -> CFTypeRef? {
+        if v is NSNull {
+            return nil
+        }
+        if CFGetTypeID(v) == AXValueGetTypeID(), AXValueGetType(unsafeDowncast(v, to: AXValue.self)) == .axError {
+            return nil
+        }
+        return v
     }
 
     // onScreen returns the on-screen windows at the normal layer, front-most first, with their
@@ -596,7 +634,13 @@ final class Windows {
 
     // frame returns el's position and size in global top-left coordinates.
     private static func frame(_ el: AXUIElement) -> Frame? {
-        guard let p = value(el, kAXPositionAttribute), let s = value(el, kAXSizeAttribute),
+        frame(position: value(el, kAXPositionAttribute), size: value(el, kAXSizeAttribute))
+    }
+
+    // frame makes a frame from a position and a size value, nil when either is missing or not a point
+    // and a size.
+    private static func frame(position: CFTypeRef?, size: CFTypeRef?) -> Frame? {
+        guard let p = position, let s = size,
               CFGetTypeID(p) == AXValueGetTypeID(), CFGetTypeID(s) == AXValueGetTypeID()
         else { return nil }
         var origin = CGPoint.zero
