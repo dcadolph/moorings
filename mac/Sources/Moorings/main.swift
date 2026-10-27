@@ -582,16 +582,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard anchors.choices.checkUpdates, update == nil else { return }
         let defaults = UserDefaults.standard
         let last = defaults.object(forKey: Self.checkedKey) as? Date
-        guard UpdateSchedule.isDue(lastChecked: last, launched: launched, now: Date(), fresh: fresh),
-              let current = ReleaseVersion(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")
-        else { return }
-        defaults.set(Date(), forKey: Self.checkedKey)
+        guard UpdateSchedule.isDue(lastChecked: last, launched: launched, now: Date(), fresh: fresh) else {
+            return
+        }
+        runUpdateCheck(say: false)
+    }
+
+    // checkUpdateNow looks for a newer release at once, even with the automatic check off, and says
+    // what it found.
+    func checkUpdateNow() {
+        runUpdateCheck(say: true)
+    }
+
+    // runUpdateCheck asks GitHub for the latest release and keeps a newer one for the menu. With say
+    // set it shows a banner for every outcome, including up to date and a failed request.
+    private func runUpdateCheck(say: Bool) {
+        let shown = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        guard let current = ReleaseVersion(shown) else { return }
+        UserDefaults.standard.set(Date(), forKey: Self.checkedKey)
         let checker = UpdateChecker(client: URLSessionClient(), current: current)
         Task { @MainActor in
             do {
                 self.update = try await checker.check()
             } catch {
                 self.logger.notice("update check failed: \(error.localizedDescription, privacy: .public)")
+                if say {
+                    self.notify("Update check failed", "Moorings could not reach GitHub. Try again in a moment.")
+                }
+                return
+            }
+            guard say else { return }
+            if let found = self.update {
+                self.notify("Moorings \(found.tag) is out", "Click to open the release page.") {
+                    NSWorkspace.shared.open(found.page)
+                }
+            } else {
+                self.notify("Moorings is up to date", "Version \(shown) is the latest release.")
             }
         }
     }

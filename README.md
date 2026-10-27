@@ -102,8 +102,8 @@ The menu rebuilds each time it opens. From the top: an update offer when one is 
 anchor toggle (Weigh anchor lets windows drift, Drop anchor holds them again), Re-moor now,
 Anchor or Unanchor the front app, Cast off this window, a Re-moor entry for each released app,
 then the Anchored apps, Window, Lift, Workspaces, Profiles, Widths and Heights folders, Settings,
-Launch at login, Check for updates, Tip the harbormaster, and Quit. Quit pulls the sailboat under the water
-before Moorings exits, unless Reduce Motion is on.
+Launch at login, Check for updates now, Check for updates automatically, Tip the harbormaster, and
+Quit. Quit pulls the sailboat under the water before Moorings exits, unless Reduce Motion is on.
 
 ### Window actions
 

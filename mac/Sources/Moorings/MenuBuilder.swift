@@ -106,7 +106,11 @@ struct MenuBuilder {
         out.append(ActionItem("Launch at login", tip: "Open Moorings when you log in.", checked: app.launchAtLogin) {
             app.setLaunchAtLogin(!app.launchAtLogin)
         })
-        out.append(ActionItem("Check for updates", tip: "Look for a new release every few hours and offer it here.",
+        out.append(ActionItem("Check for updates now", tip: "Ask GitHub for the latest release right away.") {
+            app.checkUpdateNow()
+        })
+        out.append(ActionItem("Check for updates automatically",
+                              tip: "Look for a new release every few hours and offer it here.",
                               checked: anchors.choices.checkUpdates) {
             anchors.choices.checkUpdates.toggle()
             app.save()
