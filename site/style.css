@@ -1,12 +1,12 @@
 :root {
-  --bg: #0a1c26;
-  --surface: #10293a;
+  --bg: #141618;
+  --surface: #1d2023;
   --text: #f2e9d8;
-  --muted: #9fb7b9;
+  --muted: #aeaaa0;
   --accent: #6cc7b3;
   --sand: #e3c58f;
   --palm: #8fbf6a;
-  --on: #0a1c26;
+  --on: #141618;
   --cream: #efe4cc;
   --lift: color-mix(in srgb, var(--text) 6%, var(--bg));
   --lift2: color-mix(in srgb, var(--text) 11%, var(--bg));
@@ -40,6 +40,12 @@ p b { color: var(--text); font-weight: 600; }
 .small.palm { color: var(--palm); }
 .band { padding: clamp(72px, 8vw, 112px) 0; }
 .lift { background: var(--lift); }
+.band.lift { --lift: #0d202c; --surface: #12293a; --lift2: color-mix(in srgb, #f2e9d8 9%, #0d202c);
+  --line: color-mix(in srgb, #f2e9d8 14%, transparent); }
+@media (prefers-color-scheme: light) {
+  .band.lift { --lift: color-mix(in srgb, #0e2a3b 6%, #f2e9d6); --surface: #faf5ea;
+    --lift2: color-mix(in srgb, #0e2a3b 11%, #f2e9d6); --line: color-mix(in srgb, #0e2a3b 14%, transparent); }
+}
 .cream { --bg: var(--cream); --surface: #faf5ea; --text: #0e2a3b; --muted: #4a606b; --accent: #185f68;
   --sand: #7a5218; --palm: #335c1d; --on: #faf5ea; --lift: color-mix(in srgb, #0e2a3b 6%, var(--cream));
   --lift2: color-mix(in srgb, #0e2a3b 11%, var(--cream)); --line: color-mix(in srgb, #0e2a3b 16%, transparent);
@@ -54,14 +60,14 @@ p b { color: var(--text); font-weight: 600; }
 .top nav a { text-decoration: none; color: var(--muted); }
 .top nav a:hover { color: var(--accent); }
 
-.btn { display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: var(--on);
+.btn { display: inline-flex; align-items: center; justify-content: center; background: var(--sand); color: var(--on);
   font: 800 17px var(--sans); padding: 0 34px; height: 58px; border-radius: 999px; text-decoration: none;
   transition: transform .15s, filter .15s; }
 .btn:hover { transform: translateY(-2px); filter: brightness(1.08); }
 .cmd { display: inline-flex; align-items: center; justify-content: space-between; gap: 12px; height: 58px; padding: 0 9px 0 22px;
   border: 1.5px solid var(--line); border-radius: 999px; font: 500 13.5px var(--mono); color: var(--text); }
-.cmd span::before { content: "$ "; color: var(--accent); }
-.cmd button { height: 40px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--accent);
+.cmd span::before { content: "$ "; color: var(--sand); }
+.cmd button { height: 40px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--sand);
   color: var(--on); font: 700 13px var(--sans); cursor: pointer; }
 .getit { display: inline-grid; gap: 12px; }
 .getit .btn, .getit .cmd { width: 100%; }
@@ -84,13 +90,13 @@ p b { color: var(--text); font-weight: 600; }
   border: 1.5px solid var(--line); border-radius: 999px; }
 .displays button { border: 0; background: transparent; color: var(--muted); font: 700 14px var(--sans); padding: 9px 18px;
   border-radius: 999px; cursor: pointer; transition: background .2s, color .2s; }
-.displays button[aria-pressed="true"] { background: var(--accent); color: var(--on); }
+.displays button[aria-pressed="true"] { background: var(--sand); color: var(--on); }
 .screen { --u: 1cqw; container-type: inline-size; position: relative; aspect-ratio: 16 / 9; overflow: hidden; margin-inline: auto;
   border-radius: 20px; border: 1px solid var(--line); transition: aspect-ratio .5s, width .5s;
   background: radial-gradient(50% 40% at 88% 104%, color-mix(in srgb, var(--palm) 22%, transparent) 0%, transparent 70%),
     radial-gradient(70% 30% at 88% 106%, color-mix(in srgb, var(--sand) 18%, transparent) 0%, transparent 80%),
-    radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--accent) 16%, var(--bg)) 0%, var(--bg) 62%);
-  box-shadow: 0 50px 140px -40px color-mix(in srgb, var(--accent) 26%, transparent), 0 2px 0 var(--line) inset; }
+    radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--text) 5%, var(--bg)) 0%, var(--bg) 62%);
+  box-shadow: 0 50px 140px -40px rgba(0,0,0,.55), 0 2px 0 var(--line) inset; }
 .screen[data-display="laptop"] { aspect-ratio: 16 / 10; width: 78%; --u: 1.28cqw; }
 .screen[data-display="monitor"] { aspect-ratio: 16 / 9; width: 92%; --u: 1.09cqw; }
 .screen[data-display="ultrawide"] { aspect-ratio: 32 / 9; width: 100%; --u: .72cqw; }
