@@ -94,6 +94,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var appWoke: [pid_t: Double] = [:]
     // lastFull is when the last pass that read every app ran.
     private var lastFull = -Double.infinity
+    // lastApps is when a full pass last asked every running app for its kind, nil before the first.
+    private var lastApps: Double?
     // lastRead holds each window id the last pass read, front-most first.
     private var lastRead: [WindowID] = []
     // lastFrames holds the frames that match lastRead.
@@ -396,7 +398,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         logger.debug("pass \(self.windows.lastPlan == .full ? "full" : "apps", privacy: .public)")
         if windows.lastPlan == .full {
             lastFull = t
-            watcher.watch(Self.regularApps())
+            if PassPlan.refreshesApps(now: t, last: lastApps, waiting: watcher.waiting) {
+                lastApps = t
+                watcher.watch(Self.regularApps())
+            }
         }
         watcher.watchClosing(windows.elements)
         if anchors.hasCastOff || !anchors.stashed.isEmpty {

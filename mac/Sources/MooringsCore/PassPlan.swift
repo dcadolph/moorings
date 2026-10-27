@@ -9,6 +9,17 @@ public enum PassPlan: Equatable, Sendable {
     public static let fullSeconds = 10.0
     // tolerance is how far in points a listed frame may drift before its app is read again.
     public static let tolerance = 1.0
+    // appsSeconds is the longest a full pass goes without asking every running app whether it shows
+    // windows, so an app that turns regular after launch is watched.
+    public static let appsSeconds = 60.0
+
+    // refreshesApps reports whether a full pass asks every running app for its kind: when an app has
+    // not yet taken its observer, or appsSeconds passed since the last time. last is nil before the
+    // first time.
+    public static func refreshesApps(now: Double, last: Double?, waiting: Bool) -> Bool {
+        guard let last else { return true }
+        return waiting || now - last >= appsSeconds
+    }
 
     // plan returns .full when forced, when a full pass is overdue, or when no app was named by a
     // recent wake, and otherwise the apps that woke recently plus the apps whose listed windows

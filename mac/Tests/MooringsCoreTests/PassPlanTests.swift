@@ -86,3 +86,34 @@ func testPassPlan(test: PassPlanCase) {
                                slow: [12])
     #expect(got == [11])
 }
+
+// RefreshAppsCase is one call to PassPlan.refreshesApps and its answer.
+struct RefreshAppsCase: Sendable {
+    // Now is when the full pass runs.
+    var Now = 100.0
+    // Last is when the running apps were last asked, nil before the first time.
+    var Last: Double?
+    // Waiting reports whether an app has not yet taken its observer.
+    var Waiting = false
+    // WantRefresh is whether the pass asks every running app.
+    var WantRefresh: Bool
+}
+
+// refreshAppsCases covers each rule of refreshesApps.
+let refreshAppsCases: [RefreshAppsCase] = [
+    // Test 13: The first full pass asks.
+    RefreshAppsCase(Last: nil, WantRefresh: true),
+    // Test 14: A pass soon after the last ask does not.
+    RefreshAppsCase(Last: 95, WantRefresh: false),
+    // Test 15: A pending observer asks on every full pass.
+    RefreshAppsCase(Last: 95, Waiting: true, WantRefresh: true),
+    // Test 16: appsSeconds after the last ask, the pass asks again.
+    RefreshAppsCase(Now: 160, Last: 100, WantRefresh: true),
+    // Test 17: Just under appsSeconds it does not.
+    RefreshAppsCase(Now: 159.9, Last: 100, WantRefresh: false),
+]
+
+@Test(arguments: refreshAppsCases)
+func testRefreshesApps(test: RefreshAppsCase) {
+    #expect(PassPlan.refreshesApps(now: test.Now, last: test.Last, waiting: test.Waiting) == test.WantRefresh)
+}
