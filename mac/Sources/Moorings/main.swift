@@ -121,6 +121,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // applicationDidFinishLaunching builds the menu, subscribes to events, and runs the first pass.
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), Windows.timeout)
         if installer.offerMove() {
             return
         }

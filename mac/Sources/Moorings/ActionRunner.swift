@@ -280,6 +280,7 @@ final class ActionRunner {
     // reports whether it moved.
     @discardableResult
     func apply(_ name: String, to w: WindowInfo, screens: Screens, index: Int? = nil) -> Bool {
+        guard !screens.full.isEmpty else { return false }
         if anchors.pinned(w) {
             switch name {
             case "maximize":
@@ -360,6 +361,7 @@ final class ActionRunner {
 
     // area returns the area actions on w use on its own screen.
     func area(for w: WindowInfo, screens: Screens) -> Frame {
+        guard !screens.full.isEmpty else { return w.frame }
         let t = target(for: w, screens: screens)
         return Actions.area(t, t.index, anchors.choices.behavior)
     }
@@ -385,14 +387,15 @@ final class ActionRunner {
     }
 
     // target returns the screens an action on w may use, with w on the screen at index, its own
-    // screen when nil.
+    // screen when index is nil or names a display that is gone.
     private func target(for w: WindowInfo, screens: Screens, index: Int? = nil) -> ActionTarget {
         let areas = screens.usable.indices.map { i in
             i == screens.ultrawide ? anchors.channel(screens.usable[i]) : screens.usable[i]
         }
         let right = Self.stageOnRight()
         let notched = Set(NSScreen.screens.indices.filter { NSScreen.screens[$0].safeAreaInsets.top > 0 })
-        return ActionTarget(screens: screens.full, areas: areas, index: index ?? screens.index(w.frame) ?? 0,
+        let index = index.flatMap { screens.full.indices.contains($0) ? $0 : nil } ?? screens.index(w.frame) ?? 0
+        return ActionTarget(screens: screens.full, areas: areas, index: index,
                             notched: notched, staged: Self.staged(screens.full, right: right), stageOnRight: right)
     }
 
@@ -402,6 +405,7 @@ final class ActionRunner {
     func frame(
         _ name: String, for w: WindowInfo, screens: Screens, index: Int? = nil
     ) -> (Frame?, press: Int, name: String) {
+        guard !screens.full.isEmpty else { return (nil, 0, name) }
         let target = target(for: w, screens: screens, index: index)
         if Actions.fillNames.contains(name) {
             let area = Actions.area(target, target.index, anchors.choices.behavior)
