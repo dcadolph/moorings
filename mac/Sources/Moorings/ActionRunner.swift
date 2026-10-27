@@ -125,6 +125,11 @@ final class ActionRunner {
     private let logger = Logger(subsystem: "com.dcadolph.moorings", category: "actions")
     // last records the last action applied to each window, so a repeat press steps its cycle.
     private var last: [WindowID: LastPress] = [:]
+    // prune drops the last action of every window not in alive, the windows that still exist.
+    func prune(alive: Set<WindowID>) {
+        last = last.filter { alive.contains($0.key) }
+    }
+
     // chainPress records the last chain run, the window it ran on and its zero-based press count.
     private var chainPress: (name: String, window: WindowID?, press: Int)?
 

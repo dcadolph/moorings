@@ -422,6 +422,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if PassPlan.refreshesApps(now: t, last: lastApps, waiting: watcher.waiting) {
                 lastApps = t
                 watcher.watch(Self.regularApps())
+                let alive = Windows.alive()
+                anchors.prune(alive: alive)
+                actions.prune(alive: alive)
+                stasher.prune(alive: alive)
             }
         }
         watcher.watchClosing(windows.elements)

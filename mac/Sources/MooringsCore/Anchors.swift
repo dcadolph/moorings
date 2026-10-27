@@ -660,11 +660,12 @@ public final class Anchors {
         return true
     }
 
-    // prune forgets cast-off windows that no longer exist, so a later window with a reused id is
-    // held in the channel.
+    // prune forgets cast-off, stashed and saved windows that no longer exist, so a later window with
+    // a reused id is held in the channel and undo is not offered for a closed window.
     public func prune(alive: Set<WindowID>) {
         castOff.formIntersection(alive)
         stashed.formIntersection(alive)
+        saved = saved.filter { alive.contains($0.key) }
     }
 
     // place returns a move of w to frame unless it is already there. A window that keeps moving

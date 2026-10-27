@@ -24,15 +24,26 @@ struct ShortcutRecorder: View {
             recording ? stop() : start()
         }
         .frame(minWidth: 110)
+        .onDisappear {
+            if recording {
+                stop()
+            }
+        }
         .help(current.map { "Click, then press a new shortcut for \($0.spelled). Escape cancels." }
             ?? "Click, then press a shortcut with at least one modifier. Escape cancels.")
     }
 
-    // start begins recording.
+    // start begins recording in the key window. A key pressed in any other window ends the recording
+    // and goes to that window, so closing Settings mid-recording never leaves keys being eaten.
     private func start() {
         suspend(true)
         recording = true
+        let window = NSApp.keyWindow
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.window === window, window?.isVisible == true else {
+                stop()
+                return event
+            }
             if event.keyCode == 53 {
                 stop()
                 return nil

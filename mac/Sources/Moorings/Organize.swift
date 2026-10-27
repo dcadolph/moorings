@@ -17,6 +17,10 @@ final class Organizer {
     // setup is the signature of the displays last seen, so a display change recalls its workspace
     // once. The displays attached at launch count as handled.
     private var setup: String
+    // changes counts display changes, so only the last of a burst recalls once the displays settle.
+    private var changes = 0
+    // settleSeconds is how long the displays must stay unchanged before a recall.
+    private static let settleSeconds = 1.5
     // waitSeconds is how long a recall waits for the window of an app it opened.
     static let waitSeconds = 30.0
     // recheckSeconds is how long after a rule or a launch places a window it is checked again, for an
@@ -268,9 +272,20 @@ final class Organizer {
         app.save()
     }
 
-    // screensChanged recalls the workspace tied to the display setup just plugged in, then each
-    // workspace marked to come back on any display change, in name order.
+    // screensChanged recalls workspaces once the displays have stayed unchanged for settleSeconds, so
+    // a wake or a flapping dock that sends a burst of changes recalls once.
     func screensChanged() {
+        changes += 1
+        let change = changes
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.settleSeconds) { [weak self] in
+            guard let self, change == changes else { return }
+            recallForScreens()
+        }
+    }
+
+    // recallForScreens recalls the workspace tied to the display setup now plugged in, then each
+    // workspace marked to come back on any display change, in name order.
+    private func recallForScreens() {
         let now = Workspaces.signature(Screens.current().full)
         guard now != setup else { return }
         setup = now

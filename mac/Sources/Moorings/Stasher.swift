@@ -126,6 +126,13 @@ final class Stasher {
         }
     }
 
+    // prune ends the stash of every window not in alive, the windows that still exist.
+    func prune(alive: Set<WindowID>) {
+        for e in entries where !alive.contains(e.s.id) {
+            forget(e.s.id)
+        }
+    }
+
     // forget ends the stash of the window with id without moving it.
     private func forget(_ id: WindowID) {
         entries.removeAll { $0.s.id == id }
