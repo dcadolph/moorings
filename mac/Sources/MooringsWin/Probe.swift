@@ -34,6 +34,14 @@ struct ProbeOptions {
     var minAspect = Layout.minAspect
     // noDelta places without the border correction, the place probe's negative control.
     var noDelta = false
+    // seconds is how long the moor probe runs its loop.
+    var seconds = 10.0
+    // paused writes a paused choices file, the moor probe's negative control.
+    var paused = false
+    // pid names the process whose window the nudge probe moves.
+    var pid: DWORD?
+    // frame is where the nudge probe moves the window.
+    var frame: Frame?
 
     // init parses args, the command line without the program name.
     init(_ args: [String]) throws {
@@ -49,6 +57,21 @@ struct ProbeOptions {
                 minAspect = n
             case "--no-delta":
                 noDelta = true
+            case "--paused":
+                paused = true
+            case "--seconds":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }
+                seconds = n
+            case "--pid":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard let n = DWORD(value) else { throw ProbeError.badValue(flag, value) }
+                pid = n
+            case "--frame":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                let n = value.split(separator: ",").compactMap { Double($0) }
+                guard n.count == 4, n[2] > 0, n[3] > 0 else { throw ProbeError.badValue(flag, value) }
+                frame = Frame(x: n[0], y: n[1], w: n[2], h: n[3])
             default:
                 throw ProbeError.unknownFlag(flag)
             }
@@ -65,6 +88,8 @@ let probes: [String: Probe] = [
     "monitors": probeMonitors,
     "list": probeList,
     "place": probePlace,
+    "moor": probeMoor,
+    "nudge": probeNudge,
 ]
 
 // probeVersion prints the version and the DPI awareness the thread runs with.
@@ -91,10 +116,10 @@ func probeMonitors(_ opts: ProbeOptions) -> Int32 {
 func probeList(_ opts: ProbeOptions) -> Int32 {
     let (windows, focused) = WinWindows.scan(screens: .current(minAspect: opts.minAspect))
     for w in windows {
-        print("window 0x\(String(w.id, radix: 16)): \(w.bundle) frame \(pixels(w.frame))",
+        print("window \(hex(w.id)): \(w.bundle) frame \(pixels(w.frame))",
               "main \(w.isMain) fullscreen \(w.isFullScreen)")
     }
-    print("focused: \(focused.map { "0x" + String($0.id, radix: 16) } ?? "none")")
+    print("focused: \(focused.map { hex($0.id) } ?? "none")")
     return 0
 }
 
@@ -115,6 +140,77 @@ func probePlace(_ opts: ProbeOptions) -> Int32 {
     print("delta: \(Int(d.left)) \(Int(d.top)) \(Int(d.right)) \(Int(d.bottom))",
           "elevated \(placer.elevated.contains(pad.id))")
     return 0
+}
+
+// probeMoor pins the front Notepad to the left top slot in a fresh choices file, runs the pass loop
+// for the given seconds, and prints each move and release with its time, then the final frames.
+func probeMoor(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    guard let wide = screens.wide else {
+        print("moor: no ultrawide")
+        return 1
+    }
+    let windows = WinWindows.scan(screens: screens).windows
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }) else {
+        print("moor: no notepad window")
+        return 1
+    }
+    let store = Store()
+    let choices = Choices(slots: [.leftTop: pad.bundle], widths: Widths(left: 40, right: 30),
+                          paused: opts.paused)
+    do {
+        try store.save(choices)
+    } catch {
+        print("moor: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    print("start at \(stamp(App.now)) pinned \(hex(pad.id)) paused \(app.anchors.choices.paused)")
+    app.moved = { move, t, got in
+        print("move \(hex(move.id)) at \(stamp(t)) to \(pixels(move.frame))",
+              "got \(got.map(pixels) ?? "gone")")
+    }
+    app.released = { id, t in print("released \(hex(id)) at \(stamp(t))") }
+    // Until window events wake the passes, the probe wakes them every Pace.pollSeconds.
+    app.run(until: App.now + opts.seconds, pulse: Pace.pollSeconds)
+    let use = app.anchors.inUse(wide)
+    print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
+    print("channel: \(pixels(app.anchors.channel(wide)))")
+    for w in WinWindows.scan(screens: screens).windows {
+        print("final \(hex(w.id)) pid \(WinWindows.hwnd(w.id).map(WinWindows.processID) ?? 0)",
+              "frame \(pixels(w.frame))")
+    }
+    return 0
+}
+
+// probeNudge moves the front window of a process to a frame, the way an owner or an app would.
+func probeNudge(_ opts: ProbeOptions) -> Int32 {
+    guard let pid = opts.pid, let frame = opts.frame else {
+        print("nudge: needs --pid and --frame")
+        return 2
+    }
+    let screens = Screens.current(minAspect: opts.minAspect)
+    let hwnd = WinWindows.topLevel().first {
+        WinWindows.processID($0) == pid && WinWindows.describe($0, screens: screens) != nil
+    }
+    guard let hwnd else {
+        print("nudge: no window for pid \(pid)")
+        return 1
+    }
+    let id = WinWindows.id(hwnd)
+    WinWindows().move(id, to: frame)
+    print("nudged \(hex(id)) at \(stamp(App.now)) to \(pixels(frame))")
+    return 0
+}
+
+// hex formats a window id the way the list probe does.
+func hex(_ id: WindowID) -> String {
+    "0x" + String(id, radix: 16)
+}
+
+// stamp formats a time to the millisecond.
+func stamp(_ t: Double) -> String {
+    String(format: "%.3f", t)
 }
 
 // pixels formats f as whole x, y, w and h, the same in every locale.

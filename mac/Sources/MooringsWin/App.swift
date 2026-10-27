@@ -1,0 +1,157 @@
+import Foundation
+import WinSDK
+
+import MooringsCore
+
+// App runs the passes on the main thread's message loop: each pass reads the windows, asks Anchors
+// where they belong, and moves them, on a one-shot timer Pace sets.
+final class App {
+    // anchors decides where each window belongs.
+    let anchors: Anchors
+    // windows reads and moves the windows.
+    let windows = WinWindows()
+    // store holds the choices file.
+    let store: Store
+    // minAspect is the ratio a monitor needs to count as ultrawide. Only probes change it.
+    let minAspect: Double
+    // moved is told each move a pass applied, the time, and where the window read back.
+    var moved: (Move, Double, Frame?) -> Void = { _, _, _ in }
+    // released is told each pin the owner moved by hand, and the time.
+    var released: (WindowID, Double) -> Void = { _, _ in }
+    // timer is the pending pass timer's id, 0 when none.
+    private var timer: UINT_PTR = 0
+    // due is when the pending pass runs, nil when none is set.
+    private var due: Double?
+    // woke is when the last window event arrived.
+    private var woke = -Double.infinity
+    // still reports whether the last pass read what the one before read and moved nothing.
+    private var still = false
+    // lastRead lists the ids the last pass read, in order.
+    private var lastRead: [WindowID] = []
+    // lastFrames lists the frames the last pass read, in the order of lastRead.
+    private var lastFrames: [Frame] = []
+    // lastApps is when dead windows were last pruned, nil before the first time.
+    private var lastApps: Double?
+
+    // init loads the choices from store.
+    init(store: Store, minAspect: Double = Layout.minAspect) {
+        self.store = store
+        self.minAspect = minAspect
+        anchors = Anchors(choices: store.load())
+    }
+
+    // now is the time in seconds since the system started, the same clock in every process.
+    static var now: Double { Double(GetTickCount64()) / 1000 }
+
+    // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle.
+    func wake() {
+        woke = Self.now
+        poll()
+    }
+
+    // run pumps messages and runs passes until until, or until WM_QUIT when until is nil. pulse,
+    // when set, wakes the passes that often, standing in for window events.
+    func run(until: Double? = nil, pulse: Double? = nil) {
+        let stop = until.map { SetTimer(nil, 0, Self.millis($0 - Self.now), nil) } ?? 0
+        let beat = pulse.map { SetTimer(nil, 0, Self.millis($0), nil) } ?? 0
+        defer {
+            for id in [stop, beat, timer] where id != 0 {
+                _ = KillTimer(nil, id)
+            }
+            timer = 0
+        }
+        wake()
+        var msg = MSG()
+        while GetMessageW(&msg, nil, 0, 0) {
+            if msg.message == UINT(WM_TIMER), msg.hwnd == nil {
+                switch msg.wParam {
+                case stop where stop != 0:
+                    return
+                case beat where beat != 0:
+                    wake()
+                case timer where timer != 0:
+                    _ = KillTimer(nil, timer)
+                    timer = 0
+                    due = nil
+                    moor()
+                default:
+                    break
+                }
+                continue
+            }
+            _ = TranslateMessage(&msg)
+            _ = DispatchMessageW(&msg)
+        }
+    }
+
+    // poll runs passes every Pace.pollSeconds from now until windows settle.
+    private func poll() {
+        let t = Self.now
+        woke = t
+        if let due, due <= t + Pace.pollSeconds {
+            return
+        }
+        schedule(t + Pace.pollSeconds)
+    }
+
+    // schedule sets the timer for the next pass at time at, or clears it when at is nil.
+    private func schedule(_ at: Double?) {
+        if timer != 0 {
+            _ = KillTimer(nil, timer)
+            timer = 0
+        }
+        due = at
+        guard let at else { return }
+        timer = SetTimer(nil, 0, Self.millis(at - Self.now), nil)
+    }
+
+    // millis converts seconds to a timer interval of at least 1 ms.
+    private static func millis(_ seconds: Double) -> UINT {
+        UINT(max(1, (seconds * 1000).rounded(.up)))
+    }
+
+    // moor runs one pass, applies its moves, and sets the timer for the next.
+    func moor() {
+        let t = Self.now
+        let screens = Screens.current(minAspect: minAspect)
+        if PassPlan.refreshesApps(now: t, last: lastApps, waiting: false) {
+            lastApps = t
+            anchors.prune(alive: Set(WinWindows.topLevel().map(WinWindows.id)))
+        }
+        let (all, focused) = WinWindows.scan(screens: screens)
+        let list = all.filter { !windows.elevated.contains($0.id) }
+        let mouseHeld = GetAsyncKeyState(VK_LBUTTON) < 0
+        let scene = Scene(screen: screens.wide, windows: list, focused: focused?.id,
+                          mouseHeld: mouseHeld, now: t)
+        let moves = anchors.moor(scene)
+        for move in moves {
+            apply(move)
+        }
+        for id in anchors.justReleased {
+            released(id, t)
+        }
+        let read = list.map(\.id), frames = list.map(\.frame)
+        still = moves.isEmpty && !mouseHeld && read == lastRead && frames == lastFrames
+        lastRead = read
+        lastFrames = frames
+        schedule(Pace.next(now: Self.now, woke: woke, busy: false, deadlines: anchors.deadlines(),
+                           still: still))
+    }
+
+    // apply carries out one move: it moves the window, reads where it landed, and moves it once
+    // more when it kept a larger size than it was given. Windows has no native fullscreen to leave,
+    // so a request to leave it does nothing.
+    private func apply(_ move: Move) {
+        guard !move.exitFullScreen else { return }
+        windows.move(move.id, to: move.frame)
+        let got = windows.frame(move.id)
+        moved(move, Self.now, got)
+        guard let got else {
+            anchors.unread(move)
+            return
+        }
+        guard let again = anchors.landed(move, got: got) else { return }
+        windows.move(again.id, to: again.frame)
+        moved(again, Self.now, windows.frame(again.id))
+    }
+}

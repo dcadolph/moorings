@@ -108,3 +108,81 @@ jobs:
           if ($zero) { Write-Host "  inconclusive: Notepad has no invisible border" }
           elseif (($offs | Measure-Object -Maximum).Maximum -le 1) { throw "placement without the delta landed, so the correction is untested" }
           Stop-Process -Id $pad.Id
+
+          function Rect([string] $line, [string] $prefix) {
+            $n = [regex]::Match($line, [regex]::Escape($prefix) + '(-?\d+) (-?\d+) (\d+) (\d+)')
+            if (-not $n.Success) { throw "no rect after '$prefix' in: $line" }
+            ,@(1..4 | ForEach-Object { [int]$n.Groups[$_].Value })
+          }
+          function Off($a, $b) {
+            $off = 0
+            foreach ($i in 0..3) { $off = [Math]::Max($off, [Math]::Abs($a[$i] - $b[$i])) }
+            $off
+          }
+          function At([string] $line) { [double][regex]::Match($line, ' at ([\d.]+)').Groups[1].Value }
+          function Moor([string] $log, [string[]] $moorArgs, [scriptblock] $during) {
+            $p = Start-Process $exe -ArgumentList $moorArgs -RedirectStandardOutput $log -NoNewWindow -PassThru
+            $null = $p.Handle
+            & $during
+            $p.WaitForExit()
+            $lines = @(Get-Content $log)
+            $lines | ForEach-Object { Write-Host "  $_" }
+            if ($p.ExitCode -ne 0) { throw "moor exited $($p.ExitCode)" }
+            ,$lines
+          }
+
+          Write-Host "probe moor"
+          $a = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $script:nudges = @()
+          $m = Moor (Join-Path $env:RUNNER_TEMP 'moor.txt') @('--probe', 'moor', '--seconds', '14', '--min-aspect', '1.0') {
+            Start-Sleep -Seconds 5
+            $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($a.Id)", '--frame', '420,260,300,200')
+            Start-Sleep -Seconds 2
+            $script:b = Start-Process notepad -PassThru
+            Start-Sleep -Seconds 2
+            $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
+          }
+          $start = $m -match '^start at '
+          if ($start.Count -ne 1 -or -not ($start[0] -match 'paused false')) { throw "want one unpaused start line" }
+          $t0 = At $start[0]
+          $padA = [regex]::Match($start[0], 'pinned (0x[0-9a-f]+)').Groups[1].Value
+          $strip = Rect ($m -match '^strip: ')[0] 'strip: '
+          $channel = Rect ($m -match '^channel: ')[0] 'channel: '
+          $nudgeA = $script:nudges[0]; $nudgeB = $script:nudges[1]
+          $padB = [regex]::Match($nudgeB, 'nudged (0x[0-9a-f]+)').Groups[1].Value
+          if (-not $padA -or -not $padB) { throw "no window id for the pin or the second Notepad" }
+          if ([regex]::Match($nudgeA, 'nudged (0x[0-9a-f]+)').Groups[1].Value -ne $padA) { throw "nudge moved another window than the pin" }
+
+          $placed = @($m -match "^move $padA at " | Where-Object { (At $_) -le (At $nudgeA) })
+          if ($placed.Count -eq 0) { throw "the pin was never placed" }
+          if ((At $placed[0]) - $t0 -gt 2) { throw "first pin move came after 2 s" }
+          $off = Off (Rect $placed[-1] 'got ') $strip
+          if ($off -gt 1) { throw "pin read back off the left strip by $off px" }
+          Write-Host "  check: pin placed at the left strip within $([Math]::Round((At $placed[0]) - $t0, 3)) s"
+
+          $rel = @($m -match "^released $padA at ")
+          if ($rel.Count -ne 1) { throw "want the pin released once after the hand move, got $($rel.Count)" }
+          $lag = (At $rel[0]) - (At $nudgeA)
+          if ($lag -lt 0 -or $lag -gt 1) { throw "release came $lag s after the nudge" }
+          $finalA = Rect ($m -match "^final $padA ")[0] 'frame '
+          if ((Off $finalA @(420, 260, 300, 200)) -gt 1) { throw "released pin did not stay where it was put" }
+          Write-Host "  check: pin released $([Math]::Round($lag, 3)) s after the hand move and left there"
+
+          $pushed = @($m -match "^move $padB at " | Where-Object { (At $_) -gt (At $nudgeB) })
+          if ($pushed.Count -eq 0) { throw "the second Notepad was not moved after the nudge" }
+          $lag = (At $pushed[0]) - (At $nudgeB)
+          if ($lag -gt 1) { throw "push back came $lag s after the nudge" }
+          $finalB = Rect ($m -match "^final $padB ")[0] 'frame '
+          if ($finalB[0] -lt $channel[0] - 1 -or $finalB[0] + $finalB[2] -gt $channel[0] + $channel[2] + 1) { throw "second Notepad is not inside the channel" }
+          Write-Host "  check: second Notepad pushed into the channel $([Math]::Round($lag, 3)) s after landing on the strip"
+
+          Write-Host "probe moor --paused"
+          $null = Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
+          $m = Moor (Join-Path $env:RUNNER_TEMP 'paused.txt') @('--probe', 'moor', '--seconds', '4', '--min-aspect', '1.0', '--paused') {}
+          Expect $m 'paused true' 'paused start line'
+          if ($m -match '^move ') { throw "a paused loop moved a window" }
+          $finalB = Rect ($m -match "^final $padB ")[0] 'frame '
+          if ((Off $finalB @(10, 10, 300, 300)) -gt 1) { throw "second Notepad moved while paused" }
+          Write-Host "  check: paused loop moved nothing in 4 s"
+          Stop-Process -Id $a.Id, $script:b.Id
