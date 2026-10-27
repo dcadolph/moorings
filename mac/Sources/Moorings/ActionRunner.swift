@@ -181,6 +181,7 @@ final class ActionRunner {
 
     // perform applies action name, which is not a chain, to the window with id window, or to the
     // focused window when nil. Actions on the front app or several windows act on the front app.
+    // A placement reads only the front app and the apps whose windows changed since the last scan.
     private func perform(_ name: String, window: WindowID? = nil) -> Bool {
         if let size = Overlay.gridSize(name, anchors.choices.overlay) {
             return app.gridPicker.show(cols: size.cols, rows: size.rows, window: window)
@@ -207,7 +208,9 @@ final class ActionRunner {
             return true
         }
         let screens = Screens.current()
-        let scan = app.windows.scan(screens)
+        let scan = app.windows.scan(screens) { listed, previous, slow in
+            .apps(PassPlan.changed(listed: listed, previous: previous, slow: slow))
+        }
         guard let w = window.flatMap({ id in scan.windows.first { $0.id == id } }) ?? scan.focused else {
             logger.notice("\(name, privacy: .public): no focused window")
             return false
@@ -358,8 +361,14 @@ final class ActionRunner {
         } else {
             app.windows.move(w.id, to: frame, enhancedUI: b.enhancedUI)
         }
-        last[w.id] = LastPress(name: name, press: press, frame: app.windows.frame(w.id) ?? frame)
-        app.wake()
+        let landed = app.windows.frame(w.id) ?? frame
+        last[w.id] = LastPress(name: name, press: press, frame: landed)
+        app.landed(w.id, at: landed)
+        if let pid = app.windows.pid(w.id) {
+            app.wake(pid)
+        } else {
+            app.wake()
+        }
         return true
     }
 

@@ -63,8 +63,14 @@ final class Windows {
     // scanned holds the processes the last scan read windows from.
     private(set) var scanned: Set<pid_t> = []
     // last holds each process's windows from the last scan, carried through a pass the app is too
-    // busy to answer.
+    // busy to answer or that does not read it.
     private var last: [pid_t: [WindowInfo]] = [:]
+    // listed holds each process's on-screen window frames from the window server at the last scan.
+    private var listed: [pid_t: [WindowID: Frame]] = [:]
+    // slow holds the processes whose last window read could not complete.
+    private var slow: Set<pid_t> = []
+    // lastPlan is which apps the last scan read.
+    private(set) var lastPlan: PassPlan = .full
 
     // lastFront is the last app other than moorings to come to the front.
     var lastFront: pid_t?
@@ -78,8 +84,15 @@ final class Windows {
     // trusted reports whether moorings has Accessibility access.
     var trusted: Bool { AXIsProcessTrusted() }
 
-    // scan returns the movable windows on screen, front-most first, and the focused one.
-    func scan(_ screens: Screens) -> (windows: [WindowInfo], focused: WindowInfo?) {
+    // scan returns the movable windows on screen, front-most first, and the focused one. decide
+    // picks the apps read through Accessibility from the window server's frames by process now, at
+    // the last scan, and the slow processes. The front app and any app not read before are always
+    // read, and every other app is carried from the last scan at its window server frames.
+    func scan(
+        _ screens: Screens,
+        decide: (_ listed: [pid_t: [WindowID: Frame]], _ previous: [pid_t: [WindowID: Frame]], _ slow: Set<pid_t>)
+            -> PassPlan = { _, _, _ in .full }
+    ) -> (windows: [WindowInfo], focused: WindowInfo?) {
         let order = Self.onScreen()
         let rank = Dictionary(order.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { a, _ in a })
         let pids = Set(order.map(\.pid))
@@ -90,15 +103,32 @@ final class Windows {
         scanned = []
         let front = front
         let frames = Dictionary(order.map { ($0.id, $0.frame) }, uniquingKeysWith: { a, _ in a })
+        var now: [pid_t: [WindowID: Frame]] = [:]
+        for w in order {
+            now[w.pid, default: [:]][w.id] = w.frame
+        }
+        let plan = decide(now, listed, slow)
+        listed = now
+        lastPlan = plan
         for running in NSWorkspace.shared.runningApplications where pids.contains(running.processIdentifier) {
             guard let bundle = running.bundleIdentifier, !running.isHidden,
                   running.processIdentifier != ProcessInfo.processInfo.processIdentifier
             else { continue }
             let pid = running.processIdentifier
+            if case let .apps(reads) = plan, pid != front, !reads.contains(pid), let kept = last[pid] {
+                let carried = WindowInfo.carrying(kept, frames: frames)
+                for w in carried {
+                    seen[w.id] = elements[w.id]
+                }
+                byPid[pid] = carried
+                found += carried
+                continue
+            }
             let app = appElement(pid)
             scanned.insert(pid)
             var raw: CFTypeRef?
             if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw) == .cannotComplete {
+                slow.insert(pid)
                 let carried = WindowInfo.carrying(last[pid] ?? [], frames: frames)
                 for w in carried {
                     seen[w.id] = elements[w.id]
@@ -107,6 +137,7 @@ final class Windows {
                 found += carried
                 continue
             }
+            slow.remove(pid)
             let main = Self.element(app, kAXMainWindowAttribute).flatMap { Self.id($0) }
             for el in raw as? [AXUIElement] ?? [] {
                 guard let id = Self.id(el), rank[id] != nil,
@@ -367,9 +398,25 @@ final class Windows {
         return Set((list ?? []).compactMap { $0[kCGWindowNumber as String] as? WindowID })
     }
 
-    // forget drops the cached element of a process that quit.
+    // forget drops the cached element, windows and frames of a process that quit.
     func forget(_ pid: pid_t) {
         apps[pid] = nil
+        last[pid] = nil
+        listed[pid] = nil
+        slow.remove(pid)
+    }
+
+    // pid returns the process that owns the window with id, nil when the last scan did not keep it.
+    func pid(_ id: WindowID) -> pid_t? {
+        var pid: pid_t = 0
+        guard let el = elements[id], AXUIElementGetPid(el, &pid) == .success else { return nil }
+        return pid
+    }
+
+    // pid returns the process that owns el, nil when it cannot be read.
+    static func pid(_ el: AXUIElement) -> pid_t? {
+        var pid: pid_t = 0
+        return AXUIElementGetPid(el, &pid) == .success ? pid : nil
     }
 
     // appElement returns the cached element for pid, with a short messaging timeout.

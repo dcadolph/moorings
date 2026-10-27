@@ -88,6 +88,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var due: Double?
     // woke is when the last window event came.
     private var woke = 0.0
+    // fullWoke is when the last wake came that named no app, so every app is read again.
+    private var fullWoke = 0.0
+    // appWoke holds when each app last sent a window event or had a window moved by an action.
+    private var appWoke: [pid_t: Double] = [:]
+    // lastFull is when the last pass that read every app ran.
+    private var lastFull = -Double.infinity
     // lastRead holds each window id the last pass read, front-most first.
     private var lastRead: [WindowID] = []
     // lastFrames holds the frames that match lastRead.
@@ -271,15 +277,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // windowEvent wakes the passes for a window event a pass acts on, and drops the moves, resizes
-    // and births of windows no scan keeps.
+    // and births of windows no scan keeps. A kept window's event wakes without asking its kind, and
+    // an event names its app so the passes read only that app.
     private func windowEvent(_ el: AXUIElement, _ note: String) {
-        if Pace.wakes(note, kept: windows.keeps(el), eligible: Windows.eligible(el)) {
+        let kept = windows.keeps(el)
+        guard Pace.wakes(note, kept: kept, eligible: !kept && Windows.eligible(el)) else { return }
+        if let pid = Windows.pid(el) {
+            wake(pid)
+        } else {
             wake()
         }
     }
 
-    // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle.
+    // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle, and
+    // read every app.
     func wake() {
+        fullWoke = Self.now
+        poll()
+    }
+
+    // wake marks the windows of the app with pid as changing, so passes run every Pace.pollSeconds
+    // until they settle, and read that app.
+    func wake(_ pid: pid_t) {
+        appWoke[pid] = Self.now
+        poll()
+    }
+
+    // landed records frame as the last frame read for the window with id, which an action just read
+    // back after moving it, so the pass after reads it at rest and ends the polling.
+    func landed(_ id: WindowID, at frame: Frame) {
+        if let i = lastRead.firstIndex(of: id) {
+            lastFrames[i] = frame
+        }
+    }
+
+    // poll runs passes every Pace.pollSeconds from now until windows settle.
+    private func poll() {
         let t = Self.now
         woke = t
         if let due, due <= t + Pace.pollSeconds {
@@ -346,14 +379,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func moor() {
         still = false
         defer { pace() }
-        logger.debug("pass")
         guard windows.trusted else { return }
         if !tap.running {
             tap.start()
         }
         let screens = Screens.current()
-        let (list, focused) = windows.scan(screens)
-        watcher.watch(Self.regularApps())
+        let t = Self.now
+        appWoke = appWoke.filter { t - $0.value < Pace.settleSeconds }
+        let forced = !started || watcher.waiting || organizer.waiting || t < launching
+        let (list, focused) = windows.scan(screens) { [self] listed, previous, slow in
+            PassPlan.plan(now: t, forced: forced, lastFull: lastFull, fullWoke: fullWoke, woke: appWoke,
+                          listed: listed, previous: previous, slow: slow)
+        }
+        logger.debug("pass \(self.windows.lastPlan == .full ? "full" : "apps", privacy: .public)")
+        if windows.lastPlan == .full {
+            lastFull = t
+            watcher.watch(Self.regularApps())
+        }
         watcher.watchClosing(windows.elements)
         if anchors.hasCastOff || !anchors.stashed.isEmpty {
             anchors.prune(alive: Windows.alive())
