@@ -13,16 +13,13 @@ final class Watcher {
         kAXWindowMovedNotification, kAXWindowResizedNotification, kAXWindowMiniaturizedNotification,
         kAXWindowDeminiaturizedNotification,
     ]
-    // tries is how many passes an app that is not ready for observers is asked again.
-    private static let tries = 20
-
     // handler runs on every event with the element and the notification name.
     private let handler: (AXUIElement, String) -> Void
     // observers holds one observer per watched process.
     private var observers: [pid_t: AXObserver] = [:]
-    // pending counts the tries left for processes whose window created event did not register,
+    // pending holds when to ask again each process whose window created event did not register,
     // which an app still starting up refuses.
-    private var pending: [pid_t: Int] = [:]
+    private var pending: [pid_t: WatchRetry] = [:]
     // closing holds the windows whose close is observed.
     private var closing: Set<WindowID> = []
 
@@ -32,15 +29,20 @@ final class Watcher {
     }
 
     // watch starts observing each process in pids not yet watched, and asks again of each one that
-    // was not ready.
+    // was not ready when its retry is due. An app that does not answer stops the asking at once.
     func watch(_ pids: Set<pid_t>) {
-        for pid in pids where observers[pid] == nil || pending[pid] != nil {
+        let now = ProcessInfo.processInfo.systemUptime
+        for pid in pids where observers[pid] == nil || pending[pid]?.due(now) == true {
             guard let observer = observer(pid) else { continue }
             let app = AXUIElementCreateApplication(pid)
             let refcon = Unmanaged.passUnretained(self).toOpaque()
             var ready = true
             for event in Self.events {
                 let err = AXObserverAddNotification(observer, app, event as CFString, refcon)
+                if err == .cannotComplete {
+                    ready = false
+                    break
+                }
                 if event == kAXWindowCreatedNotification, err != .success, err != .notificationAlreadyRegistered {
                     ready = false
                 }
@@ -48,14 +50,14 @@ final class Watcher {
             if ready {
                 pending[pid] = nil
             } else {
-                let left = (pending[pid] ?? Self.tries) - 1
-                pending[pid] = left > 0 ? left : nil
+                pending[pid, default: WatchRetry()].failed(now)
             }
         }
     }
 
-    // waiting reports whether an app has not yet taken its observer, so passes keep looking.
-    var waiting: Bool { !pending.isEmpty }
+    // waiting reports whether an app is in its eager tries to take its observer, so passes keep
+    // looking.
+    var waiting: Bool { pending.values.contains(where: \.eager) }
 
     // watchClosing observes the close of each window in elements not yet observed, since a window
     // that closes behind the focused one sends no app notification.
