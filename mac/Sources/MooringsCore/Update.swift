@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 // UpdateError names why an update check failed.
 public enum UpdateError: Error, Equatable, Sendable {
