@@ -65,7 +65,7 @@ let probes: [String: Probe] = [
 func probeVersion(_: ProbeOptions) -> Int32 {
     print("version: \(version)")
     let v2 = AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), perMonitorAwareV2)
-    print("dpi: \(v2.boolValue ? "per-monitor-v2" : "other")")
+    print("dpi: \(v2 ? "per-monitor-v2" : "other")")
     return 0
 }
 
@@ -104,7 +104,7 @@ struct Monitor {
             let found = Unmanaged<MonitorList>.fromOpaque(raw).takeUnretainedValue()
             var info = MONITORINFO()
             info.cbSize = DWORD(MemoryLayout<MONITORINFO>.size)
-            if GetMonitorInfoW(handle, &info).boolValue {
+            if GetMonitorInfoW(handle, &info) {
                 let primary = info.dwFlags & DWORD(MONITORINFOF_PRIMARY) != 0
                 let full = frame(info.rcMonitor), usable = frame(info.rcWork)
                 found.monitors.append(Monitor(full: full, usable: usable, primary: primary))
