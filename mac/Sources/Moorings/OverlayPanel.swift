@@ -108,6 +108,7 @@ final class TriggerOverlay {
     }
 
     // end finishes a hold: it applies the grid span when a grid key was used, else the cursor pick.
+    // The move runs on the next main queue turn, outside the tap callback that saw the key go up.
     private func end() {
         let (w, pick, grid, area, done) = (target, pick, grid, area, done)
         held = false
@@ -117,10 +118,13 @@ final class TriggerOverlay {
             logger.notice("overlay: trigger let go while a mouse button is down: nothing thrown")
             return
         }
-        if let grid, let area {
-            app.actions.applyFrame(grid.frame(area, gap: app.anchors.choices.gapPx), to: w.id)
-        } else if let pick {
-            app.actions.run(pick, window: w.id)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            if let grid, let area {
+                app.actions.applyFrame(grid.frame(area, gap: app.anchors.choices.gapPx), to: w.id)
+            } else if let pick {
+                app.actions.run(pick, window: w.id)
+            }
         }
     }
 

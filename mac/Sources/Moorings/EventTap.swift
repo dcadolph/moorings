@@ -200,12 +200,16 @@ final class EdgeResizer {
         app.windows.move(d.b, to: fb)
     }
 
-    // released applies the last place and ends the drag.
+    // released applies the last place and ends the drag on the next main queue turn, outside the tap
+    // callback that saw the button come up.
     func released() {
         guard drag != nil else { return }
-        apply()
-        drag = nil
-        app.tiler.mouseUp()
-        app.wake()
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            apply()
+            drag = nil
+            app.tiler.mouseUp()
+            app.wake()
+        }
     }
 }
