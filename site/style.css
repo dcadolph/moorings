@@ -226,7 +226,7 @@ p b { color: var(--text); font-weight: 600; }
 .mban .mark { width: 30px; height: 30px; color: var(--accent); flex: none; }
 .mban b { font-size: 16px; } .mban span { font-size: 14px; }
 
-.photo { margin-bottom: clamp(72px, 8vw, 112px); }
+.photo { margin-top: clamp(24px, 3vw, 36px); }
 .photo img { display: block; width: 100%; height: auto; border-radius: 20px; border: 1px solid var(--line); }
 
 .get .txt { grid-column: 1 / -1; }
