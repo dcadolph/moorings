@@ -60,9 +60,19 @@ final class Windows {
     private var zooms: [WindowID: (frame: Frame, rect: Frame?)] = [:]
     // apps caches the app element for each process.
     private var apps: [pid_t: AXUIElement] = [:]
+    // RunningApp is what a scan needs from one running app, cached so a pass asks the app nothing.
+    private struct RunningApp {
+        // app is the running app.
+        let app: NSRunningApplication
+        // bundle is the app's bundle id, which does not change while it runs.
+        let bundle: String?
+        // hidden is whether the app was hidden when a full pass last asked.
+        var hidden: Bool
+    }
+
     // running caches the running app for each process with an on-screen window, so a scan never walks
     // every running app and asks each for its process identifier.
-    private var running: [pid_t: NSRunningApplication] = [:]
+    private var running: [pid_t: RunningApp] = [:]
     // scanned holds the processes the last scan read windows from.
     private(set) var scanned: Set<pid_t> = []
     // last holds each process's windows from the last scan, carried through a pass the app is too
@@ -116,12 +126,12 @@ final class Windows {
         running = running.filter { pids.contains($0.key) }
         let me = ProcessInfo.processInfo.processIdentifier
         for pid in pids where pid != me {
-            if running[pid] == nil {
-                running[pid] = NSRunningApplication(processIdentifier: pid)
+            if running[pid] == nil, let app = NSRunningApplication(processIdentifier: pid) {
+                running[pid] = RunningApp(app: app, bundle: app.bundleIdentifier, hidden: app.isHidden)
+            } else if plan == .full, let app = running[pid]?.app {
+                running[pid]?.hidden = app.isHidden
             }
-            guard let runningApp = running[pid], let bundle = runningApp.bundleIdentifier,
-                  !runningApp.isHidden
-            else { continue }
+            guard let cached = running[pid], let bundle = cached.bundle, !cached.hidden else { continue }
             if case let .apps(reads) = plan, pid != front, !reads.contains(pid), let kept = last[pid] {
                 let carried = WindowInfo.carrying(kept, frames: frames)
                 for w in carried {
