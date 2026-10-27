@@ -239,6 +239,9 @@ p b { color: var(--text); font-weight: 600; }
 .doc ul { padding-left: 22px; color: var(--muted); }
 .doc code { font: 14.5px var(--mono); background: var(--lift2); padding: 1px 6px; border-radius: 6px; color: var(--text); }
 .doc a { color: var(--sand); }
+.doc a.btn { color: var(--on); }
+.doc .exits { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 28px; }
+@media (max-width: 560px) { .doc .exits { justify-content: center; } .doc .exits .btn { flex-basis: 100%; } }
 .doc > .small { color: var(--sand); }
 .doc .toc { list-style: none; padding: 20px 24px; margin: 28px 0 8px; border-radius: 16px; }
 .doc .toc li { margin-bottom: 8px; } .doc .toc li:last-child { margin-bottom: 0; }
