@@ -224,7 +224,7 @@ p b { color: var(--text); font-weight: 600; }
 .mban .mark { width: 30px; height: 30px; color: var(--accent); flex: none; }
 .mban b { font-size: 16px; } .mban span { font-size: 14px; }
 
-.photo img { width: 100%; height: clamp(240px, 38vw, 560px); object-fit: cover; }
+.photo img { display: block; width: 100%; height: auto; }
 
 .get .txt { grid-column: 1 / -1; }
 .get p { max-width: 46em; }
