@@ -238,6 +238,8 @@ p b { color: var(--text); font-weight: 600; }
 
 .photo { margin-top: clamp(24px, 3vw, 36px); }
 .photo img { display: block; width: 100%; height: auto; border-radius: 20px; border: 1px solid var(--line); }
+.closing { padding: 0 0 clamp(56px, 7vw, 96px); }
+.closing .photo { margin-top: 0; }
 
 .get .txt { grid-column: 1 / -1; }
 .get p { max-width: 62em; }
