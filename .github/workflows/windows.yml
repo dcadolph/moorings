@@ -81,3 +81,30 @@ jobs:
           $mains = @($pads -match 'main true')
           if ($mains.Count -ne 1) { throw "want one notepad main, got $($mains.Count)" }
           Stop-Process -Id $first.Id, $second.Id
+
+          function Placed($lines) {
+            @($lines -match '^asked: ' | ForEach-Object {
+              $n = [regex]::Match($_, '^asked: (-?\d+) (-?\d+) (\d+) (\d+) placed: (-?\d+) (-?\d+) (\d+) (\d+)$')
+              if (-not $n.Success) { throw "bad place line: $_" }
+              $off = 0
+              foreach ($i in 1..4) { $off = [Math]::Max($off, [Math]::Abs([int]$n.Groups[$i].Value - [int]$n.Groups[$i + 4].Value)) }
+              $off
+            })
+          }
+
+          Write-Host "probe place"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $p = Probe @('--probe', 'place')
+          $offs = Placed $p
+          if ($offs.Count -ne 2) { throw "want two placements, got $($offs.Count)" }
+          if (($offs | Measure-Object -Maximum).Maximum -gt 1) { throw "placement off by more than 1 px: $offs" }
+          Expect $p '^delta: -?\d+ -?\d+ -?\d+ -?\d+ elevated false$' 'delta line'
+
+          Write-Host "probe place --no-delta"
+          $p = Probe @('--probe', 'place', '--no-delta')
+          $offs = Placed $p
+          $zero = $p -match '^delta: 0 0 0 0 '
+          if ($zero) { Write-Host "  inconclusive: Notepad has no invisible border" }
+          elseif (($offs | Measure-Object -Maximum).Maximum -le 1) { throw "placement without the delta landed, so the correction is untested" }
+          Stop-Process -Id $pad.Id

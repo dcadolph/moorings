@@ -32,6 +32,8 @@ struct ProbeOptions {
     var probe: String?
     // minAspect is the ratio a monitor needs to count as ultrawide. Only probes set it.
     var minAspect = Layout.minAspect
+    // noDelta places without the border correction, the place probe's negative control.
+    var noDelta = false
 
     // init parses args, the command line without the program name.
     init(_ args: [String]) throws {
@@ -45,6 +47,8 @@ struct ProbeOptions {
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }
                 minAspect = n
+            case "--no-delta":
+                noDelta = true
             default:
                 throw ProbeError.unknownFlag(flag)
             }
@@ -60,6 +64,7 @@ let probes: [String: Probe] = [
     "version": probeVersion,
     "monitors": probeMonitors,
     "list": probeList,
+    "place": probePlace,
 ]
 
 // probeVersion prints the version and the DPI awareness the thread runs with.
@@ -93,6 +98,25 @@ func probeList(_ opts: ProbeOptions) -> Int32 {
     return 0
 }
 
+// probePlace moves the front Notepad window twice and prints each read-back and its insets.
+func probePlace(_ opts: ProbeOptions) -> Int32 {
+    let windows = WinWindows.scan(screens: .current(minAspect: opts.minAspect)).windows
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }) else {
+        print("place: no notepad window")
+        return 1
+    }
+    let placer = WinWindows()
+    placer.corrects = !opts.noDelta
+    for target in [Frame(x: 100, y: 100, w: 800, h: 600), Frame(x: 300, y: 200, w: 640, h: 480)] {
+        placer.move(pad.id, to: target)
+        print("asked: \(pixels(target)) placed: \(placer.frame(pad.id).map(pixels) ?? "gone")")
+    }
+    let d = WinWindows.hwnd(pad.id).flatMap(WinWindows.insets) ?? Insets()
+    print("delta: \(Int(d.left)) \(Int(d.top)) \(Int(d.right)) \(Int(d.bottom))",
+          "elevated \(placer.elevated.contains(pad.id))")
+    return 0
+}
+
 // pixels formats f as whole x, y, w and h, the same in every locale.
 func pixels(_ f: Frame) -> String {
     "\(Int(f.x)) \(Int(f.y)) \(Int(f.w)) \(Int(f.h))"
@@ -118,7 +142,7 @@ struct Monitor {
             info.cbSize = DWORD(MemoryLayout<MONITORINFO>.size)
             if GetMonitorInfoW(handle, &info) {
                 let primary = info.dwFlags & DWORD(MONITORINFOF_PRIMARY) != 0
-                let full = frame(info.rcMonitor), usable = frame(info.rcWork)
+                let full = Frame(info.rcMonitor), usable = Frame(info.rcWork)
                 found.monitors.append(Monitor(full: full, usable: usable, primary: primary))
             }
             return true
@@ -133,8 +157,10 @@ final class MonitorList {
     var monitors: [Monitor] = []
 }
 
-// frame converts a Win32 RECT to a Frame.
-func frame(_ r: RECT) -> Frame {
-    Frame(x: Double(r.left), y: Double(r.top), w: Double(r.right - r.left),
-          h: Double(r.bottom - r.top))
+extension Frame {
+    // init converts a Win32 RECT.
+    init(_ r: RECT) {
+        self.init(x: Double(r.left), y: Double(r.top), w: Double(r.right - r.left),
+                  h: Double(r.bottom - r.top))
+    }
 }

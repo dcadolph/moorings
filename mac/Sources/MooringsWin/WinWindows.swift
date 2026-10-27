@@ -12,12 +12,101 @@ extension Screens {
     }
 }
 
-// WinWindows reads other apps' top-level windows through Win32.
-enum WinWindows {
+// Insets is how far a window's rect reaches past its visible frame on each edge, the invisible
+// resize border Windows 10 and 11 draw outside the frame.
+struct Insets: Equatable {
+    // left is the border width on the left edge.
+    var left = 0.0
+    // top is the border height on the top edge.
+    var top = 0.0
+    // right is the border width on the right edge.
+    var right = 0.0
+    // bottom is the border height on the bottom edge.
+    var bottom = 0.0
+}
+
+// WinWindows reads and moves other apps' top-level windows through Win32.
+final class WinWindows {
     // frameHost is the image that hosts every packaged app's frame window.
     static let frameHost = "applicationframehost.exe"
     // coreWindowClass is the class of a packaged app's content window inside its frame.
     static let coreWindowClass = "Windows.UI.Core.CoreWindow"
+    // accessDenied is ERROR_ACCESS_DENIED, which SetWindowPos returns for an elevated window.
+    static let accessDenied: DWORD = 5
+
+    // deltas caches each window's insets from its last placement.
+    private(set) var deltas: [WindowID: Insets] = [:]
+    // elevated holds windows that refused a move with access denied this session.
+    private(set) var elevated: Set<WindowID> = []
+    // corrects is false only in the probe's negative control, which places without the insets.
+    var corrects = true
+
+    // move places the window's visible frame at frame, restoring it first when it is maximized.
+    func move(_ id: WindowID, to frame: Frame) {
+        guard let hwnd = Self.hwnd(id) else { return }
+        if IsZoomed(hwnd) {
+            _ = ShowWindow(hwnd, SW_RESTORE)
+        }
+        guard corrects else {
+            place(hwnd, id, frame, Insets())
+            return
+        }
+        let cached = deltas[id] ?? Self.insets(hwnd) ?? Insets()
+        guard place(hwnd, id, frame, cached) else { return }
+        guard let now = Self.insets(hwnd) else { return }
+        deltas[id] = now
+        if now != cached {
+            place(hwnd, id, frame, now)
+        }
+    }
+
+    // position moves the window's visible frame to x, y and keeps its size.
+    func position(_ id: WindowID, x: Double, y: Double) {
+        guard let f = frame(id) else { return }
+        move(id, to: Frame(x: x, y: y, w: f.w, h: f.h))
+    }
+
+    // resize sizes the window's visible frame to w by h and keeps its origin.
+    func resize(_ id: WindowID, w: Double, h: Double) {
+        guard let f = frame(id) else { return }
+        move(id, to: Frame(x: f.x, y: f.y, w: w, h: h))
+    }
+
+    // frame returns the window's visible frame, nil when it is gone.
+    func frame(_ id: WindowID) -> Frame? {
+        Self.hwnd(id).flatMap(Self.bounds)
+    }
+
+    // place sets hwnd's rect so its visible frame lands on frame given its insets, and reports
+    // whether Windows took it. Access denied marks the window elevated.
+    @discardableResult
+    private func place(_ hwnd: HWND, _ id: WindowID, _ frame: Frame, _ d: Insets) -> Bool {
+        let x = Int32((frame.x - d.left).rounded()), y = Int32((frame.y - d.top).rounded())
+        let w = Int32((frame.w + d.left + d.right).rounded())
+        let h = Int32((frame.h + d.top + d.bottom).rounded())
+        if SetWindowPos(hwnd, nil, x, y, w, h, UINT(SWP_NOZORDER | SWP_NOACTIVATE)) {
+            return true
+        }
+        if GetLastError() == Self.accessDenied {
+            elevated.insert(id)
+        }
+        return false
+    }
+
+    // hwnd returns the handle behind id.
+    static func hwnd(_ id: WindowID) -> HWND? {
+        HWND(bitPattern: UInt(id))
+    }
+
+    // insets returns how far hwnd's rect reaches past its visible frame, nil when either is
+    // unknown.
+    static func insets(_ hwnd: HWND) -> Insets? {
+        var r = RECT()
+        guard GetWindowRect(hwnd, &r), let f = bounds(hwnd) else { return nil }
+        let outer = Frame(r)
+        let right = outer.x + outer.w - (f.x + f.w), bottom = outer.y + outer.h - (f.y + f.h)
+        return Insets(left: f.x - outer.x, top: f.y - outer.y, right: right, bottom: bottom)
+    }
 
     // scan returns the movable windows front-most first, and the foreground window among them.
     static func scan(screens: Screens) -> (windows: [WindowInfo], focused: WindowInfo?) {
@@ -100,7 +189,7 @@ enum WinWindows {
         let attribute = DWORD(DWMWA_EXTENDED_FRAME_BOUNDS.rawValue)
         guard DwmGetWindowAttribute(hwnd, attribute, &r, size) >= 0,
               r.right > r.left, r.bottom > r.top else { return nil }
-        return frame(r)
+        return Frame(r)
     }
 
     // bundle returns the identity a slot stores for hwnd's app: the packaged app's user model id
