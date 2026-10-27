@@ -259,7 +259,14 @@ final class Selftest {
         check("anchored window lands in its slot", await settled { self.landed(a) })
 
         let b = try await newDocument()
-        check("second window stays free in the channel", await settled { self.inChannel(b) })
+        if let opened = app.windows.frame(b) {
+            check("second window stays free where it opened", await steady {
+                guard let w = self.info(b) else { return (false, "the window is gone") }
+                return self.anchors.pinned(w) ? (false, "anchored, at \(w.frame)") : self.at(b, opened)
+            })
+        } else {
+            check("second window stays free where it opened", (false, "the window is gone"))
+        }
 
         try await close(a)
         check("next window takes the slot when the anchored one closes", await settled { self.landed(b) })
@@ -435,19 +442,6 @@ final class Selftest {
             return (true, "")
         }
         return (false, "at \(w.frame), want \(target) against the edge")
-    }
-
-    // inChannel reports whether window id is free and inside the channel.
-    private func inChannel(_ id: WindowID) -> (Bool, String) {
-        guard let w = info(id), let s = Screens.current().wide else { return (false, "the window is gone") }
-        if anchors.pinned(w) {
-            return (false, "anchored, at \(w.frame)")
-        }
-        let ch = anchors.channel(s)
-        let t = Anchors.tolerance
-        let f = w.frame
-        let ok = f.x >= ch.x - t && f.y >= ch.y - t && f.x + f.w <= ch.x + ch.w + t && f.y + f.h <= ch.y + ch.h + t
-        return (ok, "at \(f), channel \(ch)")
     }
 
     // at reports whether window id still sits at f.

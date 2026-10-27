@@ -226,7 +226,7 @@ None of the products above hold apps at the edges of an ultrawide with a channel
 | Feature                                     | Who has it | Moorings | Check                                                                 |
 | ------------------------------------------- | ---------- | -------- | --------------------------------------------------------------------- |
 | Anchored apps in edge slots on an ultrawide | Moorings   | yes      | selftest "anchored window lands in its slot"                          |
-| Channel with push back for free windows     | Moorings   | yes      | testPushAndShrink, selftest "second window stays free in the channel" |
+| Channel with push back for free windows     | Moorings   | yes      | testPushAndShrink                                                     |
 | Lift an anchored window over the channel    | Moorings   | yes      | testLiftLiftsAndLowers                                                |
 | Cast off a window over the strips           | Moorings   | yes      | testCastOffStaysPut                                                   |
 | Drag release of an anchored window          | Moorings   | yes      | selftest "dragging the anchored window by its title bar releases it"  |
