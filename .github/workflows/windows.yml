@@ -1,6 +1,6 @@
 name: windows
 
-# Build MooringsCore and run its Swift suite on Windows.
+# Build the package, run its Swift suite, and probe the Windows app on Windows.
 on:
   push:
     branches: [main]
@@ -26,7 +26,38 @@ jobs:
         run: swift --version
 
       - name: Build
-        run: swift build --target MooringsCore
+        run: swift build
 
       - name: Test
         run: swift test
+
+      - name: Probe
+        run: |
+          $exe = Join-Path (swift build --show-bin-path) 'MooringsWin.exe'
+          function Probe([string[]] $probeArgs) {
+            $out = @(& $exe @probeArgs)
+            if ($LASTEXITCODE -ne 0) { throw "probe $probeArgs exited $LASTEXITCODE" }
+            $out | ForEach-Object { Write-Host "  $_" }
+            return ,$out
+          }
+          function Expect($lines, [string] $pattern, [string] $why) {
+            if (-not ($lines -match $pattern)) { throw "missing: $why" }
+          }
+
+          Write-Host "probe version"
+          $v = Probe @('--probe', 'version')
+          Expect $v '^dpi: per-monitor-v2$' 'per-monitor-v2 DPI awareness'
+
+          Write-Host "probe monitors --min-aspect 1.0"
+          $m = Probe @('--probe', 'monitors', '--min-aspect', '1.0')
+          $primary = $m -match '^monitor \d+: full .* primary true$'
+          if ($primary.Count -ne 1) { throw "want one primary monitor line, got $($primary.Count)" }
+          $n = [regex]::Match($primary[0], 'full (-?\d+) (-?\d+) (\d+) (\d+) usable (-?\d+) (-?\d+) (\d+) (\d+)')
+          if ([int]$n.Groups[8].Value -ge [int]$n.Groups[4].Value) { throw "usable height is not below full height" }
+          Expect $m '^ultrawide: 0$' 'ultrawide 0 at min aspect 1.0'
+
+          Write-Host "probe monitors"
+          Expect (Probe @('--probe', 'monitors')) '^ultrawide: none$' 'no ultrawide at the default min aspect'
+
+          Write-Host "probe monitors --min-aspect 3.0"
+          Expect (Probe @('--probe', 'monitors', '--min-aspect', '3.0')) '^ultrawide: none$' 'no ultrawide at min aspect 3.0'

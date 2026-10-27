@@ -21,6 +21,16 @@ targets.append(
 )
 #endif
 
+// The Windows app is Win32 through WinSDK, so only Windows builds it.
+#if os(Windows)
+targets.append(
+    .executableTarget(
+        name: "MooringsWin",
+        dependencies: ["MooringsCore"]
+    )
+)
+#endif
+
 let package = Package(
     name: "Moorings",
     platforms: [.macOS(.v14)],
