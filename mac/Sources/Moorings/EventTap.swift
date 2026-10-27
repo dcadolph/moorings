@@ -34,8 +34,8 @@ final class EventTap {
     var onFlags: (CGEventFlags, CGPoint) -> Void = { _, _ in }
     // port is the tap, nil until it starts.
     private var port: CFMachPort?
-    // swallowUp reports whether the next button up belongs to a swallowed press.
-    private var swallowUp = false
+    // press is the primary button's state as the tap saw it.
+    private var press = TapPress()
     // disabled counts how often the system turned the tap off.
     private(set) var disabled = 0
 
@@ -77,16 +77,17 @@ final class EventTap {
             if let port {
                 CGEvent.tapEnable(tap: port, enable: true)
             }
+            resync()
             return true
         case .leftMouseDown:
-            if onDown(event.location, event.flags) {
-                swallowUp = true
-                return false
+            if press.pressing() == .swallowed {
+                onSwallowedUp(event.location)
             }
-            return true
+            let swallow = onDown(event.location, event.flags)
+            press.down(swallow: swallow)
+            return !swallow
         case .leftMouseUp:
-            if swallowUp {
-                swallowUp = false
+            if press.up() == .swallowed {
                 onSwallowedUp(event.location)
                 return false
             }
@@ -107,6 +108,19 @@ final class EventTap {
         default:
             return true
         }
+    }
+
+    // resync ends a press whose release came while the system had the tap off and tells the
+    // handlers which modifiers are held now, so no swallowed release, drag or trigger key is left
+    // waiting for an event the tap never saw.
+    private func resync() {
+        let at = CGEvent(source: nil)?.location ?? .zero
+        switch press.recover(buttonDown: CGEventSource.buttonState(.combinedSessionState, button: .left)) {
+        case .swallowed: onSwallowedUp(at)
+        case .plain: onUp(at, false)
+        case .none: break
+        }
+        onFlags(CGEventSource.flagsState(.combinedSessionState), at)
     }
 }
 
