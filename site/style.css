@@ -97,8 +97,8 @@ p b { color: var(--text); font-weight: 600; }
     radial-gradient(70% 30% at 88% 106%, color-mix(in srgb, var(--sand) 18%, transparent) 0%, transparent 80%),
     radial-gradient(120% 90% at 20% 0%, color-mix(in srgb, var(--text) 5%, var(--bg)) 0%, var(--bg) 62%);
   box-shadow: 0 50px 140px -40px rgba(0,0,0,.55), 0 2px 0 var(--line) inset; }
-.screen[data-display="laptop"] { aspect-ratio: 16 / 10; width: 78%; --u: 1.28cqw; }
-.screen[data-display="monitor"] { aspect-ratio: 16 / 9; width: 92%; --u: 1.09cqw; }
+.screen[data-display="laptop"] { aspect-ratio: 16 / 10; width: 100%; --u: 1.28cqw; }
+.screen[data-display="monitor"] { aspect-ratio: 16 / 9; width: 100%; --u: 1.09cqw; }
 .screen[data-display="ultrawide"] { aspect-ratio: 32 / 9; width: 100%; --u: .72cqw; }
 .screen .menubar { position: absolute; inset: 0 0 auto 0; height: calc(2.6 * var(--u)); min-height: 18px;
   display: flex; justify-content: flex-end; align-items: center; gap: calc(1.6 * var(--u)); padding: 0 calc(1.6 * var(--u));
