@@ -59,6 +59,7 @@ typealias Probe = @Sendable (ProbeOptions) -> Int32
 let probes: [String: Probe] = [
     "version": probeVersion,
     "monitors": probeMonitors,
+    "list": probeList,
 ]
 
 // probeVersion prints the version and the DPI awareness the thread runs with.
@@ -79,6 +80,17 @@ func probeMonitors(_ opts: ProbeOptions) -> Int32 {
     let index = Layout.ultrawide(monitors.map(\.full), minAspect: opts.minAspect)
     print("ultrawide: \(index.map(String.init) ?? "none")")
     return monitors.isEmpty ? 1 : 0
+}
+
+// probeList prints one line per movable window, front-most first, and which one has focus.
+func probeList(_ opts: ProbeOptions) -> Int32 {
+    let (windows, focused) = WinWindows.scan(screens: .current(minAspect: opts.minAspect))
+    for w in windows {
+        print("window 0x\(String(w.id, radix: 16)): \(w.bundle) frame \(pixels(w.frame))",
+              "main \(w.isMain) fullscreen \(w.isFullScreen)")
+    }
+    print("focused: \(focused.map { "0x" + String($0.id, radix: 16) } ?? "none")")
+    return 0
 }
 
 // pixels formats f as whole x, y, w and h, the same in every locale.

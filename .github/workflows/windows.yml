@@ -61,3 +61,23 @@ jobs:
 
           Write-Host "probe monitors --min-aspect 3.0"
           Expect (Probe @('--probe', 'monitors', '--min-aspect', '3.0')) '^ultrawide: none$' 'no ultrawide at min aspect 3.0'
+
+          Write-Host "probe list with one Notepad"
+          $first = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $l = Probe @('--probe', 'list')
+          $windows = @($l -match '^window ')
+          $pads = @($windows -match 'notepad\.exe frame')
+          if ($pads.Count -ne 1) { throw "want one notepad line, got $($pads.Count)" }
+          if (-not ($pads[0] -match 'frame -?\d+ -?\d+ [1-9]\d* [1-9]\d* main true')) { throw "notepad frame empty or not main" }
+          if ($windows.Count -gt 6) { throw "want at most 6 windows, got $($windows.Count)" }
+
+          Write-Host "probe list with two Notepads"
+          $second = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $l = Probe @('--probe', 'list')
+          $pads = @($l -match 'notepad\.exe frame')
+          if ($pads.Count -ne 2) { throw "want two notepad lines, got $($pads.Count)" }
+          $mains = @($pads -match 'main true')
+          if ($mains.Count -ne 1) { throw "want one notepad main, got $($mains.Count)" }
+          Stop-Process -Id $first.Id, $second.Id
