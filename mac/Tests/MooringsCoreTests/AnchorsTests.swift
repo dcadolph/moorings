@@ -678,3 +678,15 @@ func testCastReason(test: CastReasonCase) {
         #expect(world.frame(other) == test.want, "\(test.name)")
     }
 }
+
+// testWideWindowIDKept checks that a window id wider than 32 bits, as a Windows HWND can be,
+// passes through moor unchanged.
+@Test func testWideWindowIDKept() {
+    let id: WindowID = 0x100_0000_0000
+    let window = WindowInfo(id: id, bundle: slack, frame: Frame(x: 900, y: 100, w: 800, h: 600),
+                            onUltrawide: true, isMain: true)
+    let scene = Scene(screen: wide, windows: [window], focused: nil, mouseHeld: false, now: 1000)
+    let moves = anchored().moor(scene)
+    #expect(moves.count == 1)
+    #expect(moves.first?.id == id)
+}

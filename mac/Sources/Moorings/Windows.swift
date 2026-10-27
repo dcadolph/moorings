@@ -602,7 +602,7 @@ final class Windows {
     // id returns the window id of el.
     static func id(_ el: AXUIElement) -> WindowID? {
         var id: CGWindowID = 0
-        return axWindowID(el, &id) == .success && id != 0 ? id : nil
+        return axWindowID(el, &id) == .success && id != 0 ? WindowID(id) : nil
     }
 
     // value returns an attribute of el.

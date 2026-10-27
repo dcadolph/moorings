@@ -1,7 +1,8 @@
 import Foundation
 
-// WindowID is a window's CGWindowID, stable for the life of the window.
-public typealias WindowID = UInt32
+// WindowID is a window's id: the CGWindowID on macOS and the HWND on Windows, stable for the life
+// of the window.
+public typealias WindowID = UInt64
 
 // SlotKey names one of the four slots, two per strip.
 public enum SlotKey: String, CaseIterable, Codable, Sendable {
