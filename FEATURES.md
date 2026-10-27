@@ -130,6 +130,8 @@ each part.
   again to lower it.
 - Drag an anchored window away and Moorings lets it go, with a message that says how to bring it
   back.
+- An anchored app's other windows, such as a second Finder or terminal window, are kept in the
+  channel so they never cover a strip. Open and save panels and sheets stay where they open.
 - An app with a minimum width keeps it, and its strip grows to fit.
 - Anchored apps that are not running open in the background at launch.
 - A side with nothing anchored gives its space to the channel.

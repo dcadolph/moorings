@@ -173,11 +173,11 @@ func testSlotFrames(test: SlotCase) {
     #expect(world.frame(w) == test.wantFrame)
 }
 
-// Test 5: A pin holds the app's main window and leaves its other windows free.
+// Test 5: A pin holds the app's main window and keeps its other windows in the channel.
 @Test func testPinHoldsMainWindow() {
     let anchors = anchored()
     var world = TestWorld()
-    let other = world.add(slack, Frame(x: 1000, y: 200, w: 800, h: 600), main: false)
+    let other = world.add(slack, Frame(x: 0, y: 200, w: 800, h: 600), main: false)
     let main = world.add(slack, Frame(x: 1500, y: 200, w: 800, h: 600))
     world.pass(anchors)
     world.set(main, leftFull)
@@ -185,12 +185,12 @@ func testSlotFrames(test: SlotCase) {
     world.windows[1].isMain = false
     world.pass(anchors)
     #expect(world.frame(main) == leftFull)
-    #expect(world.moves[other] == nil)
+    #expect(world.frame(other) == Frame(x: 512, y: 200, w: 800, h: 600))
     #expect(anchors.pinned(world.info(main)))
     #expect(!anchors.pinned(world.info(other)))
 }
 
-// Test 6: An open or save panel is never pinned and is left where it is like the app's other
+// Test 6: An open or save panel is never pinned and is left where it is, unlike the app's other
 // windows, the side keeps its strip, and the document after it takes the slot, as
 // anchors_test.lua tests 22 and 197.
 @Test func testFilePanelNeverPinned() {
@@ -652,4 +652,29 @@ func testCastReason(test: CastReasonCase) {
     world.clock += 1
     world.pass(anchors)
     #expect(world.frame(hung) == Frame(x: 1000, y: 840, w: 800, h: 600))
+}
+
+// Swift only: an anchored app's other window is left alone off the ultrawide and while cast off,
+// and is kept in the channel otherwise.
+@Test func testAnchoredAppOtherWindows() {
+    let tests: [(name: String, onUltrawide: Bool, castOff: Bool, want: Frame)] = [
+        ("in the channel", true, false, Frame(x: 512, y: 200, w: 800, h: 600)),
+        ("off the ultrawide", false, false, Frame(x: 0, y: 200, w: 800, h: 600)),
+        ("cast off", true, true, Frame(x: 0, y: 200, w: 800, h: 600)),
+    ]
+    for test in tests {
+        let anchors = anchored()
+        var world = TestWorld()
+        world.add(slack, leftFull)
+        let other = world.add(slack, Frame(x: 1000, y: 200, w: 800, h: 600), main: false,
+                              onUltrawide: test.onUltrawide)
+        world.pass(anchors)
+        if test.castOff {
+            anchors.toggleCastOff(world.info(other), ultrawide: wide)
+        }
+        world.set(other, Frame(x: 0, y: 200, w: 800, h: 600))
+        world.clock += 1
+        world.pass(anchors)
+        #expect(world.frame(other) == test.want, "\(test.name)")
+    }
 }

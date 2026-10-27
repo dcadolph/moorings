@@ -604,7 +604,8 @@ public final class Anchors {
     }
 
     // pinsWindow reports whether pin holds w. A pin holds one window: the one it already holds, or
-    // else the app's main window, which it then keeps. An open or save panel is never held.
+    // else the app's main window, which it then keeps. An open or save panel is never held, and the
+    // app's other windows are kept in the channel like any free window.
     func pinsWindow(_ pin: Pin, _ w: WindowInfo) -> Bool {
         if let held = holders[pin.bundle] {
             return held == w.id
@@ -771,7 +772,8 @@ public final class Anchors {
     }
 
     // moor returns the moves that put every pin in its slot, or over the channel while lifted, and
-    // every free window on the ultrawide in the channel. A pin the owner moved by hand is released
+    // every free window on the ultrawide in the channel. An anchored app's other windows are free
+    // windows, and an open or save panel is never moved. A pin the owner moved by hand is released
     // and left alone. Native fullscreen is turned back into a slot or a channel fill when the
     // choices say so. Nothing moves while paused, while the mouse button is down, or without an
     // ultrawide.
@@ -813,8 +815,7 @@ public final class Anchors {
         var seen: Set<WindowID> = []
         for w in scene.windows {
             seen.insert(w.id)
-            if let pin = pin(w.bundle, in: pins) {
-                guard pinsWindow(pin, w) else { continue }
+            if let pin = pin(w.bundle, in: pins), pinsWindow(pin, w) {
                 if w.isFullScreen {
                     if choices.pinFullscreenFills, let exit = leaveFullScreen(w) {
                         moves.append(exit)
@@ -832,7 +833,7 @@ public final class Anchors {
                 if let move = moorPin(w, target, Edges(right: side == .right, bottom: row == .bottom)) {
                     moves.append(move)
                 }
-            } else if w.onUltrawide {
+            } else if w.onUltrawide, !w.isFilePanel {
                 cap(w.id, ch)
                 drop(w, dropped: dropped)
                 if w.isFullScreen {

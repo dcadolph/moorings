@@ -221,17 +221,21 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     #expect(world.info(free).isFullScreen == false)
 }
 
-// Lua case 131: A pinned app's other window in native fullscreen is left alone.
+// Test: A pinned app's other window in native fullscreen follows the free window rule, so it is
+// turned into a channel fill only when fullscreenFills is on.
 @Test func testLiftSecondWindowFullscreen() {
-    let anchors = liftAnchors()
-    var world = LiftWorld()
-    world.add(slack, Frame(x: 1000, y: 100, w: 900, h: 700))
-    let huddle = world.add(slack, Frame(x: 1200, y: 200, w: 400, h: 300), main: false)
-    world.pass(anchors)
-    world.full(huddle, true)
-    world.pass(anchors)
-    #expect(world.info(huddle).isFullScreen == true)
-    #expect(world.moves[huddle] == nil && world.exits[huddle] == nil)
+    for fills in [true, false] {
+        var choices = Choices(slots: [.leftTop: slack, .rightTop: iterm])
+        choices.fullscreenFills = fills
+        let anchors = liftAnchors(choices)
+        var world = LiftWorld()
+        world.add(slack, Frame(x: 1000, y: 100, w: 900, h: 700))
+        let huddle = world.add(slack, Frame(x: 1200, y: 200, w: 400, h: 300), main: false)
+        world.pass(anchors)
+        world.full(huddle, true)
+        world.pass(anchors)
+        #expect((world.exits[huddle] != nil) == fills)
+    }
 }
 
 // Lua case 132: A pinned window still animating out of fullscreen is told to leave once.
