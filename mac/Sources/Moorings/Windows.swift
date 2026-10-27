@@ -60,6 +60,9 @@ final class Windows {
     private var zooms: [WindowID: (frame: Frame, rect: Frame?)] = [:]
     // apps caches the app element for each process.
     private var apps: [pid_t: AXUIElement] = [:]
+    // running caches the running app for each process with an on-screen window, so a scan never walks
+    // every running app and asks each for its process identifier.
+    private var running: [pid_t: NSRunningApplication] = [:]
     // scanned holds the processes the last scan read windows from.
     private(set) var scanned: Set<pid_t> = []
     // last holds each process's windows from the last scan, carried through a pass the app is too
@@ -110,11 +113,15 @@ final class Windows {
         let plan = decide(now, listed, slow)
         listed = now
         lastPlan = plan
-        for running in NSWorkspace.shared.runningApplications where pids.contains(running.processIdentifier) {
-            guard let bundle = running.bundleIdentifier, !running.isHidden,
-                  running.processIdentifier != ProcessInfo.processInfo.processIdentifier
+        running = running.filter { pids.contains($0.key) }
+        let me = ProcessInfo.processInfo.processIdentifier
+        for pid in pids where pid != me {
+            if running[pid] == nil {
+                running[pid] = NSRunningApplication(processIdentifier: pid)
+            }
+            guard let runningApp = running[pid], let bundle = runningApp.bundleIdentifier,
+                  !runningApp.isHidden
             else { continue }
-            let pid = running.processIdentifier
             if case let .apps(reads) = plan, pid != front, !reads.contains(pid), let kept = last[pid] {
                 let carried = WindowInfo.carrying(kept, frames: frames)
                 for w in carried {
@@ -147,7 +154,7 @@ final class Windows {
                 found.append(info)
                 byPid[pid, default: []].append(info)
             }
-            if running.processIdentifier == front, let el = Self.element(app, kAXFocusedWindowAttribute) {
+            if pid == front, let el = Self.element(app, kAXFocusedWindowAttribute) {
                 focusedID = Self.id(el)
             }
         }
