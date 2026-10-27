@@ -108,9 +108,9 @@ Quit. Quit pulls the sailboat under the water before Moorings exits, unless Redu
 ### Window actions
 
 Every action works on the front window. On the ultrawide it works inside the channel, and on any
-other display inside the usable screen. Halves, quarters and thirds cycle through 1/2, 2/3 and
-1/3 on repeat presses. The Window folder lists every action with its shortcut, so it doubles as a
-cheat sheet. The default keymap:
+other display inside the usable screen. Left and right halves cycle through 1/2, 2/3 and 1/3 on
+repeat presses, and the first and last thirds step across the three thirds. The Window folder
+lists every action with its shortcut, so it doubles as a cheat sheet. The default keymap:
 
 | Action&nbsp;              | Shortcut&nbsp;  | In plain English&nbsp;                           |
 |---------------------------|-----------------|--------------------------------------------------|
@@ -177,8 +177,8 @@ chains, workspaces and profiles included, so a shortcut, Spotlight or Siri can m
 Settings > Sizes adds sizes as shares of the area: x and y place the top left corner, w and h set
 the size, from 0 to 1. Each size can take a shortcut and shows in Window > Custom sizes. Window >
 Gap leaves 4 to 16 points around each window an action places, and Settings > Layout sets any gap
-up to 100. Settings > Layout > Mouse buttons binds the middle, back and forward buttons to any
-action. Settings > Layout > Title bar buttons binds a click on the red, yellow or green button,
+up to 100. Settings > Layout > Mouse buttons binds the middle, back, forward and sixth buttons to
+any action. Settings > Layout > Title bar buttons binds a click on the red, yellow or green button,
 plain or with Shift, Option or Command, to any action. A click you leave unbound keeps the
 button's own behavior.
 
@@ -194,8 +194,9 @@ Settings > Behavior sets each of these, and the JSON file Settings exports keeps
 `settings.behavior`.
 
 - `subsequentExecution`: what pressing the same shortcut again does. `cycle-sizes` (the default)
-  steps a half through 1/2, 2/3 and 1/3. `traverse-displays` sends a left or right half on to the
-  next display, and `traverse-and-cycle` does that until it would wrap, then cycles sizes.
+  steps a half through 1/2, 2/3 and 1/3. `traverse-displays` sends a right half on to the next
+  display as its left half, and a left half to the previous display as its right half.
+  `traverse-and-cycle` does that until it would wrap, then cycles sizes.
   `cycle-displays` places the same action on the next display, `cycle-quadrants` steps a corner
   across the four quarters, `switch-sides` flips a half to the other side, and `none` stays put.
 - `screenEdgeGapTop`, `screenEdgeGapBottom`, `screenEdgeGapLeft`, `screenEdgeGapRight` and
@@ -349,8 +350,8 @@ names the app and disables the presets that would squeeze it.
 
 Click an anchored window's green button, or use the Lift folder, to lift it over its strip and
 the channel at full height. Click again to lower it. Drag an anchored window away and Moorings
-lets it go, with a banner that says how to bring it back: its green button, Restore, the Re-moor
-entry, or Re-moor now.
+lets it go, with a banner that says to click its green button or press Restore. The Re-moor entry
+and Re-moor now also bring it back.
 
 ### The channel
 

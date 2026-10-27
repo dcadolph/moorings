@@ -6,9 +6,9 @@ each part.
 
 ## Window actions on every display
 
-- A full keymap out of the box: halves that cycle through 1/2, 2/3 and 1/3, quarters, thirds,
-  two thirds, maximize, maximize height, center, larger, smaller, restore, and previous and next
-  display. Other presets are one menu choice away, and None starts from a blank slate.
+- A full keymap out of the box: left and right halves that cycle through 1/2, 2/3 and 1/3,
+  quarters, thirds, two thirds, maximize, maximize height, center, larger, smaller, restore, and
+  previous and next display. Other presets are one menu choice away, and None starts from a blank slate.
 - Arrow mode: four arrow actions that read where the window is. Left and right take a half, then
   step across quarters and on to the next display. Up maximizes a free window or moves a half or
   quarter up a step. Down restores a maximized window, steps a half or quarter down, or minimizes
@@ -164,9 +164,10 @@ each part.
 - Quit Moorings from the menu and an octopus pulls the sailboat under the water. With Reduce
   Motion on it just quits.
 - Launch at login is one menu switch. Opening Moorings while it runs shows the settings window.
-- Moorings checks once a day for a new release and offers it at the top of the menu. The offer
-  opens the release page, and Homebrew or the zip installs it. Nothing installs on its own.
-- Installs with `brew install --cask dcadolph/tap/moorings`, or from the signed and notarized zip
+- Moorings checks for a new release every six hours, and when the menu opens an hour after the
+  last check, and offers it at the top of the menu. The offer opens the release page, and
+  Homebrew or the dmg installs it. Nothing installs on its own.
+- Installs with `brew install --cask dcadolph/tap/moorings`, or from the signed and notarized dmg
   on each release.
 - `moorings://selftest` checks the layout against real TextEdit windows, then puts your slots back.
 - `moorings://selftest?apps=<bundle ids>` checks move, resize, snap and restore on other apps' windows.

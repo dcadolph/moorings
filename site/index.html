@@ -76,7 +76,7 @@
           <div class="win" data-app="calendar"><div class="bar"><i></i><i></i><i></i><span>Calendar</span></div>
             <div class="body"><p class="ch">Today</p><p class="t"><b>10:00</b> Standup</p><p class="t"><b>13:00</b> Design review</p><p class="t"><b>16:30</b> Dentist</p></div></div>
           <div class="win term" data-app="iterm"><div class="bar"><i></i><i></i><i></i><span>~/src/moorings</span></div>
-            <div class="body"><p>% swift test</p><p class="t">Building for debugging...</p><p class="t">Executed 130 tests, with 0 failures</p><p>% <u></u></p></div></div>
+            <div class="body"><p>% swift test</p><p class="t">Building for debugging...</p><p class="t">Test run with 322 tests passed</p><p>% <u></u></p></div></div>
 
           <svg class="cursor" id="cursor" viewBox="0 0 12 18" aria-hidden="true"><path d="M1 1v14l3.6-3.4 2.6 5.6 2.2-1-2.6-5.4H12Z"/></svg>
           <div class="banner" id="banner"><svg class="mark"><use href="#boat"/></svg><div><b>Slack released</b><span>Click its green button to put it back.</span></div></div>
@@ -100,9 +100,9 @@
     <div class="three">
       <div class="mock"><h3>Four slots</h3>
         <div class="lays" role="img" aria-label="Three layouts: Slack and Mail on the left with iTerm filling the right, Slack filling the left with nothing on the right so the channel takes that space, and four apps, two on each side.">
-          <div class="lay"><div class="slots"><div class="side l"><span></span><span></span></div><div class="mid">52%</div><div class="side r"><span></span></div></div><b>Two and one</b></div>
-          <div class="lay"><div class="slots wide"><div class="side l"><span></span></div><div class="mid">70%</div></div><b>One and none</b></div>
-          <div class="lay"><div class="slots"><div class="side l"><span></span><span></span></div><div class="mid">52%</div><div class="side r"><span></span><span></span></div></div><b>Two and two</b></div>
+          <div class="lay"><div class="slots"><div class="side l"><span></span><span></span></div><div class="mid"></div><div class="side r"><span></span></div></div><b>Two and one</b></div>
+          <div class="lay"><div class="slots wide"><div class="side l"><span></span></div><div class="mid"></div></div><b>One and none</b></div>
+          <div class="lay"><div class="slots"><div class="side l"><span></span><span></span></div><div class="mid"></div><div class="side r"><span></span><span></span></div></div><b>Two and two</b></div>
         </div>
         <p>Anchor one app to a whole side, two to its top and bottom, or none, and the channel takes the space. Pick widths and heights from presets or the Adjust strips editor.</p></div>
       <div class="mock"><h3>Green button</h3>
@@ -124,16 +124,14 @@
         grows back when the channel widens. Native fullscreen fills the channel instead of covering
         your anchored apps.</p>
       <p style="margin-top:16px">Cast off this window lets one window cover the strips until it
-        closes. Tidy channel lines up the front windows, and Undo tidy puts everything back.</p>
+        closes. Tidy channel, in Window &gt; Organize, lines up the front windows, and Undo tidy puts
+        everything back.</p>
     </div>
     <div class="vis">
       <div class="mock menu">
         <div class="mh">Moorings</div>
         <div class="mi on">Anchor Safari<em>The app you just used</em></div>
         <div class="mi">Cast off this window</div>
-        <div class="mi">Tidy channel</div>
-        <div class="sep"></div>
-        <div class="mi">Undo tidy</div>
       </div>
     </div>
   </div>
@@ -148,9 +146,9 @@
         it snaps. Hold Option while dropping on an ultrawide strip and the app is anchored there.</p>
       <p style="margin-top:16px">Settings decides what each edge and corner does on landscape and portrait displays, which
         areas never snap, and which keys must be held. The footprint takes your color, opacity and
-        fade, and a Force Touch trackpad taps as it crosses into a new zone.</p>
-      <p style="margin-top:16px">Custom areas send a window dropped on any part of a display to an
-        action of your own. Turn on the snap panel and a pause mid-drag shows a row of targets above
+        fade, and a Force Touch trackpad can tap as it crosses into a new zone.</p>
+      <p style="margin-top:16px">Custom areas send a window dropped on any part of a display other
+        than the ultrawide to an action of your own. Turn on the snap panel and a pause mid-drag shows a row of targets above
         the pointer, each drawn as the part of the screen it fills.</p>
     </div>
     <div class="vis">
@@ -176,12 +174,11 @@
     <div class="vis">
       <div class="mock menu">
         <div class="mh">Workspaces</div>
-        <div class="mi">Writing</div>
-        <div class="mi on">Home desk<em>Tied to these displays</em></div>
-        <div class="mi">Travel, laptop only</div>
+        <div class="mi">Save workspace…</div>
         <div class="sep"></div>
-        <div class="mi">Save workspace...</div>
-        <div class="mi">Tie to these displays</div>
+        <div class="mi">Writing</div>
+        <div class="mi on">Home desk<em>Recall with these displays</em></div>
+        <div class="mi">Travel, laptop only</div>
       </div>
     </div>
   </div>
@@ -192,7 +189,7 @@
     <div class="head">
       <p class="small">Shortcuts</p>
       <h2>Every size, one key away.</h2>
-      <p>Halves that step through 1/2, 2/3 and 1/3, quarters, thirds, maximize, center and next
+      <p>Left and right halves that step through 1/2, 2/3 and 1/3, quarters, thirds, maximize, center and next
         display are bound from the first launch. Sixths, eighths, twelfths, sixteenths, one-axis
         resizes, moves to an edge or corner, and Arrow mode wait in the Window folder for a key of
         your choice. Every action is also a <b>moorings://</b> link, so anything that opens a URL
@@ -229,13 +226,13 @@
     <div class="three">
       <div class="mock"><h3>Press again</h3>
         <div class="dots"><span>1/2, then 2/3, then 1/3</span></div>
-        <p>Press a half again to step its size. Or send it on to the next display, flip it to the other side, or walk a corner around the screen.</p></div>
+        <p>Press a left or right half again to step its size. Or send it on to the next display, flip it to the other side, or walk a corner around the screen.</p></div>
       <div class="mock"><h3>Drag it back</h3>
         <div class="dots"><i></i><i></i><i></i><span>Back to its own size</span></div>
         <p>Drag a snapped window away and it gets its earlier size back at once, still under your pointer.</p></div>
       <div class="mock"><h3>To the point</h3>
         <div class="dots"><span>Slack lands exactly</span></div>
-        <p>Apps that resize in steps land on the exact frame. A title bar double-click can maximize and restore, and the pointer can follow the window it moved.</p></div>
+        <p>Apps such as Slack land on the exact frame. A title bar double-click can maximize and restore, and the pointer can follow the window it moved.</p></div>
     </div>
   </div>
 </section>
@@ -255,7 +252,7 @@
         <p>A short move toward a side or corner picks a half or a quarter. A longer one picks thirds, sixths, maximize or center. Let go to send the window there.</p></div>
       <div class="mock"><h3>Grid</h3>
         <div class="dots"><span>Drag across the cells you want</span></div>
-        <p>The Grid action lays cells over the screen. Drag across a span, or click one cell, and the window fills it. Arrow keys and Return work too.</p></div>
+        <p>The Grid action lays cells over the window's display, inside the channel on an ultrawide. Drag across a span, or click one cell, and the window fills it. Arrow keys and Return work too.</p></div>
       <div class="mock"><h3>Hover</h3>
         <div class="dots"><span>No click needed</span></div>
         <p>Hold the move keys and the window follows the pointer, or the resize keys to grow it from its nearest corner. Drag the edge two windows share and both resize.</p></div>

@@ -42,7 +42,7 @@
 </ol>
 <h3>Questions</h3>
 <details><summary>An app will not shrink to its strip.</summary><p>Some apps have a minimum width. Moorings keeps it and grows the strip to fit, and Widths names the app and turns off the presets that would squeeze it.</p></details>
-<details><summary>I dragged an anchored window away and it stayed put.</summary><p>Dragging lets the app go. A banner says how to bring it back: its green button, Restore, the Re-moor entry in the menu, or Re-moor now.</p></details>
+<details><summary>I dragged an anchored window away and it stayed put.</summary><p>Dragging lets the app go. A banner says to click its green button or press Restore. The Re-moor entry in the menu and Re-moor now also bring it back.</p></details>
 <details><summary>How do I see an anchored app bigger for a moment?</summary><p>Click its green button. It lifts over the channel at full height, and a second click lowers it.</p></details>
 <details><summary>How do I stop anchoring an app?</summary><p>Bring it to the front and choose Unanchor <i>app</i> from the menu, or pick Empty for its slot in Anchored apps. Its window stays where it is.</p></details>
 
@@ -51,14 +51,14 @@
 <h3>Steps</h3>
 <ol>
   <li>Open the menu and choose <b>Settings</b>, then the <b>Shortcuts</b> tab.</li>
-  <li>Find the action and click <b>Record</b> beside it.</li>
+  <li>Find the action and click the button beside it, which shows its shortcut or <b>Record</b>.</li>
   <li>Press the keys you want. A shortcut needs at least one of Control, Option, Command or Shift.</li>
   <li><b>Clear</b> turns that action's shortcut off, and <b>Reset</b> puts back the one from the keymap.</li>
 </ol>
 <h3>Questions</h3>
 <details><summary>Can I start from a different set of shortcuts?</summary><p>Window &gt; Keymap, or the Keymap picker in Settings &gt; Layout, switches to another preset, or to None for a blank slate. Switching drops the shortcuts you recorded, so pick the keymap first.</p></details>
 <details><summary>A shortcut clashes with one in another app.</summary><p>Bring that app to the front and choose Window &gt; Ignore shortcuts in <i>app</i>. The shortcuts switch off while it is in front, so its own keys work.</p></details>
-<details><summary>Can a mouse button or a title bar button run an action?</summary><p>Yes. Settings &gt; Layout binds the middle, back and forward mouse buttons, and clicks on the red, yellow and green buttons, plain or with a modifier.</p></details>
+<details><summary>Can a mouse button or a title bar button run an action?</summary><p>Yes. Settings &gt; Layout binds the middle, back, forward and sixth mouse buttons, and clicks on the red, yellow and green buttons, plain or with a modifier.</p></details>
 
 <h2 id="snapping">Change what a drag snaps to</h2>
 <p>Drag a window to an edge or a corner and a footprint shows where it will land. Edges give halves, corners give quarters, the top edge maximizes and the bottom edge gives thirds.</p>
@@ -82,7 +82,7 @@
   <li>Open <b>Settings</b>, then <b>Behavior</b>, and under <b>Throw with a held key</b> pick Right Option, Right Command, Right Control or Fn.</li>
   <li>Put the pointer over a window, hold the key and move the pointer a little toward a side or a corner. A footprint shows the half or quarter.</li>
   <li>Move further for thirds, sixths, maximize or center, then let go.</li>
-  <li>Press an arrow key while holding instead to switch to a grid of cells. Shift-arrows grow the pick, Return applies it and Escape cancels.</li>
+  <li>Press an arrow key while holding instead to switch to a grid of cells. Shift-arrows grow the pick, Return applies it and Escape cancels. This needs Right Option, Right Command or Fn. Under Right Control the arrows go to Mission Control.</li>
 </ol>
 <h3>Questions</h3>
 <details><summary>Does the window have to be in front?</summary><p>No. The window under the pointer when you pressed the key is the one that moves.</p></details>
@@ -106,14 +106,14 @@
 <p>The Behavior tab sets what a second press does, gaps at the screen edges, the pointer, the title bar and display order. A file export carries all of it to another Mac.</p>
 <h3>Steps</h3>
 <ol>
-  <li>Open <b>Settings</b>, then <b>Behavior</b>. For example, set <b>A shortcut pressed again</b> to <b>Move to the next display</b> and a second Control-Option-Left sends a left half on to the next display.</li>
+  <li>Open <b>Settings</b>, then <b>Behavior</b>. For example, set <b>A shortcut pressed again</b> to <b>Move to the next display</b> and a second Control-Option-Right sends a right half on to the next display, where it becomes that display's left half.</li>
   <li>To copy everything, open the <b>General</b> tab and click <b>Export settings</b>. Moorings writes one JSON file.</li>
   <li>On the other Mac, click <b>Import settings</b> in the same tab and pick the file.</li>
 </ol>
 <h3>Questions</h3>
 <details><summary>Can I edit the file by hand?</summary><p>Yes. The behavior choices sit under <code>settings.behavior</code>, for example <code>"subsequentExecution": "traverse-displays"</code>. Import the edited file to apply it. The README lists every key.</p></details>
 <details><summary>Why did my workspaces come back untied?</summary><p>An imported file may come from another desk, so imported workspaces are not tied to displays. Tie them again from the Workspaces folder.</p></details>
-<details><summary>How do I start over?</summary><p>Restore defaults, under the tabs in Settings, puts shortcuts, snapping and behavior back. Anchored apps, strip sizes, custom sizes and workspaces stay.</p></details>
+<details><summary>How do I start over?</summary><p>Restore defaults, under the tabs in Settings, puts every choice back except anchored apps, strip sizes, saved width presets, ignored apps, custom sizes, workspaces, chains, app rules and profiles.</p></details>
 <details><summary>How do I get a new version?</summary><p>Moorings looks for a new release every few hours, and when you open the menu an hour after the last look. A waiting release shows at the top of the menu. To ask at once, choose Check for updates now, and a banner says whether a new version is out. Check for updates automatically turns the regular look off and on. Homebrew users can also run <code>brew upgrade --cask moorings</code>.</p></details>
 </main>
 <footer><div class="w"><span><a href="https://github.com/dcadolph/moorings">Source</a> &nbsp;&middot;&nbsp; <a href="https://github.com/dcadolph/moorings/issues">Issues</a> &nbsp;&middot;&nbsp; <a href="/">Home</a></span><span>moorings is free and open source under the Apache 2.0 license.</span></div></footer>
