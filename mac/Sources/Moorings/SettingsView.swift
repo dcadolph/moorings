@@ -81,11 +81,12 @@ struct SettingsView: View {
         return VStack(alignment: .leading) {
             Text("Each size takes a share of the area: x and y place its top left corner, w and h set its size, "
                 + "all from 0 to 1.").font(.callout)
+            let n = model.choices.sizes.count
             List(model.choices.sizes.indices, id: \.self) { i in
                 SizeRow(size: model.choices.sizes[i], shortcut: model.bindings.map[Keymaps.sizePrefix + model.choices.sizes[i].title],
                         suspend: model.suspend,
-                        save: { s in model.change { $0.sizes[i] = s } },
-                        delete: { model.change { $0.sizes.remove(at: i) } })
+                        save: { s in model.change { if $0.sizes.still(i, of: n) { $0.sizes[i] = s } } },
+                        delete: { model.change { if $0.sizes.still(i, of: n) { $0.sizes.remove(at: i) } } })
             }
             ForEach(problems, id: \.self) { Text($0).foregroundStyle(.red).font(.callout) }
             Button("Add size") {
@@ -148,6 +149,7 @@ struct SettingsView: View {
                         Text(model.app.appName(rule.bundle))
                         Spacer()
                         Picker("", selection: Binding(get: { rule.action ?? "" }, set: { v in model.change {
+                            guard $0.appRules.still(i, holding: rule) else { return }
                             $0.appRules[i].action = v.isEmpty ? nil : v
                             $0.appRules[i].frame = nil
                         } })) {
@@ -157,7 +159,7 @@ struct SettingsView: View {
                             ForEach(snapTargets, id: \.self) { Text(Keymaps.label($0)).tag($0) }
                         }
                         .frame(width: 220)
-                        Button("Remove") { model.change { _ = $0.appRules.remove(at: i) } }
+                        Button("Remove") { model.change { $0.appRules.remove(i, holding: rule) } }
                     }
                 }
                 Picker("Add a rule for", selection: Binding(get: { "" }, set: { b in
@@ -183,7 +185,11 @@ struct SettingsView: View {
                     HStack {
                         WorkspaceNameField(name: p.name) { new in
                             guard !model.choices.profiles.contains(where: { $0.name == new }) else { return }
-                            model.change { $0.renameProfile(at: i, to: new) }
+                            model.change {
+                                if $0.profiles.indices.contains(i), $0.profiles[i].name == p.name {
+                                    $0.renameProfile(at: i, to: new)
+                                }
+                            }
                         }
                         if model.choices.activeProfile == p.name {
                             Text("Active").font(.callout).foregroundStyle(.secondary)
@@ -196,6 +202,7 @@ struct SettingsView: View {
                         Text("Recalls").font(.callout)
                         ForEach(workspaces, id: \.self) { ws in
                             Toggle(ws, isOn: Binding(get: { p.workspaces.contains(ws) }, set: { on in model.change {
+                                guard $0.profiles.indices.contains(i), $0.profiles[i].name == p.name else { return }
                                 $0.profiles[i].workspaces.removeAll { $0 == ws }
                                 if on { $0.profiles[i].workspaces.append(ws) }
                             } }))
@@ -250,7 +257,7 @@ struct SettingsView: View {
                 HStack {
                     Text("Left \(Int(w.left))%, right \(Int(w.right))%")
                     Spacer()
-                    Button("Remove") { model.change { $0.widthPresets.remove(at: i) } }
+                    Button("Remove") { model.change { $0.widthPresets.remove(i, holding: w) } }
                 }
             }
             Button("Save current widths") {
@@ -416,10 +423,15 @@ struct SettingsView: View {
                 Text("A custom area is a part of a display, as shares from 0 to 1, that snaps a window dropped in it. "
                     + "Custom areas come before the edges and do not apply on the ultrawide.")
                     .font(.callout).foregroundStyle(.secondary)
+                let n = s.customAreas.count
                 ForEach(s.customAreas.indices, id: \.self) { i in
                     SnapAreaRow(area: s.customAreas[i], actions: snapTargets,
-                                save: { a in model.change { $0.snapping.customAreas[i] = a } },
-                                delete: { model.change { $0.snapping.customAreas.remove(at: i) } })
+                                save: { a in model.change {
+                                    if $0.snapping.customAreas.still(i, of: n) { $0.snapping.customAreas[i] = a }
+                                } },
+                                delete: { model.change {
+                                    if $0.snapping.customAreas.still(i, of: n) { $0.snapping.customAreas.remove(at: i) }
+                                } })
                 }
                 Button("Add area") {
                     model.change {
@@ -434,10 +446,11 @@ struct SettingsView: View {
                     HStack {
                         Text(Keymaps.label(name))
                         Spacer()
-                        Button("Left") { model.change { $0.snapping.panelActions.swapAt(i, i - 1) } }.disabled(i == 0)
-                        Button("Right") { model.change { $0.snapping.panelActions.swapAt(i, i + 1) } }
+                        Button("Left") { model.change { $0.snapping.panelActions.move(i, holding: name, to: i - 1) } }
+                            .disabled(i == 0)
+                        Button("Right") { model.change { $0.snapping.panelActions.move(i, holding: name, to: i + 1) } }
                             .disabled(i == s.panelActions.count - 1)
-                        Button("Remove") { model.change { _ = $0.snapping.panelActions.remove(at: i) } }
+                        Button("Remove") { model.change { $0.snapping.panelActions.remove(i, holding: name) } }
                     }
                 }
                 adder("Add a target", snapTargets.filter { !s.panelActions.contains($0) }) { name in
@@ -743,9 +756,11 @@ struct SettingsView: View {
                     HStack {
                         Text(Keymaps.label(name))
                         Spacer()
-                        Button("Up") { model.change { $0.menu.order.swapAt(i, i - 1) } }.disabled(i == 0)
-                        Button("Down") { model.change { $0.menu.order.swapAt(i, i + 1) } }.disabled(i == m.order.count - 1)
-                        Button("Remove") { model.change { _ = $0.menu.order.remove(at: i) } }
+                        Button("Up") { model.change { $0.menu.order.move(i, holding: name, to: i - 1) } }
+                            .disabled(i == 0)
+                        Button("Down") { model.change { $0.menu.order.move(i, holding: name, to: i + 1) } }
+                            .disabled(i == m.order.count - 1)
+                        Button("Remove") { model.change { $0.menu.order.remove(i, holding: name) } }
                     }
                 }
                 adder("Pin an action", runNames.filter { $0 != Keymaps.menuName && $0 != Keymaps.stripsName && !m.order.contains($0) }) { name in
@@ -767,11 +782,14 @@ struct SettingsView: View {
             Section("Chains") {
                 Text("A chain runs one step per press on the same window. Give it a shortcut in the Shortcuts tab.")
                     .font(.callout)
+                let n = chains.count
                 ForEach(chains.indices, id: \.self) { i in
                     ChainRow(chain: chains[i], steps: actionNames + model.bindings.sizes.map(\.name),
-                             save: { c in model.change { $0.chains[i] = c } },
-                             rename: { new in model.change { $0.renameChain(at: i, to: new) } },
-                             delete: { model.change { $0.chains.remove(at: i) } })
+                             save: { c in model.change { if $0.chains.still(i, of: n) { $0.chains[i] = c } } },
+                             rename: { new in model.change {
+                                 if $0.chains.still(i, of: n) { $0.renameChain(at: i, to: new) }
+                             } },
+                             delete: { model.change { if $0.chains.still(i, of: n) { $0.chains.remove(at: i) } } })
                 }
                 ForEach(problems, id: \.self) { Text($0).foregroundStyle(.red).font(.callout) }
                 Button("Add chain") {
