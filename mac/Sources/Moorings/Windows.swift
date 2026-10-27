@@ -8,15 +8,7 @@ import MooringsCore
 @_silgen_name("_AXUIElementGetWindow")
 private func axWindowID(_ element: AXUIElement, _ id: UnsafeMutablePointer<CGWindowID>) -> AXError
 
-// Screens holds the attached displays in global top-left coordinates.
-struct Screens {
-    // full lists each screen's full frame.
-    let full: [Frame]
-    // usable lists each screen's frame without the menu bar and the Dock.
-    let usable: [Frame]
-    // ultrawide is the index of the ultrawide, nil when none is attached.
-    let ultrawide: Int?
-
+extension Screens {
     // current reads the attached screens.
     static func current() -> Screens {
         let screens = NSScreen.screens
@@ -24,24 +16,6 @@ struct Screens {
         let flip = { (r: NSRect) in Frame(x: r.minX, y: primary - r.maxY, w: r.width, h: r.height) }
         let full = screens.map { flip($0.frame) }
         return Screens(full: full, usable: screens.map { flip($0.visibleFrame) }, ultrawide: Layout.ultrawide(full))
-    }
-
-    // wide returns the ultrawide's usable frame, nil when none is attached.
-    var wide: Frame? { ultrawide.map { usable[$0] } }
-
-    // index returns the screen f overlaps most, nil when it overlaps none.
-    func index(_ f: Frame) -> Int? {
-        var best: Int?
-        var bestArea = 0.0
-        for (i, s) in full.enumerated() {
-            let w = min(f.x + f.w, s.x + s.w) - max(f.x, s.x)
-            let h = min(f.y + f.h, s.y + s.h) - max(f.y, s.y)
-            if w > 0, h > 0, w * h > bestArea {
-                best = i
-                bestArea = w * h
-            }
-        }
-        return best
     }
 }
 
