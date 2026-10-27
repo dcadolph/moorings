@@ -490,6 +490,9 @@ final class StripEditor {
         p.level = .floating
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         p.isReleasedWhenClosed = false
+        // macOS may refuse the activation below, and a panel that hides on deactivate would then
+        // stay hidden while the editor holds the grabbed keys.
+        p.hidesOnDeactivate = false
         p.contentView = NSHostingView(rootView: StripEditorView(state: s))
         panel = p
         let current = NSWorkspace.shared.frontmostApplication
