@@ -188,3 +188,12 @@ each part.
 - Links and scripts keep the same action names and need the `moorings://action?name=<action>`
   URL.
 - [COMPARISON.md](COMPARISON.md) lists every feature with the check behind it.
+
+<details>
+<summary>Last call</summary>
+
+You found the bar. It also serves the site's 404 page.
+
+<img src="site/beach-bar.jpg" width="500" alt="Drawing of a beach bar under palm trees, two bartenders at the counter holding up drinks and a surfboard menu out front">
+
+</details>
