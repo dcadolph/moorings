@@ -608,7 +608,6 @@ func probeBadge(_ opts: ProbeOptions) -> Int32 {
         print("badge: no window of \(opts.app)")
         return 1
     }
-    var front: Frame?
     for (k, p) in pads.enumerated() {
         let f = Frame(x: area.x + 300 + 5 * Double(k), y: area.y + 200 + 5 * Double(k), w: 500, h: 350)
         app.windows.move(p.id, to: f, from: nil, behavior: Behaviors())
@@ -616,9 +615,14 @@ func probeBadge(_ opts: ProbeOptions) -> Int32 {
             _ = bringForward(hwnd)
         }
         app.run(until: App.now + 0.2)
-        front = app.windows.frame(p.id)
     }
-    guard let front else { return 1 }
+    // The foreground lock can refuse the last raise, so the front pad is read from the z order.
+    let ids = Set(pads.map(\.id))
+    let order = WinWindows.scan(screens: screens).windows
+    guard let front = order.first(where: { ids.contains($0.id) })?.frame else {
+        print("badge: no pad in the z order")
+        return 1
+    }
     print("pads: \(pads.count)")
     print("front: \(pixels(front))")
     _ = SetCursorPos(Int32(front.x + 10), Int32(front.y + 10))
