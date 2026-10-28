@@ -147,3 +147,43 @@ func near(_ a: Frame?, _ b: Frame?) -> Bool {
     #expect(o.shown == nil)
     #expect(o.calls == [.show(a), .show(b), .hide])
 }
+
+// Hit finds the front-most window under a point and skips a minimized one; title reads until the
+// window is gone.
+@Test func testFakeWindowsHitAndTitle() {
+    let store = FakeWindows()
+    let back = store.add(bundle: "a", frame: Frame(x: 0, y: 0, w: 400, h: 300), title: "Back")
+    let front = store.add(bundle: "b", frame: Frame(x: 200, y: 100, w: 400, h: 300))
+    #expect(store.hit(Point(x: 300, y: 200)) == front)
+    #expect(store.hit(Point(x: 50, y: 50)) == back)
+    #expect(store.hit(Point(x: 900, y: 900)) == nil)
+    store.minimize(front)
+    #expect(store.hit(Point(x: 300, y: 200)) == back)
+    #expect(store.title(back) == "Back")
+    #expect(store.title(front) == "b \(front)")
+    store.close(back)
+    #expect(store.title(back) == nil)
+}
+
+// The fake log keeps every line it was given, in order.
+@Test func testFakeLogKeepsLines() {
+    let log = FakeLog()
+    log.note(.anchors, "one")
+    log.note(.choices, "two")
+    #expect(log.lines == [FakeLog.Line(.anchors, "one"), FakeLog.Line(.choices, "two")])
+}
+
+// Fake events deliver each window change while running and nothing once stopped.
+@Test func testFakeEventsDeliverWhileRunning() {
+    let store = FakeWindows()
+    let events = FakeEvents(windows: store)
+    var got: [WindowEvent] = []
+    events.start { got.append($0) }
+    let id = store.add(bundle: "a", frame: Frame(x: 0, y: 0, w: 400, h: 300))
+    store.nudge(id, to: Frame(x: 10, y: 0, w: 400, h: 300))
+    store.raise(id)
+    store.close(id)
+    events.stop()
+    store.add(bundle: "a", frame: Frame(x: 0, y: 0, w: 400, h: 300))
+    #expect(got == [.shown(id), .moved(id), .focused(id), .destroyed(id)])
+}

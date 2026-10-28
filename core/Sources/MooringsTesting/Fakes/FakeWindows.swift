@@ -48,6 +48,8 @@ public final class FakeWindows: WindowStore {
         public var refuses: Bool
         // minimized reports whether the window is minimized.
         public var minimized: Bool
+        // title is the window's title.
+        public var title: String
     }
 
     // Call is one call the store received.
@@ -59,6 +61,7 @@ public final class FakeWindows: WindowStore {
         case raise(WindowID)
         case minimize(WindowID)
         case close(WindowID)
+        case exitFullScreen(WindowID)
     }
 
     // windows lists the windows front to back.
@@ -73,6 +76,8 @@ public final class FakeWindows: WindowStore {
     public var ready = true
     // ignoresMinimum makes moves skip the minimum size, only for the contract's negative control.
     public var ignoresMinimum = false
+    // onEvent is told each change to a window as it happens, for FakeEvents.
+    public var onEvent: ((WindowEvent) -> Void)?
     // nextID is the id the next added window gets.
     private var nextID: WindowID = 1
 
@@ -83,17 +88,18 @@ public final class FakeWindows: WindowStore {
     @discardableResult
     public func add(
         bundle: String, frame: Frame, isMain: Bool = true, minW: Double = 0, minH: Double = 0,
-        insets: Insets = Insets(), refuses: Bool = false, focus: Bool = false
+        insets: Insets = Insets(), refuses: Bool = false, focus: Bool = false, title: String? = nil
     ) -> WindowID {
         let id = nextID
         nextID += 1
         windows.insert(
             Window(
                 id: id, bundle: bundle, frame: frame, isMain: isMain, minW: minW, minH: minH,
-                insets: insets, refuses: refuses, minimized: false), at: 0)
+                insets: insets, refuses: refuses, minimized: false, title: title ?? "\(bundle) \(id)"), at: 0)
         if focus {
             focusedID = id
         }
+        onEvent?(.shown(id))
         return id
     }
 
@@ -101,6 +107,7 @@ public final class FakeWindows: WindowStore {
     public func nudge(_ id: WindowID, to frame: Frame) {
         guard let i = index(id) else { return }
         windows[i].frame = frame
+        onEvent?(.moved(id))
     }
 
     // window returns the fake window with id, nil when it is gone.
@@ -140,6 +147,7 @@ public final class FakeWindows: WindowStore {
             f.h = max(f.h, windows[i].minH)
         }
         windows[i].frame = windows[i].insets.grow(f)
+        onEvent?(.moved(id))
     }
 
     // resize sets the window's size, held at its minimum, and keeps its top-left corner.
@@ -148,6 +156,7 @@ public final class FakeWindows: WindowStore {
         guard let i = index(id), !windows[i].refuses else { return }
         windows[i].frame.w = max(w, windows[i].minW)
         windows[i].frame.h = max(h, windows[i].minH)
+        onEvent?(.moved(id))
     }
 
     // position moves the window's top-left corner to x, y and keeps its size. A window that refuses
@@ -161,6 +170,7 @@ public final class FakeWindows: WindowStore {
         }
         windows[i].frame.x = x
         windows[i].frame.y = y
+        onEvent?(.moved(id))
     }
 
     // raise moves the window to the front and focuses it.
@@ -171,6 +181,7 @@ public final class FakeWindows: WindowStore {
         w.minimized = false
         windows.insert(w, at: 0)
         focusedID = id
+        onEvent?(.focused(id))
     }
 
     // minimize hides the window from scans and drops its focus.
@@ -186,10 +197,30 @@ public final class FakeWindows: WindowStore {
     // close removes the window.
     public func close(_ id: WindowID) {
         calls.append(.close(id))
+        guard index(id) != nil else { return }
         windows.removeAll { $0.id == id }
         if focusedID == id {
             focusedID = nil
         }
+        onEvent?(.destroyed(id))
+    }
+
+    // hit returns the front-most window on screen whose frame holds p.
+    public func hit(_ p: Point) -> WindowID? {
+        windows.first { w in
+            !w.minimized && p.x >= w.frame.x && p.x < w.frame.x + w.frame.w && p.y >= w.frame.y
+                && p.y < w.frame.y + w.frame.h
+        }?.id
+    }
+
+    // title returns the window's title, nil when it is gone.
+    public func title(_ id: WindowID) -> String? {
+        window(id)?.title
+    }
+
+    // exitFullScreen records the call; fake windows are never full screen.
+    public func exitFullScreen(_ id: WindowID) {
+        calls.append(.exitFullScreen(id))
     }
 
     // alive lists the ids of every window that still exists, minimized or not.

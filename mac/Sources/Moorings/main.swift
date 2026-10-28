@@ -99,7 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var workspaces: WorkspaceKeeper = {
         let k = WorkspaceKeeper(platform: platform, anchors: anchors, organizer: organizer, actions: actions)
         let settle = MacScheduler()
-        k.title = { [unowned self] id in windows.title(id) }
+        k.title = { [unowned self] id in windows.title(id) ?? "" }
         k.openApp = { [unowned self] bundle, target in open(bundle, background: true, target: target) }
         k.after = { seconds, work in settle.schedule(at: Self.now + seconds, work) }
         k.changed = { [unowned self] in save() }

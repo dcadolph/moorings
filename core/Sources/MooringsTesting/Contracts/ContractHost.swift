@@ -35,6 +35,29 @@ public protocol ContractHost: AnyObject {
     func wait(until deadline: Double, _ done: () -> Bool) -> Bool
     // finish closes every window the host opened.
     func finish()
+    // press synthesizes a press of key and reports whether the host could; a rule that needs a press
+    // skips with one printed line on a host that cannot.
+    func press(_ key: GrabKey) -> Bool
+    // knownApp is the bundle id of an app the host can open and name, nil when it has none.
+    var knownApp: String? { get }
+    // nudge moves the window a little from outside the store, the way a person would, and reports
+    // whether the host could.
+    func nudge(_ id: WindowID) -> Bool
+}
+
+extension ContractHost {
+    // press reports that the host cannot synthesize a press.
+    public func press(_ key: GrabKey) -> Bool {
+        false
+    }
+
+    // knownApp is nil for a host with no app to open.
+    public var knownApp: String? { nil }
+
+    // nudge reports that the host cannot move a window from outside the store.
+    public func nudge(_ id: WindowID) -> Bool {
+        false
+    }
 }
 
 // Contract holds what the suites share.
@@ -43,6 +66,11 @@ enum Contract {
     static func near(_ a: Frame?, _ b: Frame?) -> Bool {
         guard let a, let b else { return false }
         return abs(a.x - b.x) <= 1 && abs(a.y - b.y) <= 1 && abs(a.w - b.w) <= 1 && abs(a.h - b.h) <= 1
+    }
+
+    // skip prints the one line a rule writes when the host cannot run it.
+    static func skip(_ rule: String, _ why: String) {
+        print("contract skipped: \(rule): \(why)")
     }
 
     // show writes a frame, or none, for a failure detail.
@@ -80,6 +108,8 @@ public final class FakeHost: ContractHost {
     public let clock: FakeClock
     // source holds the displays.
     private let source: FakeScreens
+    // keys receives the presses the host makes, nil when the host makes none.
+    public var keys: FakeKeys?
     // opened lists the windows the host opened.
     private var opened: [WindowID] = []
 
@@ -132,5 +162,23 @@ public final class FakeHost: ContractHost {
             windows.close(id)
         }
         opened = []
+    }
+
+    // press hands the press to keys, when the host has them.
+    public func press(_ key: GrabKey) -> Bool {
+        guard let keys else { return false }
+        keys.press(key)
+        return true
+    }
+
+    // knownApp is the app FakeApps knows by default.
+    public var knownApp: String? { "contract.host" }
+
+    // nudge moves the window 10 points right outside the store.
+    public func nudge(_ id: WindowID) -> Bool {
+        guard var f = windows.frame(id) else { return false }
+        f.x += 10
+        windows.nudge(id, to: f)
+        return true
     }
 }
