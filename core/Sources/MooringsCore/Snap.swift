@@ -59,15 +59,15 @@ public enum Snap {
 
     // zone returns the action a window dropped at p gets on a display whose full frame is f, or nil.
     // snapping supplies the custom areas, which come first, the area maps and sizes, all used off the
-    // ultrawide, and held is the set of modifier names down now. The ultrawide strip rule is fixed and
+    // ultrawide, and held is the modifiers down now. The ultrawide strip rule is fixed and
     // ignores the custom areas and the maps.
     // ch is the channel when the display is the ultrawide. prev is the zone the drag was last in.
     public static func zone(
         _ p: SnapPoint, _ f: Frame, _ ch: Frame? = nil, _ prev: String? = nil, snapping: SnapChoices = SnapChoices(),
-        held: Set<String> = []
+        held: Modifiers = []
     ) -> String? {
-        if !snapping.snapModifiers.isEmpty && !Set(snapping.snapModifiers).isSubset(of: held) {
-            return nil
+        if !snapping.snapModifiers.isEmpty {
+            guard let need = Modifiers(names: snapping.snapModifiers), held.isSuperset(of: need) else { return nil }
         }
         if ch == nil, let area = snapping.customAreas.first(where: { !$0.action.isEmpty && $0.contains(p, f) }) {
             return area.action
@@ -138,7 +138,7 @@ public enum Snap {
     public static func drop(
         _ p: SnapPoint, _ f: Frame, _ ch: Frame? = nil, prev: String? = nil, option: Bool = false,
         parkable: Bool = false, pinned: Bool = false, castOff: Bool = false, snapping: SnapChoices = SnapChoices(),
-        held: Set<String> = []
+        held: Modifiers = []
     ) -> SnapDrop? {
         if let ch, option {
             guard parkable, let key = park(p, f, ch) else {

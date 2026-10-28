@@ -312,8 +312,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         tap.onOther = { [weak self] button, down in self?.mouseButton(button, down: down) ?? false }
         tap.onFlags = { [weak self] flags, p in
-            self?.overlay.flagsChanged(flags.rawValue, at: Point(x: p.x, y: p.y))
-            self?.hover.flagsChanged(flags.rawValue, at: Point(x: p.x, y: p.y))
+            let m = Modifiers(flags: flags)
+            self?.overlay.flagsChanged(m, at: Point(x: p.x, y: p.y))
+            self?.hover.flagsChanged(m, at: Point(x: p.x, y: p.y))
         }
         hotkeys.onGrab = { [weak self] tag in
             guard let self else { return }

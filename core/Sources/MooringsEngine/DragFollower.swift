@@ -4,7 +4,7 @@ import MooringsCore
 public protocol DragPanelHook: AnyObject {
     // zone follows the pointer at p over the panel and returns the panel action under it, nil when
     // the panel is off or the pointer is over no target.
-    func zone(at p: Point, window: WindowInfo, held: Set<String>, option: Bool) -> String?
+    func zone(at p: Point, window: WindowInfo, held: Modifiers, option: Bool) -> String?
     // reset hides the panel at the end of a drag.
     func reset()
 }
@@ -12,13 +12,13 @@ public protocol DragPanelHook: AnyObject {
 // StashHook is how a platform stashes a window a Command-drag drops at a screen edge.
 public struct StashHook {
     // edge returns the screen edge a drop at a point with the held keys would stash at, nil for none.
-    public var edge: (Point, Set<String>) -> StashEdge?
+    public var edge: (Point, Modifiers) -> StashEdge?
     // stash parks the window at the edge, to come back to the frame the drag began at.
     public var stash: (WindowInfo, StashEdge, Frame?) -> Void
 
     // init builds the hook from its two parts.
     public init(
-        edge: @escaping (Point, Set<String>) -> StashEdge?, stash: @escaping (WindowInfo, StashEdge, Frame?) -> Void
+        edge: @escaping (Point, Modifiers) -> StashEdge?, stash: @escaping (WindowInfo, StashEdge, Frame?) -> Void
     ) {
         self.edge = edge
         self.stash = stash
@@ -120,10 +120,10 @@ public final class DragFollower {
         }
     }
 
-    // moved follows the pointer at p with the held modifier names, and moves the footprint when the
+    // moved follows the pointer at p with the held modifiers, and moves the footprint when the
     // zone changes.
-    public func moved(_ p: Point, held: Set<String>) {
-        let option = held.contains("option")
+    public func moved(_ p: Point, held: Modifiers) {
+        let option = held.contains(.option)
         let choices = anchors.choices
         guard down, !done, !choices.paused, choices.snap || choices.behavior.unsnapRestore, isMoving(p),
             choices.snap, let w = win
@@ -181,7 +181,7 @@ public final class DragFollower {
 
     // ended finishes the drag: a drop in a zone runs its action, a drop on a slot anchors the app, and
     // a Command-drag at an edge stashes the window. A window that can no longer be read gets nothing.
-    public func ended(held: Set<String>) {
+    public func ended(held: Modifiers) {
         let (w, drop, screen, stashAt, start, moved) = (win, drop, screen, stashAt, start, moving == true)
         reset()
         guard moved, var w else { return }

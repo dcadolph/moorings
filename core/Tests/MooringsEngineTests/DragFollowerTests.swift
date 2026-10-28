@@ -58,7 +58,7 @@ final class DragRig {
     }
 
     // drag presses at p0, moves the window with the pointer through points, and returns nothing.
-    func drag(_ points: [Point], held: Set<String> = [], moveWindow: Bool = true) {
+    func drag(_ points: [Point], held: Modifiers = [], moveWindow: Bool = true) {
         follower.began(at: points[0])
         var last = points[0]
         for p in points.dropFirst() {
@@ -125,10 +125,10 @@ final class DragRig {
 // The same drop with option over the left strip parks the app there and says so.
 @Test @MainActor func testDragOptionParks() {
     let rig = DragRig()
-    rig.drag(DragRig.path(Point(x: 1600, y: 415), Point(x: 2, y: 300)), held: ["option"])
+    rig.drag(DragRig.path(Point(x: 1600, y: 415), Point(x: 2, y: 300)), held: .option)
     #expect(rig.follower.drop == .park("left-top"))
     #expect(rig.overlay.shown == rig.anchors.slotFrame(rig.screens.screens.usable[0], .leftTop))
-    rig.follower.ended(held: ["option"])
+    rig.follower.ended(held: .option)
     #expect(rig.anchors.choices.slots[.leftTop] == "com.example.pad")
     #expect(rig.notifier.notes.map(\.title) == ["com.example.pad anchored"])
     #expect(rig.changes == 1)

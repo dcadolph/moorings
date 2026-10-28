@@ -151,7 +151,7 @@ final class WinDrag {
 
     // pointer follows the pointer at p while a drag is under way.
     func pointer(_ p: SnapPoint) {
-        app.follower.moved(Point(x: p.x, y: p.y), held: Self.held())
+        app.follower.moved(Point(x: p.x, y: p.y), held: Modifiers.now())
     }
 
     // ended runs the drop at the hook's last point once the drag ends.
@@ -161,23 +161,6 @@ final class WinDrag {
             return
         }
         pointer(p)
-        app.follower.ended(held: Self.held())
-    }
-
-    // alt is VK_MENU.
-    static let alt: Int32 = 0x12
-
-    // down reports whether the virtual key vk is held now.
-    static func down(_ vk: Int32) -> Bool {
-        GetAsyncKeyState(vk) < 0
-    }
-
-    // held returns the names of the snap modifiers held now, the Windows key standing for command.
-    static func held() -> Set<String> {
-        let keys: [(Int32, String)] = [
-            (0x10, "shift"), (0x11, "control"), (alt, "option"), (0x5B, "command"),
-            (0x5C, "command"),
-        ]
-        return Set(keys.filter { down($0.0) }.map(\.1))
+        app.follower.ended(held: Modifiers.now())
     }
 }

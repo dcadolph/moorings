@@ -89,10 +89,10 @@ public final class TriggerOverlay {
         self.ticker = ticker
     }
 
-    // flagsChanged starts a hold when flags show the trigger down and ends it when they no longer do.
+    // flagsChanged starts a hold when m shows the trigger down and ends it when they no longer do.
     // It may run inside the platform's event callback, so it reads no window.
-    public func flagsChanged(_ flags: UInt64, at p: Point) {
-        let down = anchors.choices.overlay.trigger.held(flags)
+    public func flagsChanged(_ m: Modifiers, at p: Point) {
+        let down = anchors.choices.overlay.trigger.held(m)
         if down, !held {
             begin(at: p)
         } else if !down, held {

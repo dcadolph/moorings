@@ -189,7 +189,7 @@ final class EdgeResizer {
     // fullscreen windows and file panels never take part.
     func pressed(_ p: CGPoint, flags: CGEventFlags) -> Bool {
         let anchors = app.anchors
-        guard !anchors.choices.paused, Hover.holds(flags.rawValue, anchors.choices.overlay.edgeResize) else {
+        guard !anchors.choices.paused, Hover.holds(Modifiers(flags: flags), anchors.choices.overlay.edgeResize) else {
             return false
         }
         let scan = app.windows.scan(Screens.current())
