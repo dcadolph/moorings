@@ -58,6 +58,12 @@ struct ProbeOptions {
     // app is the end of the image path of the app whose window the probes act on: Notepad, or the
     // stand probe's window under the fake ultrawide, which Windows would not size past the desktop.
     var app = "\\notepad.exe"
+    // scenarios names the scenarios the scenarios probe runs, every one when empty.
+    var scenarios: [String] = []
+    // report is the folder the scenarios probe writes its report and pictures into.
+    var report = "scenarios"
+    // skew widens the strip the scenarios expect by this many pixels, their negative control.
+    var skew = 0.0
 
     // init parses args, the command line without the program name.
     init(_ args: [String]) throws {
@@ -67,6 +73,19 @@ struct ProbeOptions {
             case "--probe":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 probe = value
+            case "--scenarios":
+                probe = "scenarios"
+                while let name = rest.first, !name.hasPrefix("--") {
+                    scenarios.append(name)
+                    rest = rest.dropFirst()
+                }
+            case "--report":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                report = value
+            case "--skew":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard let n = Double(value), n >= 0 else { throw ProbeError.badValue(flag, value) }
+                skew = n
             case "--min-aspect":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }

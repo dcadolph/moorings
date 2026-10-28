@@ -16,7 +16,7 @@ final class MacHost: @preconcurrency ContractHost {
     // textEdit is TextEdit's bundle id.
     static let textEdit = "com.apple.TextEdit"
     // store reads the windows the host opens.
-    private let store: Windows
+    let store: Windows
     // files lists the throwaway files the host opened.
     private var files: [URL] = []
     // opened lists the windows the host opened.

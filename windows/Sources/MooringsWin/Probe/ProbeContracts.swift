@@ -84,6 +84,8 @@ final class WinHost: ContractHost {
     // choices is the choices file touchChoices rewrites and spoilChoices writes, nil when the host has
     // none.
     var choices: URL?
+    // shots is the folder the scenarios' pictures go into, nil when the host takes none.
+    var shots: URL?
     // modifierKeys pairs each modifier with the virtual key press holds for it, Command as the left
     // Windows key.
     private static let modifierKeys: [(Modifiers, WORD)] = [

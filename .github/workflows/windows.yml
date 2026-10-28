@@ -144,66 +144,6 @@ jobs:
             Start-Process $exe -ArgumentList @('--probe', 'stand', '--seconds', '600') -RedirectStandardOutput $log -NoNewWindow -PassThru
           }
 
-          function MoorCheck([string[]] $geo) {
-            Write-Host "probe moor $geo"
-            $a = Pad
-            Start-Sleep -Seconds 3
-            $script:nudges = @()
-            $m = Moor (Join-Path $env:RUNNER_TEMP 'moor.txt') (@('--probe', 'moor', '--seconds', '14') + $geo) {
-              Start-Sleep -Seconds 5
-              $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($a.Id)", '--frame', '420,260,300,200')
-              Start-Sleep -Seconds 2
-              $script:b = Pad
-              Start-Sleep -Seconds 2
-              $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
-            }
-            $start = $m -match '^start at '
-            if ($start.Count -ne 1 -or -not ($start[0] -match 'paused false')) { throw "want one unpaused start line" }
-            $t0 = At $start[0]
-            $padA = [regex]::Match($start[0], 'pinned (0x[0-9a-f]+)').Groups[1].Value
-            $strip = Rect ($m -match '^strip: ')[0] 'strip: '
-            $channel = Rect ($m -match '^channel: ')[0] 'channel: '
-            $nudgeA = $script:nudges[0]; $nudgeB = $script:nudges[1]
-            $padB = [regex]::Match($nudgeB, 'nudged (0x[0-9a-f]+)').Groups[1].Value
-            if (-not $padA -or -not $padB) { throw "no window id for the pin or the second Notepad" }
-            if ([regex]::Match($nudgeA, 'nudged (0x[0-9a-f]+)').Groups[1].Value -ne $padA) { throw "nudge moved another window than the pin" }
-
-            $placed = @($m -match "^move $padA at " | Where-Object { (At $_) -le (At $nudgeA) })
-            if ($placed.Count -eq 0) { throw "the pin was never placed" }
-            if ((At $placed[0]) - $t0 -gt 2) { throw "first pin move came after 2 s" }
-            $off = Off (Rect $placed[-1] 'got ') $strip
-            if ($off -gt 1) { throw "pin read back off the left strip by $off px" }
-            Write-Host "  check: pin placed at the left strip within $([Math]::Round((At $placed[0]) - $t0, 3)) s"
-
-            $rel = @($m -match "^released $padA at ")
-            if ($rel.Count -ne 1) { throw "want the pin released once after the hand move, got $($rel.Count)" }
-            $lag = (At $rel[0]) - (At $nudgeA)
-            if ($lag -lt 0 -or $lag -gt 1) { throw "release came $lag s after the nudge" }
-            $finalA = Rect ($m -match "^final $padA ")[0] 'frame '
-            if ((Off $finalA @(420, 260, 300, 200)) -gt 1) { throw "released pin did not stay where it was put" }
-            Write-Host "  check: pin released $([Math]::Round($lag, 3)) s after the hand move and left there"
-
-            $pushed = @($m -match "^move $padB at " | Where-Object { (At $_) -ge (At $nudgeB) })
-            if ($pushed.Count -eq 0) { throw "the second Notepad was not moved after the nudge" }
-            $lag = (At $pushed[0]) - (At $nudgeB)
-            if ($lag -gt 1) { throw "push back came $lag s after the nudge" }
-            $finalB = Rect ($m -match "^final $padB ")[0] 'frame '
-            if ($finalB[0] -lt $channel[0] - 1 -or $finalB[0] + $finalB[2] -gt $channel[0] + $channel[2] + 1) { throw "second Notepad is not inside the channel" }
-            Write-Host "  check: second Notepad pushed into the channel $([Math]::Round($lag, 3)) s after landing on the strip"
-
-            Write-Host "probe moor --paused $geo"
-            $null = Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
-            $m = Moor (Join-Path $env:RUNNER_TEMP 'paused.txt') (@('--probe', 'moor', '--seconds', '4', '--paused') + $geo) {}
-            Expect $m 'paused true' 'paused start line'
-            if ($m -match '^move ') { throw "a paused loop moved a window" }
-            $finalB = Rect ($m -match "^final $padB ")[0] 'frame '
-            if ((Off $finalB @(10, 10, 300, 300)) -gt 1) { throw "second Notepad moved while paused" }
-            Write-Host "  check: paused loop moved nothing in 4 s"
-            Stop-Process -Id $a.Id, $script:b.Id
-            $script:strip = $strip
-          }
-          MoorCheck @('--min-aspect', '1.0')
-
           function Events([string] $name, [string[]] $extra, [string] $frame) {
             $script:nudge = $null
             $e = Moor (Join-Path $env:RUNNER_TEMP "$name.txt") (@('--probe', 'events', '--seconds', '10') + $extra) {
@@ -215,30 +155,10 @@ jobs:
             [pscustomobject]@{ Lines = $e; Nudge = $script:nudge; Raw = [int]$n.Groups[1].Value; Passed = [int]$n.Groups[2].Value }
           }
 
-          Write-Host "probe events"
+          Write-Host "probe events filter control"
           $pad = Start-Process notepad -PassThru
           Start-Sleep -Seconds 3
           $run = Events 'events' @() '200,150,500,350'
-          $e = $run.Lines
-          $t0 = At ($e -match '^start at ')[0]
-          $tn = At $run.Nudge
-          $padId = [regex]::Match($run.Nudge, 'nudged (0x[0-9a-f]+)').Groups[1].Value
-          if (-not $padId) { throw "no window id in the nudge line" }
-          $moved = @($e -match "^event moved $padId at " | Where-Object { (At $_) -ge $tn })
-          if ($moved.Count -eq 0) { throw "no moved event for the nudged Notepad" }
-          $events = @($e -match '^event ')
-          function Cause([double] $at) { @($events | Where-Object { (At $_) -le $at }) | Select-Object -Last 1 }
-          $passes = @($e -match '^pass at ' | ForEach-Object { At $_ })
-          $forMove = @($passes | Where-Object { $_ -ge $tn -and (Cause $_) -match " $padId at " })
-          if ($forMove.Count -lt 1 -or $forMove.Count -gt 3) { throw "want 1 to 3 passes for one move, got $($forMove.Count)" }
-          $idle = @($passes | Where-Object {
-            $cause = Cause $_
-            if ($null -eq $cause) { $_ -gt $t0 + 1.5 } else { $_ - (At $cause) -gt 1 }
-          })
-          if ($idle.Count -ne 0) { throw "$($idle.Count) passes ran more than 1 s after the last window event" }
-          Write-Host "  check: $($moved.Count) moved events and $($forMove.Count) passes for one move, none at rest"
-
-          Write-Host "probe events --no-filter"
           $raw = Events 'events-raw' @('--no-filter') '250,180,500,350'
           if ($run.Passed -ge $run.Raw) { throw "filter dropped none of $($run.Raw) events: the filter is untested" }
           if ($raw.Passed -ne $raw.Raw) { throw "no-filter run dropped events: passed $($raw.Passed) of $($raw.Raw)" }
@@ -683,9 +603,6 @@ jobs:
           Stop-Process -Id $pad.Id
           Write-Host "  check: the stand-in read back the left strip, the right strip and the whole usable area within 1 px"
 
-          MoorCheck $simApp
-          if ((Off $script:strip @(0, 0, 1376, 1392)) -gt 1) { throw "SIM strip is $($script:strip -join ' '), not the left 40 percent of 3440x1392" }
-          Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392"
           HotkeyCheck $simApp
           if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
@@ -748,6 +665,48 @@ jobs:
           $out | ForEach-Object { Write-Host "  $_" }
           if ($code -ne 0 -or -not ($out -match '^contracts: 13 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
           Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Notifier, Scheduler, Pointer, Keys, Log, Timers, EventSource, Apps, ScreenSource, ChoicesStore and Clock rule"
+
+      - name: Scenarios
+        timeout-minutes: 10
+        run: |
+          $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
+          function Scenarios([string] $name, [string[]] $more) {
+            $dir = Join-Path $env:RUNNER_TEMP "scenarios\$name"
+            $out = @(& $exe (@('--scenarios') + $more + @('--report', $dir)))
+            $code = $LASTEXITCODE
+            $global:LASTEXITCODE = 0
+            $out | ForEach-Object { Write-Host "  $_" }
+            [pscustomobject]@{ Lines = $out; Code = $code; Dir = $dir }
+          }
+          function Written($run) {
+            $shots = @(Get-ChildItem (Join-Path $run.Dir '*.png') -ErrorAction SilentlyContinue)
+            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 5) { throw "want report.html and 5 pictures in $($run.Dir), got $($shots.Count)" }
+          }
+
+          Write-Host "scenarios on the runner's screen"
+          $s = Scenarios 'runner' @('--min-aspect', '1.0')
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 5 run, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          Written $s
+          Write-Host "  check: 5 scenarios passed on the Win32 adapters, with report.html and 5 pictures"
+
+          Write-Host "scenarios on a fake 3440x1440 ultrawide"
+          $s = Scenarios 'sim' @('--screen', '3440x1440')
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 5 run, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
+          Written $s
+          Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
+
+          Write-Host "scenarios negative control: the strip expected 2 px wider"
+          $s = Scenarios 'skew' @('pinPlacesOnStrip', '--skew', '2', '--min-aspect', '1.0')
+          if ($s.Code -eq 0 -or -not ($s.Lines -match '^scenario failed: pinPlacesOnStrip: a pinned window reads back at its strip within 2 s, 1 point: ')) { throw "a strip 2 px off passed, so the pin scenario cannot fail" }
+          Write-Host "  check: a strip expected 2 px wider failed the pin scenario with its rule named"
+
+      - name: Scenario report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scenarios-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/scenarios
 
       - name: Package
         id: package
