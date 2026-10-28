@@ -542,7 +542,7 @@ jobs:
             foreach ($r in $padCols) {
               if ([Math]::Abs($r[2] - $w) -gt 1) { throw "a pad's column is $($r -join ' '), want width $w, a share of the channel for each of $($cols.Count) windows" }
             }
-            foreach ($r in $cols) {
+            foreach ($r in $padCols) {
               if ([Math]::Abs($r[1] - $c[1]) -gt 1 -or [Math]::Abs($r[3] - $c[3]) -gt 1) { throw "tile-columns $($r -join ' ') is not the channel's height $($c -join ' ')" }
             }
             if ([Math]::Abs($cols[0][0] - $c[0]) -gt 1) { throw "the first column starts at $($cols[0][0]), not the channel's left edge $($c[0])" }
