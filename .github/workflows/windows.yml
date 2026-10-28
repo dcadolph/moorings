@@ -186,3 +186,38 @@ jobs:
           if ((Off $finalB @(10, 10, 300, 300)) -gt 1) { throw "second Notepad moved while paused" }
           Write-Host "  check: paused loop moved nothing in 4 s"
           Stop-Process -Id $a.Id, $script:b.Id
+
+          function Events([string] $name, [string[]] $extra, [string] $frame) {
+            $script:nudge = $null
+            $e = Moor (Join-Path $env:RUNNER_TEMP "$name.txt") (@('--probe', 'events', '--seconds', '10') + $extra) {
+              Start-Sleep -Seconds 4
+              $script:nudge = Probe @('--probe', 'nudge', '--pid', "$($pad.Id)", '--frame', $frame)
+            }
+            $n = [regex]::Match(($e -match '^raw events: ')[0], 'raw events: (\d+) passed: (\d+)')
+            if (-not $n.Success) { throw "no event counts" }
+            [pscustomobject]@{ Lines = $e; Nudge = $script:nudge; Raw = [int]$n.Groups[1].Value; Passed = [int]$n.Groups[2].Value }
+          }
+
+          Write-Host "probe events"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $run = Events 'events' @() '200,150,500,350'
+          $e = $run.Lines
+          $t0 = At ($e -match '^start at ')[0]
+          $tn = At $run.Nudge
+          $padId = [regex]::Match($run.Nudge, 'nudged (0x[0-9a-f]+)').Groups[1].Value
+          if (-not $padId) { throw "no window id in the nudge line" }
+          $moved = @($e -match "^event locationChange $padId at " | Where-Object { (At $_) -ge $tn })
+          if ($moved.Count -eq 0) { throw "no location change event for the nudged Notepad" }
+          $passes = @($e -match '^pass at ' | ForEach-Object { At $_ })
+          $forMove = @($passes | Where-Object { $_ -ge $tn -and $_ -le $tn + 3 })
+          if ($forMove.Count -lt 1 -or $forMove.Count -gt 3) { throw "want 1 to 3 passes for one move, got $($forMove.Count)" }
+          $idle = @($passes | Where-Object { ($_ -gt $t0 + 1.5 -and $_ -lt $tn) -or $_ -gt $tn + 3 })
+          if ($idle.Count -ne 0) { throw "$($idle.Count) passes ran with no window change" }
+          Write-Host "  check: $($moved.Count) location events and $($forMove.Count) passes for one move, none at rest"
+
+          Write-Host "probe events --no-filter"
+          $raw = Events 'events-raw' @('--no-filter') '250,180,500,350'
+          if ($raw.Passed -le $run.Passed) { throw "unfiltered run passed $($raw.Passed) events, filtered $($run.Passed): the filter is untested" }
+          Write-Host "  check: filter passed $($run.Passed) of $($run.Raw) events, no filter passed $($raw.Passed) of $($raw.Raw)"
+          Stop-Process -Id $pad.Id

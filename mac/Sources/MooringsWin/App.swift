@@ -18,6 +18,16 @@ final class App {
     var moved: (Move, Double, Frame?) -> Void = { _, _, _ in }
     // released is told each pin the owner moved by hand, and the time.
     var released: (WindowID, Double) -> Void = { _, _ in }
+    // noticed is told each window event that wakes the passes, the window, and the time.
+    var noticed: (WinEvent, WindowID, Double) -> Void = { _, _, _ in }
+    // passed is told the time of each pass and how many moves it made.
+    var passed: (Double, Int) -> Void = { _, _ in }
+    // watcher delivers the window events.
+    private(set) lazy var watcher = WinWatcher { [unowned self] kind, hwnd in self.event(kind, hwnd) }
+    // dragging reports whether the owner is moving or sizing a window by its frame.
+    private var dragging = false
+    // screens are the displays the last pass read.
+    private var screens: Screens?
     // timer is the pending pass timer's id, 0 when none.
     private var timer: UINT_PTR = 0
     // due is when the pending pass runs, nil when none is set.
@@ -49,13 +59,32 @@ final class App {
         poll()
     }
 
-    // run pumps messages and runs passes until until, or until WM_QUIT when until is nil. pulse,
-    // when set, wakes the passes that often, standing in for window events.
-    func run(until: Double? = nil, pulse: Double? = nil) {
+    // event wakes the passes for a window event a pass acts on. A move or birth of a window no scan
+    // keeps changes nothing a pass decides, so it is dropped. Moving or sizing a window by its frame
+    // counts as the mouse button held until it ends.
+    private func event(_ kind: WinEvent, _ hwnd: HWND) {
+        switch kind {
+        case .moveSizeStart: dragging = true
+        case .moveSizeEnd: dragging = false
+        default: break
+        }
+        let id = WinWindows.id(hwnd)
+        if kind.geometry, !lastRead.contains(id) {
+            let screens = screens ?? Screens.current(minAspect: minAspect)
+            guard WinWindows.describe(hwnd, screens: screens) != nil else { return }
+        }
+        noticed(kind, id, Self.now)
+        wake()
+    }
+
+    // run watches window events, pumps messages and runs passes until until, or until WM_QUIT when
+    // until is nil.
+    func run(until: Double? = nil) {
         let stop = until.map { SetTimer(nil, 0, Self.millis($0 - Self.now), nil) } ?? 0
-        let beat = pulse.map { SetTimer(nil, 0, Self.millis($0), nil) } ?? 0
+        watcher.start()
         defer {
-            for id in [stop, beat, timer] where id != 0 {
+            watcher.stop()
+            for id in [stop, timer] where id != 0 {
                 _ = KillTimer(nil, id)
             }
             timer = 0
@@ -67,8 +96,6 @@ final class App {
                 switch msg.wParam {
                 case stop where stop != 0:
                     return
-                case beat where beat != 0:
-                    wake()
                 case timer where timer != 0:
                     _ = KillTimer(nil, timer)
                     timer = 0
@@ -114,13 +141,14 @@ final class App {
     func moor() {
         let t = Self.now
         let screens = Screens.current(minAspect: minAspect)
+        self.screens = screens
         if PassPlan.refreshesApps(now: t, last: lastApps, waiting: false) {
             lastApps = t
             anchors.prune(alive: Set(WinWindows.topLevel().map(WinWindows.id)))
         }
         let (all, focused) = WinWindows.scan(screens: screens)
         let list = all.filter { !windows.elevated.contains($0.id) }
-        let mouseHeld = GetAsyncKeyState(VK_LBUTTON) < 0
+        let mouseHeld = dragging || GetAsyncKeyState(VK_LBUTTON) < 0
         let scene = Scene(screen: screens.wide, windows: list, focused: focused?.id,
                           mouseHeld: mouseHeld, now: t)
         let moves = anchors.moor(scene)
@@ -130,6 +158,7 @@ final class App {
         for id in anchors.justReleased {
             released(id, t)
         }
+        passed(t, moves.count)
         let read = list.map(\.id), frames = list.map(\.frame)
         still = moves.isEmpty && !mouseHeld && read == lastRead && frames == lastFrames
         lastRead = read

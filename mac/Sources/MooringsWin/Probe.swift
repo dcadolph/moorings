@@ -38,6 +38,8 @@ struct ProbeOptions {
     var seconds = 10.0
     // paused writes a paused choices file, the moor probe's negative control.
     var paused = false
+    // noFilter keeps every hooked event, the events probe's negative control.
+    var noFilter = false
     // pid names the process whose window the nudge probe moves.
     var pid: DWORD?
     // frame is where the nudge probe moves the window.
@@ -59,6 +61,8 @@ struct ProbeOptions {
                 noDelta = true
             case "--paused":
                 paused = true
+            case "--no-filter":
+                noFilter = true
             case "--seconds":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }
@@ -90,6 +94,7 @@ let probes: [String: Probe] = [
     "place": probePlace,
     "moor": probeMoor,
     "nudge": probeNudge,
+    "events": probeEvents,
 ]
 
 // probeVersion prints the version and the DPI awareness the thread runs with.
@@ -171,8 +176,7 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
               "got \(got.map(pixels) ?? "gone")")
     }
     app.released = { id, t in print("released \(hex(id)) at \(stamp(t))") }
-    // Until window events wake the passes, the probe wakes them every Pace.pollSeconds.
-    app.run(until: App.now + opts.seconds, pulse: Pace.pollSeconds)
+    app.run(until: App.now + opts.seconds)
     let use = app.anchors.inUse(wide)
     print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
     print("channel: \(pixels(app.anchors.channel(wide)))")
@@ -180,6 +184,33 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
         print("final \(hex(w.id)) pid \(WinWindows.hwnd(w.id).map(WinWindows.processID) ?? 0)",
               "frame \(pixels(w.frame))")
     }
+    return 0
+}
+
+// probeEvents runs the pass loop with no anchored app for the given seconds, and prints each
+// window event that woke it, each pass, and the counts of events hooked and kept.
+func probeEvents(_ opts: ProbeOptions) -> Int32 {
+    let store = Store()
+    do {
+        try store.save(Choices())
+    } catch {
+        print("events: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    app.watcher.filters = !opts.noFilter
+    var kept = 0, passes = 0
+    print("start at \(stamp(App.now))")
+    app.noticed = { kind, id, t in
+        kept += 1
+        print("event \(kind) \(hex(id)) at \(stamp(t))")
+    }
+    app.passed = { t, moves in
+        passes += 1
+        print("pass at \(stamp(t)) moves \(moves)")
+    }
+    app.run(until: App.now + opts.seconds)
+    print("raw events: \(app.watcher.raw) passed: \(app.watcher.passed) kept: \(kept) passes: \(passes)")
     return 0
 }
 
