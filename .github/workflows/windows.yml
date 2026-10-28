@@ -522,7 +522,30 @@ jobs:
             Write-Host "  check: Maximize lifted the pin over the strip and channel, and again lowered it into the strip"
             Stop-Process -Id $pad.Id
           }
+          function ActionsCheck([string[]] $geo) {
+            Write-Host "probe actions $geo"
+            $pad = Pad
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'actions') + $geo)
+            $t = [regex]::Match(($f -match '^table: ')[0], 'table: (\d+) registered: (\d+) skipped: (\d+)')
+            if (-not $t.Success) { throw "no table line in the actions probe output" }
+            if ([int]$t.Groups[2].Value + [int]$t.Groups[3].Value -ne [int]$t.Groups[1].Value) { throw "registered plus skipped is not the table: $($t.Value)" }
+            foreach ($s in @($f -match '^skipped ')) {
+              if ($s -notmatch ': Windows keeps it routed (true|false)$' -and $s -notmatch ': not on Windows yet routed true$') { throw "skip not allowed (only Windows keeps it, or not on Windows yet for a routed action): $s" }
+            }
+            $compared = @($f -match '^action .*: want ')
+            foreach ($a in $compared) {
+              $o = [regex]::Match($a, ' off (\d+)$')
+              if (-not $o.Success) { throw "no off value in: $a" }
+              if ([int]$o.Groups[1].Value -gt 1) { throw "action landed off its previewed frame: $a" }
+            }
+            if ($compared.Count -lt 20) { throw "only $($compared.Count) actions compared, want at least 20" }
+            Expect $f '^actions: \d+ compared, \d+ without a frame, worst off \d+$' 'the actions summary line'
+            Write-Host "  check: $($compared.Count) actions landed on the frame the engine previewed within 1 px, every skip is the Windows shell's or a routed action"
+            Stop-Process -Id $pad.Id -ErrorAction SilentlyContinue
+          }
           LiftCheck @('--min-aspect', '1.0')
+          ActionsCheck @('--min-aspect', '1.0')
 
           Write-Host "probe login"
           $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
@@ -621,6 +644,7 @@ jobs:
           if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
           LiftCheck $simApp
+          ActionsCheck $simApp
 
           Write-Host "SIM probe drag"
           $pad = Pad

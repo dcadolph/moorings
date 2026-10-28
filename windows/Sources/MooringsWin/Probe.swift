@@ -169,6 +169,7 @@ let probes: [String: Probe] = [
     "banner": probeBanner,
     "skip": probeSkip,
     "lift": probeLift,
+    "actions": probeActions,
     "login": probeLogin,
     "quit": probeQuit,
     "drag": probeDrag,
@@ -569,6 +570,74 @@ func probeLift(_ opts: ProbeOptions) -> Int32 {
     let use = app.anchors.inUse(wide)
     print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
     print("over: \(pixels(Geometry.lift(wide, .left, use.left, use.right)))")
+    return 0
+}
+
+// probeActions binds the whole default keymap, then runs every action in it once from a fixed
+// start frame on the front window of the app, and prints the frame the engine's preview wanted
+// beside the frame the window ended at. Routed actions have no Windows hook yet and are listed
+// without running. The actions that minimize or close come last, and the window is restored after
+// each minimize, so every action starts from the same frame.
+func probeActions(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    let windows = WinWindows.scan(screens: screens).windows
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
+          let hwnd = WinWindows.hwnd(pad.id) else {
+        print("actions: no window of \(opts.app)")
+        return 1
+    }
+    let store = Store()
+    do {
+        try store.save(Choices())
+    } catch {
+        print("actions: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    let map = Bindings(app.anchors.choices).map
+    app.hotkeys.bind(map, runnable: app.actions.supports)
+    defer { app.hotkeys.unbind() }
+    print("table: \(map.count) registered: \(app.hotkeys.names.count) skipped: \(app.hotkeys.skipped.count)")
+    for s in app.hotkeys.skipped {
+        print("skipped \(s.name): \(s.reason) routed \(app.actions.routed(s.name))")
+    }
+    let last = ["minimize-others", "close-others", "minimize-window", "close-window"]
+    let names = map.keys.sorted()
+    let ordered = names.filter { !last.contains($0) } + last.filter { names.contains($0) }
+    let start = Frame(x: 200, y: 150, w: 500, h: 350)
+    var compared = 0, bare = 0
+    var worst = 0
+    for name in ordered {
+        if app.actions.routed(name) {
+            print("action \(name): routed, later unit")
+            continue
+        }
+        if IsIconic(hwnd) {
+            _ = ShowWindow(hwnd, 9)
+        }
+        app.windows.move(pad.id, to: start)
+        _ = bringForward(hwnd)
+        app.run(until: App.now + 0.2)
+        let scan = app.windows.scan(screens, full: true).windows
+        let want = scan.first(where: { $0.id == pad.id }).flatMap {
+            app.actions.preview(name, for: $0, screens: screens)
+        }
+        let ran = app.actions.run(name, window: pad.id)
+        app.run(until: App.now + 0.3)
+        let got = app.windows.frame(pad.id)
+        if let want, let got {
+            let off = Int(max(abs(want.x - got.x), abs(want.y - got.y), abs(want.w - got.w),
+                              abs(want.h - got.h)).rounded())
+            worst = max(worst, off)
+            compared += 1
+            print("action \(name): want \(pixels(want)) got \(pixels(got)) off \(off)")
+        } else {
+            bare += 1
+            let why = want != nil ? "window gone" : got == nil ? "window gone" : "none on this scene"
+            print("action \(name): no frame ran \(ran) \(why)")
+        }
+    }
+    print("actions: \(compared) compared, \(bare) without a frame, worst off \(worst)")
     return 0
 }
 
