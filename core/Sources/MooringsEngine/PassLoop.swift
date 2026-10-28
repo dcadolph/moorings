@@ -131,8 +131,9 @@ public final class PassLoop {
         let refused = platform.windows.refused
         let list = scan.windows.filter { !refused.contains($0.id) }
         let held = mouseHeld()
-        let scene = Scene(screen: screens.wide, windows: list, focused: scan.focused?.id, mouseHeld: held,
-                          now: platform.clock.now)
+        let scene = Scene(
+            screen: screens.wide, windows: list, focused: scan.focused?.id, mouseHeld: held,
+            now: platform.clock.now)
         let moves = anchors.moor(scene)
         for move in moves {
             apply(move, bundle: list.first { $0.id == move.id }?.bundle ?? "?")
@@ -194,8 +195,10 @@ public final class PassLoop {
         log("window \(id) was moved by hand: released at \(now), read back \(back), asked \(asked)")
         released(id, platform.clock.now)
         let name = w.map { appName($0.bundle) } ?? "The window"
-        platform.notifier.notify("\(name) released", Self.releasedBody(
-            key: Bindings(anchors.choices).map["restore"].map(spell), greenButton: greenButton))
+        platform.notifier.notify(
+            "\(name) released",
+            Self.releasedBody(
+                key: Bindings(anchors.choices).map["restore"].map(spell), greenButton: greenButton))
     }
 
     // releasedBody is the banner body for a released pin: the green button where there is one, and
@@ -213,8 +216,9 @@ public final class PassLoop {
         let refused = platform.windows.refused
         guard tellsRefused, !toldRefused, let w = all.first(where: { refused.contains($0.id) }) else { return }
         toldRefused = true
-        platform.notifier.notify("\(appName(w.bundle)) runs as administrator",
-                                 "Moorings cannot move it. Run Moorings as administrator to hold it too.")
+        platform.notifier.notify(
+            "\(appName(w.bundle)) runs as administrator",
+            "Moorings cannot move it. Run Moorings as administrator to hold it too.")
     }
 
     // pace sets the next pass: soon while windows change, every Pace.busySeconds while something

@@ -16,8 +16,9 @@ public enum GridContract {
         let screens = host.screens()
         let u = screens.usable[0]
         let area = Frame(x: u.x + 20, y: u.y + 20, w: 600, h: 400)
-        let first = GridMark(grid: OverlayGrid(cols: 3, rows: 2, at: Point(x: area.x + 10, y: area.y + 10), in: area),
-                             area: area)
+        let first = GridMark(
+            grid: OverlayGrid(cols: 3, rows: 2, at: Point(x: area.x + 10, y: area.y + 10), in: area),
+            area: area)
         subject.show(first.grid, in: area, gap: 0, style: FootprintStyle(), palette: .harbor)
         if subject.shown != first {
             fail("show then shown equals the mark", "asked \(show(first)) shown \(show(subject.shown))")

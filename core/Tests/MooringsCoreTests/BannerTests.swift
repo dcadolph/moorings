@@ -8,16 +8,19 @@ let bannerRelease = "Click its green button to put it back,\nor press Control-Op
 // Lua case 0: Wrapping keeps newlines, breaks at spaces within 46 characters, and leaves a longer
 // word whole.
 @Test func testBannerWrap() {
-    #expect(Banner.wrap(bannerRelease) == [
-        "Click its green button to put it back,",
-        "or press Control-Option-Delete (⌃⌥⌫).",
-    ])
-    let long = Banner.wrap("Windows will not move until Hammerspoon is allowed under Privacy & Security, Accessibility.")
-    #expect(long == [
-        "Windows will not move until Hammerspoon is",
-        "allowed under Privacy & Security,",
-        "Accessibility.",
-    ])
+    #expect(
+        Banner.wrap(bannerRelease) == [
+            "Click its green button to put it back,",
+            "or press Control-Option-Delete (⌃⌥⌫).",
+        ])
+    let long = Banner.wrap(
+        "Windows will not move until Hammerspoon is allowed under Privacy & Security, Accessibility.")
+    #expect(
+        long == [
+            "Windows will not move until Hammerspoon is",
+            "allowed under Privacy & Security,",
+            "Accessibility.",
+        ])
     for line in long {
         #expect(line.count <= 46)
     }

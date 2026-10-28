@@ -123,7 +123,7 @@ final class Windows {
             }
             guard let cached = running[pid], let bundle = cached.bundle, !cached.hidden else { continue }
             if case let .apps(reads) = plan, !reads.contains(pid), let kept = last[pid],
-               pid != front || focus?.pid == pid
+                pid != front || focus?.pid == pid
             {
                 if pid == front {
                     focusedID = focus?.id
@@ -153,7 +153,7 @@ final class Windows {
             let main = Self.element(app, kAXMainWindowAttribute).flatMap { Self.id($0) }
             for el in raw as? [AXUIElement] ?? [] {
                 guard let id = Self.id(el), rank[id] != nil,
-                      let info = info(el, id: id, bundle: bundle, isMain: id == main, screens: screens)
+                    let info = info(el, id: id, bundle: bundle, isMain: id == main, screens: screens)
                 else { continue }
                 seen[id] = el
                 found.append(info)
@@ -180,7 +180,7 @@ final class Windows {
     // cannot be read, and the caller then scans.
     func focused(_ screens: Screens) -> WindowInfo? {
         guard let pid = front, pid != ProcessInfo.processInfo.processIdentifier,
-              let el = Self.element(appElement(pid), kAXFocusedWindowAttribute), let id = Self.id(el)
+            let el = Self.element(appElement(pid), kAXFocusedWindowAttribute), let id = Self.id(el)
         else { return nil }
         return read(el, id: id, pid: pid, screens: screens)
     }
@@ -222,7 +222,9 @@ final class Windows {
             let ms = Int(Date().timeIntervalSince(start) * 1000)
             let els = raw as? [AXUIElement] ?? []
             let cg = order.filter { $0.pid == running.processIdentifier }.map(\.id)
-            out.append("app \(bundle) pid=\(running.processIdentifier) hidden=\(running.isHidden) ax=\(err.rawValue) \(ms)ms axWindows=\(els.count) cgWindows=\(cg)")
+            out.append(
+                "app \(bundle) pid=\(running.processIdentifier) hidden=\(running.isHidden) ax=\(err.rawValue) \(ms)ms axWindows=\(els.count) cgWindows=\(cg)"
+            )
             for el in els {
                 guard let id = Self.id(el) else {
                     out.append("  drop: no window id")
@@ -260,10 +262,11 @@ final class Windows {
             return
         }
         for step in MoveSteps.steps(from: current, to: frame) {
-            let err = switch step {
-            case .size: AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
-            case .position: AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, originValue)
-            }
+            let err =
+                switch step {
+                case .size: AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
+                case .position: AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, originValue)
+                }
             if err == .attributeUnsupported {
                 refusedIDs.insert(id)
             }
@@ -310,7 +313,8 @@ final class Windows {
         }
         let app = AXUIElementCreateApplication(pid)
         var value: CFTypeRef?
-        let on = AXUIElementCopyAttributeValue(app, Self.enhancedUIKey, &value) == .success
+        let on =
+            AXUIElementCopyAttributeValue(app, Self.enhancedUIKey, &value) == .success
             && (value as? Bool) == true
         if on {
             AXUIElementSetAttributeValue(app, Self.enhancedUIKey, kCFBooleanFalse)
@@ -341,9 +345,13 @@ final class Windows {
     // cancel presses the Cancel button of the open or save panel with id and reports whether it
     // found one. Keys posted to the app miss the panel, which is served out of process.
     func cancel(_ id: WindowID) -> Bool {
-        guard let el = elements[id], let button = Self.descendant(el, depth: 8, where: {
-            Self.string($0, kAXIdentifierAttribute) == "CancelButton"
-        }) else { return false }
+        guard let el = elements[id],
+            let button = Self.descendant(
+                el, depth: 8,
+                where: {
+                    Self.string($0, kAXIdentifierAttribute) == "CancelButton"
+                })
+        else { return false }
         return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
     }
 
@@ -379,13 +387,14 @@ final class Windows {
 
     // front returns the on-screen windows at the normal layer with their frames, front-most first.
     static func front() -> [(id: WindowID, frame: Frame)] {
-        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+        let list =
+            CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]] ?? []
         return list.compactMap { entry in
             guard entry[kCGWindowLayer as String] as? Int == 0,
-                  let id = entry[kCGWindowNumber as String] as? WindowID,
-                  let bounds = entry[kCGWindowBounds as String] as? [String: Double],
-                  let x = bounds["X"], let y = bounds["Y"], let w = bounds["Width"], let h = bounds["Height"]
+                let id = entry[kCGWindowNumber as String] as? WindowID,
+                let bounds = entry[kCGWindowBounds as String] as? [String: Double],
+                let x = bounds["X"], let y = bounds["Y"], let w = bounds["Width"], let h = bounds["Height"]
             else { return nil }
             return (id, Frame(x: x, y: y, w: w, h: h))
         }
@@ -401,7 +410,7 @@ final class Windows {
         else { return nil }
         let role = string(el, kAXRoleAttribute)
         guard let win = role == kAXWindowRole ? el : element(el, kAXWindowAttribute), let id = id(win),
-              let frame = frame(win)
+            let frame = frame(win)
         else { return nil }
         return (id, frame, element(win, kAXZoomButtonAttribute).flatMap { Self.frame($0) }, role)
     }
@@ -413,7 +422,7 @@ final class Windows {
         AXUIElementSetMessagingTimeout(system, timeout)
         var found: AXUIElement?
         guard AXUIElementCopyElementAtPosition(system, Float(p.x), Float(p.y), &found) == .success, let el = found,
-              let win = element(el, kAXWindowAttribute), let id = id(win)
+            let win = element(el, kAXWindowAttribute), let id = id(win)
         else { return nil }
         return (id, string(el, kAXSubroleAttribute))
     }
@@ -430,7 +439,8 @@ final class Windows {
         Self.makeFront(el)
         var pid: pid_t = 0
         guard AXUIElementGetPid(el, &pid) == .success,
-              let app = NSRunningApplication(processIdentifier: pid) else { return }
+            let app = NSRunningApplication(processIdentifier: pid)
+        else { return }
         app.activate()
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.raiseSettle) {
             Self.makeFront(el)
@@ -445,7 +455,8 @@ final class Windows {
 
     // alive returns the ids of every window that exists, on any Space.
     static func alive() -> Set<WindowID> {
-        let list = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        let list =
+            CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
         return Set((list ?? []).compactMap { $0[kCGWindowNumber as String] as? WindowID })
     }
 
@@ -540,7 +551,7 @@ final class Windows {
         var raw: CFArray?
         let values: [CFTypeRef?]
         if AXUIElementCopyMultipleAttributeValues(el, traitNames as CFArray, [], &raw) == .success,
-           let list = raw as [AnyObject]?, list.count == traitNames.count
+            let list = raw as [AnyObject]?, list.count == traitNames.count
         {
             values = list.map { present($0) }
         } else {
@@ -576,13 +587,14 @@ final class Windows {
     // onScreen returns the on-screen windows at the normal layer, front-most first, with their
     // owners and frames.
     private static func onScreen() -> [(id: WindowID, pid: pid_t, frame: Frame)] {
-        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+        let list =
+            CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]] ?? []
         return list.compactMap { entry in
             guard entry[kCGWindowLayer as String] as? Int == 0,
-                  let id = entry[kCGWindowNumber as String] as? WindowID,
-                  let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
-                  let b = entry[kCGWindowBounds as String] as? [String: Double]
+                let id = entry[kCGWindowNumber as String] as? WindowID,
+                let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
+                let b = entry[kCGWindowBounds as String] as? [String: Double]
             else { return nil }
             return (id, pid, Frame(x: b["X"] ?? 0, y: b["Y"] ?? 0, w: b["Width"] ?? 0, h: b["Height"] ?? 0))
         }
@@ -630,12 +642,12 @@ final class Windows {
     // and a size.
     private static func frame(position: CFTypeRef?, size: CFTypeRef?) -> Frame? {
         guard let p = position, let s = size,
-              CFGetTypeID(p) == AXValueGetTypeID(), CFGetTypeID(s) == AXValueGetTypeID()
+            CFGetTypeID(p) == AXValueGetTypeID(), CFGetTypeID(s) == AXValueGetTypeID()
         else { return nil }
         var origin = CGPoint.zero
         var size = CGSize.zero
         guard AXValueGetValue(unsafeDowncast(p, to: AXValue.self), .cgPoint, &origin),
-              AXValueGetValue(unsafeDowncast(s, to: AXValue.self), .cgSize, &size)
+            AXValueGetValue(unsafeDowncast(s, to: AXValue.self), .cgSize, &size)
         else { return nil }
         return Frame(x: origin.x, y: origin.y, w: size.width, h: size.height)
     }
@@ -651,8 +663,9 @@ extension Windows: @preconcurrency WindowStore {
         echoes = echoes.filter { t - $0.value.at < Pace.settleSeconds }
         let echoed = echoes.mapValues(\.frame)
         let read = scan(screens) { [self] listed, previous, slow, front in
-            PassPlan.plan(now: t, forced: full, lastFull: lastFull, fullWoke: fullWoke, woke: appWoke,
-                          listed: listed, previous: previous, slow: slow, front: front, echoes: echoed)
+            PassPlan.plan(
+                now: t, forced: full, lastFull: lastFull, fullWoke: fullWoke, woke: appWoke,
+                listed: listed, previous: previous, slow: slow, front: front, echoes: echoed)
         }
         if lastPlan == .full {
             lastFull = t
@@ -726,7 +739,8 @@ final class MacScreens: @preconcurrency ScreenSource {
         var counts: [Int: Int] = [:]
         for entry in list where entry[kCGWindowOwnerName as String] as? String == "WindowManager" {
             guard let b = entry[kCGWindowBounds as String] as? [String: Double],
-                  let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"] else { continue }
+                let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"]
+            else { continue }
             let rows = full.indices.filter { full[$0].y <= y && y + h <= full[$0].y + full[$0].h }
             let edge = { (i: Int) in right ? abs(full[i].x + full[i].w - (x + w)) : abs(x - full[i].x) }
             if let i = rows.min(by: { edge($0) < edge($1) }) {

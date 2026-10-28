@@ -16,6 +16,23 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Lint with the swift-format 6.3.0 that formatted the tree, since another version may format
+      # differently. DEVELOPER_DIR picks it for this step only, so the build keeps the default Xcode.
+      - name: Format
+        working-directory: .
+        run: |
+          set -euo pipefail
+          for app in /Applications/Xcode*.app; do
+            v="$(DEVELOPER_DIR="$app/Contents/Developer" xcrun swift-format --version 2>/dev/null || true)"
+            echo "$app: ${v:-no swift-format}"
+            if [ "$v" = 6.3.0 ]; then
+              DEVELOPER_DIR="$app/Contents/Developer" xcrun swift-format lint --strict --recursive core mac windows
+              exit 0
+            fi
+          done
+          echo "no Xcode on this runner has swift-format 6.3.0"
+          exit 1
+
       - name: Core tests
         run: swift test -Xswiftc -warnings-as-errors
         working-directory: core

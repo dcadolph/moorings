@@ -113,8 +113,9 @@ public final class Organizer {
         let scan = platform.windows.scan(screens, full: true)
         guard let i = screens.ultrawide ?? scan.focused.flatMap({ screens.index($0.frame) }) else { return }
         let list = organizable(scan.windows, screens, i)
-        let pairs = Tile.tidy(area(screens, i), list.map { TileWindow(id: $0.id, frame: $0.frame) }, n,
-                              gap: anchors.choices.gapPx)
+        let pairs = Tile.tidy(
+            area(screens, i), list.map { TileWindow(id: $0.id, frame: $0.frame) }, n,
+            gap: anchors.choices.gapPx)
         let byID = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
         _ = place(pairs.compactMap { byID[$0.0.id] }, pairs.map(\.1))
         moor()

@@ -27,17 +27,21 @@ let tapPressCases: [TapPressCase] = [
     TapPressCase(Steps: [.down(swallow: true), .up], WantEnds: [.none, .swallowed], WantHeld: false),
     // Test 2: A swallowed press whose release came while the tap was off ends on recovery, so the
     // next click's release is not swallowed.
-    TapPressCase(Steps: [.down(swallow: true), .recover(buttonDown: false), .down(swallow: false), .up],
-                 WantEnds: [.none, .swallowed, .none, .plain], WantHeld: false),
+    TapPressCase(
+        Steps: [.down(swallow: true), .recover(buttonDown: false), .down(swallow: false), .up],
+        WantEnds: [.none, .swallowed, .none, .plain], WantHeld: false),
     // Test 3: A press still held at recovery stays open and ends on its release.
-    TapPressCase(Steps: [.down(swallow: true), .recover(buttonDown: true), .up],
-                 WantEnds: [.none, .none, .swallowed], WantHeld: false),
+    TapPressCase(
+        Steps: [.down(swallow: true), .recover(buttonDown: true), .up],
+        WantEnds: [.none, .none, .swallowed], WantHeld: false),
     // Test 4: A plain drag whose release was missed ends plain on recovery.
-    TapPressCase(Steps: [.down(swallow: false), .recover(buttonDown: false)], WantEnds: [.none, .plain],
-                 WantHeld: false),
+    TapPressCase(
+        Steps: [.down(swallow: false), .recover(buttonDown: false)], WantEnds: [.none, .plain],
+        WantHeld: false),
     // Test 5: A new press after a missed swallowed release reports the old press as swallowed.
-    TapPressCase(Steps: [.down(swallow: true), .down(swallow: false), .up],
-                 WantEnds: [.none, .swallowed, .plain], WantHeld: false),
+    TapPressCase(
+        Steps: [.down(swallow: true), .down(swallow: false), .up],
+        WantEnds: [.none, .swallowed, .plain], WantHeld: false),
     // Test 6: A release with no press seen still reaches the app as a plain click.
     TapPressCase(Steps: [.up], WantEnds: [.plain], WantHeld: false),
     // Test 7: Recovery with nothing held ends nothing.

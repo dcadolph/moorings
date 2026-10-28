@@ -70,7 +70,9 @@ public enum Tiling {
 
     // direction returns the direction of a focus or swap action, nil for any other name.
     public static func direction(_ name: String) -> TileDirection? {
-        guard let dash = name.firstIndex(of: "-"), focusNames.contains(name) || swapNames.contains(name) else { return nil }
+        guard let dash = name.firstIndex(of: "-"), focusNames.contains(name) || swapNames.contains(name) else {
+            return nil
+        }
         return TileDirection(rawValue: String(name[name.index(after: dash)...]))
     }
 
@@ -110,7 +112,9 @@ public enum Tiling {
                 return [inner]
             }
             let (main, rest) = split(inner, ratio, across: mode == .tall, gap: gap)
-            let others = mode == .tall ? Tile.rows(inset(rest, -gap), n - 1, gap: gap)
+            let others =
+                mode == .tall
+                ? Tile.rows(inset(rest, -gap), n - 1, gap: gap)
                 : Tile.columns(inset(rest, -gap), n - 1, gap: gap)
             return [main] + others
         case .bsp:

@@ -1,6 +1,6 @@
 import Foundation
 #if canImport(FoundationNetworking)
-import FoundationNetworking
+    import FoundationNetworking
 #endif
 
 // UpdateError names why an update check failed.
@@ -127,8 +127,10 @@ public enum UpdateSchedule {
 
     // isDue reports whether a check older than fresh seconds should run now. A clock set behind the
     // last check counts as due.
-    public static func isDue(lastChecked: Date?, launched: Date, now: Date,
-                             fresh: TimeInterval = everySeconds) -> Bool {
+    public static func isDue(
+        lastChecked: Date?, launched: Date, now: Date,
+        fresh: TimeInterval = everySeconds
+    ) -> Bool {
         guard now.timeIntervalSince(launched) >= firstSeconds else {
             return false
         }

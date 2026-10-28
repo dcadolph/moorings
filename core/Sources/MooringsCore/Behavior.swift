@@ -97,7 +97,8 @@ public struct Behaviors: Equatable, Sendable, Codable {
     // init decodes saved behaviors, keeping the default for anything missing or unreadable.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        subsequentExecution = (try? c.decodeIfPresent(SubsequentExecution.self, forKey: .subsequentExecution))
+        subsequentExecution =
+            (try? c.decodeIfPresent(SubsequentExecution.self, forKey: .subsequentExecution))
             ?? .cycleSizes
         repeatedMaximizeRestores = (try? c.decodeIfPresent(Bool.self, forKey: .repeatedMaximizeRestores)) ?? false
         centerHalfCycles = (try? c.decodeIfPresent(Bool.self, forKey: .centerHalfCycles)) ?? false
@@ -196,14 +197,16 @@ public enum Behavior {
     // with start and ending exactly on target, with writes frames after start.
     public static func steps(from start: Frame, to target: Frame, writes: Int = animationWrites) -> [Frame] {
         let n = max(writes, 1)
-        return [start] + (1...n).map { i in
-            if i == n { return target }
-            let t = Double(i) / Double(n)
-            let e = 1 - pow(1 - t, 3)
-            func mix(_ a: Double, _ b: Double) -> Double { (a + (b - a) * e).rounded() }
-            return Frame(x: mix(start.x, target.x), y: mix(start.y, target.y), w: mix(start.w, target.w),
-                         h: mix(start.h, target.h))
-        }
+        return [start]
+            + (1...n).map { i in
+                if i == n { return target }
+                let t = Double(i) / Double(n)
+                let e = 1 - pow(1 - t, 3)
+                func mix(_ a: Double, _ b: Double) -> Double { (a + (b - a) * e).rounded() }
+                return Frame(
+                    x: mix(start.x, target.x), y: mix(start.y, target.y), w: mix(start.w, target.w),
+                    h: mix(start.h, target.h))
+            }
     }
 
     // centerCycle lists the positions center half steps through on repeat when centerHalfCycles is on.
@@ -262,7 +265,8 @@ public enum Behavior {
 
     // disablesEnhancedUIOnActivation reports whether an app's Enhanced UI is turned off when it comes to
     // the front.
-    public static func disablesEnhancedUIOnActivation(_ mode: EnhancedUIMode, bundle: String?, assistive: Bool) -> Bool {
+    public static func disablesEnhancedUIOnActivation(_ mode: EnhancedUIMode, bundle: String?, assistive: Bool) -> Bool
+    {
         switch mode {
         case .frontmostDisable: return true
         case .automatic: return !assistive && chromium(bundle)

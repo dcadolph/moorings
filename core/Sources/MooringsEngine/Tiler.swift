@@ -62,8 +62,9 @@ public final class Tiler {
         let byID = Dictionary(free.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         for i in screens.full.indices {
             let ids = order.filter { byID[$0].flatMap { screens.index($0.frame) } == i }
-            let frames = Tiling.layout(tiling.mode, organizer.area(screens, i), ids.count, ratio: tiling.ratio,
-                                       gap: anchors.choices.gapPx)
+            let frames = Tiling.layout(
+                tiling.mode, organizer.area(screens, i), ids.count, ratio: tiling.ratio,
+                gap: anchors.choices.gapPx)
             for (id, target) in zip(ids, frames) {
                 guard let w = byID[id] else { continue }
                 if let a = assigned[id], Actions.near(a.frame, target, tolerance: Actions.tolerance) {
@@ -114,7 +115,8 @@ public final class Tiler {
         assigned = [:]
         changed()
         platform.notifier.notify(
-            "Tiling", mode == .off ? "Off. Windows stay where they are." : "\(Keymaps.label(Tiling.modePrefix + mode.rawValue))."
+            "Tiling",
+            mode == .off ? "Off. Windows stay where they are." : "\(Keymaps.label(Tiling.modePrefix + mode.rawValue))."
         )
     }
 
@@ -128,7 +130,7 @@ public final class Tiler {
         }
         let pool = scan.windows.filter { !$0.isFilePanel && !$0.isFullScreen && (anchored || !anchors.pinned($0)) }
         guard let i = pool.firstIndex(where: { $0.id == me.id }),
-              let k = Tiling.toward(dir, from: i, frames: pool.map(\.frame))
+            let k = Tiling.toward(dir, from: i, frames: pool.map(\.frame))
         else {
             log("no window \(dir.rawValue) of the focused one")
             return nil

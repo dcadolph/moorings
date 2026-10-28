@@ -31,8 +31,9 @@ public enum Sink {
         let t = min(max(t, 0), 1)
         let depth = smooth(ramp(t, 0.4, 0.85))
         let tug = sin(Double.pi * ramp(t, 0.3, 0.42)) * tugDegrees
-        return SinkPose(water: smooth(ramp(t, 0, 0.15)), reach: smooth(ramp(t, 0.1, 0.38)), depth: depth,
-                        tilt: tug + depth * sinkDegrees, bubbles: ramp(t, 0.6, 1), fade: 1 - smooth(ramp(t, 0.85, 1)))
+        return SinkPose(
+            water: smooth(ramp(t, 0, 0.15)), reach: smooth(ramp(t, 0.1, 0.38)), depth: depth,
+            tilt: tug + depth * sinkDegrees, bubbles: ramp(t, 0.6, 1), fade: 1 - smooth(ramp(t, 0.85, 1)))
     }
 
     // ramp returns where t sits between a and b as a share from 0 to 1.

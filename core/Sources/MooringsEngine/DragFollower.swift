@@ -17,7 +17,9 @@ public struct StashHook {
     public var stash: (WindowInfo, StashEdge, Frame?) -> Void
 
     // init builds the hook from its two parts.
-    public init(edge: @escaping (Point, Set<String>) -> StashEdge?, stash: @escaping (WindowInfo, StashEdge, Frame?) -> Void) {
+    public init(
+        edge: @escaping (Point, Set<String>) -> StashEdge?, stash: @escaping (WindowInfo, StashEdge, Frame?) -> Void
+    ) {
         self.edge = edge
         self.stash = stash
     }
@@ -124,7 +126,7 @@ public final class DragFollower {
         let option = held.contains("option")
         let choices = anchors.choices
         guard down, !done, !choices.paused, choices.snap || choices.behavior.unsnapRestore, isMoving(p),
-              choices.snap, let w = win
+            choices.snap, let w = win
         else { return }
         stashAt = anchors.pinned(w) ? nil : stash?.edge(p, held)
         if stashAt != nil {
@@ -132,7 +134,10 @@ public final class DragFollower {
             return
         }
         let screens = platform.screens.current()
-        guard let i = screens.full.firstIndex(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
+        guard
+            let i = screens.full.firstIndex(where: {
+                p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h
+            })
         else {
             hide()
             return
@@ -142,26 +147,29 @@ public final class DragFollower {
         if case let .zone(z) = drop {
             prev = z
         }
-        let next: SnapDrop? = if let z = panel?.zone(at: p, window: w, held: held, option: option) {
-            .zone(z)
-        } else {
-            Snap.drop(SnapPoint(p.x, p.y), screens.full[i], ch, prev: prev, option: option, parkable: true,
-                      pinned: anchors.pinned(w), castOff: anchors.isCastOff(w.id), snapping: choices.snapping,
-                      held: held)
-        }
+        let next: SnapDrop? =
+            if let z = panel?.zone(at: p, window: w, held: held, option: option) {
+                .zone(z)
+            } else {
+                Snap.drop(
+                    SnapPoint(p.x, p.y), screens.full[i], ch, prev: prev, option: option, parkable: true,
+                    pinned: anchors.pinned(w), castOff: anchors.isCastOff(w.id), snapping: choices.snapping,
+                    held: held)
+            }
         if next == drop && i == screen {
             return
         }
         drop = next
         screen = i
-        let frame: Frame? = switch next {
-        case let .park(key):
-            SlotKey(rawValue: key).map { anchors.slotFrame(screens.usable[i], $0) }
-        case let .zone(name):
-            preview(name, current(w), screens, i)
-        case .none:
-            nil
-        }
+        let frame: Frame? =
+            switch next {
+            case let .park(key):
+                SlotKey(rawValue: key).map { anchors.slotFrame(screens.usable[i], $0) }
+            case let .zone(name):
+                preview(name, current(w), screens, i)
+            case .none:
+                nil
+            }
         guard let frame else {
             platform.overlay.hide()
             return
@@ -188,8 +196,10 @@ public final class DragFollower {
         case let .park(key):
             guard let slot = SlotKey(rawValue: key) else { return }
             anchors.assign(slot, w.bundle)
-            platform.notifier.notify("\(appName(w.bundle)) anchored", "It holds the \(slot.title.lowercased()) slot now. "
-                + "Unanchor it from the Moorings menu to free the slot.")
+            platform.notifier.notify(
+                "\(appName(w.bundle)) anchored",
+                "It holds the \(slot.title.lowercased()) slot now. "
+                    + "Unanchor it from the Moorings menu to free the slot.")
             changed()
         case let .zone(name):
             apply(name, w, platform.screens.current(), screen)
@@ -263,7 +273,8 @@ public final class DragFollower {
             win = found
             start = found.frame
             if let at, let from, let p = placed(found.id), !anchors.pinned(found),
-               Behavior.snapped(p, start: found.frame, moved: abs(from.x - at.x) + abs(from.y - at.y)) {
+                Behavior.snapped(p, start: found.frame, moved: abs(from.x - at.x) + abs(from.y - at.y))
+            {
                 placedFrame = p
             }
             return

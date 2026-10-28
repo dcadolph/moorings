@@ -60,15 +60,17 @@ final class BannerWindow {
         Self.register(instance)
         BannerWindow.current = self
         var f = Self.frame(lines: lines.count, screen: screen, scale: 1)
-        window = CreateWindowExW(Self.exStyle, wide(Self.className), wide("Moorings"), Self.popup,
-                                 Int32(f.x), Int32(f.y), Int32(f.w), Int32(f.h), nil, nil, instance,
-                                 nil)
+        window = CreateWindowExW(
+            Self.exStyle, wide(Self.className), wide("Moorings"), Self.popup,
+            Int32(f.x), Int32(f.y), Int32(f.w), Int32(f.h), nil, nil, instance,
+            nil)
         guard let window else { return }
         scale = Double(GetDpiForWindow(window)) / 96
         if scale > 0, scale != 1 {
             f = Self.frame(lines: lines.count, screen: screen, scale: scale)
-            _ = SetWindowPos(window, nil, Int32(f.x), Int32(f.y), Int32(f.w), Int32(f.h),
-                             UINT(SWP_NOZORDER | SWP_NOACTIVATE))
+            _ = SetWindowPos(
+                window, nil, Int32(f.x), Int32(f.y), Int32(f.w), Int32(f.h),
+                UINT(SWP_NOZORDER | SWP_NOACTIVATE))
         } else {
             scale = 1
         }
@@ -93,8 +95,9 @@ final class BannerWindow {
     static func frame(lines: Int, screen: Frame, scale: Double) -> Frame {
         let points = Banner.frame(lines: lines, screen: screen)
         let w = (points.w * scale).rounded(), h = (points.h * scale).rounded()
-        return Frame(x: (screen.x + (screen.w - w) / 2).rounded(),
-                     y: screen.y + (Banner.marginY * scale).rounded(), w: w, h: h)
+        return Frame(
+            x: (screen.x + (screen.w - w) / 2).rounded(),
+            y: screen.y + (Banner.marginY * scale).rounded(), w: w, h: h)
     }
 
     // registered reports whether the window class is registered.
@@ -109,7 +112,8 @@ final class BannerWindow {
         wc.hInstance = instance
         wc.lpfnWndProc = { hwnd, msg, wParam, lParam in
             if let hwnd, let banner = BannerWindow.current, banner.window == hwnd,
-               let result = banner.handle(hwnd, msg, wParam, lParam) {
+                let result = banner.handle(hwnd, msg, wParam, lParam)
+            {
                 return result
             }
             return DefWindowProcW(hwnd, msg, wParam, lParam)
@@ -164,10 +168,12 @@ final class BannerWindow {
         _ = DeleteObject(HGDIOBJ(fill))
         _ = SetBkMode(dc, TRANSPARENT)
         let px = { (points: Double) in Int32((points * self.scale).rounded()) }
-        let bold = CreateFontW(-px(14), 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, DWORD(DEFAULT_CHARSET), 0, 0,
-                               DWORD(CLEARTYPE_QUALITY), 0, wide("Segoe UI"))
-        let body = CreateFontW(-px(12), 0, 0, 0, FW_NORMAL, 0, 0, 0, DWORD(DEFAULT_CHARSET), 0, 0,
-                               DWORD(CLEARTYPE_QUALITY), 0, wide("Segoe UI"))
+        let bold = CreateFontW(
+            -px(14), 0, 0, 0, FW_SEMIBOLD, 0, 0, 0, DWORD(DEFAULT_CHARSET), 0, 0,
+            DWORD(CLEARTYPE_QUALITY), 0, wide("Segoe UI"))
+        let body = CreateFontW(
+            -px(12), 0, 0, 0, FW_NORMAL, 0, 0, 0, DWORD(DEFAULT_CHARSET), 0, 0,
+            DWORD(CLEARTYPE_QUALITY), 0, wide("Segoe UI"))
         defer {
             _ = DeleteObject(HGDIOBJ(bold))
             _ = DeleteObject(HGDIOBJ(body))

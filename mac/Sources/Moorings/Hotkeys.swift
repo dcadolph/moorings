@@ -26,8 +26,10 @@ final class Hotkeys {
             "escape": kVK_Escape, "tab": kVK_Tab, "space": kVK_Space, "home": kVK_Home, "end": kVK_End,
             "pageup": kVK_PageUp, "pagedown": kVK_PageDown, "enter": kVK_ANSI_KeypadEnter,
         ]
-        let fkeys = [kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10,
-                     kVK_F11, kVK_F12, kVK_F13, kVK_F14, kVK_F15, kVK_F16, kVK_F17, kVK_F18, kVK_F19, kVK_F20]
+        let fkeys = [
+            kVK_F1, kVK_F2, kVK_F3, kVK_F4, kVK_F5, kVK_F6, kVK_F7, kVK_F8, kVK_F9, kVK_F10,
+            kVK_F11, kVK_F12, kVK_F13, kVK_F14, kVK_F15, kVK_F16, kVK_F17, kVK_F18, kVK_F19, kVK_F20,
+        ]
         for (i, code) in fkeys.enumerated() {
             out["f\(i + 1)"] = code
         }
@@ -65,14 +67,17 @@ final class Hotkeys {
         self.run = run
         Self.current = self
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, event, _ -> OSStatus in
-            var id = EventHotKeyID()
-            let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
-                                           nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
-            guard status == noErr, id.signature == Hotkeys.signature else { return OSStatus(eventNotHandledErr) }
-            MainActor.assumeIsolated { Hotkeys.current?.pressed(id.id) }
-            return noErr
-        }, 1, &spec, nil, &handler)
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            { _, event, _ -> OSStatus in
+                var id = EventHotKeyID()
+                let status = GetEventParameter(
+                    event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                    nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
+                guard status == noErr, id.signature == Hotkeys.signature else { return OSStatus(eventNotHandledErr) }
+                MainActor.assumeIsolated { Hotkeys.current?.pressed(id.id) }
+                return noErr
+            }, 1, &spec, nil, &handler)
     }
 
     // bind replaces every registered hotkey with the shortcuts in map and returns the problems.
@@ -89,7 +94,8 @@ final class Hotkeys {
             }
             var ref: EventHotKeyRef?
             let id = EventHotKeyID(signature: Self.signature, id: UInt32(i + 1))
-            let status = RegisterEventHotKey(UInt32(code), Self.modifiers(sc.mods), id, GetApplicationEventTarget(), 0, &ref)
+            let status = RegisterEventHotKey(
+                UInt32(code), Self.modifiers(sc.mods), id, GetApplicationEventTarget(), 0, &ref)
             guard status == noErr, let ref else {
                 problems.append("shortcut for \(name) could not be registered: \(sc.text) may be taken")
                 continue
@@ -146,12 +152,13 @@ final class Hotkeys {
     // for Fn the bare keys are grabbed, with Home, End, Page Up and Page Down standing in for the
     // arrows Fn turns into them.
     static func gridKeys(_ trigger: OverlayTrigger) -> [(key: String, mods: UInt32, tag: String)] {
-        let mods: UInt32 = switch trigger {
-        case .rightOption: UInt32(optionKey)
-        case .rightCommand: UInt32(cmdKey)
-        case .rightControl: UInt32(controlKey)
-        case .fn, .none: 0
-        }
+        let mods: UInt32 =
+            switch trigger {
+            case .rightOption: UInt32(optionKey)
+            case .rightCommand: UInt32(cmdKey)
+            case .rightControl: UInt32(controlKey)
+            case .fn, .none: 0
+            }
         var arrows = [("left", "left"), ("right", "right"), ("up", "up"), ("down", "down")]
         if trigger == .fn {
             arrows += [("home", "left"), ("end", "right"), ("pageup", "up"), ("pagedown", "down")]

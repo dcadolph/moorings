@@ -89,13 +89,15 @@ private func rectangleFixture() throws -> Data {
 
 // Swift only: Rectangle's recommended switch picks the Rectangle keymap and off picks Spectacle's.
 @Test func testRectangleImportKeymap() {
-    let (off, _) = RectangleImport.apply(shortcuts: [:], defaults: ["alternateDefaultShortcuts": .bool(false)],
-                                         to: Choices())
+    let (off, _) = RectangleImport.apply(
+        shortcuts: [:], defaults: ["alternateDefaultShortcuts": .bool(false)],
+        to: Choices())
     #expect(off.keymap == "spectacle")
     var start = Choices()
     start.keymap = "magnet"
-    let (on, _) = RectangleImport.apply(shortcuts: [:], defaults: ["alternateDefaultShortcuts": .bool(true)],
-                                        to: start)
+    let (on, _) = RectangleImport.apply(
+        shortcuts: [:], defaults: ["alternateDefaultShortcuts": .bool(true)],
+        to: start)
     #expect(on.keymap == "rectangle")
 }
 
@@ -113,8 +115,10 @@ private func rectangleFixture() throws -> Data {
         shortcuts: ["leftSide": (keyCode: 0, modifierFlags: 1 << 18)], defaults: [:], to: Choices())
     #expect(c.shortcuts["left-half"] == .some(StoredShortcut(mods: ["ctrl"], key: "a")))
     let (d, _) = RectangleImport.apply(
-        shortcuts: ["leftSide": (keyCode: 0, modifierFlags: 1 << 18),
-                    "leftHalf": (keyCode: 1, modifierFlags: 1 << 18)], defaults: [:], to: Choices())
+        shortcuts: [
+            "leftSide": (keyCode: 0, modifierFlags: 1 << 18),
+            "leftHalf": (keyCode: 1, modifierFlags: 1 << 18),
+        ], defaults: [:], to: Choices())
     #expect(d.shortcuts["left-half"] == .some(StoredShortcut(mods: ["ctrl"], key: "s")))
 }
 

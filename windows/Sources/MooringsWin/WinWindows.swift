@@ -8,8 +8,9 @@ extension Screens {
     static func current(minAspect: Double = Layout.minAspect) -> Screens {
         let monitors = Monitor.all()
         let full = monitors.map(\.full)
-        return Screens(full: full, usable: monitors.map(\.usable),
-                       ultrawide: Layout.ultrawide(full, minAspect: minAspect))
+        return Screens(
+            full: full, usable: monitors.map(\.usable),
+            ultrawide: Layout.ultrawide(full, minAspect: minAspect))
     }
 }
 
@@ -173,7 +174,8 @@ final class WinWindows: WindowStore {
     // describe returns what a pass needs to know about hwnd, nil when it is not a movable window.
     static func describe(_ hwnd: HWND, screens: Screens) -> WindowInfo? {
         guard IsWindowVisible(hwnd), !IsIconic(hwnd), GetWindow(hwnd, UINT(GW_OWNER)) == nil,
-              !cloaked(hwnd), let frame = bounds(hwnd) else { return nil }
+            !cloaked(hwnd), let frame = bounds(hwnd)
+        else { return nil }
         let exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
         if exStyle & LONG_PTR(WS_EX_TOOLWINDOW) != 0 {
             return nil
@@ -183,22 +185,24 @@ final class WinWindows: WindowStore {
         let screen = screens.index(frame)
         let fills = screen.map { screens.full[$0] == frame } ?? false
         guard caption || fills, let bundle = bundle(hwnd) else { return nil }
-        return WindowInfo(id: id(hwnd), bundle: bundle, frame: frame,
-                          onUltrawide: screen != nil && screen == screens.ultrawide, isMain: false,
-                          isFullScreen: fills && !caption)
+        return WindowInfo(
+            id: id(hwnd), bundle: bundle, frame: frame,
+            onUltrawide: screen != nil && screen == screens.ultrawide, isMain: false,
+            isFullScreen: fills && !caption)
     }
 
     // topLevel returns every top-level window in z order, front-most first.
     static func topLevel() -> [HWND] {
         let found = HandleList()
         let context = LPARAM(Int(bitPattern: Unmanaged.passUnretained(found).toOpaque()))
-        _ = EnumWindows({ hwnd, context in
-            let raw = UnsafeRawPointer(bitPattern: Int(context))!
-            if let hwnd {
-                Unmanaged<HandleList>.fromOpaque(raw).takeUnretainedValue().handles.append(hwnd)
-            }
-            return true
-        }, context)
+        _ = EnumWindows(
+            { hwnd, context in
+                let raw = UnsafeRawPointer(bitPattern: Int(context))!
+                if let hwnd {
+                    Unmanaged<HandleList>.fromOpaque(raw).takeUnretainedValue().handles.append(hwnd)
+                }
+                return true
+            }, context)
         return withExtendedLifetime(found) { found.handles }
     }
 
@@ -206,13 +210,15 @@ final class WinWindows: WindowStore {
     static func children(_ parent: HWND) -> [HWND] {
         let found = HandleList()
         let context = LPARAM(Int(bitPattern: Unmanaged.passUnretained(found).toOpaque()))
-        _ = EnumChildWindows(parent, { hwnd, context in
-            let raw = UnsafeRawPointer(bitPattern: Int(context))!
-            if let hwnd {
-                Unmanaged<HandleList>.fromOpaque(raw).takeUnretainedValue().handles.append(hwnd)
-            }
-            return true
-        }, context)
+        _ = EnumChildWindows(
+            parent,
+            { hwnd, context in
+                let raw = UnsafeRawPointer(bitPattern: Int(context))!
+                if let hwnd {
+                    Unmanaged<HandleList>.fromOpaque(raw).takeUnretainedValue().handles.append(hwnd)
+                }
+                return true
+            }, context)
         return withExtendedLifetime(found) { found.handles }
     }
 
@@ -232,7 +238,8 @@ final class WinWindows: WindowStore {
         let size = DWORD(MemoryLayout<RECT>.size)
         let attribute = DWORD(DWMWA_EXTENDED_FRAME_BOUNDS.rawValue)
         guard DwmGetWindowAttribute(hwnd, attribute, &r, size) >= 0,
-              r.right > r.left, r.bottom > r.top else { return nil }
+            r.right > r.left, r.bottom > r.top
+        else { return nil }
         return Frame(r)
     }
 

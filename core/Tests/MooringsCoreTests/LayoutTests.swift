@@ -20,17 +20,25 @@ struct WidthsCase: Sendable, CustomTestStringConvertible {
 // widthsCases mirrors anchors_test.lua tests 26 and 63.
 let widthsCases: [WidthsCase] = [
     // Test 0: Config.
-    WidthsCase(saved: nil, config: Widths(left: 10, right: 45), wantWidths: Widths(left: 10, right: 45), wantWarning: false),
+    WidthsCase(
+        saved: nil, config: Widths(left: 10, right: 45), wantWidths: Widths(left: 10, right: 45), wantWarning: false),
     // Test 1: Saved wins.
-    WidthsCase(saved: Widths(left: 15, right: 30), config: Widths(left: 10, right: 45), wantWidths: Widths(left: 15, right: 30), wantWarning: false),
+    WidthsCase(
+        saved: Widths(left: 15, right: 30), config: Widths(left: 10, right: 45),
+        wantWidths: Widths(left: 15, right: 30), wantWarning: false),
     // Test 2: No channel.
-    WidthsCase(saved: nil, config: Widths(left: 50, right: 45), wantWidths: Widths(left: 10, right: 45), wantWarning: true),
+    WidthsCase(
+        saved: nil, config: Widths(left: 50, right: 45), wantWidths: Widths(left: 10, right: 45), wantWarning: true),
     // Test 3: Bad saved.
-    WidthsCase(saved: Widths(left: 60, right: 45), config: Widths(left: 10, right: 45), wantWidths: Widths(left: 10, right: 45), wantWarning: false),
+    WidthsCase(
+        saved: Widths(left: 60, right: 45), config: Widths(left: 10, right: 45),
+        wantWidths: Widths(left: 10, right: 45), wantWarning: false),
     // Test 4: Channel at 10.
-    WidthsCase(saved: Widths(left: 45, right: 45), config: nil, wantWidths: Widths(left: 45, right: 45), wantWarning: false),
+    WidthsCase(
+        saved: Widths(left: 45, right: 45), config: nil, wantWidths: Widths(left: 45, right: 45), wantWarning: false),
     // Test 5: Zero strip.
-    WidthsCase(saved: Widths(left: 0, right: 45), config: nil, wantWidths: Widths(left: 10, right: 45), wantWarning: true),
+    WidthsCase(
+        saved: Widths(left: 0, right: 45), config: nil, wantWidths: Widths(left: 10, right: 45), wantWarning: true),
 ]
 
 // testWidths checks which width pair wins.
@@ -70,19 +78,33 @@ struct SteppedCase: Sendable, CustomTestStringConvertible {
 // steppedCases mirrors anchors_test.lua tests 58, 60, 61 and 168.
 let steppedCases: [SteppedCase] = [
     // Test 0: Left wider.
-    SteppedCase(start: Widths(left: 10, right: 45), side: .left, delta: 1, minPoints: 0, wantWidths: Widths(left: 11, right: 45), wantOK: true),
+    SteppedCase(
+        start: Widths(left: 10, right: 45), side: .left, delta: 1, minPoints: 0,
+        wantWidths: Widths(left: 11, right: 45), wantOK: true),
     // Test 1: Right narrower.
-    SteppedCase(start: Widths(left: 10, right: 45), side: .right, delta: -1, minPoints: 0, wantWidths: Widths(left: 10, right: 44), wantOK: true),
+    SteppedCase(
+        start: Widths(left: 10, right: 45), side: .right, delta: -1, minPoints: 0,
+        wantWidths: Widths(left: 10, right: 44), wantOK: true),
     // Test 2: Channel floor.
-    SteppedCase(start: Widths(left: 45, right: 45), side: .left, delta: 1, minPoints: 0, wantWidths: Widths(left: 46, right: 45), wantOK: false),
+    SteppedCase(
+        start: Widths(left: 45, right: 45), side: .left, delta: 1, minPoints: 0,
+        wantWidths: Widths(left: 46, right: 45), wantOK: false),
     // Test 3: Narrower allowed.
-    SteppedCase(start: Widths(left: 45, right: 45), side: .left, delta: -1, minPoints: 0, wantWidths: Widths(left: 44, right: 45), wantOK: true),
+    SteppedCase(
+        start: Widths(left: 45, right: 45), side: .left, delta: -1, minPoints: 0,
+        wantWidths: Widths(left: 44, right: 45), wantOK: true),
     // Test 4: Strip at zero.
-    SteppedCase(start: Widths(left: 1, right: 45), side: .left, delta: -1, minPoints: 0, wantWidths: Widths(left: 0, right: 45), wantOK: false),
+    SteppedCase(
+        start: Widths(left: 1, right: 45), side: .left, delta: -1, minPoints: 0, wantWidths: Widths(left: 0, right: 45),
+        wantOK: false),
     // Test 5: Held open.
-    SteppedCase(start: Widths(left: 10, right: 45), side: .left, delta: -1, minPoints: 500, wantWidths: Widths(left: 9, right: 45), wantOK: false),
+    SteppedCase(
+        start: Widths(left: 10, right: 45), side: .left, delta: -1, minPoints: 500,
+        wantWidths: Widths(left: 9, right: 45), wantOK: false),
     // Test 6: Wider past a hold.
-    SteppedCase(start: Widths(left: 10, right: 45), side: .left, delta: 1, minPoints: 600, wantWidths: Widths(left: 11, right: 45), wantOK: true),
+    SteppedCase(
+        start: Widths(left: 10, right: 45), side: .left, delta: 1, minPoints: 600,
+        wantWidths: Widths(left: 11, right: 45), wantOK: true),
 ]
 
 // testStepped checks the width steppers on the 5120 point ultrawide.
@@ -111,15 +133,24 @@ struct HeightsCase: Sendable, CustomTestStringConvertible {
 // heightsCases mirrors anchors_test.lua tests 153, 156 and 157.
 let heightsCases: [HeightsCase] = [
     // Test 0: Even.
-    HeightsCase(saved: PartialHeights(), config: PartialHeights(), wantHeights: Heights(left: 50, right: 50), wantWarnings: 0),
+    HeightsCase(
+        saved: PartialHeights(), config: PartialHeights(), wantHeights: Heights(left: 50, right: 50), wantWarnings: 0),
     // Test 1: Bad right.
-    HeightsCase(saved: PartialHeights(), config: PartialHeights(left: 25, right: 95), wantHeights: Heights(left: 25, right: 50), wantWarnings: 1),
+    HeightsCase(
+        saved: PartialHeights(), config: PartialHeights(left: 25, right: 95), wantHeights: Heights(left: 25, right: 50),
+        wantWarnings: 1),
     // Test 2: Choice wins.
-    HeightsCase(saved: PartialHeights(left: 75), config: PartialHeights(left: 25), wantHeights: Heights(left: 75, right: 50), wantWarnings: 0),
+    HeightsCase(
+        saved: PartialHeights(left: 75), config: PartialHeights(left: 25), wantHeights: Heights(left: 75, right: 50),
+        wantWarnings: 0),
     // Test 3: Partial.
-    HeightsCase(saved: PartialHeights(left: 20), config: PartialHeights(right: 30), wantHeights: Heights(left: 20, right: 30), wantWarnings: 0),
+    HeightsCase(
+        saved: PartialHeights(left: 20), config: PartialHeights(right: 30), wantHeights: Heights(left: 20, right: 30),
+        wantWarnings: 0),
     // Test 4: Bad saved.
-    HeightsCase(saved: PartialHeights(left: 5), config: PartialHeights(right: 30), wantHeights: Heights(left: 50, right: 30), wantWarnings: 0),
+    HeightsCase(
+        saved: PartialHeights(left: 5), config: PartialHeights(right: 30), wantHeights: Heights(left: 50, right: 30),
+        wantWarnings: 0),
 ]
 
 // testHeights checks which top row heights win, side by side.
@@ -196,17 +227,29 @@ struct ClampedCase: Sendable, CustomTestStringConvertible {
 // clampedCases runs on the 5120 point ultrawide.
 let clampedCases: [ClampedCase] = [
     // Test 0: In range.
-    ClampedCase(start: Widths(left: 10, right: 45), side: .left, pct: 20, minPoints: 0, wantWidths: Widths(left: 20, right: 45), wantRange: 1...45),
+    ClampedCase(
+        start: Widths(left: 10, right: 45), side: .left, pct: 20, minPoints: 0, wantWidths: Widths(left: 20, right: 45),
+        wantRange: 1...45),
     // Test 1: Channel ceiling.
-    ClampedCase(start: Widths(left: 10, right: 45), side: .left, pct: 70, minPoints: 0, wantWidths: Widths(left: 45, right: 45), wantRange: 1...45),
+    ClampedCase(
+        start: Widths(left: 10, right: 45), side: .left, pct: 70, minPoints: 0, wantWidths: Widths(left: 45, right: 45),
+        wantRange: 1...45),
     // Test 2: Floor of one.
-    ClampedCase(start: Widths(left: 10, right: 45), side: .right, pct: 0, minPoints: 0, wantWidths: Widths(left: 10, right: 1), wantRange: 1...80),
+    ClampedCase(
+        start: Widths(left: 10, right: 45), side: .right, pct: 0, minPoints: 0, wantWidths: Widths(left: 10, right: 1),
+        wantRange: 1...80),
     // Test 3: App floor rounds up.
-    ClampedCase(start: Widths(left: 13, right: 45), side: .left, pct: 8, minPoints: 668, wantWidths: Widths(left: 14, right: 45), wantRange: 14...45),
+    ClampedCase(
+        start: Widths(left: 13, right: 45), side: .left, pct: 8, minPoints: 668,
+        wantWidths: Widths(left: 14, right: 45), wantRange: 14...45),
     // Test 4: Whole percent.
-    ClampedCase(start: Widths(left: 10, right: 45), side: .left, pct: 12.4, minPoints: 0, wantWidths: Widths(left: 12, right: 45), wantRange: 1...45),
+    ClampedCase(
+        start: Widths(left: 10, right: 45), side: .left, pct: 12.4, minPoints: 0,
+        wantWidths: Widths(left: 12, right: 45), wantRange: 1...45),
     // Test 5: App wider than room.
-    ClampedCase(start: Widths(left: 10, right: 85), side: .left, pct: 10, minPoints: 1000, wantWidths: Widths(left: 5, right: 85), wantRange: 5...5),
+    ClampedCase(
+        start: Widths(left: 10, right: 85), side: .left, pct: 10, minPoints: 1000,
+        wantWidths: Widths(left: 5, right: 85), wantRange: 5...5),
 ]
 
 // testClamped checks the typed widths and the range each side may take.

@@ -23,8 +23,9 @@ final class Installer {
     // quitting so the installed one can start.
     func offerMove() -> Bool {
         let bundle = Self.originalURL(Bundle.main.bundleURL)
-        let place = Install.place(bundle: bundle.path, quarantined: Self.quarantined(bundle),
-                                  images: Self.mountedImages(), home: NSHomeDirectory())
+        let place = Install.place(
+            bundle: bundle.path, quarantined: Self.quarantined(bundle),
+            images: Self.mountedImages(), home: NSHomeDirectory())
         var image: MountedImage?
         switch place {
         case .applications:
@@ -41,13 +42,15 @@ final class Installer {
         if let image {
             let name = URL(fileURLWithPath: image.image).lastPathComponent
             alert.messageText = "Install Moorings?"
-            alert.informativeText = "Moorings will copy itself to Applications, start from there, "
+            alert.informativeText =
+                "Moorings will copy itself to Applications, start from there, "
                 + "eject the disk image, and move \(name) to the Trash."
             alert.addButton(withTitle: "Install")
         } else {
             let folder = bundle.deletingLastPathComponent().lastPathComponent
             alert.messageText = "Move Moorings to Applications?"
-            alert.informativeText = "Moorings is running from \(folder). "
+            alert.informativeText =
+                "Moorings is running from \(folder). "
                 + "In Applications it is easy to find and starts at login."
             alert.addButton(withTitle: "Move to Applications")
         }
@@ -98,7 +101,8 @@ final class Installer {
                 NSApp.activate()
                 let alert = NSAlert()
                 alert.messageText = "Moorings is installed"
-                alert.informativeText = "Move the installer \(file.lastPathComponent) to the "
+                alert.informativeText =
+                    "Move the installer \(file.lastPathComponent) to the "
                     + "Trash? You will not need it again."
                 alert.addButton(withTitle: "Move to Trash")
                 alert.addButton(withTitle: "Keep")
@@ -125,7 +129,8 @@ final class Installer {
     // there, and clears the download quarantine the user already approved by opening this copy.
     private func install(_ bundle: URL, copy: Bool) throws {
         let me = ProcessInfo.processInfo.processIdentifier
-        for running in NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+        for running in NSRunningApplication.runningApplications(
+            withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
         where running.processIdentifier != me {
             running.terminate()
         }
@@ -144,7 +149,8 @@ final class Installer {
     // relaunch starts the installed copy once this process has exited, handing it the image to eject,
     // and quits.
     private func relaunch(_ image: MountedImage?) {
-        let script = "pid=$1; shift; while /bin/kill -0 \"$pid\" 2>/dev/null; do /bin/sleep 0.2; done; exec /usr/bin/open \"$@\""
+        let script =
+            "pid=$1; shift; while /bin/kill -0 \"$pid\" 2>/dev/null; do /bin/sleep 0.2; done; exec /usr/bin/open \"$@\""
         var args = ["-c", script, "sh", String(ProcessInfo.processInfo.processIdentifier), Self.destination.path]
         if let image {
             args += ["--args", Self.installedFromFlag, image.image]
@@ -171,7 +177,8 @@ final class Installer {
         }
         let alert = NSAlert()
         alert.messageText = "Drag Moorings to Applications"
-        alert.informativeText = image == nil
+        alert.informativeText =
+            image == nil
             ? "Moorings could not move itself. Drag it from the Finder window into your Applications folder."
             : "Moorings could not copy itself. Drag it onto the Applications folder in the window that opened."
         alert.runModal()
@@ -196,8 +203,8 @@ final class Installer {
     static func originalURL(_ url: URL) -> URL {
         typealias Original = @convention(c) (CFURL, UnsafeMutablePointer<Unmanaged<CFError>?>?) -> Unmanaged<CFURL>?
         guard url.path.contains("/AppTranslocation/"),
-              let security = dlopen("/System/Library/Frameworks/Security.framework/Security", RTLD_LAZY),
-              let symbol = dlsym(security, "SecTranslocateCreateOriginalPathForURL")
+            let security = dlopen("/System/Library/Frameworks/Security.framework/Security", RTLD_LAZY),
+            let symbol = dlsym(security, "SecTranslocateCreateOriginalPathForURL")
         else { return url }
         let original = unsafeBitCast(symbol, to: Original.self)
         return original(url as CFURL, nil)?.takeRetainedValue() as URL? ?? url

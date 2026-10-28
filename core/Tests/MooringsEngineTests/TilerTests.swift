@@ -26,9 +26,10 @@ final class TileRig {
     // init builds the rig with choices.
     init(_ choices: Choices = Choices()) {
         anchors = Anchors(choices: choices)
-        let platform = Platform(windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier,
-                                clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
-                                warpCursor: { _ in })
+        let platform = Platform(
+            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier,
+            clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
+            warpCursor: { _ in })
         tiler = Tiler(platform: platform, anchors: anchors, organizer: Organizer(platform: platform, anchors: anchors))
         tiler.changed = { [unowned self] in changes += 1 }
         tiler.moor = { [unowned self] in moors += 1 }
@@ -38,8 +39,9 @@ final class TileRig {
     @discardableResult
     func add(focus: Bool = false) -> WindowID {
         let n = Double(windows.windows.count)
-        return windows.add(bundle: "com.example.pad", frame: Frame(x: 200 + 40 * n, y: 200 + 40 * n, w: 700, h: 500),
-                           focus: focus)
+        return windows.add(
+            bundle: "com.example.pad", frame: Frame(x: 200 + 40 * n, y: 200 + 40 * n, w: 700, h: 500),
+            focus: focus)
     }
 
     // pass runs one tiling pass over what is on screen, as the pass loop does after a moor pass.

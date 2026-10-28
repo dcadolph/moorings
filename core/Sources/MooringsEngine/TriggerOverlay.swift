@@ -76,8 +76,10 @@ public final class TriggerOverlay {
 
     // init builds an overlay on platform and anchors that applies picks through actions, previews
     // them on footprint and gridView, and reads the pointer through ticker.
-    public init(platform: Platform, anchors: Anchors, actions: ActionRunner, footprint: any OverlayView,
-                gridView: any GridView, picker: GridPicker, ticker: any Scheduler) {
+    public init(
+        platform: Platform, anchors: Anchors, actions: ActionRunner, footprint: any OverlayView,
+        gridView: any GridView, picker: GridPicker, ticker: any Scheduler
+    ) {
         self.platform = platform
         self.anchors = anchors
         self.actions = actions
@@ -108,8 +110,10 @@ public final class TriggerOverlay {
         pick = nil
         grid = nil
         area = nil
-        if let why = Hold.blocker(anchors, ready: platform.windows.ready, shortcutsOn: shortcutsOn(),
-                                  buttonDown: pointer().1) {
+        if let why = Hold.blocker(
+            anchors, ready: platform.windows.ready, shortcutsOn: shortcutsOn(),
+            buttonDown: pointer().1)
+        {
             log("overlay: trigger held but \(why): nothing to throw")
             done = true
             return
@@ -197,8 +201,11 @@ public final class TriggerOverlay {
             guard let w = target, let step = Self.step(tag) else { return }
             let choices = anchors.choices
             let a = area ?? actions.area(for: w, screens: platform.screens.current())
-            var g = grid ?? OverlayGrid(cols: choices.overlay.gridColumns, rows: choices.overlay.gridRows,
-                                        at: pointer().0, in: a)
+            var g =
+                grid
+                ?? OverlayGrid(
+                    cols: choices.overlay.gridColumns, rows: choices.overlay.gridRows,
+                    at: pointer().0, in: a)
             if grid != nil {
                 g = tag.hasPrefix("grow-") ? g.grown(step) : g.moved(step)
             }

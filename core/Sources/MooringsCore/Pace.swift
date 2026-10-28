@@ -16,7 +16,8 @@ public enum Pace {
     // whether the pass read the same windows as the one before and moved none, which ends the
     // settle window early. Deadlines at or before now are spent. It returns nil when no pass is due
     // until an event.
-    public static func next(now: Double, woke: Double, busy: Bool, deadlines: [Double], still: Bool = false) -> Double? {
+    public static func next(now: Double, woke: Double, busy: Bool, deadlines: [Double], still: Bool = false) -> Double?
+    {
         if !still && now - woke < settleSeconds {
             return now + pollSeconds
         }

@@ -48,9 +48,12 @@ final class WinWatcher {
         WinWatcher.current = self
         for (low, high) in WinEvent.ranges {
             let flags = DWORD(WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS)
-            if let hook = SetWinEventHook(low, high, nil, { _, event, hwnd, idObject, idChild, _, _ in
-                WinWatcher.current?.deliver(event, hwnd, idObject, idChild)
-            }, 0, 0, flags) {
+            if let hook = SetWinEventHook(
+                low, high, nil,
+                { _, event, hwnd, idObject, idChild, _, _ in
+                    WinWatcher.current?.deliver(event, hwnd, idObject, idChild)
+                }, 0, 0, flags)
+            {
                 hooks.append(hook)
             }
         }
@@ -80,7 +83,8 @@ final class WinWatcher {
         guard let hwnd, let kind = WinEvent(rawValue: event) else { return }
         if filters {
             guard idObject == Self.objectWindow, idChild == Self.childSelf,
-                  GetAncestor(hwnd, Self.root) == hwnd else { return }
+                GetAncestor(hwnd, Self.root) == hwnd
+            else { return }
         }
         passed += 1
         handler(kind, hwnd)

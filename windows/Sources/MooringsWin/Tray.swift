@@ -75,16 +75,19 @@ final class Tray {
                 items.append(MenuItem(title: appName(current), checked: true, enabled: false))
             }
             for bundle in apps {
-                items.append(MenuItem(title: appName(bundle), checked: bundle == current,
-                                      command: .slot(key, bundle)))
+                items.append(
+                    MenuItem(
+                        title: appName(bundle), checked: bundle == current,
+                        command: .slot(key, bundle)))
             }
             let holder = current.isEmpty ? "empty" : appName(current)
             slots.append(MenuItem(title: "\(key.title): \(holder)", submenu: items))
         }
         let w = Layout.widths(saved: choices.widths, config: nil).0
         let pair = { (p: Widths) in
-            MenuItem(title: String(format: "Left %.0f%%, right %.0f%%", p.left, p.right),
-                     checked: p == w, command: .widths(p))
+            MenuItem(
+                title: String(format: "Left %.0f%%, right %.0f%%", p.left, p.right),
+                checked: p == w, command: .widths(p))
         }
         var widths = Layout.presets.map(pair)
         let owned = choices.widthPresets.filter { !Layout.presets.contains($0) }
@@ -323,8 +326,9 @@ final class Tray {
         let best = images.first { $0.side >= size } ?? images.last
         guard let best else { return nil }
         var bytes = Array(ico[best.offset..<(best.offset + best.length)])
-        return CreateIconFromResourceEx(&bytes, DWORD(best.length), true, 0x0003_0000,
-                                        Int32(size), Int32(size), UINT(LR_DEFAULTCOLOR))
+        return CreateIconFromResourceEx(
+            &bytes, DWORD(best.length), true, 0x0003_0000,
+            Int32(size), Int32(size), UINT(LR_DEFAULTCOLOR))
     }
 
     // le32 reads a little-endian 32-bit value from bytes at index.

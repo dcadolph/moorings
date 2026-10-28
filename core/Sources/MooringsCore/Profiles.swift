@@ -115,7 +115,8 @@ public enum Profiles {
     // switchMessage words the one banner a profile switch shows: the workspaces recalled, the ones
     // that do not exist and the windows recall could not place. paused means a pause held back the
     // profile's workspaces.
-    public static func switchMessage(recalled: [String], missing: [String], missed: Int, paused: Bool = false) -> String {
+    public static func switchMessage(recalled: [String], missing: [String], missed: Int, paused: Bool = false) -> String
+    {
         if paused {
             return "Switched. Workspaces are not recalled while Moorings is paused."
         }
@@ -125,8 +126,10 @@ public enum Profiles {
             parts.append(missing.count == 1 ? "No workspace is named \(names)." : "No workspaces are named \(names).")
         }
         if missed > 0 {
-            parts.append(missed == 1 ? "1 window had no running app or display."
-                : "\(missed) windows had no running app or display.")
+            parts.append(
+                missed == 1
+                    ? "1 window had no running app or display."
+                    : "\(missed) windows had no running app or display.")
         }
         return parts.joined(separator: " ")
     }

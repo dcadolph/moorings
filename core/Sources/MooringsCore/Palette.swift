@@ -98,7 +98,8 @@ public struct Palette: Sendable, Equatable {
     public var footprintStroke: Tint { Tint(color: accent, alpha: Self.footprintStrokeAlpha) }
 
     // harbor is the one palette moorings uses: near-black surfaces, white text and a cream accent.
-    public static let harbor = Palette(background: RGB(hex: "#0f1012")!, surface: RGB(hex: "#0f1012")!,
-                                       text: RGB(hex: "#ffffff")!, muted: RGB(hex: "#aaa59b")!,
-                                       accent: RGB(hex: "#f3e3b8")!)
+    public static let harbor = Palette(
+        background: RGB(hex: "#0f1012")!, surface: RGB(hex: "#0f1012")!,
+        text: RGB(hex: "#ffffff")!, muted: RGB(hex: "#aaa59b")!,
+        accent: RGB(hex: "#f3e3b8")!)
 }
