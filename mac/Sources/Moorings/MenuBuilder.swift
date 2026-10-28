@@ -284,7 +284,7 @@ struct MenuBuilder {
     private func workspaceItems() -> [NSMenuItem] {
         var out: [NSMenuItem] = [ActionItem("Save workspace…", tip: "Save the slots, widths, heights and where each free "
                 + "window sits under a name.") {
-            if let name = WorkspaceKeeper.askName() {
+            if let name = NamePrompt.ask() {
                 app.workspaces.saveWorkspace(name)
             }
         }]
@@ -315,7 +315,7 @@ struct MenuBuilder {
     private func profileItems() -> [NSMenuItem] {
         var out: [NSMenuItem] = [ActionItem("Save current as profile…", tip: "Save the shortcuts, snapping, behavior, "
                 + "menu and app rules under a name. Settings > Workspaces picks the workspaces it recalls.") {
-            if let name = WorkspaceKeeper.askName("Save profile", "Name these settings. Switching to the profile later "
+            if let name = NamePrompt.ask("Save profile", "Name these settings. Switching to the profile later "
                 + "brings them back, and anchored apps stay where they are.") {
                 app.workspaces.saveProfile(name)
             }
