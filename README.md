@@ -433,7 +433,8 @@ bundle it.
 Run `swift test` in `mac/` for the contract suites on the Mac adapters against real TextEdit
 windows. The shell or test host needs Accessibility access (System Settings, Privacy and Security,
 Accessibility). Without it the suites skip and print a line saying so. The suites move real windows
-while they run, so do not use the Mac until they finish. CI has no such grant, so CI skips them.
+while they run, so do not use the Mac until they finish. GitHub's macOS runner has the grant, so CI
+runs them too.
 
 The Windows contract has no test target. It runs on GitHub's Windows runner on every push as
 `MooringsWin.exe --probe contracts`, against stand-in windows the exe opens, next to the other

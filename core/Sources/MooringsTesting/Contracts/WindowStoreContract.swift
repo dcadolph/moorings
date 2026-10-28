@@ -46,13 +46,15 @@ public enum WindowStoreContract {
             subject.move(a, to: target, from: got, behavior: Behaviors())
             _ = host.wait(until: host.now + 0.25) { Contract.near(subject.frame(a), target) }
         }
-        if let b = host.open() {
-            _ = host.wait(until: host.now + 1) { subject.scan(screens, full: true).windows.contains { $0.id == b } }
-            let pair = subject.scan(screens, full: true).windows.filter { $0.id == a || $0.id == b }
-            if pair.count != 2 || pair.filter(\.isMain).count != 1 {
-                fail("a second window of the same app lists main once",
-                     "listed \(pair.count), main \(pair.filter(\.isMain).count)")
-            }
+        guard let b = host.open() else {
+            fail("the host opens a second window", "none opened")
+            return out
+        }
+        _ = host.wait(until: host.now + 1) { subject.scan(screens, full: true).windows.contains { $0.id == b } }
+        let pair = subject.scan(screens, full: true).windows.filter { $0.id == a || $0.id == b }
+        if pair.count != 2 || pair.filter(\.isMain).count != 1 {
+            fail("a second window of the same app lists main once",
+                 "listed \(pair.count), main \(pair.filter(\.isMain).count)")
         }
         if let r = host.openRefusing() {
             _ = host.wait(until: host.now + 1) { subject.scan(screens, full: true).windows.contains { $0.id == r } }
@@ -65,8 +67,8 @@ public enum WindowStoreContract {
                 fail("a refused move leaves the frame", "before \(Contract.show(before)) after \(Contract.show(subject.frame(r)))")
             }
         }
-        subject.minimize(a)
-        if !host.wait(until: host.now + 1, { !subject.scan(screens, full: true).windows.contains { $0.id == a } }) {
+        subject.minimize(b)
+        if !host.wait(until: host.now + 1, { !subject.scan(screens, full: true).windows.contains { $0.id == b } }) {
             fail("minimize removes the window from scan within 1 s", "still listed")
         }
         subject.close(a)

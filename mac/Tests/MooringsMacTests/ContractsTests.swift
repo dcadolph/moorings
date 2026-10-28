@@ -90,7 +90,7 @@ final class MacHost: @preconcurrency ContractHost {
 }
 
 // The Mac adapters keep every contract rule. Without Accessibility access the suite prints why and
-// passes, since no test host on CI can be granted it.
+// passes; GitHub's macOS runner and a trusted local shell both run it live.
 @Test @MainActor func testMacContracts() {
     guard AXIsProcessTrusted() else {
         print("Mac contracts skipped: this test host has no Accessibility access")

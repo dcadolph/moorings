@@ -16,8 +16,8 @@ targets.append(
         exclude: ["Info.plist"]
     )
 )
-// MooringsMacTests runs the engine's contract suites on the Mac adapters. It skips without
-// Accessibility access, which CI never has.
+// MooringsMacTests runs the engine's contract suites on the Mac adapters against real TextEdit
+// windows. It skips without Accessibility access; GitHub's macOS runner has it.
 targets.append(
     .testTarget(
         name: "MooringsMacTests",
