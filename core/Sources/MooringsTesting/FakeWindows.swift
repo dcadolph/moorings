@@ -55,6 +55,7 @@ public final class FakeWindows: WindowStore {
         case scan(full: Bool)
         case move(WindowID, Frame, from: Frame?)
         case resize(WindowID, w: Double, h: Double)
+        case position(WindowID, x: Double, y: Double)
         case raise(WindowID)
         case minimize(WindowID)
         case close(WindowID)
@@ -144,6 +145,19 @@ public final class FakeWindows: WindowStore {
         guard let i = index(id), !windows[i].refuses else { return }
         windows[i].frame.w = max(w, windows[i].minW)
         windows[i].frame.h = max(h, windows[i].minH)
+    }
+
+    // position moves the window's top-left corner to x, y and keeps its size. A window that refuses
+    // keeps its frame and joins refused.
+    public func position(_ id: WindowID, x: Double, y: Double) {
+        calls.append(.position(id, x: x, y: y))
+        guard let i = index(id) else { return }
+        guard !windows[i].refuses else {
+            refused.insert(id)
+            return
+        }
+        windows[i].frame.x = x
+        windows[i].frame.y = y
     }
 
     // raise moves the window to the front and focuses it.

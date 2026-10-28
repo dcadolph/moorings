@@ -499,7 +499,7 @@ final class StripEditor {
         front = current?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : current
         NSApp.activate()
         p.makeKeyAndOrderFront(nil)
-        app.hotkeys.grab(TriggerOverlay.keys(.none))
+        app.hotkeys.grab(Hotkeys.gridKeys(.none))
         return true
     }
 

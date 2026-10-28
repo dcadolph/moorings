@@ -145,16 +145,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // hotkeys runs a window action when its shortcut is pressed.
     lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
     // overlay throws a window while the overlay's trigger key is held.
-    lazy var overlay = TriggerOverlay(app: self)
+    lazy var overlay: TriggerOverlay = {
+        let o = TriggerOverlay(platform: platform, anchors: anchors, actions: actions, footprint: Footprint(),
+                               gridView: GridPanel(), picker: gridPicker, ticker: MacScheduler())
+        o.pointer = { Self.pointer() }
+        o.hit = { p in Windows.hit(CGPoint(x: p.x, y: p.y))?.id }
+        o.shortcutsOn = { [unowned self] in hotkeys.enabled }
+        o.grab = { [unowned self] trigger in hotkeys.grab(Hotkeys.gridKeys(trigger)) }
+        o.ungrab = { [unowned self] in hotkeys.ungrab() }
+        o.log = { line in Self.overlayLogger.notice("\(line, privacy: .public)") }
+        return o
+    }()
     // stasher parks windows at a screen edge, reading the pointer from mouse events while one is.
     lazy var stasher: Stasher = {
         let s = Stasher(platform: platform, anchors: anchors, rest: MacScheduler())
         let log = Logger(subsystem: "com.dcadolph.moorings", category: "stash")
-        s.pointer = {
-            let primary = NSScreen.screens.first?.frame.height ?? 0
-            let loc = NSEvent.mouseLocation
-            return (Point(x: loc.x, y: primary - loc.y), NSEvent.pressedMouseButtons != 0)
-        }
+        s.pointer = { Self.pointer() }
         s.watching = { [unowned self] on in watchStash(on) }
         s.wake = { [unowned self] in wake() }
         s.log = { line in log.notice("\(line, privacy: .public)") }
@@ -163,7 +169,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // stashMonitors watch the pointer move while a window is stashed, over other apps and Moorings.
     private var stashMonitors: [Any] = []
     // gridPicker pops a grid of cells for the grid actions.
-    lazy var gridPicker = GridPicker(app: self)
+    lazy var gridPicker: GridPicker = {
+        let g = GridPicker(platform: platform, anchors: anchors, actions: actions, view: GridPanel())
+        g.pointer = { Self.pointer().0 }
+        g.grab = { [unowned self] trigger in hotkeys.grab(Hotkeys.gridKeys(trigger)) }
+        g.ungrab = { [unowned self] in hotkeys.ungrab() }
+        g.log = { line in Self.overlayLogger.notice("\(line, privacy: .public)") }
+        return g
+    }()
     // strips edits the strip widths and row heights on screen.
     lazy var strips = StripEditor(app: self)
     // tiler keeps free windows in the tiling mode's layout.
@@ -179,7 +192,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // edges moves the edge two windows share for both while the edge resize keys are held.
     lazy var edges = EdgeResizer(app: self)
     // hover moves or resizes the window under the pointer while the hover modifiers are held.
-    lazy var hover = HoverMover(app: self)
+    lazy var hover: HoverMover = {
+        let h = HoverMover(platform: platform, anchors: anchors, ticker: MacScheduler())
+        h.pointer = { Self.pointer() }
+        h.hit = { p in Windows.hit(CGPoint(x: p.x, y: p.y))?.id }
+        h.shortcutsOn = { [unowned self] in hotkeys.enabled }
+        h.wake = { [unowned self] in wake() }
+        h.log = { line in Self.overlayLogger.notice("\(line, privacy: .public)") }
+        return h
+    }()
+    // overlayLogger writes why a throw, grid or hover did nothing.
+    static let overlayLogger = Logger(subsystem: "com.dcadolph.moorings", category: "overlay")
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     // launching is when passes stop looking for the first window of an app that just launched.
@@ -193,6 +216,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // now returns the time in seconds since boot.
     static var now: Double { ProcessInfo.processInfo.systemUptime }
+
+    // pointer returns where the pointer is in top-left coordinates and whether a mouse button is held.
+    static func pointer() -> (Point, Bool) {
+        let primary = NSScreen.screens.first?.frame.height ?? 0
+        let loc = NSEvent.mouseLocation
+        return (Point(x: loc.x, y: primary - loc.y), NSEvent.pressedMouseButtons != 0)
+    }
 
     // applicationDidFinishLaunching builds the menu, subscribes to events, and runs the first pass.
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -235,7 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         tap.onDown = { [weak self] p, flags in
             guard let self else { return false }
             if self.gridPicker.showing {
-                if self.gridPicker.contains(p) {
+                if self.gridPicker.contains(Point(x: p.x, y: p.y)) {
                     return false
                 }
                 self.gridPicker.cancel()
@@ -267,8 +297,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         tap.onOther = { [weak self] button, down in self?.mouseButton(button, down: down) ?? false }
         tap.onFlags = { [weak self] flags, p in
-            self?.overlay.flagsChanged(flags, at: p)
-            self?.hover.flagsChanged(flags, at: p)
+            self?.overlay.flagsChanged(flags.rawValue, at: Point(x: p.x, y: p.y))
+            self?.hover.flagsChanged(flags.rawValue, at: Point(x: p.x, y: p.y))
         }
         hotkeys.onGrab = { [weak self] tag in
             guard let self else { return }
