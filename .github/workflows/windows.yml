@@ -227,3 +227,55 @@ jobs:
           if ($raw.Passed -ne $raw.Raw) { throw "no-filter run dropped events: passed $($raw.Passed) of $($raw.Raw)" }
           Write-Host "  check: filter passed $($run.Passed) of $($run.Raw) events, no filter passed $($raw.Passed) of $($raw.Raw)"
           Stop-Process -Id $pad.Id
+
+          function Slots($lines) {
+            $slots = [ordered]@{}
+            $slot = $null
+            foreach ($line in $lines) {
+              $n = [regex]::Match($line, '^menu   \[.\] ((Left|Right) (top|bottom)): ')
+              if ($n.Success) { $slot = $n.Groups[1].Value; $slots[$slot] = @(); continue }
+              if ($line -match '^menu   \S|^menu \S') { $slot = $null; continue }
+              $n = [regex]::Match($line, '^menu     \[(.)\] (.+)$')
+              if ($slot -and $n.Success) { $slots[$slot] += $n.Groups[2].Value }
+            }
+            $slots
+          }
+
+          Write-Host "probe menu"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $menu = Probe @('--probe', 'menu')
+          $slots = Slots $menu
+          $want = @('Left top', 'Left bottom', 'Right top', 'Right bottom')
+          if ((@($slots.Keys) -join ',') -ne ($want -join ',')) { throw "slot titles are $(@($slots.Keys) -join ', ')" }
+          foreach ($key in $want) {
+            if (-not ($slots[$key] -contains 'notepad.exe')) { throw "no notepad.exe under $key" }
+            if ($slots[$key][0] -ne 'Clear') { throw "$key does not start with Clear" }
+          }
+          Expect $menu '^menu \[ \] Pause$' 'Pause unchecked'
+          Expect $menu '^menu   \[x\] Left \d+%, right \d+%$' 'a checked width pair'
+          Write-Host "  check: four slots each list notepad.exe, Pause unchecked"
+
+          Write-Host "probe menu after writing paused: true"
+          $file = Join-Path $env:APPDATA 'Moorings\choices.json'
+          $c = Get-Content $file -Raw | ConvertFrom-Json
+          $c.paused = $true
+          $c | ConvertTo-Json -Depth 32 | Set-Content $file
+          Expect (Probe @('--probe', 'menu')) '^menu \[x\] Pause$' 'Pause checked'
+          Write-Host "  check: Pause checked"
+
+          Write-Host "probe menu --no-apps"
+          $slots = Slots (Probe @('--probe', 'menu', '--no-apps'))
+          foreach ($key in $want) {
+            if (($slots[$key] -join ',') -ne 'Clear') { throw "$key holds $($slots[$key] -join ', ') with no running apps" }
+          }
+          Write-Host "  check: with no running apps each slot holds only Clear"
+
+          Write-Host "probe tray"
+          $t = Probe @('--probe', 'tray')
+          Expect $t '^icon: loaded$' 'the embedded icon decoded'
+          Expect $t '^added: true$' 'the notification area took the icon'
+          Expect $t '^saved left top: .*\\notepad\.exe$' 'the slot command saved Notepad'
+          Expect $t '^saved paused: true$' 'the Pause command saved'
+          Write-Host "  check: icon added, slot and Pause commands saved"
+          Stop-Process -Id $pad.Id

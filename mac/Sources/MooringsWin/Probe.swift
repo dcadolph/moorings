@@ -40,6 +40,8 @@ struct ProbeOptions {
     var paused = false
     // noFilter keeps every hooked event, the events probe's negative control.
     var noFilter = false
+    // noApps builds the menu with no running apps, the menu probe's negative control.
+    var noApps = false
     // pid names the process whose window the nudge probe moves.
     var pid: DWORD?
     // frame is where the nudge probe moves the window.
@@ -63,6 +65,8 @@ struct ProbeOptions {
                 paused = true
             case "--no-filter":
                 noFilter = true
+            case "--no-apps":
+                noApps = true
             case "--seconds":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }
@@ -95,6 +99,8 @@ let probes: [String: Probe] = [
     "moor": probeMoor,
     "nudge": probeNudge,
     "events": probeEvents,
+    "menu": probeMenu,
+    "tray": probeTray,
 ]
 
 // probeVersion prints the version and the DPI awareness the thread runs with.
@@ -211,6 +217,54 @@ func probeEvents(_ opts: ProbeOptions) -> Int32 {
     }
     app.run(until: App.now + opts.seconds)
     print("raw events: \(app.watcher.raw) passed: \(app.watcher.passed) kept: \(kept) passes: \(passes)")
+    return 0
+}
+
+// probeMenu prints the tray menu the saved choices and the running windows build, one entry per
+// line, indented by depth, with [x] beside a checked entry.
+func probeMenu(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    let running = opts.noApps ? [] : WinWindows.scan(screens: screens).windows.map(\.bundle)
+    printMenu(Tray.menu(choices: Store().load(), running: running, atLogin: LoginItem.enabled))
+    return 0
+}
+
+// printMenu prints items and their folders, depth levels in.
+func printMenu(_ items: [MenuItem], depth: Int = 0) {
+    let indent = String(repeating: "  ", count: depth)
+    for item in items {
+        guard !item.title.isEmpty else {
+            print("menu \(indent)-")
+            continue
+        }
+        print("menu \(indent)[\(item.checked ? "x" : " ")] \(item.title)\(item.enabled ? "" : " (off)")")
+        printMenu(item.submenu, depth: depth + 1)
+    }
+}
+
+// probeTray adds the tray icon, chooses the front Notepad for the left top slot and then Pause
+// through the menu's commands, prints the saved choices after each, and removes the icon.
+func probeTray(_ opts: ProbeOptions) -> Int32 {
+    let windows = WinWindows.scan(screens: .current(minAspect: opts.minAspect)).windows
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }) else {
+        print("tray: no notepad window")
+        return 1
+    }
+    let store = Store()
+    do {
+        try store.save(Choices())
+    } catch {
+        print("tray: \(error)")
+        return 1
+    }
+    let tray = Tray(app: App(store: store, minAspect: opts.minAspect))
+    print("icon: \(Tray.loadIcon() == nil ? "none" : "loaded")")
+    print("added: \(tray.show())")
+    tray.perform(.slot(.leftTop, pad.bundle))
+    print("saved left top: \(store.load().slots[.leftTop] ?? "")")
+    tray.perform(.pause)
+    print("saved paused: \(store.load().paused)")
+    tray.hide()
     return 0
 }
 

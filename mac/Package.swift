@@ -26,7 +26,8 @@ targets.append(
 targets.append(
     .executableTarget(
         name: "MooringsWin",
-        dependencies: ["MooringsCore"]
+        dependencies: ["MooringsCore"],
+        resources: [.embedInCode("moorings.ico")]
     )
 )
 #endif

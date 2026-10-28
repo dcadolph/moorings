@@ -53,6 +53,15 @@ final class App {
     // now is the time in seconds since the system started, the same clock in every process.
     static var now: Double { Double(GetTickCount64()) / 1000 }
 
+    // save writes the choices, telling stderr when the file cannot be written.
+    func save() {
+        do {
+            try store.save(anchors.choices)
+        } catch {
+            FileHandle.standardError.write(Data("choices not saved: \(error)\n".utf8))
+        }
+    }
+
     // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle.
     func wake() {
         woke = Self.now

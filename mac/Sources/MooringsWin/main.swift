@@ -13,7 +13,12 @@ do {
 }
 
 guard let name = options.probe else {
-    print("MooringsWin \(version): no tray yet")
+    let app = App(store: Store())
+    let tray = Tray(app: app)
+    tray.show()
+    app.anchors.launch(now: App.now)
+    app.run()
+    tray.hide()
     exit(0)
 }
 guard let probe = probes[name] else {
