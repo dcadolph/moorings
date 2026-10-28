@@ -92,9 +92,10 @@ public final class WorkspaceKeeper {
             SavedWindow(bundle: $0.bundle, title: title($0.id), frame: $0.frame)
         }
         let c = anchors.choices
-        anchors.choices.workspaces[name] = Workspace(name: name, slots: c.slots, widths: anchors.widths,
-                                                     heights: anchors.heights, windows: windows,
-                                                     setup: c.workspaces[name]?.setup)
+        anchors.choices.workspaces[name] = Workspace(
+            name: name, slots: c.slots, widths: anchors.widths,
+            heights: anchors.heights, windows: windows,
+            setup: c.workspaces[name]?.setup)
         changed()
     }
 
@@ -137,12 +138,16 @@ public final class WorkspaceKeeper {
         var missed = 0
         var opened: Set<String> = []
         for (i, saved) in ws.windows.enumerated() {
-            if matched[i] == nil, let b = saved.launchBundle, !b.isEmpty, let target = Workspaces.fit(saved.frame, areas) {
+            if matched[i] == nil, let b = saved.launchBundle, !b.isEmpty,
+                let target = Workspaces.fit(saved.frame, areas)
+            {
                 if opened.insert(b + "\u{0}" + (saved.openTarget ?? "")).inserted {
                     openApp(b, saved.openTarget)
                 }
-                awaited.append(Awaited(bundle: saved.bundle, title: saved.title, frame: target,
-                                       until: now + Self.waitSeconds))
+                awaited.append(
+                    Awaited(
+                        bundle: saved.bundle, title: saved.title, frame: target,
+                        until: now + Self.waitSeconds))
                 continue
             }
             guard let j = matched[i], let target = Workspaces.fit(saved.frame, areas) else {
@@ -256,7 +261,7 @@ public final class WorkspaceKeeper {
         guard let before = present, !anchors.choices.paused else { return }
         for bundle in bundles.subtracting(before).subtracting(placedApps).sorted() {
             guard let rule = Workspaces.rule(bundle, anchors.choices.appRules),
-                  let w = free.first(where: { $0.bundle == bundle })
+                let w = free.first(where: { $0.bundle == bundle })
             else { continue }
             if let f = rule.frame {
                 guard let target = Workspaces.fit(f, areas(screens)) else { continue }
@@ -264,7 +269,8 @@ public final class WorkspaceKeeper {
                 move(w.id, to: target)
                 rechecks[w.id] = (target, now + Self.recheckSeconds)
             } else if let name = rule.action, actions.apply(name, to: w, screens: screens),
-                      let f = platform.windows.frame(w.id) {
+                let f = platform.windows.frame(w.id)
+            {
                 rechecks[w.id] = (f, now + Self.recheckSeconds)
             }
             log("rule for \(bundle) placed its first window")
@@ -306,8 +312,9 @@ public final class WorkspaceKeeper {
                 missing.append(ws)
             }
         }
-        platform.notifier.notify("Profile \(name)",
-                                 Profiles.switchMessage(recalled: recalled, missing: missing, missed: missed, paused: paused))
+        platform.notifier.notify(
+            "Profile \(name)",
+            Profiles.switchMessage(recalled: recalled, missing: missing, missed: missed, paused: paused))
         return true
     }
 }

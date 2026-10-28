@@ -164,9 +164,11 @@ public enum Tile {
     // to cornerSlack left of and above it. It returns nil anywhere else, including the rest of the
     // window.
     public static func hovered(at p: Point, frames: [Frame], gap: Double) -> Int? {
-        guard let i = frames.firstIndex(where: { f in
-            p.x >= f.x - cornerSlack && p.x < f.x + f.w && p.y >= f.y - cornerSlack && p.y < f.y + f.h
-        }) else { return nil }
+        guard
+            let i = frames.firstIndex(where: { f in
+                p.x >= f.x - cornerSlack && p.x < f.x + f.w && p.y >= f.y - cornerSlack && p.y < f.y + f.h
+            })
+        else { return nil }
         let zone = cornerZone + gap
         return p.x - frames[i].x <= zone && p.y - frames[i].y <= zone ? i : nil
     }
@@ -250,7 +252,8 @@ public enum Tile {
     // tidy sorts the n front-most windows of front, which is front-most first, left to right and
     // returns them with the equal column each takes in area.
     public static func tidy(_ area: Frame, _ front: [TileWindow], _ n: Int, gap: Double = 0)
-        -> [(TileWindow, Frame)] {
+        -> [(TileWindow, Frame)]
+    {
         let list = Array(front.prefix(max(n, 0))).sorted(by: byX)
         return Array(zip(list, columns(area, list.count, gap: gap)))
     }

@@ -83,14 +83,19 @@ private func testProfileChoices(gap: Double = 8) -> Choices {
 @Test func testProfileSwitchMessage() {
     #expect(Profiles.switchMessage(recalled: [], missing: [], missed: 0) == "Switched.")
     #expect(Profiles.switchMessage(recalled: ["A", "B"], missing: [], missed: 0) == "Switched and recalled A, B.")
-    #expect(Profiles.switchMessage(recalled: [], missing: ["Draft"], missed: 0)
-        == "Switched. No workspace is named Draft.")
-    #expect(Profiles.switchMessage(recalled: ["A"], missing: ["X", "Y"], missed: 0)
-        == "Switched and recalled A. No workspaces are named X, Y.")
-    #expect(Profiles.switchMessage(recalled: ["A"], missing: [], missed: 1)
-        == "Switched and recalled A. 1 window had no running app or display.")
-    #expect(Profiles.switchMessage(recalled: ["A"], missing: [], missed: 3)
-        == "Switched and recalled A. 3 windows had no running app or display.")
-    #expect(Profiles.switchMessage(recalled: [], missing: [], missed: 0, paused: true)
-        == "Switched. Workspaces are not recalled while Moorings is paused.")
+    #expect(
+        Profiles.switchMessage(recalled: [], missing: ["Draft"], missed: 0)
+            == "Switched. No workspace is named Draft.")
+    #expect(
+        Profiles.switchMessage(recalled: ["A"], missing: ["X", "Y"], missed: 0)
+            == "Switched and recalled A. No workspaces are named X, Y.")
+    #expect(
+        Profiles.switchMessage(recalled: ["A"], missing: [], missed: 1)
+            == "Switched and recalled A. 1 window had no running app or display.")
+    #expect(
+        Profiles.switchMessage(recalled: ["A"], missing: [], missed: 3)
+            == "Switched and recalled A. 3 windows had no running app or display.")
+    #expect(
+        Profiles.switchMessage(recalled: [], missing: [], missed: 0, paused: true)
+            == "Switched. Workspaces are not recalled while Moorings is paused.")
 }

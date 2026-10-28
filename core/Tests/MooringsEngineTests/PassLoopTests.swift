@@ -31,8 +31,9 @@ final class PassRig {
         self.key = key
         anchors = Anchors(choices: Choices(slots: [key: PassRig.slackID]))
         scheduler = FakeScheduler(clock: clock)
-        let platform = Platform(windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier, clock: clock,
-                                scheduler: scheduler, store: FakeStore(), warpCursor: { _ in })
+        let platform = Platform(
+            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier, clock: clock,
+            scheduler: scheduler, store: FakeStore(), warpCursor: { _ in })
         passes = PassLoop(platform: platform, anchors: anchors)
         passes.moved = { [unowned self] m, _, got in moves.append((m, got)) }
     }
@@ -43,7 +44,8 @@ final class PassRig {
     // strip returns the strip beside channel ch on Slack's side.
     private func strip(beside ch: Frame) -> Frame {
         let u = screens.screens.usable[0]
-        return key == .leftTop ? Frame(x: u.x, y: u.y, w: ch.x - u.x, h: u.h)
+        return key == .leftTop
+            ? Frame(x: u.x, y: u.y, w: ch.x - u.x, h: u.h)
             : Frame(x: ch.x + ch.w, y: u.y, w: u.x + u.w - ch.x - ch.w, h: u.h)
     }
 
@@ -84,8 +86,9 @@ final class PassRig {
 // A window that kept a larger size than it was given gets the one retry Anchors allows.
 @Test func testPassRetriesLargerSize() {
     let rig = PassRig(.rightTop)
-    let id = rig.windows.add(bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 900, h: 600),
-                             minW: rig.slot.w + 200, focus: true)
+    let id = rig.windows.add(
+        bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 900, h: 600),
+        minW: rig.slot.w + 200, focus: true)
     rig.passes.moor()
     #expect(rig.movesOf(id) == 2)
     let f = rig.windows.frame(id)
@@ -114,7 +117,8 @@ final class PassRig {
 @Test func testPassRefusedTellsOnce() {
     let rig = PassRig()
     rig.passes.tellsRefused = true
-    _ = rig.windows.add(bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 800, h: 600), refuses: true, focus: true)
+    _ = rig.windows.add(
+        bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 800, h: 600), refuses: true, focus: true)
     for _ in 0..<3 {
         rig.passes.moor()
         rig.clock.advance(by: 1)

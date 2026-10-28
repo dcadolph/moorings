@@ -32,8 +32,9 @@ func near(_ a: Frame?, _ b: Frame?) -> Bool {
 // Insets grow the landed rect the way an uncorrected invisible border does.
 @Test func testFakeWindowsInsetsGrowLandedRect() {
     let store = FakeWindows()
-    let id = store.add(bundle: "a", frame: Frame(x: 100, y: 100, w: 400, h: 300),
-                       insets: Insets(left: 7, top: 0, right: 7, bottom: 7))
+    let id = store.add(
+        bundle: "a", frame: Frame(x: 100, y: 100, w: 400, h: 300),
+        insets: Insets(left: 7, top: 0, right: 7, bottom: 7))
     store.move(id, to: Frame(x: 0, y: 25, w: 860, h: 1415), from: nil, behavior: Behaviors())
     #expect(store.frame(id) == Frame(x: -7, y: 25, w: 874, h: 1422))
 }

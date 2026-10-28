@@ -352,7 +352,8 @@ public enum Keymaps {
     // since both are saved after the shortcuts are bound.
     public static func known(_ name: String) -> Bool {
         special.contains(name) || organizeNames.contains(name) || windowNames.contains(name)
-            || stashNames.contains(name) || Tiling.handles(name) || Actions.arrowNames.contains(name) || Actions.fillNames.contains(name)
+            || stashNames.contains(name) || Tiling.handles(name) || Actions.arrowNames.contains(name)
+            || Actions.fillNames.contains(name)
             || name == Actions.specifiedName || Actions.displayNames.contains(name)
             || (name.hasPrefix(workspacePrefix) && name.count > workspacePrefix.count)
             || (name.hasPrefix(Profile.prefix) && name.count > Profile.prefix.count)
@@ -421,7 +422,8 @@ public enum Keymaps {
             if seen.contains(title) {
                 problems.append("sizes has two entries titled \(title): the first wins")
             } else if !(share(e.x, 0) && share(e.y, 0) && share(e.w, 1e-9) && share(e.h, 1e-9))
-                || fitX > 1 + 1e-9 || fitY > 1 + 1e-9 {
+                || fitX > 1 + 1e-9 || fitY > 1 + 1e-9
+            {
                 problems.append("size \(title) needs x, y, w and h between 0 and 1 that fit the area: ignoring it")
             } else if !(points(e.width) && points(e.height)) {
                 problems.append("size \(title) needs a width and height above 0: ignoring it")
@@ -558,8 +560,10 @@ public struct StoredSize: Codable, Equatable, Sendable {
     public var shortcut: StoredShortcut?
 
     // init builds a saved size.
-    public init(title: String, x: Double? = nil, y: Double? = nil, w: Double? = nil, h: Double? = nil,
-                width: Double? = nil, height: Double? = nil, shortcut: StoredShortcut? = nil) {
+    public init(
+        title: String, x: Double? = nil, y: Double? = nil, w: Double? = nil, h: Double? = nil,
+        width: Double? = nil, height: Double? = nil, shortcut: StoredShortcut? = nil
+    ) {
         self.title = title
         self.x = x
         self.y = y
@@ -573,8 +577,9 @@ public struct StoredSize: Codable, Equatable, Sendable {
     // entry returns the size in the form Keymaps checks.
     public var entry: SizeEntry {
         let n = { (v: Double?) -> ConfigNumber in v.map { .number($0) } ?? .absent }
-        return SizeEntry(title: title, x: n(x), y: n(y), w: n(w), h: n(h), width: n(width), height: n(height),
-                         shortcut: shortcut?.input)
+        return SizeEntry(
+            title: title, x: n(x), y: n(y), w: n(w), h: n(h), width: n(width), height: n(height),
+            shortcut: shortcut?.input)
     }
 }
 
@@ -612,7 +617,9 @@ public enum MouseButtons {
     // valid returns the bindings in saved whose button is 2 to 31 and whose action is known or one
     // of sizes, keyed by button number, plus the problems found. Buttons 0 and 1 are the primary
     // and secondary buttons and cannot be bound.
-    public static func valid(_ saved: [String: String], sizes: Set<String> = []) -> (map: [Int: String], problems: [String]) {
+    public static func valid(_ saved: [String: String], sizes: Set<String> = []) -> (
+        map: [Int: String], problems: [String]
+    ) {
         var out: [Int: String] = [:]
         var problems: [String] = []
         for (key, name) in saved.sorted(by: { $0.key < $1.key }) {

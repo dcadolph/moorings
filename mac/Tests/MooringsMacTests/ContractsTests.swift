@@ -42,7 +42,8 @@ final class MacHost: @preconcurrency ContractHost {
     func open() -> WindowID? {
         guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.textEdit) else { return nil }
         let before = Set(store.scan(screens(), full: true).windows.map(\.id))
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("moorings-contract-\(UUID().uuidString).txt")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(
+            "moorings-contract-\(UUID().uuidString).txt")
         guard (try? Data("Moorings contract window.\n".utf8).write(to: url)) != nil else { return nil }
         files.append(url)
         let config = NSWorkspace.OpenConfiguration()
@@ -50,9 +51,10 @@ final class MacHost: @preconcurrency ContractHost {
         NSWorkspace.shared.open([url], withApplicationAt: app, configuration: config, completionHandler: nil)
         var found: WindowID?
         _ = wait(until: now + 10) {
-            found = store.scan(screens(), full: true).windows.first {
-                $0.bundle == Self.textEdit && !before.contains($0.id)
-            }?.id
+            found =
+                store.scan(screens(), full: true).windows.first {
+                    $0.bundle == Self.textEdit && !before.contains($0.id)
+                }?.id
             return found != nil
         }
         if let found {

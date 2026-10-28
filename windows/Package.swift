@@ -6,17 +6,17 @@ import PackageDescription
 var targets: [Target] = []
 
 #if os(Windows)
-targets.append(
-    .executableTarget(
-        name: "MooringsWin",
-        dependencies: [
-            .product(name: "MooringsCore", package: "core"),
-            .product(name: "MooringsEngine", package: "core"),
-            .product(name: "MooringsTesting", package: "core"),
-        ],
-        resources: [.embedInCode("moorings.ico")]
+    targets.append(
+        .executableTarget(
+            name: "MooringsWin",
+            dependencies: [
+                .product(name: "MooringsCore", package: "core"),
+                .product(name: "MooringsEngine", package: "core"),
+                .product(name: "MooringsTesting", package: "core"),
+            ],
+            resources: [.embedInCode("moorings.ico")]
+        )
     )
-)
 #endif
 
 let package = Package(

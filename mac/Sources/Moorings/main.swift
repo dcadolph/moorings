@@ -26,7 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // actions applies window actions to the focused window.
     lazy var actions: ActionRunner = {
         let r = ActionRunner(platform: platform, anchors: anchors)
-        r.extra = ExtraActions(handles: { _ in true }, run: { [unowned self] name, window in runExtra(name, window: window) })
+        r.extra = ExtraActions(
+            handles: { _ in true }, run: { [unowned self] name, window in runExtra(name, window: window) })
         r.read = { [unowned self] id, screens in
             if let id {
                 return windows.window(id, screens: screens)
@@ -49,7 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // actionLogger writes why an action did nothing.
     let actionLogger = Logger(subsystem: "com.dcadolph.moorings", category: "actions")
     // accessibilityPane is the Privacy and Security pane that grants Accessibility.
-    static let accessibilityPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+    static let accessibilityPane = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
     // releasesPage is the project's releases page.
     static let releasesPage = URL(string: "https://github.com/dcadolph/moorings/releases")!
     // checkedKey and versionKey are the defaults keys for the last update check and the version
@@ -58,8 +60,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     static let versionKey = "lastVersion"
     // supportURL is the https tip link baked into the bundle, nil when the build has none.
     static let supportURL: URL? = {
-        guard let text = (Bundle.main.object(forInfoDictionaryKey: "MooringsSupportURL") as? String)?
-            .trimmingCharacters(in: .whitespaces), let url = URL(string: text), url.scheme == "https", url.host != nil
+        guard
+            let text = (Bundle.main.object(forInfoDictionaryKey: "MooringsSupportURL") as? String)?
+                .trimmingCharacters(in: .whitespaces), let url = URL(string: text), url.scheme == "https",
+            url.host != nil
         else { return nil }
         return url
     }()
@@ -109,7 +113,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // passes run the window passes on the engine's pass loop.
     lazy var passes: PassLoop = {
         let p = PassLoop(platform: platform, anchors: anchors)
-        p.context = { [unowned self] in PassContext(waiting: watcher.waiting || workspaces.waiting, launching: launching) }
+        p.context = { [unowned self] in
+            PassContext(waiting: watcher.waiting || workspaces.waiting, launching: launching)
+        }
         p.mouseHeld = { [unowned self] in NSEvent.pressedMouseButtons & 1 != 0 || hover.active }
         p.deadlines = { [unowned self] in workspaces.deadlines() }
         p.ticked = { [unowned self] in ticked() }
@@ -138,7 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }()
     // platform is what the engine reads and drives on the Mac.
     lazy var platform = Platform(
-        windows: windows, screens: MacScreens(), overlay: Footprint(), notifier: MacNotifier { [unowned self] in self.notify($0, $1) },
+        windows: windows, screens: MacScreens(), overlay: Footprint(),
+        notifier: MacNotifier { [unowned self] in self.notify($0, $1) },
         clock: MacClock(), scheduler: MacScheduler(), store: DefaultsStore(key: Self.choicesKey),
         warpCursor: { p in CGWarpMouseCursorPosition(CGPoint(x: p.x, y: p.y)) }
     )
@@ -146,8 +153,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
     // overlay throws a window while the overlay's trigger key is held.
     lazy var overlay: TriggerOverlay = {
-        let o = TriggerOverlay(platform: platform, anchors: anchors, actions: actions, footprint: Footprint(),
-                               gridView: GridPanel(), picker: gridPicker, ticker: MacScheduler())
+        let o = TriggerOverlay(
+            platform: platform, anchors: anchors, actions: actions, footprint: Footprint(),
+            gridView: GridPanel(), picker: gridPicker, ticker: MacScheduler())
         o.pointer = { Self.pointer() }
         o.hit = { p in Windows.hit(CGPoint(x: p.x, y: p.y))?.id }
         o.shortcutsOn = { [unowned self] in hotkeys.enabled }
@@ -237,22 +245,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.delegate = self
         item.menu = menu
         let center = NSWorkspace.shared.notificationCenter
-        for name in [NSWorkspace.didActivateApplicationNotification, NSWorkspace.didLaunchApplicationNotification,
-                     NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didUnhideApplicationNotification,
-                     NSWorkspace.didHideApplicationNotification, NSWorkspace.didWakeNotification,
-                     NSWorkspace.screensDidWakeNotification] {
+        for name in [
+            NSWorkspace.didActivateApplicationNotification, NSWorkspace.didLaunchApplicationNotification,
+            NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didUnhideApplicationNotification,
+            NSWorkspace.didHideApplicationNotification, NSWorkspace.didWakeNotification,
+            NSWorkspace.screensDidWakeNotification,
+        ] {
             center.addObserver(self, selector: #selector(workspaceChanged(_:)), name: name, object: nil)
         }
-        center.addObserver(self, selector: #selector(appQuit(_:)), name: NSWorkspace.didTerminateApplicationNotification,
-                           object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(workspaceChanged(_:)),
-                                               name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        center.addObserver(
+            self, selector: #selector(appQuit(_:)), name: NSWorkspace.didTerminateApplicationNotification,
+            object: nil)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(workspaceChanged(_:)),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil)
         wasTrusted = windows.trusted
         showTrust()
         if !wasTrusted {
             logger.notice("Accessibility is not granted: windows will not move")
-            notify("Moorings needs Accessibility", "Click here to open Privacy & Security, then turn on Moorings so it "
-                + "can move windows.") { NSWorkspace.shared.open(Self.accessibilityPane) }
+            notify(
+                "Moorings needs Accessibility",
+                "Click here to open Privacy & Security, then turn on Moorings so it "
+                    + "can move windows."
+            ) { NSWorkspace.shared.open(Self.accessibilityPane) }
         } else {
             releaseMessage()
         }
@@ -323,14 +338,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard !quitting else { return }
         quitting = true
         guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, item.isVisible, let button = item.button,
-              let win = button.window else {
+            let win = button.window
+        else {
             NSApp.terminate(nil)
             return
         }
         let rect = win.convertToScreen(button.convert(button.bounds, to: nil))
         button.image = NSImage(size: button.image?.size ?? NSSize(width: 18, height: 18))
-        sinking.play(over: rect, appearance: button.effectiveAppearance,
-                     accent: BannerPanel.color(Palette.harbor.accent)) {
+        sinking.play(
+            over: rect, appearance: button.effectiveAppearance,
+            accent: BannerPanel.color(Palette.harbor.accent)
+        ) {
             NSApp.terminate(nil)
         }
     }
@@ -356,13 +374,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "action": runLink(url)
             case "settings": settings.show()
             case "selftest":
-                let apps = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "apps" }?.value
+                let apps = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first {
+                    $0.name == "apps"
+                }?.value
                 selftest.start(apps: apps?.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } ?? [])
             case "banner":
-                let text = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "text" }?.value
+                let text = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first {
+                    $0.name == "text"
+                }?.value
                 notify("Moorings", text ?? "")
             case "workspace":
-                let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "name" }?.value
+                let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first {
+                    $0.name == "name"
+                }?.value
                 workspaces.recall(name ?? "")
             default: logger.notice("unknown link: \(url.absoluteString, privacy: .public)")
             }
@@ -423,16 +447,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let b = anchors.choices.behavior
         guard b.doubleClickTitleBar, !anchors.choices.paused, windows.trusted else { return }
         guard UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") == "None" else {
-            actionLogger.notice("title bar double-click: macOS handles it; set Double-click a window's title bar to Do Nothing")
+            actionLogger.notice(
+                "title bar double-click: macOS handles it; set Double-click a window's title bar to Do Nothing")
             return
         }
         DispatchQueue.main.async { [self] in
             guard let hit = Windows.hit(p),
-                  Behavior.onTitleBar(Point(x: p.x, y: p.y), window: hit.frame, button: hit.button, role: hit.role)
+                Behavior.onTitleBar(Point(x: p.x, y: p.y), window: hit.frame, button: hit.button, role: hit.role)
             else { return }
             let screens = Screens.current()
             guard let w = windows.scan(screens).windows.first(where: { $0.id == hit.id }),
-                  !b.doubleClickIgnoredApps.contains(w.bundle)
+                !b.doubleClickIgnoredApps.contains(w.bundle)
             else { return }
             actions.titleBar(w, screens: screens)
         }
@@ -454,7 +479,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let id = Pace.geometryEvents.contains(note) ? Windows.id(el) : nil
         guard Pace.wakes(note, kept: windows.keeps(id), eligible: Windows.eligible(el)) else { return }
         if note == kAXWindowMovedNotification || note == kAXWindowResizedNotification, let id,
-           let echo = windows.echoes[id], Self.now - echo.at < Pace.settleSeconds
+            let echo = windows.echoes[id], Self.now - echo.at < Pace.settleSeconds
         {
             passes.wake()
             return
@@ -484,15 +509,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         stashMonitors = []
         guard on else { return }
-        if let m = NSEvent.addGlobalMonitorForEvents(matching: Self.stashWatched, handler: { [unowned self] _ in
-            MainActor.assumeIsolated { stasher.moved() }
-        }) {
+        if let m = NSEvent.addGlobalMonitorForEvents(
+            matching: Self.stashWatched,
+            handler: { [unowned self] _ in
+                MainActor.assumeIsolated { stasher.moved() }
+            })
+        {
             stashMonitors.append(m)
         }
-        if let m = NSEvent.addLocalMonitorForEvents(matching: Self.stashWatched, handler: { [unowned self] event in
-            MainActor.assumeIsolated { stasher.moved() }
-            return event
-        }) {
+        if let m = NSEvent.addLocalMonitorForEvents(
+            matching: Self.stashWatched,
+            handler: { [unowned self] event in
+                MainActor.assumeIsolated { stasher.moved() }
+                return event
+            })
+        {
             stashMonitors.append(m)
         }
     }
@@ -540,9 +571,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func updateBadge() {
         let primary = NSScreen.screens.first?.frame.height ?? 0
         let loc = NSEvent.mouseLocation
-        stackBadge.update(pointer: Point(x: loc.x, y: primary - loc.y), buttonDown: NSEvent.pressedMouseButtons != 0,
-                          frames: BadgePanel.frames, palette: .harbor, choices: anchors.choices.stacking,
-                          gap: anchors.choices.gapPx)
+        stackBadge.update(
+            pointer: Point(x: loc.x, y: primary - loc.y), buttonDown: NSEvent.pressedMouseButtons != 0,
+            frames: BadgePanel.frames, palette: .harbor, choices: anchors.choices.stacking,
+            gap: anchors.choices.gapPx)
     }
 
     // ticked catches an Accessibility grant or loss before a timed pass. A loss tears down the tap and
@@ -580,7 +612,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func mouseButton(_ button: Int, down: Bool) -> Bool {
         let sizes = Set(Bindings(anchors.choices).sizes.map(\.name))
         guard !anchors.choices.paused, hotkeys.enabled,
-              let name = MouseButtons.valid(anchors.choices.mouseButtons, sizes: sizes).map[button]
+            let name = MouseButtons.valid(anchors.choices.mouseButtons, sizes: sizes).map[button]
         else { return false }
         if down {
             DispatchQueue.main.async { [weak self] in self?.actions.run(name) }
@@ -595,19 +627,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func buttonDown(_ p: CGPoint, flags: CGEventFlags) -> Bool {
         let choices = anchors.choices
         guard !choices.buttonClicks.isEmpty, !choices.paused, hotkeys.enabled, windows.trusted,
-              let modifier = ButtonClicks.modifier(shift: flags.contains(.maskShift),
-                                                   option: flags.contains(.maskAlternate),
-                                                   command: flags.contains(.maskCommand),
-                                                   control: flags.contains(.maskControl)),
-              ButtonClicks.bound(choices.buttonClicks, modifier: modifier)
+            let modifier = ButtonClicks.modifier(
+                shift: flags.contains(.maskShift),
+                option: flags.contains(.maskAlternate),
+                command: flags.contains(.maskCommand),
+                control: flags.contains(.maskControl)),
+            ButtonClicks.bound(choices.buttonClicks, modifier: modifier)
         else { return false }
         let point = Point(x: p.x, y: p.y)
         let front = Windows.front()
         let under = { (f: Frame) in p.x >= f.x && p.x < f.x + f.w && p.y >= f.y && p.y < f.y + f.h }
         guard let top = front.first(where: { under($0.frame) }), ButtonClicks.near(point, top.frame),
-              let hit = Windows.button(p), hit.id == top.id, let button = WindowButton(subrole: hit.subrole),
-              let name = ButtonClicks.action(choices.buttonClicks, button, modifier,
-                                             sizes: Set(Bindings(choices).sizes.map(\.name)))
+            let hit = Windows.button(p), hit.id == top.id, let button = WindowButton(subrole: hit.subrole),
+            let name = ButtonClicks.action(
+                choices.buttonClicks, button, modifier,
+                sizes: Set(Bindings(choices).sizes.map(\.name)))
         else { return false }
         if button == .green {
             switch anchors.zoomClick(point, option: flags.contains(.maskAlternate), front: front) {
@@ -623,7 +657,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // the lift, fill or re-moor after the event, so the tap never waits on it.
     private func zoomDown(_ p: CGPoint, option: Bool) -> Bool {
         guard windows.trusted,
-              let action = anchors.zoomClick(Point(x: p.x, y: p.y), option: option, front: Windows.front())
+            let action = anchors.zoomClick(Point(x: p.x, y: p.y), option: option, front: Windows.front())
         else { return false }
         DispatchQueue.main.async { [weak self] in self?.zoom(action) }
         return true
@@ -668,8 +702,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let defaults = UserDefaults.standard
         guard screens.wide != nil, anchors.choices.slots.isEmpty, !defaults.bool(forKey: Self.hintKey) else { return }
         defaults.set(true, forKey: Self.hintKey)
-        notify("Anchor an app to an edge", "Click the app, then choose Anchor and its name near the top of the "
-            + "Moorings menu and pick a slot.")
+        notify(
+            "Anchor an app to an edge",
+            "Click the app, then choose Anchor and its name near the top of the "
+                + "Moorings menu and pick a slot.")
     }
 
     // notify shows a banner in the harbor palette. A click on it runs action.
@@ -681,7 +717,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // showTrust shows a warning mark on the menu bar icon while Accessibility is missing.
     private func showTrust() {
         guard !quitting else { return }
-        item.button?.image = windows.trusted ? Mark.image()
+        item.button?.image =
+            windows.trusted
+            ? Mark.image()
             : NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "Moorings")
     }
 
@@ -778,7 +816,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // runLink runs the action a moorings://action?name= link asks for.
     private func runLink(_ url: URL) {
-        let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "name" }?.value
+        let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "name" }?
+            .value
         guard let name, actions.runnable(name) else {
             logger.notice("a moorings link asked for unknown action \(name ?? "none", privacy: .public)")
             return
@@ -819,13 +858,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func status() {
         let screens = Screens.current()
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
-        logger.notice("status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.anchors.choices.paused) tap=\(self.tap.running) observed=\(self.watcher.count) hotkeys=\(self.hotkeys.enabled)")
+        logger.notice(
+            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.anchors.choices.paused) tap=\(self.tap.running) observed=\(self.watcher.count) hotkeys=\(self.hotkeys.enabled)"
+        )
         for (key, bundle) in anchors.assignments().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let held = anchors.slotWindows(key).map(String.init).joined(separator: ",")
-            logger.notice("slot \(key.rawValue, privacy: .public): \(bundle, privacy: .public) held=[\(held, privacy: .public)]")
+            logger.notice(
+                "slot \(key.rawValue, privacy: .public): \(bundle, privacy: .public) held=[\(held, privacy: .public)]")
         }
         for w in windows.scan(screens).windows {
-            logger.notice("window \(w.id) \(w.bundle, privacy: .public) frame=\(w.frame.description, privacy: .public) wide=\(w.onUltrawide) main=\(w.isMain) panel=\(w.isFilePanel) pinned=\(self.anchors.pinned(w)) castOff=\(self.anchors.isCastOff(w.id))")
+            logger.notice(
+                "window \(w.id) \(w.bundle, privacy: .public) frame=\(w.frame.description, privacy: .public) wide=\(w.onUltrawide) main=\(w.isMain) panel=\(w.isFilePanel) pinned=\(self.anchors.pinned(w)) castOff=\(self.anchors.isCastOff(w.id))"
+            )
         }
         for line in windows.explain(screens) {
             logger.notice("scan \(line, privacy: .public)")
@@ -836,18 +880,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // launched, and turns the shortcuts off or on when the front app changes.
     @objc private func workspaceChanged(_ note: Notification) {
         if note.name == NSWorkspace.didLaunchApplicationNotification,
-           let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-           app.activationPolicy == .regular {
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+            app.activationPolicy == .regular
+        {
             launching = Self.now + Self.launchSeconds
             watcher.watch([app.processIdentifier])
         }
         if note.name == NSWorkspace.didActivateApplicationNotification {
             if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-               app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+                app.processIdentifier != ProcessInfo.processInfo.processIdentifier
+            {
                 windows.lastFront = app.processIdentifier
-                if windows.trusted, Behavior.disablesEnhancedUIOnActivation(
-                    anchors.choices.behavior.enhancedUI, bundle: app.bundleIdentifier,
-                    assistive: NSWorkspace.shared.isVoiceOverEnabled) {
+                if windows.trusted,
+                    Behavior.disablesEnhancedUIOnActivation(
+                        anchors.choices.behavior.enhancedUI, bundle: app.bundleIdentifier,
+                        assistive: NSWorkspace.shared.isVoiceOverEnabled)
+                {
                     Windows.dropEnhancedUI(app.processIdentifier)
                 }
             }
@@ -863,8 +911,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // regularApps returns the processes of the apps that can show windows, other than moorings.
     private static func regularApps() -> Set<pid_t> {
         let me = ProcessInfo.processInfo.processIdentifier
-        return Set(NSWorkspace.shared.runningApplications.lazy
-            .filter { $0.activationPolicy == .regular && $0.processIdentifier != me }.map(\.processIdentifier))
+        return Set(
+            NSWorkspace.shared.runningApplications.lazy
+                .filter { $0.activationPolicy == .regular && $0.processIdentifier != me }.map(\.processIdentifier))
     }
 
     // appQuit forgets a quit app's elements and observer and wakes the passes.

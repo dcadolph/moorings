@@ -47,8 +47,9 @@ private let behaviorScreen = Frame(x: 0, y: 0, w: 1000, h: 800)
     var b = Behaviors()
     #expect(Behavior.effectiveArea(behaviorScreen, b) == behaviorScreen)
     #expect(Behavior.effectiveArea(behaviorScreen, b, stageActive: true) == Frame(x: 190, y: 0, w: 810, h: 800))
-    #expect(Behavior.effectiveArea(behaviorScreen, b, stageActive: true, stageOnRight: true)
-        == Frame(x: 0, y: 0, w: 810, h: 800))
+    #expect(
+        Behavior.effectiveArea(behaviorScreen, b, stageActive: true, stageOnRight: true)
+            == Frame(x: 0, y: 0, w: 810, h: 800))
     b.alwaysAccountForStage = true
     #expect(Behavior.effectiveArea(behaviorScreen, b).w == 810)
 }
@@ -198,11 +199,13 @@ private let behaviorScreen = Frame(x: 0, y: 0, w: 1000, h: 800)
     let full = Frame(x: 0, y: 0, w: 1000, h: 800)
     #expect(Behavior.titleBarAction(last: nil, frame: full) == "maximize")
     #expect(Behavior.titleBarAction(last: LastPress(name: "maximize", press: 1, frame: full), frame: full) == "restore")
-    #expect(Behavior.titleBarAction(last: LastPress(name: "left-half", press: 1, frame: full), frame: full)
-        == "maximize")
+    #expect(
+        Behavior.titleBarAction(last: LastPress(name: "left-half", press: 1, frame: full), frame: full)
+            == "maximize")
     let moved = Frame(x: 50, y: 0, w: 1000, h: 800)
-    #expect(Behavior.titleBarAction(last: LastPress(name: "maximize", press: 1, frame: full), frame: moved)
-        == "maximize")
+    #expect(
+        Behavior.titleBarAction(last: LastPress(name: "maximize", press: 1, frame: full), frame: moved)
+            == "maximize")
 }
 
 // Swift only: a title bar button is read from its accessibility subrole.
@@ -227,7 +230,9 @@ private let behaviorScreen = Frame(x: 0, y: 0, w: 1000, h: 800)
 
 // Swift only: a binding is found by button and modifier, and an unknown action or empty map binds nothing.
 @Test func testButtonClicksAction() {
-    let clicks = ["red+option": "left-half", "yellow": "maximize", "green+shift": "nonsense", "red+command": "size:Wide"]
+    let clicks = [
+        "red+option": "left-half", "yellow": "maximize", "green+shift": "nonsense", "red+command": "size:Wide",
+    ]
     #expect(ButtonClicks.key(.red, "option") == "red+option")
     #expect(ButtonClicks.key(.yellow, "") == "yellow")
     #expect(ButtonClicks.action(clicks, .red, "option") == "left-half")

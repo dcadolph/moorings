@@ -45,8 +45,9 @@ final class Store: ChoicesStore {
     // it took. The kept stamp is left alone.
     func setWriteTime(_ time: UInt64) -> Bool {
         let share = DWORD(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
-        let handle = CreateFileW(wide(url.path), DWORD(0x100), share, nil, DWORD(OPEN_EXISTING),
-                                 DWORD(FILE_ATTRIBUTE_NORMAL), nil)
+        let handle = CreateFileW(
+            wide(url.path), DWORD(0x100), share, nil, DWORD(OPEN_EXISTING),
+            DWORD(FILE_ATTRIBUTE_NORMAL), nil)
         guard let handle, handle != INVALID_HANDLE_VALUE else { return false }
         defer { _ = CloseHandle(handle) }
         var ft = FILETIME(dwLowDateTime: DWORD(time & 0xFFFF_FFFF), dwHighDateTime: DWORD(time >> 32))
@@ -55,8 +56,9 @@ final class Store: ChoicesStore {
 
     // save writes choices, creating the folder on first use.
     func save(_ choices: Choices) throws {
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
         try Choices.encode(choices).write(to: url, options: .atomic)
         stamp = writeTime()
     }

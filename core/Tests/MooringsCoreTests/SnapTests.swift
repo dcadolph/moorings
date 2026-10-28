@@ -195,9 +195,11 @@ func snapZone(_ f: Frame, _ ch: Frame?, _ x: Double, _ y: Double, _ prev: String
 // empty action turns an area off, held keys still apply, and the ultrawide ignores custom areas.
 @Test func testSnapCustomAreas() {
     var m = SnapChoices()
-    m.customAreas = [CustomSnapArea(x: 0.4, y: 0.4, w: 0.2, h: 0.2, action: "center-third"),
-                     CustomSnapArea(x: 0.4, y: 0.4, w: 0.6, h: 0.6, action: "bottom-right"),
-                     CustomSnapArea(x: 0, y: 0, w: 0.1, h: 1, action: "")]
+    m.customAreas = [
+        CustomSnapArea(x: 0.4, y: 0.4, w: 0.2, h: 0.2, action: "center-third"),
+        CustomSnapArea(x: 0.4, y: 0.4, w: 0.6, h: 0.6, action: "bottom-right"),
+        CustomSnapArea(x: 0, y: 0, w: 0.1, h: 1, action: ""),
+    ]
     #expect(Snap.zone(SnapPoint(960, 540), snapScreen, nil, nil, snapping: m) == "center-third")
     #expect(Snap.zone(SnapPoint(1500, 800), snapScreen, nil, nil, snapping: m) == "bottom-right")
     #expect(Snap.zone(SnapPoint(1919, 500), snapScreen, nil, nil, snapping: m) == "bottom-right")
@@ -216,7 +218,8 @@ func snapZone(_ f: Frame, _ ch: Frame?, _ x: Double, _ y: Double, _ prev: String
 @Test func testSnapChoicesCustomDecode() throws {
     let old = try JSONDecoder().decode(SnapChoices.self, from: Data(#"{"cornerSize":30}"#.utf8))
     #expect(old.customAreas.isEmpty && !old.snapPanel && old.panelActions == SnapPanel.defaultActions)
-    let bad = try JSONDecoder().decode(CustomSnapArea.self, from: Data(#"{"x":"wide","w":0.5,"action":"maximize"}"#.utf8))
+    let bad = try JSONDecoder().decode(
+        CustomSnapArea.self, from: Data(#"{"x":"wide","w":0.5,"action":"maximize"}"#.utf8))
     #expect(bad == CustomSnapArea(x: 0, y: 0, w: 0.5, h: 0, action: "maximize"))
     var m = SnapChoices()
     m.customAreas = [CustomSnapArea(x: 0.1, y: 0.2, w: 0.3, h: 0.4, action: "maximize")]

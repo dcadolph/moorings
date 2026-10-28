@@ -726,7 +726,8 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     #expect(SharedEdges.find(at: Point(x: 250, y: 801), frames: frames) == SharedEdge(a: 0, b: 2, vertical: false))
     #expect(SharedEdges.find(at: Point(x: 750, y: 801), frames: frames) == nil)
     #expect(SharedEdges.find(at: Point(x: 501, y: 400), frames: [left, F(510, 0, 500, 800)]) == nil)
-    #expect(SharedEdges.find(at: Point(x: 501, y: 400), frames: [right, left]) == SharedEdge(a: 1, b: 0, vertical: true))
+    #expect(
+        SharedEdges.find(at: Point(x: 501, y: 400), frames: [right, left]) == SharedEdge(a: 1, b: 0, vertical: true))
 }
 
 // Swift only: moving a shared edge resizes both windows, keeps the space between them and both far

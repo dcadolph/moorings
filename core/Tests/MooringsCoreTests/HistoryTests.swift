@@ -63,8 +63,9 @@ import Testing
 // Test 4: Every move moorings saves before goes into the window's history.
 @Test func testHistoryFromSave() {
     let anchors = Anchors()
-    let w = WindowInfo(id: 7, bundle: "com.apple.TextEdit", frame: F(100, 100, 400, 300), onUltrawide: true,
-                       isMain: true, isFilePanel: false)
+    let w = WindowInfo(
+        id: 7, bundle: "com.apple.TextEdit", frame: F(100, 100, 400, 300), onUltrawide: true,
+        isMain: true, isFilePanel: false)
     anchors.save(w)
     var moved = w
     moved.frame = F(0, 0, 400, 300)

@@ -29,14 +29,17 @@ final class OrganizerRig {
         edit(&c)
         anchors = Anchors(choices: c)
         let clock = FakeClock()
-        let platform = Platform(windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier,
-                                clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
-                                warpCursor: { _ in })
+        let platform = Platform(
+            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier,
+            clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
+            warpCursor: { _ in })
         organizer = Organizer(platform: platform, anchors: anchors)
         for k in 0..<count {
             let d = Double(k)
-            pads.append(windows.add(bundle: "com.example.pad", frame: Frame(x: 900 + 5 * d, y: 200 + 5 * d, w: 700, h: 500),
-                                    focus: k == count - 1))
+            pads.append(
+                windows.add(
+                    bundle: "com.example.pad", frame: Frame(x: 900 + 5 * d, y: 200 + 5 * d, w: 700, h: 500),
+                    focus: k == count - 1))
         }
         let rig = self
         organizer.moor = { rig.moors += 1 }

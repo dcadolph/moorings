@@ -17,39 +17,57 @@ public struct Family: Sendable {
 extension ActionRunner {
     // families lists the action families in menu order.
     public static let families: [Family] = [
-        Family(title: "Halves", hint: "Snap the front window to this half.",
-               names: ["left-half", "right-half", "center-half", "top-half", "bottom-half"], groups: []),
-        Family(title: "Quarters", hint: "Snap the front window to this quarter.",
-               names: ["top-left", "top-right", "bottom-left", "bottom-right"], groups: []),
-        Family(title: "Thirds", hint: "Snap the front window to this part, in thirds.",
-               names: ["first-third", "center-third", "last-third", "first-two-thirds", "center-two-thirds",
-                       "last-two-thirds"], groups: []),
-        Family(title: "Fourths", hint: "Snap the front window to this part, in fourths.",
-               names: ["first-fourth", "second-fourth", "third-fourth", "last-fourth", "first-three-fourths",
-                       "center-three-fourths", "last-three-fourths"], groups: []),
-        Family(title: "Grids", hint: "Snap the front window to this grid cell.", names: [],
-               groups: [("Sixths", Geometry.grids["sixths"] ?? []), ("Eighths", Geometry.grids["eighths"] ?? []),
-                        ("Ninths", Geometry.grids["ninths"] ?? []),
-                        ("Twelfths", Geometry.grids["twelfths"] ?? []),
-                        ("Sixteenths", Geometry.grids["sixteenths"] ?? []),
-                        ("Vertical thirds", Geometry.grids["verticalThirds"] ?? []),
-                        ("Vertical sixths", Geometry.grids["verticalSixths"] ?? []),
-                        ("Vertical eighths", Geometry.grids["verticalEighths"] ?? []),
-                        ("Corner thirds", Geometry.grids["cornerThirds"] ?? [])]),
-        Family(title: "Size and move", hint: nil,
-               names: ["maximize", "almost-maximize", "maximize-height", "center", "center-prominently", "larger",
-                       "smaller", "move-left", "move-right", "move-up", "move-down", "move-top-left", "move-top-right",
-                       "move-bottom-left", "move-bottom-right", "specified", "restore", "undo-move", "redo-move",
-                       Overlay.gridName], groups: []),
-        Family(title: "One axis", hint: nil,
-               names: ["larger-width", "smaller-width", "larger-height", "smaller-height", "double-width-left",
-                       "double-width-right", "double-height-up", "double-height-down", "halve-width-left",
-                       "halve-width-right", "halve-height-up", "halve-height-down"], groups: []),
+        Family(
+            title: "Halves", hint: "Snap the front window to this half.",
+            names: ["left-half", "right-half", "center-half", "top-half", "bottom-half"], groups: []),
+        Family(
+            title: "Quarters", hint: "Snap the front window to this quarter.",
+            names: ["top-left", "top-right", "bottom-left", "bottom-right"], groups: []),
+        Family(
+            title: "Thirds", hint: "Snap the front window to this part, in thirds.",
+            names: [
+                "first-third", "center-third", "last-third", "first-two-thirds", "center-two-thirds",
+                "last-two-thirds",
+            ], groups: []),
+        Family(
+            title: "Fourths", hint: "Snap the front window to this part, in fourths.",
+            names: [
+                "first-fourth", "second-fourth", "third-fourth", "last-fourth", "first-three-fourths",
+                "center-three-fourths", "last-three-fourths",
+            ], groups: []),
+        Family(
+            title: "Grids", hint: "Snap the front window to this grid cell.", names: [],
+            groups: [
+                ("Sixths", Geometry.grids["sixths"] ?? []), ("Eighths", Geometry.grids["eighths"] ?? []),
+                ("Ninths", Geometry.grids["ninths"] ?? []),
+                ("Twelfths", Geometry.grids["twelfths"] ?? []),
+                ("Sixteenths", Geometry.grids["sixteenths"] ?? []),
+                ("Vertical thirds", Geometry.grids["verticalThirds"] ?? []),
+                ("Vertical sixths", Geometry.grids["verticalSixths"] ?? []),
+                ("Vertical eighths", Geometry.grids["verticalEighths"] ?? []),
+                ("Corner thirds", Geometry.grids["cornerThirds"] ?? []),
+            ]),
+        Family(
+            title: "Size and move", hint: nil,
+            names: [
+                "maximize", "almost-maximize", "maximize-height", "center", "center-prominently", "larger",
+                "smaller", "move-left", "move-right", "move-up", "move-down", "move-top-left", "move-top-right",
+                "move-bottom-left", "move-bottom-right", "specified", "restore", "undo-move", "redo-move",
+                Overlay.gridName,
+            ], groups: []),
+        Family(
+            title: "One axis", hint: nil,
+            names: [
+                "larger-width", "smaller-width", "larger-height", "smaller-height", "double-width-left",
+                "double-width-right", "double-height-up", "double-height-down", "halve-width-left",
+                "halve-width-right", "halve-height-up", "halve-height-down",
+            ], groups: []),
         Family(title: "Arrow mode", hint: nil, names: Actions.arrowNames + Actions.fillNames, groups: []),
         Family(title: "Front app", hint: nil, names: Keymaps.windowNames, groups: []),
         Family(title: "Stash", hint: nil, names: Keymaps.stashNames, groups: []),
-        Family(title: "Displays", hint: "Send the front window to this display, keeping its place in the layout.",
-               names: ["previous-display", "next-display"] + Actions.displayNames, groups: []),
+        Family(
+            title: "Displays", hint: "Send the front window to this display, keeping its place in the layout.",
+            names: ["previous-display", "next-display"] + Actions.displayNames, groups: []),
     ]
 
     // hints holds the hover hints of the actions whose family has no shared hint.

@@ -61,8 +61,10 @@ enum Contract {
         _ = host.wait(until: host.now + 1) { store.scan(screens, full: true).windows.contains { $0.id == id } }
         store.raise(id)
         guard host.wait(until: host.now + 1, { store.scan(screens, full: true).focused?.id == id }) else {
-            out.append(ContractFailure(rule: "raise makes the window focused within 1 s",
-                                       detail: "focused \(store.scan(screens, full: true).focused.map { "\($0.id)" } ?? "none")"))
+            out.append(
+                ContractFailure(
+                    rule: "raise makes the window focused within 1 s",
+                    detail: "focused \(store.scan(screens, full: true).focused.map { "\($0.id)" } ?? "none")"))
             return nil
         }
         return id
@@ -101,8 +103,9 @@ public final class FakeHost: ContractHost {
 
     // open adds a host window, main only when it is the host's first.
     public func open() -> WindowID? {
-        let id = windows.add(bundle: "contract.host", frame: Frame(x: 600, y: 300, w: 800, h: 600), isMain: opened.isEmpty,
-                             minW: 300, minH: 200)
+        let id = windows.add(
+            bundle: "contract.host", frame: Frame(x: 600, y: 300, w: 800, h: 600), isMain: opened.isEmpty,
+            minW: 300, minH: 200)
         opened.append(id)
         return id
     }

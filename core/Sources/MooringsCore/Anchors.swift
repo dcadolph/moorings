@@ -124,8 +124,10 @@ public struct Choices: Equatable, Sendable, Codable {
     public var slotStacks: Bool = true
 
     // init builds a set of choices.
-    public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
-                fullscreenFills: Bool = true, pinFullscreenFills: Bool = true) {
+    public init(
+        slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
+        fullscreenFills: Bool = true, pinFullscreenFills: Bool = true
+    ) {
         self.slots = slots
         self.widths = widths
         self.heights = heights
@@ -136,7 +138,8 @@ public struct Choices: Equatable, Sendable, Codable {
 
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
-        case slots, widths, heights, widthPresets, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
+        case slots, widths, heights, widthPresets, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts,
+            sizes, gapPx
         case ignores, snap, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
         case chains, menu, appRules, buttonClicks, profiles, activeProfile, overlay, tiling, slotStacks
     }
@@ -271,8 +274,10 @@ public struct WindowInfo: Equatable, Sendable {
     public var zoomRect: Frame?
 
     // init builds a window description.
-    public init(id: WindowID, bundle: String, frame: Frame, onUltrawide: Bool, isMain: Bool,
-                isFilePanel: Bool = false, isFullScreen: Bool = false, zoomRect: Frame? = nil) {
+    public init(
+        id: WindowID, bundle: String, frame: Frame, onUltrawide: Bool, isMain: Bool,
+        isFilePanel: Bool = false, isFullScreen: Bool = false, zoomRect: Frame? = nil
+    ) {
         self.id = id
         self.bundle = bundle
         self.frame = frame
@@ -369,7 +374,8 @@ public struct Move: Equatable, Sendable {
     public var exitFullScreen: Bool
 
     // init builds a move.
-    public init(id: WindowID, frame: Frame, target: Frame? = nil, anchor: Edges = Edges(), exitFullScreen: Bool = false) {
+    public init(id: WindowID, frame: Frame, target: Frame? = nil, anchor: Edges = Edges(), exitFullScreen: Bool = false)
+    {
         self.id = id
         self.frame = frame
         self.target = target ?? frame
@@ -696,8 +702,9 @@ public final class Anchors {
     @discardableResult
     public func holdPart(_ id: WindowID, _ name: String, _ frame: Frame) -> Bool {
         guard let area = holdAreas[id], area.w > 0, area.h > 0 else { return false }
-        let unit = Frame(x: (frame.x - area.x) / area.w, y: (frame.y - area.y) / area.h,
-                         w: frame.w / area.w, h: frame.h / area.h)
+        let unit = Frame(
+            x: (frame.x - area.x) / area.w, y: (frame.y - area.y) / area.h,
+            w: frame.w / area.w, h: frame.h / area.h)
         parts[id] = SlotPart(name: name, unit: unit)
         placed[id] = nil
         return true
@@ -947,7 +954,9 @@ public final class Anchors {
                 let pct = side == .left ? use.left : use.right
                 let area = Geometry.slot(screen, side, row, pct, topPct: h[side])
                 holdAreas[w.id] = area
-                let target = lifted.contains(w.id) ? Geometry.lift(screen, side, use.left, use.right)
+                let target =
+                    lifted.contains(w.id)
+                    ? Geometry.lift(screen, side, use.left, use.right)
                     : parts[w.id].map { $0.frame(in: area) } ?? area
                 if let move = moorPin(w, target, Edges(right: side == .right, bottom: row == .bottom)) {
                     moves.append(move)

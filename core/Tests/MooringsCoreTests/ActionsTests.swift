@@ -36,12 +36,19 @@ let desk = ActionTarget(screens: [F(0, 0, 5120, 1440), F(5120, 0, 1512, 982)], a
     let (first, one, _) = Actions.frame("left-half", cur: window, target: desk)
     #expect(one == 1)
     let landed = try #require(first)
-    let (second, two, _) = Actions.frame("left-half", cur: landed, target: desk, last: LastPress(name: "left-half", press: 1, frame: landed))
+    let (second, two, _) = Actions.frame(
+        "left-half", cur: landed, target: desk, last: LastPress(name: "left-half", press: 1, frame: landed))
     #expect(two == 2)
     #expect(second == F(512, 25, 1536, 1415))
     let drifted = F(landed.x + 3, landed.y, landed.w, landed.h)
-    #expect(Actions.frame("left-half", cur: drifted, target: desk, last: LastPress(name: "left-half", press: 1, frame: landed)).press == 1)
-    #expect(Actions.frame("right-half", cur: landed, target: desk, last: LastPress(name: "left-half", press: 1, frame: landed)).press == 1)
+    #expect(
+        Actions.frame(
+            "left-half", cur: drifted, target: desk, last: LastPress(name: "left-half", press: 1, frame: landed)
+        ).press == 1)
+    #expect(
+        Actions.frame(
+            "right-half", cur: landed, target: desk, last: LastPress(name: "left-half", press: 1, frame: landed)
+        ).press == 1)
 }
 
 // Test 2: Display moves carry the relative frame to the neighbor, and do nothing on one screen.
@@ -94,19 +101,22 @@ let desk = ActionTarget(screens: [F(0, 0, 5120, 1440), F(5120, 0, 1512, 982)], a
     let areas = [F(5120, 25, 1920, 1055), channel, F(6000, 0, 1000, 800)]
     let from = ActionTarget(screens: screens, areas: areas, index: 1)
     let half = try #require(Geometry.position("left-half", channel))
-    #expect(Actions.frame("display-two", cur: half, target: from).0
-        == Geometry.transfer(half, from: channel, to: areas[0]))
+    #expect(
+        Actions.frame("display-two", cur: half, target: from).0
+            == Geometry.transfer(half, from: channel, to: areas[0]))
     #expect(Actions.frame("display-two", cur: half, target: from).0 != nil)
-    #expect(Actions.frame("display-three", cur: half, target: from).0
-        == Geometry.transfer(half, from: channel, to: areas[2]))
+    #expect(
+        Actions.frame("display-three", cur: half, target: from).0
+            == Geometry.transfer(half, from: channel, to: areas[2]))
     #expect(Actions.frame("display-one", cur: half, target: from).0 == nil)
     #expect(Actions.frame("display-four", cur: half, target: from).0 == nil)
     #expect(Actions.frame("display-nine", cur: half, target: from).0 == nil)
 }
 
 // twoUp is the laptop left of a second screen, for repeat presses that leave the display.
-private let twoUp = ActionTarget(screens: [F(0, 0, 1512, 982), F(1512, 0, 1920, 1080)],
-                                 areas: [F(0, 25, 1512, 957), F(1512, 0, 1920, 1080)], index: 0)
+private let twoUp = ActionTarget(
+    screens: [F(0, 0, 1512, 982), F(1512, 0, 1920, 1080)],
+    areas: [F(0, 25, 1512, 957), F(1512, 0, 1920, 1080)], index: 0)
 
 // repeated returns behaviors that do mode on a repeat press.
 private func repeated(_ mode: SubsequentExecution) -> Behaviors {
@@ -173,7 +183,7 @@ private func press(
     let b = repeated(.cycleQuadrants)
     var last = try press("top-left", window, desk, b)
     var seen = [last.frame]
-    for _ in 0 ..< 4 {
+    for _ in 0..<4 {
         last = try press("top-left", last.frame, desk, b, after: last)
         #expect(last.name == "top-left")
         seen.append(last.frame)
@@ -246,62 +256,76 @@ let secondDisplay = ActionTarget(screens: sideBySide.screens, areas: sideBySide.
 // Test: Arrow left from a free window or maximize takes the left half, and the right side goes left.
 @Test func testArrowLeft() {
     let free = F(100, 100, 300, 300)
-    #expect(Actions.arrow("arrow-left", cur: free, target: oneDisplay)
-        == .frame(arrowFrame("left-half", oneDisplay), name: "left-half"))
-    #expect(Actions.arrow("arrow-left", cur: arrowFrame("maximize", oneDisplay), target: oneDisplay)
-        == .frame(arrowFrame("left-half", oneDisplay), name: "left-half"))
-    #expect(Actions.arrow("arrow-left", cur: arrowFrame("right-half", oneDisplay), target: oneDisplay)
-        == .frame(arrowFrame("left-half", oneDisplay), name: "left-half"))
-    #expect(Actions.arrow("arrow-left", cur: arrowFrame("top-right", oneDisplay), target: oneDisplay)
-        == .frame(arrowFrame("top-left", oneDisplay), name: "top-left"))
-    #expect(Actions.arrow("arrow-left", cur: arrowFrame("bottom-right", oneDisplay), target: oneDisplay)
-        == .frame(arrowFrame("bottom-left", oneDisplay), name: "bottom-left"))
+    #expect(
+        Actions.arrow("arrow-left", cur: free, target: oneDisplay)
+            == .frame(arrowFrame("left-half", oneDisplay), name: "left-half"))
+    #expect(
+        Actions.arrow("arrow-left", cur: arrowFrame("maximize", oneDisplay), target: oneDisplay)
+            == .frame(arrowFrame("left-half", oneDisplay), name: "left-half"))
+    #expect(
+        Actions.arrow("arrow-left", cur: arrowFrame("right-half", oneDisplay), target: oneDisplay)
+            == .frame(arrowFrame("left-half", oneDisplay), name: "left-half"))
+    #expect(
+        Actions.arrow("arrow-left", cur: arrowFrame("top-right", oneDisplay), target: oneDisplay)
+            == .frame(arrowFrame("top-left", oneDisplay), name: "top-left"))
+    #expect(
+        Actions.arrow("arrow-left", cur: arrowFrame("bottom-right", oneDisplay), target: oneDisplay)
+            == .frame(arrowFrame("bottom-left", oneDisplay), name: "bottom-left"))
     for name in ["left-half", "top-left", "bottom-left"] {
         #expect(Actions.arrow("arrow-left", cur: arrowFrame(name, oneDisplay), target: oneDisplay) == .stay)
     }
     let toRight = [("left-half", "right-half"), ("top-left", "top-right"), ("bottom-left", "bottom-right")]
     for (from, to) in toRight {
-        #expect(Actions.arrow("arrow-left", cur: arrowFrame(from, sideBySide), target: sideBySide)
-            == .frame(arrowFrame(to, secondDisplay), name: to), "\(from) wraps to \(to)")
+        #expect(
+            Actions.arrow("arrow-left", cur: arrowFrame(from, sideBySide), target: sideBySide)
+                == .frame(arrowFrame(to, secondDisplay), name: to), "\(from) wraps to \(to)")
     }
 }
 
 // Test: Arrow right mirrors arrow left, crossing to the next display from the right side.
 @Test func testArrowRight() {
     let free = F(100, 100, 300, 300)
-    #expect(Actions.arrow("arrow-right", cur: free, target: oneDisplay)
-        == .frame(arrowFrame("right-half", oneDisplay), name: "right-half"))
-    #expect(Actions.arrow("arrow-right", cur: arrowFrame("maximize", oneDisplay), target: oneDisplay)
-        == .frame(arrowFrame("right-half", oneDisplay), name: "right-half"))
-    #expect(Actions.arrow("arrow-right", cur: arrowFrame("left-half", oneDisplay), target: oneDisplay)
-        == .frame(arrowFrame("right-half", oneDisplay), name: "right-half"))
-    #expect(Actions.arrow("arrow-right", cur: arrowFrame("top-left", oneDisplay), target: oneDisplay)
-        == .frame(arrowFrame("top-right", oneDisplay), name: "top-right"))
-    #expect(Actions.arrow("arrow-right", cur: arrowFrame("bottom-left", oneDisplay), target: oneDisplay)
-        == .frame(arrowFrame("bottom-right", oneDisplay), name: "bottom-right"))
+    #expect(
+        Actions.arrow("arrow-right", cur: free, target: oneDisplay)
+            == .frame(arrowFrame("right-half", oneDisplay), name: "right-half"))
+    #expect(
+        Actions.arrow("arrow-right", cur: arrowFrame("maximize", oneDisplay), target: oneDisplay)
+            == .frame(arrowFrame("right-half", oneDisplay), name: "right-half"))
+    #expect(
+        Actions.arrow("arrow-right", cur: arrowFrame("left-half", oneDisplay), target: oneDisplay)
+            == .frame(arrowFrame("right-half", oneDisplay), name: "right-half"))
+    #expect(
+        Actions.arrow("arrow-right", cur: arrowFrame("top-left", oneDisplay), target: oneDisplay)
+            == .frame(arrowFrame("top-right", oneDisplay), name: "top-right"))
+    #expect(
+        Actions.arrow("arrow-right", cur: arrowFrame("bottom-left", oneDisplay), target: oneDisplay)
+            == .frame(arrowFrame("bottom-right", oneDisplay), name: "bottom-right"))
     for name in ["right-half", "top-right", "bottom-right"] {
         #expect(Actions.arrow("arrow-right", cur: arrowFrame(name, oneDisplay), target: oneDisplay) == .stay)
     }
     let toLeft = [("right-half", "left-half"), ("top-right", "top-left"), ("bottom-right", "bottom-left")]
     for (from, to) in toLeft {
-        #expect(Actions.arrow("arrow-right", cur: arrowFrame(from, secondDisplay), target: secondDisplay)
-            == .frame(arrowFrame(to, sideBySide), name: to), "\(from) wraps to \(to)")
+        #expect(
+            Actions.arrow("arrow-right", cur: arrowFrame(from, secondDisplay), target: secondDisplay)
+                == .frame(arrowFrame(to, sideBySide), name: to), "\(from) wraps to \(to)")
     }
 }
 
 // Test: Arrow up maximizes a free window, raises halves and bottom quarters, lowers top quarters to halves.
 @Test func testArrowUp() {
     let t = oneDisplay
-    #expect(Actions.arrow("arrow-up", cur: F(100, 100, 300, 300), target: t)
-        == .frame(arrowFrame("maximize", t), name: "maximize"))
+    #expect(
+        Actions.arrow("arrow-up", cur: F(100, 100, 300, 300), target: t)
+            == .frame(arrowFrame("maximize", t), name: "maximize"))
     #expect(Actions.arrow("arrow-up", cur: arrowFrame("maximize", t), target: t) == .stay)
     let table = [
         ("left-half", "top-left"), ("right-half", "top-right"), ("bottom-left", "top-left"),
         ("bottom-right", "top-right"), ("top-left", "left-half"), ("top-right", "right-half"),
     ]
     for (from, to) in table {
-        #expect(Actions.arrow("arrow-up", cur: arrowFrame(from, t), target: t)
-            == .frame(arrowFrame(to, t), name: to), "\(from) to \(to)")
+        #expect(
+            Actions.arrow("arrow-up", cur: arrowFrame(from, t), target: t)
+                == .frame(arrowFrame(to, t), name: to), "\(from) to \(to)")
     }
 }
 
@@ -315,8 +339,9 @@ let secondDisplay = ActionTarget(screens: sideBySide.screens, areas: sideBySide.
         ("top-right", "bottom-right"), ("bottom-left", "left-half"), ("bottom-right", "right-half"),
     ]
     for (from, to) in table {
-        #expect(Actions.arrow("arrow-down", cur: arrowFrame(from, t), target: t)
-            == .frame(arrowFrame(to, t), name: to), "\(from) to \(to)")
+        #expect(
+            Actions.arrow("arrow-down", cur: arrowFrame(from, t), target: t)
+                == .frame(arrowFrame(to, t), name: to), "\(from) to \(to)")
     }
 }
 
@@ -354,8 +379,9 @@ let plain = ActionTarget(screens: [F(0, 0, 1000, 800)], areas: [F(0, 0, 1000, 80
     #expect(Actions.frame("left-half", cur: cur, target: plain, behavior: b).0 == F(0, 100, 500, 300))
     #expect(Actions.frame("top-half", cur: cur, target: plain, behavior: b).0 == F(100, 0, 400, 400))
     #expect(Actions.frame("maximize", cur: cur, target: plain, behavior: b).0 == F(0, 0, 1000, 800))
-    #expect(Behavior.keepOtherAxis("left-half", F(0, 0, 500, 800), cur: F(0, 700, 10, 900), area: plain.areas[0])
-        == F(0, 0, 500, 800))
+    #expect(
+        Behavior.keepOtherAxis("left-half", F(0, 0, 500, 800), cur: F(0, 700, 10, 900), area: plain.areas[0])
+            == F(0, 0, 500, 800))
 }
 
 // Swift only: centerHalfCycles steps center half through two thirds and one third on repeat.
@@ -369,8 +395,9 @@ let plain = ActionTarget(screens: [F(0, 0, 1000, 800)], areas: [F(0, 0, 1000, 80
     #expect(two.0 == Geometry.position("center-two-thirds", plain.areas[0]))
     #expect(two.press == 2)
     let three = LastPress(name: "center-half", press: 2, frame: two.0!)
-    #expect(Actions.frame("center-half", cur: two.0!, target: plain, last: three, behavior: b).0
-        == Geometry.position("center-third", plain.areas[0]))
+    #expect(
+        Actions.frame("center-half", cur: two.0!, target: plain, last: three, behavior: b).0
+            == Geometry.position("center-third", plain.areas[0]))
 }
 
 // Swift only: the minimum window size floors smaller and halve at its share of the area.
@@ -384,8 +411,9 @@ let plain = ActionTarget(screens: [F(0, 0, 1000, 800)], areas: [F(0, 0, 1000, 80
     b.minimumWindowHeight = 0.1
     #expect(Actions.frame("halve-width-left", cur: wide, target: plain, behavior: b).0 == F(0, 0, 200, 800))
     #expect(Actions.frame("smaller", cur: box, target: plain, behavior: b).0 == F(130, 130, 240, 240))
-    #expect(Actions.frame("smaller-height", cur: F(0, 0, 1000, 100), target: plain, behavior: b).0
-        == F(0, 0, 1000, 100))
+    #expect(
+        Actions.frame("smaller-height", cur: F(0, 0, 1000, 100), target: plain, behavior: b).0
+            == F(0, 0, 1000, 100))
 }
 
 // Swift only: maximize pressed again restores only when the choice is on and the window has not moved.

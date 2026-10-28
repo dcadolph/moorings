@@ -99,7 +99,8 @@ func covered(_ frames: [Frame]) -> Double {
 @Test func testOverlapOffsetShifts() {
     let area = F(0, 0, 1000, 800)
     let f = F(0, 0, 500, 400)
-    #expect(Tile.overlapOffset(f, others: [F(0, 0, 300, 300)], area: area, size: 11, maxCascade: 1) == F(11, 11, 500, 400))
+    #expect(
+        Tile.overlapOffset(f, others: [F(0, 0, 300, 300)], area: area, size: 11, maxCascade: 1) == F(11, 11, 500, 400))
     #expect(Tile.overlapOffset(f, others: [F(200, 200, 300, 300)], area: area, size: 11, maxCascade: 1) == f)
     #expect(Tile.overlapOffset(f, others: [F(0, 0, 300, 300)], area: area, size: 0, maxCascade: 1) == f)
 }
@@ -187,8 +188,10 @@ func stackChoices(_ size: Double = 11, _ cascade: Int = 1, sameSize: Bool = fals
 
 // Test 3: An origin just left of a stack's corner does not become its corner.
 @Test func testStackDensest() {
-    let frames = [F(90, 100, 600, 400), F(100, 100, 600, 400), F(100, 100, 600, 400), F(111, 111, 600, 400),
-                  F(111, 111, 600, 400)]
+    let frames = [
+        F(90, 100, 600, 400), F(100, 100, 600, 400), F(100, 100, 600, 400), F(111, 111, 600, 400),
+        F(111, 111, 600, 400),
+    ]
     #expect(Tile.stack(anchorOf: 1, among: frames, choices: StackChoices()) == [1, 2, 3, 4])
     #expect(Tile.stack(anchorOf: 4, among: frames, choices: StackChoices()) == [1, 2, 3, 4])
     #expect(Tile.stack(anchorOf: 0, among: frames, choices: StackChoices()) == [0, 1, 2])
@@ -239,16 +242,18 @@ let tilingCases: [TilingCase] = [
     TilingCase(Mode: .rows, Count: 2, WantFrames: [F(0, 0, 1000, 400), F(0, 400, 1000, 400)]),
     // Test 8: BSP halves what is left across its longer side.
     TilingCase(Mode: .bsp, Count: 3, WantFrames: [F(0, 0, 500, 800), F(500, 0, 500, 400), F(500, 400, 500, 400)]),
-    TilingCase(Mode: .bsp, Count: 4,
-               WantFrames: [F(0, 0, 500, 800), F(500, 0, 500, 400), F(500, 400, 250, 400), F(750, 400, 250, 400)]),
+    TilingCase(
+        Mode: .bsp, Count: 4,
+        WantFrames: [F(0, 0, 500, 800), F(500, 0, 500, 400), F(500, 400, 250, 400), F(750, 400, 250, 400)]),
     // Test 9: One window fills the area, and off or no windows lay out nothing.
     TilingCase(Mode: .tall, Count: 1, WantFrames: [tilingArea]),
     TilingCase(Mode: .off, Count: 3, WantFrames: []),
     TilingCase(Mode: .bsp, Count: 0, WantFrames: []),
     // Test 10: A gap sits around and between the windows.
     TilingCase(Mode: .tall, Count: 2, Gap: 10, WantFrames: [F(10, 10, 485, 780), F(505, 10, 485, 780)]),
-    TilingCase(Mode: .tall, Count: 3, Gap: 10,
-               WantFrames: [F(10, 10, 485, 780), F(505, 10, 485, 385), F(505, 405, 485, 385)]),
+    TilingCase(
+        Mode: .tall, Count: 3, Gap: 10,
+        WantFrames: [F(10, 10, 485, 780), F(505, 10, 485, 385), F(505, 405, 485, 385)]),
     // Test 11: The ratio sets the main pane's share.
     TilingCase(Mode: .tall, Count: 2, Ratio: 0.6, WantFrames: [F(0, 0, 600, 800), F(600, 0, 400, 800)]),
     TilingCase(Mode: .wide, Count: 2, Ratio: 0.25, WantFrames: [F(0, 0, 1000, 200), F(0, 200, 1000, 600)]),
@@ -310,8 +315,9 @@ func testTilingLayout(test: TilingCase) {
 @Test func testTilingChoicesDecode() throws {
     let d = JSONDecoder()
     #expect(try d.decode(TilingChoices.self, from: Data("{}".utf8)) == TilingChoices())
-    #expect(try d.decode(TilingChoices.self, from: Data(#"{"mode":"bsp","ratio":5}"#.utf8))
-        == TilingChoices(mode: .bsp, ratio: 0.8))
+    #expect(
+        try d.decode(TilingChoices.self, from: Data(#"{"mode":"bsp","ratio":5}"#.utf8))
+            == TilingChoices(mode: .bsp, ratio: 0.8))
     #expect(try d.decode(TilingChoices.self, from: Data(#"{"mode":"spiral"}"#.utf8)).mode == .off)
     #expect(Choices.decode(Data(#"{"gapPx":4}"#.utf8)).tiling == TilingChoices())
     var c = Choices()

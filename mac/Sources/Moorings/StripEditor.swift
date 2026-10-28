@@ -47,8 +47,10 @@ final class StripState: ObservableObject {
     var current: StripField = .leftWidth
 
     // init builds the state from the values in effect and the limits on them.
-    init(widths: Widths, heights: Heights, screenWidth: Double, minPoints: [Side: Double], minNames: [Side: String],
-         empty: [Side], split: [Side], presets: [Widths]) {
+    init(
+        widths: Widths, heights: Heights, screenWidth: Double, minPoints: [Side: Double], minNames: [Side: String],
+        empty: [Side], split: [Side], presets: [Widths]
+    ) {
         self.widths = widths
         self.heights = heights
         self.screenWidth = screenWidth
@@ -96,8 +98,9 @@ final class StripState: ObservableObject {
     // set puts field at pct, kept inside its limits, and passes the change on when it moved.
     func set(_ field: StripField, _ pct: Double) {
         if field.isWidth {
-            let w = Layout.clamped(widths, field.side, pct, minPoints: minPoints[field.side] ?? 0,
-                                   screenWidth: screenWidth)
+            let w = Layout.clamped(
+                widths, field.side, pct, minPoints: minPoints[field.side] ?? 0,
+                screenWidth: screenWidth)
             guard w != widths else { return refreshDrafts() }
             widths = w
         } else {
@@ -182,11 +185,14 @@ final class StripPanel: NSPanel {
     // performKeyEquivalent gives the fields select all, copy, cut and paste, which Moorings has no
     // Edit menu to supply.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        let actions: [String: Selector] = ["a": #selector(NSText.selectAll(_:)), "c": #selector(NSText.copy(_:)),
-                                           "x": #selector(NSText.cut(_:)), "v": #selector(NSText.paste(_:))]
+        let actions: [String: Selector] = [
+            "a": #selector(NSText.selectAll(_:)), "c": #selector(NSText.copy(_:)),
+            "x": #selector(NSText.cut(_:)), "v": #selector(NSText.paste(_:)),
+        ]
         if event.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
-           let key = event.charactersIgnoringModifiers, let action = actions[key],
-           NSApp.sendAction(action, to: nil, from: self) {
+            let key = event.charactersIgnoringModifiers, let action = actions[key],
+            NSApp.sendAction(action, to: nil, from: self)
+        {
             return true
         }
         return super.performKeyEquivalent(with: event)
@@ -257,12 +263,14 @@ struct StripEditorView: View {
                         .buttonStyle(.bordered)
                 }
             }
-            Text("Arrows step 1%, Shift-arrows 5%. Type a number and press Tab. Drag an edge or a row line. "
-                + "Return keeps, Escape puts it back.")
-                .font(.system(size: 13))
-                .foregroundStyle(Self.muted)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
+            Text(
+                "Arrows step 1%, Shift-arrows 5%. Type a number and press Tab. Drag an edge or a row line. "
+                    + "Return keeps, Escape puts it back."
+            )
+            .font(.system(size: 13))
+            .foregroundStyle(Self.muted)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: 420)
             HStack(spacing: 12) {
                 Button("Cancel") { state.finish(false) }
                     .keyboardShortcut(.cancelAction)
@@ -280,7 +288,10 @@ struct StripEditorView: View {
         let empty = state.empty.contains(side)
         return Rectangle()
             .fill(Self.accent.opacity(empty ? 0.06 : 0.16))
-            .overlay(Rectangle().stroke(Self.accent.opacity(0.6), style: StrokeStyle(lineWidth: 2, dash: empty ? [8, 6] : [])))
+            .overlay(
+                Rectangle().stroke(
+                    Self.accent.opacity(0.6), style: StrokeStyle(lineWidth: 2, dash: empty ? [8, 6] : []))
+            )
             .overlay(alignment: .bottom) {
                 if empty {
                     Text("Nothing anchored: the channel uses this side")
@@ -414,8 +425,9 @@ struct StripEditorView: View {
     private func minCaption(_ side: Side) -> String? {
         guard let pts = state.minPoints[side], pts > 0 else { return nil }
         let name = state.minNames[side] ?? "An app"
-        return String(format: "%@ needs %.0f pt, so this strip is at least %.0f%%.", name, pts,
-                      state.range(side).lowerBound)
+        return String(
+            format: "%@ needs %.0f pt, so this strip is at least %.0f%%.", name, pts,
+            state.range(side).lowerBound)
     }
 
     // color returns rgb as a SwiftUI color.
@@ -473,17 +485,19 @@ final class StripEditor {
             names[side] = anchors.minBy[side].map { app.appName($0) }
         }
         let presets = Layout.presets + anchors.choices.widthPresets.filter { !Layout.presets.contains($0) }
-        let s = StripState(widths: anchors.widths, heights: anchors.heights, screenWidth: wide.w, minPoints: mins,
-                           minNames: names, empty: anchors.emptySides(), split: anchors.splitSides(),
-                           presets: presets)
+        let s = StripState(
+            widths: anchors.widths, heights: anchors.heights, screenWidth: wide.w, minPoints: mins,
+            minNames: names, empty: anchors.emptySides(), split: anchors.splitSides(),
+            presets: presets)
         s.changed = { [unowned self] w, h in preview(w, h) }
         s.finish = { [unowned self] keep in close(keep: keep) }
         s.dropped = { [unowned self, unowned s] in preview(s.widths, s.heights) }
         state = s
         let primary = NSScreen.screens.first?.frame.height ?? 0
         let rect = NSRect(x: wide.x, y: primary - wide.y - wide.h, width: wide.w, height: wide.h)
-        let p = StripPanel(contentRect: rect, styleMask: [.borderless], backing: .buffered,
-                           defer: false)
+        let p = StripPanel(
+            contentRect: rect, styleMask: [.borderless], backing: .buffered,
+            defer: false)
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = false

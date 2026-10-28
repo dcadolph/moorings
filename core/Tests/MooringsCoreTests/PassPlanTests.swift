@@ -122,8 +122,9 @@ func testPassPlan(test: PassPlanCase) {
 // Test 12: changed names the apps whose list moved, leaving unchanged and slow apps out.
 @Test func testPassPlanChanged() {
     let moved: [WindowID: Frame] = [1: Frame(x: 50, y: 0, w: 100, h: 100)]
-    let got = PassPlan.changed(listed: [10: planA, 11: moved, 12: moved], previous: [10: planA, 11: planA, 12: planA],
-                               slow: [12])
+    let got = PassPlan.changed(
+        listed: [10: planA, 11: moved, 12: moved], previous: [10: planA, 11: planA, 12: planA],
+        slow: [12])
     #expect(got == [11])
 }
 

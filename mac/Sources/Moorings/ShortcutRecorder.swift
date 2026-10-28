@@ -31,8 +31,9 @@ struct ShortcutRecorder: View {
                 stop()
             }
         }
-        .help(current.map { "Click, then press a new shortcut for \($0.spelled). Escape cancels." }
-            ?? "Click, then press a shortcut with at least one modifier. Escape cancels.")
+        .help(
+            current.map { "Click, then press a new shortcut for \($0.spelled). Escape cancels." }
+                ?? "Click, then press a shortcut with at least one modifier. Escape cancels.")
     }
 
     // start begins recording in the key window. A key pressed in any other window ends the recording
@@ -82,7 +83,8 @@ struct ShortcutRecorder: View {
     }
 
     // names maps each virtual key code to its key name.
-    static let names: [Int: String] = Dictionary(Hotkeys.keyCodes.map { ($0.value, $0.key) }, uniquingKeysWith: { a, _ in a })
+    static let names: [Int: String] = Dictionary(
+        Hotkeys.keyCodes.map { ($0.value, $0.key) }, uniquingKeysWith: { a, _ in a })
 
     // shortcut returns the shortcut event presses, nil without a modifier or for an unknown key.
     static func shortcut(_ event: NSEvent) -> StoredShortcut? {

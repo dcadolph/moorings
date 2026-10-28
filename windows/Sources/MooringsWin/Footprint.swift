@@ -11,7 +11,7 @@ final class WinFootprint: OverlayView {
     static let className = "MooringsFootprint"
     // topmost, toolWindow, layered, transparent and noActivate are the WS_EX_ bits of those names.
     static let topmost: DWORD = 0x0000_0008, toolWindow: DWORD = 0x0000_0080, layered: DWORD = 0x0008_0000,
-               transparent: DWORD = 0x0000_0020, noActivate: DWORD = 0x0800_0000
+        transparent: DWORD = 0x0000_0020, noActivate: DWORD = 0x0800_0000
     // passThrough is the bits that keep clicks and the foreground away from the footprint.
     static let passThrough = transparent | noActivate
     // exStyle keeps the footprint above every window, out of the taskbar and Alt-Tab, drawn with
@@ -83,8 +83,9 @@ final class WinFootprint: OverlayView {
         Self.register(instance)
         WinFootprint.current = self
         let ex = activates ? Self.exStyle & ~Self.passThrough : Self.exStyle
-        window = CreateWindowExW(ex, wide(Self.className), wide("Moorings footprint"), BannerWindow.popup,
-                                 0, 0, 1, 1, nil, nil, instance, nil)
+        window = CreateWindowExW(
+            ex, wide(Self.className), wide("Moorings footprint"), BannerWindow.popup,
+            0, 0, 1, 1, nil, nil, instance, nil)
         return window
     }
 
@@ -117,8 +118,9 @@ final class WinFootprint: OverlayView {
     // blend returns the per-pixel alpha blend at constant opacity alpha out of 255.
     static func blend(_ alpha: Int) -> BLENDFUNCTION {
         // BlendOp 0 is AC_SRC_OVER and AlphaFormat 1 is AC_SRC_ALPHA.
-        BLENDFUNCTION(BlendOp: 0, BlendFlags: 0, SourceConstantAlpha: BYTE(min(max(alpha, 0), 255)),
-                      AlphaFormat: 1)
+        BLENDFUNCTION(
+            BlendOp: 0, BlendFlags: 0, SourceConstantAlpha: BYTE(min(max(alpha, 0), 255)),
+            AlphaFormat: 1)
     }
 
     // pixel returns t as a premultiplied BGRA pixel.
@@ -152,8 +154,9 @@ final class WinFootprint: OverlayView {
         let dpi = GetDpiForWindow(hwnd)
         let scale = dpi > 0 ? Double(dpi) / 96 : 1
         let b = min(Int((max(0, border) * scale).rounded()), min(w, h) / 2)
-        Self.draw(bits.bindMemory(to: UInt32.self, capacity: w * h), w: w, h: h, border: b,
-                  fill: Self.pixel(tints.fill), stroke: Self.pixel(tints.stroke))
+        Self.draw(
+            bits.bindMemory(to: UInt32.self, capacity: w * h), w: w, h: h, border: b,
+            fill: Self.pixel(tints.fill), stroke: Self.pixel(tints.stroke))
         var size = SIZE(cx: LONG(w), cy: LONG(h))
         var src = POINT(x: 0, y: 0)
         var dst = POINT(x: LONG(f.x.rounded()), y: LONG(f.y.rounded()))
@@ -162,8 +165,10 @@ final class WinFootprint: OverlayView {
     }
 
     // draw fills the w by h pixels at px with fill inside a border pixels wide of stroke.
-    static func draw(_ px: UnsafeMutablePointer<UInt32>, w: Int, h: Int, border: Int, fill: UInt32,
-                     stroke: UInt32) {
+    static func draw(
+        _ px: UnsafeMutablePointer<UInt32>, w: Int, h: Int, border: Int, fill: UInt32,
+        stroke: UInt32
+    ) {
         for y in 0..<h {
             let row = px + y * w
             let edgeRow = y < border || y >= h - border

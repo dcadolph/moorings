@@ -26,19 +26,23 @@ let placeCases: [PlaceCase] = [
     // Test 0: Installed in Applications.
     PlaceCase(name: "applications", bundle: "/Applications/Moorings.app", quarantined: true, want: .applications),
     // Test 1: Installed in the home Applications folder.
-    PlaceCase(name: "home applications", bundle: "/Users/me/Applications/Moorings.app", quarantined: true,
-              want: .applications),
+    PlaceCase(
+        name: "home applications", bundle: "/Users/me/Applications/Moorings.app", quarantined: true,
+        want: .applications),
     // Test 2: Opened from the disk image window.
-    PlaceCase(name: "disk image", bundle: "/Volumes/Moorings/Moorings.app", quarantined: true,
-              want: .diskImage(installImage)),
+    PlaceCase(
+        name: "disk image", bundle: "/Volumes/Moorings/Moorings.app", quarantined: true,
+        want: .diskImage(installImage)),
     // Test 3: A disk image volume counts even without quarantine.
-    PlaceCase(name: "disk image unquarantined", bundle: "/Volumes/Moorings/Moorings.app", quarantined: false,
-              want: .diskImage(installImage)),
+    PlaceCase(
+        name: "disk image unquarantined", bundle: "/Volumes/Moorings/Moorings.app", quarantined: false,
+        want: .diskImage(installImage)),
     // Test 4: Opened where the zip unpacked.
     PlaceCase(name: "downloads", bundle: "/Users/me/Downloads/Moorings.app", quarantined: true, want: .elsewhere),
     // Test 5: A local build is never asked to move.
-    PlaceCase(name: "local build", bundle: "/Users/me/src/moorings/mac/.build/Moorings.app", quarantined: false,
-              want: .applications),
+    PlaceCase(
+        name: "local build", bundle: "/Users/me/src/moorings/mac/.build/Moorings.app", quarantined: false,
+        want: .applications),
     // Test 6: A volume whose name only starts like the image's is not on the image.
     PlaceCase(name: "similar volume", bundle: "/Volumes/Moorings 1/Moorings.app", quarantined: true, want: .elsewhere),
     // Test 7: A folder whose name only starts like Applications is not Applications.
@@ -56,31 +60,31 @@ func testInstallPlace(_ c: PlaceCase) {
 
 // hdiutilInfo is `hdiutil info -plist` output with one mounted image and one attached without a volume.
 let hdiutilInfo = """
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>framework</key><string>683</string>
-  <key>images</key>
-  <array>
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
     <dict>
-      <key>image-path</key><string>/Users/me/Downloads/moorings_macos_universal.dmg</string>
-      <key>system-entities</key>
+      <key>framework</key><string>683</string>
+      <key>images</key>
       <array>
-        <dict><key>content-hint</key><string>GUID_partition_scheme</string><key>dev-entry</key><string>/dev/disk8</string></dict>
-        <dict><key>content-hint</key><string>Apple_HFS</string><key>dev-entry</key><string>/dev/disk8s1</string>
-          <key>mount-point</key><string>/Volumes/Moorings</string></dict>
+        <dict>
+          <key>image-path</key><string>/Users/me/Downloads/moorings_macos_universal.dmg</string>
+          <key>system-entities</key>
+          <array>
+            <dict><key>content-hint</key><string>GUID_partition_scheme</string><key>dev-entry</key><string>/dev/disk8</string></dict>
+            <dict><key>content-hint</key><string>Apple_HFS</string><key>dev-entry</key><string>/dev/disk8s1</string>
+              <key>mount-point</key><string>/Volumes/Moorings</string></dict>
+          </array>
+        </dict>
+        <dict>
+          <key>image-path</key><string>/Users/me/scratch.sparseimage</string>
+          <key>system-entities</key>
+          <array><dict><key>dev-entry</key><string>/dev/disk9</string></dict></array>
+        </dict>
       </array>
     </dict>
-    <dict>
-      <key>image-path</key><string>/Users/me/scratch.sparseimage</string>
-      <key>system-entities</key>
-      <array><dict><key>dev-entry</key><string>/dev/disk9</string></dict></array>
-    </dict>
-  </array>
-</dict>
-</plist>
-"""
+    </plist>
+    """
 
 // testInstallImages reads only images with a mounted volume.
 @Test func testInstallImages() {

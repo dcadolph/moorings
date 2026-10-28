@@ -98,7 +98,8 @@ public struct OverlayChoices: Equatable, Sendable, Codable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         let r = Self.gridRange
         trigger = (try? c.decodeIfPresent(OverlayTrigger.self, forKey: .trigger)) ?? .none
-        gridColumns = min(r.upperBound, max(r.lowerBound, (try? c.decodeIfPresent(Int.self, forKey: .gridColumns)) ?? 6))
+        gridColumns = min(
+            r.upperBound, max(r.lowerBound, (try? c.decodeIfPresent(Int.self, forKey: .gridColumns)) ?? 6))
         gridRows = min(r.upperBound, max(r.lowerBound, (try? c.decodeIfPresent(Int.self, forKey: .gridRows)) ?? 4))
         hoverMove = Self.mods((try? c.decodeIfPresent([String].self, forKey: .hoverMove)) ?? [])
         hoverResize = Self.mods((try? c.decodeIfPresent([String].self, forKey: .hoverResize)) ?? [])
@@ -207,11 +208,15 @@ public enum Overlay {
     // ring is the distance in points where the inner ring of targets gives way to the outer one.
     public static let ring = 160.0
     // inner lists the inner ring's actions by sector, counterclockwise from the right.
-    public static let inner = ["right-half", "top-right", "top-half", "top-left", "left-half", "bottom-left",
-                               "bottom-half", "bottom-right"]
+    public static let inner = [
+        "right-half", "top-right", "top-half", "top-left", "left-half", "bottom-left",
+        "bottom-half", "bottom-right",
+    ]
     // outer lists the outer ring's actions by sector, counterclockwise from the right.
-    public static let outer = ["last-third", "top-right-sixth", "maximize", "top-left-sixth", "first-third",
-                               "bottom-left-sixth", "center", "bottom-right-sixth"]
+    public static let outer = [
+        "last-third", "top-right-sixth", "maximize", "top-left-sixth", "first-third",
+        "bottom-left-sixth", "center", "bottom-right-sixth",
+    ]
 
     // pick returns the action for a cursor moved by dx and dy points, in top-left coordinates so up
     // is a negative dy, or nil inside the dead zone. Eight sectors of 45 degrees are centered on the
@@ -289,7 +294,9 @@ public enum Hover {
         if usable(choices.hoverMove), Set(choices.hoverMove) == held {
             return .move
         }
-        if usable(choices.hoverResize), Set(choices.hoverResize) == held, Set(choices.hoverResize) != Set(choices.hoverMove) {
+        if usable(choices.hoverResize), Set(choices.hoverResize) == held,
+            Set(choices.hoverResize) != Set(choices.hoverMove)
+        {
             return .resize
         }
         return nil
@@ -327,6 +334,8 @@ public enum Hover {
     // keep returns a frame of w by h whose corner opposite corner sits where start's does, so a size
     // the app rounds or refuses moves only the corner that follows the pointer.
     public static func keep(_ start: Frame, corner: HoverCorner, w: Double, h: Double) -> Frame {
-        Frame(x: corner.left ? start.x + start.w - w : start.x, y: corner.top ? start.y + start.h - h : start.y, w: w, h: h)
+        Frame(
+            x: corner.left ? start.x + start.w - w : start.x, y: corner.top ? start.y + start.h - h : start.y, w: w,
+            h: h)
     }
 }

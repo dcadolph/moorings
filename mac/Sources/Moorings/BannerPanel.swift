@@ -61,7 +61,8 @@ final class BannerPanel {
         let top = Frame(x: visible.minX, y: main.frame.height - visible.maxY, w: visible.width, h: visible.height)
         let box = Banner.frame(lines: lines.count, screen: top)
         let rect = NSRect(x: box.x, y: main.frame.height - box.y - box.h, width: box.w, height: box.h)
-        let p = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let p = NSPanel(
+            contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = true
@@ -123,12 +124,14 @@ final class BannerPanel {
             p.orderOut(nil)
             return
         }
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = Self.fadeSeconds
-            p.animator().alphaValue = 0
-        }, completionHandler: {
-            MainActor.assumeIsolated { p.orderOut(nil) }
-        })
+        NSAnimationContext.runAnimationGroup(
+            { ctx in
+                ctx.duration = Self.fadeSeconds
+                p.animator().alphaValue = 0
+            },
+            completionHandler: {
+                MainActor.assumeIsolated { p.orderOut(nil) }
+            })
     }
 
     // color returns rgb as a color with alpha.

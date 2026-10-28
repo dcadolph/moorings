@@ -53,12 +53,12 @@ public enum Install {
     // mounted volume is left out.
     public static func images(hdiutilPlist data: Data) -> [MountedImage] {
         guard let root = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
-              let list = root["images"] as? [[String: Any]]
+            let list = root["images"] as? [[String: Any]]
         else { return [] }
         return list.compactMap { entry in
             guard let image = entry["image-path"] as? String,
-                  let entities = entry["system-entities"] as? [[String: Any]],
-                  let mount = entities.compactMap({ $0["mount-point"] as? String }).first
+                let entities = entry["system-entities"] as? [[String: Any]],
+                let mount = entities.compactMap({ $0["mount-point"] as? String }).first
             else { return nil }
             return MountedImage(image: image, mount: mount)
         }

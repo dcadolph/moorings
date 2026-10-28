@@ -233,7 +233,9 @@ public final class ActionRunner {
         }
         if name == "undo-move" || name == "redo-move" {
             last[w.id] = nil
-            let f = name == "undo-move" ? anchors.history.undo(w.id, current: w.frame)
+            let f =
+                name == "undo-move"
+                ? anchors.history.undo(w.id, current: w.frame)
                 : anchors.history.redo(w.id, current: w.frame)
             guard let f else {
                 log("\(name): nothing to step to for this window")
@@ -244,8 +246,10 @@ public final class ActionRunner {
             return true
         }
         if Actions.arrowNames.contains(name) {
-            switch Actions.arrow(name, cur: w.frame, target: target(for: w, screens: screens, index: index),
-                                 gap: anchors.choices.gapPx, behavior: anchors.choices.behavior) {
+            switch Actions.arrow(
+                name, cur: w.frame, target: target(for: w, screens: screens, index: index),
+                gap: anchors.choices.gapPx, behavior: anchors.choices.behavior)
+            {
             case let .frame(f, landed):
                 return place(w, at: f, press: 1, name: landed)
             case .restore:
@@ -270,11 +274,13 @@ public final class ActionRunner {
     // half or a third, and w held in the last pass. A repeat press steps the position's cycle.
     private func placeInSlot(_ name: String, _ w: WindowInfo) -> Bool {
         guard anchors.choices.slotStacks, Geometry.cells[Geometry.aliases[name] ?? name] != nil,
-              !Actions.maximizers.contains(name) else { return false }
+            !Actions.maximizers.contains(name)
+        else { return false }
         let area = anchors.actionArea(w.id, else: w.frame)
         let press = last[w.id].map { $0.name == name && Actions.near(w.frame, $0.frame) ? $0.press + 1 : 1 } ?? 1
         guard let f = Geometry.cycle(name, press, area, w.frame, gap: anchors.choices.gapPx),
-              anchors.holdPart(w.id, name, f) else { return false }
+            anchors.holdPart(w.id, name, f)
+        else { return false }
         move(w.id, to: f)
         last[w.id] = LastPress(name: name, press: press, frame: platform.windows.frame(w.id) ?? f)
         wake()
@@ -286,8 +292,9 @@ public final class ActionRunner {
     @discardableResult
     public func applyFrame(_ frame: Frame, to id: WindowID) -> Bool {
         guard !anchors.choices.paused, platform.windows.ready else { return false }
-        guard let w = platform.windows.scan(platform.screens.current(), full: true).windows.first(where: { $0.id == id }),
-              !anchors.pinned(w), !w.isFullScreen
+        guard
+            let w = platform.windows.scan(platform.screens.current(), full: true).windows.first(where: { $0.id == id }),
+            !anchors.pinned(w), !w.isFullScreen
         else { return false }
         platform.windows.raise(id)
         chainPress = nil
@@ -324,8 +331,9 @@ public final class ActionRunner {
         }
         let quirks = platform.screens.quirks(screens)
         let index = index.flatMap { screens.full.indices.contains($0) ? $0 : nil } ?? screens.index(w.frame) ?? 0
-        return ActionTarget(screens: screens.full, areas: areas, index: index,
-                            notched: quirks.notched, staged: quirks.staged, stageOnRight: quirks.stageOnRight)
+        return ActionTarget(
+            screens: screens.full, areas: areas, index: index,
+            notched: quirks.notched, staged: quirks.staged, stageOnRight: quirks.stageOnRight)
     }
 
     // frame returns the frame action name gives w on the screen at index, its own screen when nil,
@@ -339,13 +347,15 @@ public final class ActionRunner {
         if Actions.fillNames.contains(name) {
             let area = Actions.area(target, target.index, anchors.choices.behavior)
             let others = platform.windows.scan(screens, full: true).windows.filter { $0.id != w.id }.map(\.frame)
-            let f = Geometry.fill(w.frame, name == "fill-left" ? .left : .right, area: area, others: others,
-                                  gap: anchors.choices.gapPx)
+            let f = Geometry.fill(
+                w.frame, name == "fill-left" ? .left : .right, area: area, others: others,
+                gap: anchors.choices.gapPx)
             return (f == w.frame ? nil : f, 1, name)
         }
-        return Actions.frame(name, cur: w.frame, target: target, gap: anchors.choices.gapPx,
-                             sizes: Bindings(anchors.choices).specs, last: last[w.id],
-                             behavior: anchors.choices.behavior)
+        return Actions.frame(
+            name, cur: w.frame, target: target, gap: anchors.choices.gapPx,
+            sizes: Bindings(anchors.choices).specs, last: last[w.id],
+            behavior: anchors.choices.behavior)
     }
 
     // preview returns where action name would put w without moving it, for a drag's footprint: nil on
@@ -353,7 +363,8 @@ public final class ActionRunner {
     // undo and redo, the arrows and the fills.
     public func preview(_ name: String, for w: WindowInfo, screens: Screens, index: Int? = nil) -> Frame? {
         guard !anchors.pinned(w), !w.isFullScreen, !["restore", "undo-move", "redo-move"].contains(name),
-              !Actions.arrowNames.contains(name), !Actions.fillNames.contains(name) else { return nil }
+            !Actions.arrowNames.contains(name), !Actions.fillNames.contains(name)
+        else { return nil }
         return frame(name, for: w, screens: screens, index: index).0
     }
 

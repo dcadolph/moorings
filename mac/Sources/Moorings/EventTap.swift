@@ -53,15 +53,18 @@ final class EventTap {
         }
         stop()
         Self.current = self
-        let mask = (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.leftMouseUp.rawValue)
+        let mask =
+            (1 << CGEventType.leftMouseDown.rawValue) | (1 << CGEventType.leftMouseUp.rawValue)
             | (1 << CGEventType.leftMouseDragged.rawValue) | (1 << CGEventType.otherMouseDown.rawValue)
             | (1 << CGEventType.otherMouseUp.rawValue) | (1 << CGEventType.flagsChanged.rawValue)
         let callback: CGEventTapCallBack = { _, type, event, _ in
             let keep = MainActor.assumeIsolated { EventTap.current?.handle(type, event) ?? true }
             return keep ? Unmanaged.passUnretained(event) : nil
         }
-        guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
-                                          eventsOfInterest: CGEventMask(mask), callback: callback, userInfo: nil)
+        guard
+            let tap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap,
+                eventsOfInterest: CGEventMask(mask), callback: callback, userInfo: nil)
         else { return false }
         let source = CFMachPortCreateRunLoopSource(nil, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
@@ -186,7 +189,9 @@ final class EdgeResizer {
     // fullscreen windows and file panels never take part.
     func pressed(_ p: CGPoint, flags: CGEventFlags) -> Bool {
         let anchors = app.anchors
-        guard !anchors.choices.paused, Hover.holds(flags.rawValue, anchors.choices.overlay.edgeResize) else { return false }
+        guard !anchors.choices.paused, Hover.holds(flags.rawValue, anchors.choices.overlay.edgeResize) else {
+            return false
+        }
         let scan = app.windows.scan(Screens.current())
         let pool = scan.windows.filter {
             !$0.isFilePanel && !$0.isFullScreen && !anchors.pinned($0) && !anchors.stashed.contains($0.id)

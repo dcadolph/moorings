@@ -136,10 +136,12 @@ private func has(_ problems: [String], _ text: String) -> Bool {
 
 // Lua case 7: A custom size shortcut beats a default and a malformed one is reported.
 @Test func testSizeShortcuts() {
-    let r = Keymaps.shortcuts([:], extra: [
-        "size:Reading": .set(sc(["ctrl", "alt"], "c")),
-        "size:Bad": .set(ShortcutInput(key: "b")),
-    ])
+    let r = Keymaps.shortcuts(
+        [:],
+        extra: [
+            "size:Reading": .set(sc(["ctrl", "alt"], "c")),
+            "size:Bad": .set(ShortcutInput(key: "b")),
+        ])
     #expect(r.map["size:Reading"] != nil && r.map["center"] == nil)
     #expect(has(r.problems, "size:Reading and center share ⌃⌥C: size:Reading keeps it"))
     #expect(has(r.problems, "shortcut for size:Bad needs mods and key"))
@@ -194,8 +196,11 @@ private func has(_ problems: [String], _ text: String) -> Bool {
 
 // Lua case 9: mouse buttons 2 to 31 bind known actions and custom sizes, and the rest are refused.
 @Test func testMouseButtons() {
-    let (map, problems) = MouseButtons.valid(["3": "left-half", "4": "size:Reading", "1": "maximize", "5": "nope",
-                                              "x": "center"], sizes: ["size:Reading"])
+    let (map, problems) = MouseButtons.valid(
+        [
+            "3": "left-half", "4": "size:Reading", "1": "maximize", "5": "nope",
+            "x": "center",
+        ], sizes: ["size:Reading"])
     #expect(map == [3: "left-half", 4: "size:Reading"])
     #expect(problems.count == 3)
     #expect(problems.contains("mouseButtons names unknown action nope for button 5: ignoring it"))
@@ -279,4 +284,3 @@ private func has(_ problems: [String], _ text: String) -> Bool {
         #expect(t["cycle-slot-windows-backward"] == Shortcut(mods: [.ctrl, .alt, .cmd], key: "up"))
     }
 }
-

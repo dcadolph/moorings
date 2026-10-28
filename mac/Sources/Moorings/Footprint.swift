@@ -33,7 +33,8 @@ final class Footprint {
             }
             return
         }
-        let p = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let p = NSPanel(
+            contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = false
@@ -68,10 +69,11 @@ final class Footprint {
             p.orderOut(nil)
             return
         }
-        NSAnimationContext.runAnimationGroup({ ctx in
-            ctx.duration = fadeTime
-            p.animator().alphaValue = 0
-        }, completionHandler: { MainActor.assumeIsolated { p.orderOut(nil) } })
+        NSAnimationContext.runAnimationGroup(
+            { ctx in
+                ctx.duration = fadeTime
+                p.animator().alphaValue = 0
+            }, completionHandler: { MainActor.assumeIsolated { p.orderOut(nil) } })
     }
 
     // paint colors view's layer from style on palette.
@@ -106,20 +108,25 @@ final class MacDrag {
 
     // init builds the follower on app's platform with the Mac's actions, stash and snap panel.
     init(app: AppDelegate) {
-        follower = DragFollower(platform: app.platform, anchors: app.anchors, preview: { [unowned app] name, w, screens, i in
-            app.actions.frame(name, for: w, screens: screens, index: i).0
-        }, apply: { [unowned app] name, w, screens, i in
-            app.actions.apply(name, to: w, screens: screens, index: i)
-        })
+        follower = DragFollower(
+            platform: app.platform, anchors: app.anchors,
+            preview: { [unowned app] name, w, screens, i in
+                app.actions.frame(name, for: w, screens: screens, index: i).0
+            },
+            apply: { [unowned app] name, w, screens, i in
+                app.actions.apply(name, to: w, screens: screens, index: i)
+            })
         follower.placed = { [unowned app] id in app.actions.placed(id) }
         follower.unsnap = { [unowned app] w, f, grab in app.actions.unsnap(w, at: f, grab: grab) }
         follower.appName = { [unowned app] bundle in app.appName(bundle) }
         follower.changed = { [unowned app] in app.save() }
-        follower.stash = StashHook(edge: { [unowned app] p, held in
-            app.stasher.dropEdge(p, held: held)
-        }, stash: { [unowned app] w, edge, original in
-            _ = app.stasher.stash(w, edge: edge, original: original)
-        })
+        follower.stash = StashHook(
+            edge: { [unowned app] p, held in
+                app.stasher.dropEdge(p, held: held)
+            },
+            stash: { [unowned app] w, edge, original in
+                _ = app.stasher.stash(w, edge: edge, original: original)
+            })
         follower.panel = MacDragPanel(app: app)
         follower.showed = { _, style in
             if style.haptic {
@@ -130,8 +137,10 @@ final class MacDrag {
 
     // held returns the names of the snap modifiers down in flags.
     static func held(_ flags: CGEventFlags) -> Set<String> {
-        let names: [(CGEventFlags, String)] = [(.maskShift, "shift"), (.maskControl, "control"),
-                                               (.maskAlternate, "option"), (.maskCommand, "command")]
+        let names: [(CGEventFlags, String)] = [
+            (.maskShift, "shift"), (.maskControl, "control"),
+            (.maskAlternate, "option"), (.maskCommand, "command"),
+        ]
         return Set(names.filter { flags.contains($0.0) }.map(\.1))
     }
 
@@ -178,7 +187,8 @@ final class MacDragPanel: @preconcurrency DragPanelHook {
     // show the panel, and returns the target's action.
     func zone(at p: Point, window w: WindowInfo, held: Set<String>, option: Bool) -> String? {
         let s = app.anchors.choices.snapping
-        let on = s.snapPanel && !option && !app.anchors.pinned(w) && !app.anchors.isCastOff(w.id)
+        let on =
+            s.snapPanel && !option && !app.anchors.pinned(w) && !app.anchors.isCastOff(w.id)
             && Set(s.snapModifiers).isSubset(of: held)
         let hit = on ? cells.flatMap { SnapPanel.hit(SnapPoint(p.x, p.y), $0) } : nil
         panel.highlight(hit)
@@ -221,7 +231,8 @@ final class MacDragPanel: @preconcurrency DragPanelHook {
     private func show() {
         guard let p = dwellFrom, cells == nil else { return }
         let screens = Screens.current()
-        guard let f = screens.full.first(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
+        guard
+            let f = screens.full.first(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
         else { return }
         let names = app.anchors.choices.snapping.panelActions
         guard !names.isEmpty else { return }
@@ -246,14 +257,16 @@ final class BadgePanel {
     // Moorings' own.
     static func frames() -> [Frame] {
         let own = ProcessInfo.processInfo.processIdentifier
-        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+        let list =
+            CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]] ?? []
         return list.compactMap { info in
             guard (info[kCGWindowLayer as String] as? Int) == 0,
-                  (info[kCGWindowOwnerPID as String] as? pid_t) != own,
-                  (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
-                  let b = info[kCGWindowBounds as String] as? [String: Double],
-                  let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"] else { return nil }
+                (info[kCGWindowOwnerPID as String] as? pid_t) != own,
+                (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                let b = info[kCGWindowBounds as String] as? [String: Double],
+                let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"]
+            else { return nil }
             return Frame(x: x, y: y, w: w, h: h)
         }
     }
@@ -262,8 +275,9 @@ final class BadgePanel {
     func show(_ count: Int, at front: Frame, palette: Palette) {
         let primary = NSScreen.screens.first?.frame.height ?? 0
         let size = NSSize(width: 30, height: 22)
-        let rect = NSRect(x: front.x + front.w - size.width - 8, y: primary - front.y - size.height - 8,
-                          width: size.width, height: size.height)
+        let rect = NSRect(
+            x: front.x + front.w - size.width - 8, y: primary - front.y - size.height - 8,
+            width: size.width, height: size.height)
         let p = panel ?? makePanel(rect)
         panel = p
         p.contentView?.layer?.backgroundColor = BannerPanel.color(palette.accent).cgColor
@@ -282,7 +296,8 @@ final class BadgePanel {
 
     // makePanel builds the badge window at rect.
     private func makePanel(_ rect: NSRect) -> NSPanel {
-        let p = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let p = NSPanel(
+            contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = true
@@ -319,7 +334,9 @@ final class SnapPanelWindow {
     func show(_ frame: Frame, cells: [Frame], names: [String], palette: Palette) {
         let primary = NSScreen.screens.first?.frame.height ?? 0
         let rect = NSRect(x: frame.x, y: primary - frame.y - frame.h, width: frame.w, height: frame.h)
-        view.cells = cells.map { NSRect(x: $0.x - frame.x, y: frame.y + frame.h - $0.y - $0.h, width: $0.w, height: $0.h) }
+        view.cells = cells.map {
+            NSRect(x: $0.x - frame.x, y: frame.y + frame.h - $0.y - $0.h, width: $0.w, height: $0.h)
+        }
         view.names = names
         view.lit = nil
         view.background = BannerPanel.color(palette.surface)
@@ -347,7 +364,8 @@ final class SnapPanelWindow {
 
     // makePanel builds the panel window at rect.
     private func makePanel(_ rect: NSRect) -> NSPanel {
-        let p = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let p = NSPanel(
+            contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = true
@@ -391,12 +409,14 @@ final class SnapPanelView: NSView {
             let area = Frame(x: 0, y: 0, w: screen.width, h: screen.height)
             guard let f = Geometry.position(names[i], area) else {
                 let label = Keymaps.label(names[i]) as NSString
-                label.draw(in: screen.insetBy(dx: 2, dy: 2),
-                           withAttributes: [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: color])
+                label.draw(
+                    in: screen.insetBy(dx: 2, dy: 2),
+                    withAttributes: [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: color])
                 continue
             }
             color.withAlphaComponent(i == lit ? 0.9 : 0.5).setFill()
-            let r = NSRect(x: screen.minX + f.x, y: screen.maxY - f.y - f.h, width: f.w, height: f.h).insetBy(dx: 1.5, dy: 1.5)
+            let r = NSRect(x: screen.minX + f.x, y: screen.maxY - f.y - f.h, width: f.w, height: f.h).insetBy(
+                dx: 1.5, dy: 1.5)
             NSBezierPath(roundedRect: r, xRadius: 2, yRadius: 2).fill()
         }
     }

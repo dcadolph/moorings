@@ -224,11 +224,23 @@ func span(_ g: OverlayGrid) -> [Int] {
         // Test 6: Off by default.
         (OverlayChoices(), flagControl | flagOption, nil),
         // Test 7: Shift alone never drives a hover.
-        ({ var c = OverlayChoices(); c.hoverMove = [.shift]; return c }(), flagShift, nil),
+        (
+            {
+                var c = OverlayChoices(); c.hoverMove = [.shift]; return c
+            }(), flagShift, nil
+        ),
         // Test 8: A resize set equal to the move set moves.
-        ({ var c = o; c.hoverResize = [.alt, .ctrl]; return c }(), flagControl | flagOption, .move),
+        (
+            {
+                var c = o; c.hoverResize = [.alt, .ctrl]; return c
+            }(), flagControl | flagOption, .move
+        ),
         // Test 9: Resize alone.
-        ({ var c = OverlayChoices(); c.hoverResize = [.cmd]; return c }(), flagCommand, .resize),
+        (
+            {
+                var c = OverlayChoices(); c.hoverResize = [.cmd]; return c
+            }(), flagCommand, .resize
+        ),
     ]
     for (i, test) in tests.enumerated() {
         #expect(Hover.mode(test.flags, test.choices) == test.want, "test \(i)")
@@ -256,8 +268,9 @@ func span(_ g: OverlayGrid) -> [Int] {
         (.resize, .bottomLeft, 1000, -1000, F(340, 100, 160, 100)),
     ]
     for (i, test) in tests.enumerated() {
-        #expect(Hover.frame(test.mode, start: start, corner: test.corner, dx: test.dx, dy: test.dy) == test.want,
-                "test \(i)")
+        #expect(
+            Hover.frame(test.mode, start: start, corner: test.corner, dx: test.dx, dy: test.dy) == test.want,
+            "test \(i)")
     }
     // An app that keeps a larger size than asked moves only the corner that follows the pointer.
     #expect(Hover.keep(start, corner: .topLeft, w: 380, h: 300) == F(120, 100, 380, 300))

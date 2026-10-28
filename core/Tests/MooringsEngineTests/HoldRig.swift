@@ -68,13 +68,15 @@ final class HoldRig {
         anchors = Anchors(choices: c)
         throwTicks = FakeScheduler(clock: clock)
         hoverTicks = FakeScheduler(clock: clock)
-        let platform = Platform(windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(),
-                                clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
-                                warpCursor: { _ in })
+        let platform = Platform(
+            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(),
+            clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
+            warpCursor: { _ in })
         actions = ActionRunner(platform: platform, anchors: anchors)
         picker = GridPicker(platform: platform, anchors: anchors, actions: actions, view: pickerGrid)
-        overlay = TriggerOverlay(platform: platform, anchors: anchors, actions: actions, footprint: footprint,
-                                 gridView: throwGrid, picker: picker, ticker: throwTicks)
+        overlay = TriggerOverlay(
+            platform: platform, anchors: anchors, actions: actions, footprint: footprint,
+            gridView: throwGrid, picker: picker, ticker: throwTicks)
         hover = HoverMover(platform: platform, anchors: anchors, ticker: hoverTicks)
         pad = windows.add(bundle: "com.example.pad", frame: Frame(x: 1400, y: 300, w: 900, h: 700), focus: true)
         under = pad
@@ -121,7 +123,8 @@ final class HoldRig {
         clock.advance(by: 1)
         let s = screens.current()
         let scan = windows.scan(s, full: true)
-        let moves = anchors.moor(Scene(screen: s.wide, windows: scan.windows, focused: scan.focused?.id, now: clock.now))
+        let moves = anchors.moor(
+            Scene(screen: s.wide, windows: scan.windows, focused: scan.focused?.id, now: clock.now))
         for m in moves where !m.exitFullScreen {
             windows.move(m.id, to: m.frame, from: nil, behavior: Behaviors())
         }

@@ -29,8 +29,12 @@ final class BadgeRig {
 
     // tick runs one update with the pointer at x, y.
     func tick(_ x: Double, _ y: Double, down: Bool = false) {
-        badge.update(pointer: Point(x: x, y: y), buttonDown: down, frames: { self.reads += 1; return self.frames },
-                     palette: .harbor, choices: StackChoices(), gap: 0)
+        badge.update(
+            pointer: Point(x: x, y: y), buttonDown: down,
+            frames: {
+                self.reads += 1; return self.frames
+            },
+            palette: .harbor, choices: StackChoices(), gap: 0)
     }
 }
 

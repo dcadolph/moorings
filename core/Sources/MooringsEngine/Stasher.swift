@@ -175,7 +175,8 @@ public final class Stasher {
             return nil
         }
         let screens = platform.screens.current()
-        guard let f = screens.full.first(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
+        guard
+            let f = screens.full.first(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
         else { return nil }
         if p.x - f.x <= Self.edgeReach {
             return .left
