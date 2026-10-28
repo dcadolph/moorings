@@ -112,13 +112,8 @@ final class WinMouseHook {
 // the press says move or size, the hook's pointer follows, and the drop runs at the hook's last point.
 // Alt stands for the Mac's Option and the Windows key for Command.
 final class WinDrag {
-    // app holds the follower and the hook.
+    // app holds the engine's follower and the hook.
     private unowned let app: App
-    // dropped is told each finished drag, the window and what it dropped on.
-    var dropped: (WindowID, SnapDrop?) -> Void {
-        get { app.follower.dropped }
-        set { app.follower.dropped = newValue }
-    }
 
     // init builds the glue for app.
     init(app: App) {
@@ -128,7 +123,7 @@ final class WinDrag {
     // began starts following hwnd, which the owner started moving or sizing. The caption moves and a
     // border sizes; with no answer the follower decides from the first frame change.
     func began(_ hwnd: HWND) {
-        app.follower.began(window: WinWindows.id(hwnd), moving: Self.hit(hwnd).map { $0 == Self.caption })
+        app.engine.drag.began(window: WinWindows.id(hwnd), moving: Self.hit(hwnd).map { $0 == Self.caption })
     }
 
     // caption is HTCAPTION.
@@ -151,16 +146,16 @@ final class WinDrag {
 
     // pointer follows the pointer at p while a drag is under way.
     func pointer(_ p: SnapPoint) {
-        app.follower.moved(Point(x: p.x, y: p.y), held: Modifiers.now())
+        app.engine.drag.moved(Point(x: p.x, y: p.y), held: Modifiers.now())
     }
 
     // ended runs the drop at the hook's last point once the drag ends.
     func ended() {
         guard let p = app.mouse.point else {
-            app.follower.cancel()
+            app.engine.drag.cancel()
             return
         }
         pointer(p)
-        app.follower.ended(held: Modifiers.now())
+        app.engine.drag.ended(held: Modifiers.now())
     }
 }

@@ -22,10 +22,10 @@ struct RunAction: AppIntent {
     // perform runs the action and fails when moorings does not know it.
     @MainActor
     func perform() async throws -> some IntentResult {
-        guard delegate.actions.runnable(name) else {
+        guard delegate.engine.actions.runnable(name) else {
             throw RunActionError.unknown(name)
         }
-        delegate.actions.run(name)
+        delegate.engine.actions.run(name)
         return .result()
     }
 }
@@ -53,7 +53,7 @@ struct ActionOptions: DynamicOptionsProvider {
         let fixed =
             ActionRunner.families.flatMap { $0.names + $0.groups.flatMap(\.names) }
             + Keymaps.windowNames + Keymaps.organizeNames + Keymaps.stashNames
-        let choices = delegate.anchors.choices
+        let choices = delegate.engine.anchors.choices
         let saved =
             choices.chains.map(\.actionName) + choices.workspaces.keys.sorted().map { Keymaps.workspacePrefix + $0 }
             + choices.profiles.map { Profile.prefix + $0.name }

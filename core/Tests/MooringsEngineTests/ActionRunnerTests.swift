@@ -11,6 +11,8 @@ final class ActionRig {
     let screens = FakeScreens.ultrawide()
     // clock is the fake clock.
     let clock = FakeClock()
+    // engine builds the runner and runs the passes.
+    let engine: Engine
     // anchors holds the choices and the pins.
     let anchors: Anchors
     // runner is the action runner under test.
@@ -24,26 +26,18 @@ final class ActionRig {
     init(_ edit: (inout Choices) -> Void = { _ in }) {
         var c = Choices(slots: [.leftTop: "com.tinyspeck.slackmacgap"])
         edit(&c)
-        anchors = Anchors(choices: c)
-        let platform = newTestPlatform(windows: windows, screens: screens, clock: clock)
-        runner = ActionRunner(platform: platform, anchors: anchors)
+        engine = newTestEngine(newTestPlatform(windows: windows, screens: screens, clock: clock, store: FakeStore(c)))
+        anchors = engine.anchors
+        runner = engine.actions
         slack = windows.add(bundle: "com.tinyspeck.slackmacgap", frame: Frame(x: 1500, y: 200, w: 800, h: 600))
         free = windows.add(bundle: "com.example.pad", frame: Frame(x: 1400, y: 300, w: 900, h: 700), focus: true)
-        let rig = self
-        runner.moor = { rig.pass() }
         pass()
     }
 
-    // pass runs one Anchors pass on the fake windows and applies its moves.
+    // pass runs one engine pass on the fake windows a second on.
     func pass() {
         clock.advance(by: 1)
-        let s = screens.current()
-        let scan = windows.scan(s, full: true)
-        let moves = anchors.moor(
-            Scene(screen: s.wide, windows: scan.windows, focused: scan.focused?.id, now: clock.now))
-        for m in moves where !m.exitFullScreen {
-            windows.move(m.id, to: m.frame, from: nil, behavior: Behaviors())
-        }
+        engine.moor()
     }
 
     // focus makes the window with id the focused one.
@@ -129,9 +123,9 @@ final class ActionRig {
     let clock = FakeClock()
     var c = Choices()
     c.behavior.moveCursor = true
-    let anchors = Anchors(choices: c)
-    let platform = newTestPlatform(windows: windows, screens: screens, clock: clock, pointer: pointer)
-    let runner = ActionRunner(platform: platform, anchors: anchors)
+    let engine = newTestEngine(
+        newTestPlatform(windows: windows, screens: screens, clock: clock, store: FakeStore(c), pointer: pointer))
+    let runner = engine.actions
     let id = windows.add(bundle: "com.example.pad", frame: Frame(x: 1400, y: 300, w: 900, h: 700), focus: true)
     #expect(runner.run("left-half"))
     let f = windows.frame(id)!
@@ -177,18 +171,21 @@ final class ActionRig {
     #expect(near(rig.frame(rig.free), moved))
 }
 
-// The routed actions go to the extra hook, and supports follows what the hook handles.
-@Test func testRunnerRoutesExtra() {
-    let rig = ActionRig()
-    var ran: [String] = []
-    #expect(!rig.runner.supports("stash"))
-    #expect(rig.runner.supports("left-half"))
-    rig.runner.extra = ExtraActions(
-        handles: { $0 == "stash" },
-        run: { name, _ in
-            ran.append(name); return true
-        })
-    #expect(rig.runner.supports("stash"))
-    #expect(rig.runner.run("stash"))
-    #expect(ran == ["stash"])
+// The routed actions go through the engine: supports follows the features the engine declares and
+// what the platform's actions handle, and a menu name runs on the platform.
+@Test func testRunnerRoutesThroughEngine() {
+    let menu = TestPlatformActions([Keymaps.menuName])
+    let windows = FakeWindows()
+    let none = newTestEngine(
+        newTestPlatform(windows: windows, screens: FakeScreens.ultrawide(), clock: FakeClock()), features: [])
+    #expect(!none.actions.supports("stash"))
+    #expect(!none.actions.supports(Keymaps.menuName))
+    #expect(none.actions.supports("left-half"))
+    let all = newTestEngine(
+        newTestPlatform(windows: windows, screens: FakeScreens.ultrawide(), clock: FakeClock()),
+        platformActions: menu)
+    #expect(all.actions.supports("stash"))
+    #expect(all.actions.supports(Keymaps.menuName))
+    #expect(all.actions.run(Keymaps.menuName))
+    #expect(menu.ran == [Keymaps.menuName])
 }

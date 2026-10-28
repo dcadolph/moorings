@@ -4,13 +4,8 @@ import MooringsCore
 // and runs the tiling actions. A window the owner drags or resizes floats until a mode is chosen
 // again. On the ultrawide it tiles the channel, so push back never has a tiled window to move.
 public final class Tiler {
-    // changed runs after the tiling choices changed, to save them.
-    public var changed: () -> Void = {}
-    // wake runs after a swap moved two windows, so the passes look again.
-    public var wake: () -> Void = {}
-    // moor runs a pass now, so a swap in the layout lands at once.
-    public var moor: () -> Void = {}
-
+    // engine is the orchestration this object calls: wake, moor, save, landed.
+    unowned let engine: Engine
     // platform reads and moves the windows and shows messages.
     private let platform: Platform
     // anchors is the layout the tiler reads.
@@ -26,8 +21,9 @@ public final class Tiler {
     // released is when the primary mouse button last came up.
     private var released = 0.0
 
-    // init builds a tiler on platform and anchors that lays out in organizer's areas.
-    public init(platform: Platform, anchors: Anchors, organizer: Organizer) {
+    // init builds a tiler on engine's platform and anchors that lays out in organizer's areas.
+    public init(engine: Engine, platform: Platform, anchors: Anchors, organizer: Organizer) {
+        self.engine = engine
         self.platform = platform
         self.anchors = anchors
         self.organizer = organizer
@@ -103,7 +99,7 @@ public final class Tiler {
             let was = anchors.choices.tiling.ratio
             anchors.choices.tiling.ratio = Tiling.resized(was, grow: name == "grow-main")
             guard anchors.choices.tiling.ratio != was else { return false }
-            changed()
+            engine.save()
             return true
         default:
             guard let dir = Tiling.direction(name) else { return false }
@@ -116,7 +112,7 @@ public final class Tiler {
         anchors.choices.tiling.mode = mode
         floated = []
         assigned = [:]
-        changed()
+        engine.save()
         platform.notifier.notify(
             "Tiling",
             mode == .off ? "Off. Windows stay where they are." : "\(Keymaps.label(Tiling.modePrefix + mode.rawValue))."
@@ -156,14 +152,14 @@ public final class Tiler {
             order = Tiling.swapped(order, me.id, other.id)
             assigned[me.id] = nil
             assigned[other.id] = nil
-            moor()
+            engine.moor()
             return true
         }
         anchors.save(me)
         anchors.save(other)
         platform.windows.move(me.id, to: other.frame, from: nil, behavior: anchors.choices.behavior)
         platform.windows.move(other.id, to: me.frame, from: nil, behavior: anchors.choices.behavior)
-        wake()
+        engine.wake()
         return true
     }
 }

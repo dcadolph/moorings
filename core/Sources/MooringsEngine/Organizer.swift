@@ -6,18 +6,16 @@ public final class Organizer {
     // tidyCounts lists how many front windows the Tidy entries line up.
     public static let tidyCounts = [2, 3]
 
-    // wake marks windows as changing, so passes run until they settle.
-    public var wake: () -> Void = {}
-    // moor runs a pass now.
-    public var moor: () -> Void = {}
-
+    // engine is the orchestration this object calls: wake, moor, save, landed.
+    unowned let engine: Engine
     // platform reads and moves the windows.
     private let platform: Platform
     // anchors is the layout the organizer reads and changes.
     private let anchors: Anchors
 
-    // init builds an organizer on platform and anchors.
-    public init(platform: Platform, anchors: Anchors) {
+    // init builds an organizer on engine's platform and anchors.
+    public init(engine: Engine, platform: Platform, anchors: Anchors) {
+        self.engine = engine
         self.platform = platform
         self.anchors = anchors
     }
@@ -35,7 +33,7 @@ public final class Organizer {
             anchors.save(w)
             platform.windows.move(w.id, to: f, from: nil, behavior: anchors.choices.behavior)
         }
-        wake()
+        engine.wake()
         return !list.isEmpty
     }
 
@@ -118,7 +116,7 @@ public final class Organizer {
             gap: anchors.choices.gapPx)
         let byID = Dictionary(uniqueKeysWithValues: list.map { ($0.id, $0) })
         _ = place(pairs.compactMap { byID[$0.0.id] }, pairs.map(\.1))
-        moor()
+        engine.moor()
     }
 
     // undo puts every window a fill, tidy or window action moved back where it was before the first
@@ -130,6 +128,6 @@ public final class Organizer {
             platform.windows.move(id, to: f, from: nil, behavior: anchors.choices.behavior)
         }
         platform.notifier.notify("Tidy undone", "Every window is back where it was before it was tidied or moved.")
-        wake()
+        engine.wake()
     }
 }

@@ -5,8 +5,8 @@ import os
 import MooringsCore
 import MooringsEngine
 
-// AppDelegate starts Moorings and owns its long-lived objects: the layout, the window reader, the
-// pass timer, and the menu bar item.
+// AppDelegate starts Moorings and owns its long-lived objects: the Mac adapters, the engine built
+// on them, and the menu bar item.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // choicesKey is the defaults key the saved choices live under.
@@ -17,8 +17,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // logger writes to the unified log under the com.dcadolph.moorings subsystem.
     let logger = Logger(subsystem: "com.dcadolph.moorings", category: "anchors")
-    // anchors holds the layout and decides every move.
-    let anchors = Anchors(choices: Choices.decode(UserDefaults.standard.data(forKey: AppDelegate.choicesKey) ?? Data()))
     // windows reads and moves windows.
     let windows = Windows()
     // pointer reads and warps the mouse pointer.
@@ -33,23 +31,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var keys = MacKeys(hotkeys)
     // watcher wakes the passes on window events.
     private lazy var watcher = Watcher { [weak self] el, note in self?.windowEvent(el, note) }
-    // actions applies window actions to the focused window.
-    lazy var actions: ActionRunner = {
-        let r = ActionRunner(platform: platform, anchors: anchors)
-        r.extra = ExtraActions(
-            handles: { _ in true }, run: { [unowned self] name, window in runExtra(name, window: window) })
-        r.landed = { [unowned self] id, frame in
-            landed(id, at: frame)
-            if windows.pid(id) != nil {
-                echo(id, at: frame)
-            } else {
-                wake()
-            }
-        }
-        r.wake = { [unowned self] in wake() }
-        r.moor = { [unowned self] in moor() }
-        return r
-    }()
     // accessibilityPane is the Privacy and Security pane that grants Accessibility.
     static let accessibilityPane = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
@@ -75,8 +56,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let banner = BannerPanel()
     // badge is the stack badge's panel.
     let badge = BadgePanel()
-    // stackBadge counts the stacked windows under the pointer when the choice is on.
-    lazy var stackBadge = StackBadge(view: badge)
     // update is a newer release found by the update check, nil when none.
     var update: ReleaseInfo?
     // launched is when moorings started.
@@ -91,92 +70,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var selftest = Selftest(app: self)
     // settings is the settings window.
     lazy var settings = SettingsWindow(app: self)
-    // organizer lays out several windows at once.
-    lazy var organizer: Organizer = {
-        let o = Organizer(platform: platform, anchors: anchors)
-        o.wake = { [unowned self] in wake() }
-        o.moor = { [unowned self] in moor() }
-        return o
-    }()
-    // workspaces saves and recalls workspaces, applies app rules and switches profiles.
-    lazy var workspaces: WorkspaceKeeper = {
-        let k = WorkspaceKeeper(platform: platform, anchors: anchors, organizer: organizer, actions: actions)
-        k.changed = { [unowned self] in save() }
-        return k
-    }()
     // snap follows drags and snaps the dragged window to the zone under the cursor.
     lazy var snap = MacDrag(app: self)
-    // passes run the window passes on the engine's pass loop.
-    lazy var passes: PassLoop = {
-        let p = PassLoop(platform: platform, anchors: anchors)
-        p.context = { [unowned self] in
-            PassContext(waiting: watcher.waiting || workspaces.waiting, launching: launching)
-        }
-        p.mouseHeld = { [unowned self] in pointer.primaryDown || hover.active }
-        p.deadlines = { [unowned self] in workspaces.deadlines() }
+    // platform is what the engine reads and drives on the Mac. A save shows the choices the menu bar
+    // icon, the ignore list and the anchor hint read.
+    lazy var platform = Platform(
+        windows: windows, screens: MacScreens(), overlay: Footprint(haptic: true),
+        notifier: MacNotifier { [unowned self] in self.notify($0, $1) },
+        clock: MacClock(),
+        store: DefaultsStore(key: Self.choicesKey) { [unowned self] _ in
+            showIcon()
+            refreshShortcuts()
+            hintAnchor(Screens.current())
+        },
+        pointer: pointer, keys: keys, apps: apps, log: log, timers: timers, events: MacEvents(store: windows),
+        grid: GridPanel(), badge: badge
+    )
+    // engine builds and runs every engine object on the Mac's platform, with every routed action and
+    // the menu and strip editor. Until the event source goes live, the delegate's watcher feeds the
+    // passes: prepare watches the regular apps and the closing of the windows the last scan read.
+    lazy var engine: Engine = {
+        let e = Engine(
+            platform: platform, features: .all, platformActions: MacActions(app: self),
+            throwViews: ThrowViews(footprint: Footprint(), grid: GridPanel()))
+        let p = e.passes
+        p.context = { [unowned self] in PassContext(waiting: watcher.waiting, launching: launching) }
         p.ticked = { [unowned self] in ticked() }
         p.prepare = { [unowned self] in
             if !tap.running {
                 tap.start()
             }
-        }
-        p.refreshed = { [unowned self] alive in
             watcher.watch(Self.regularApps())
-            actions.prune(alive: alive)
-            stasher.prune(alive: alive)
+            watcher.watchClosing(windows.elements)
         }
-        p.after = { [unowned self] scan, screens, held in passed(scan, screens, held) }
-        p.paced = { [unowned self] in paced() }
         p.greenButton = true
-        return p
+        return e
     }()
-    // platform is what the engine reads and drives on the Mac.
-    lazy var platform = Platform(
-        windows: windows, screens: MacScreens(), overlay: Footprint(),
-        notifier: MacNotifier { [unowned self] in self.notify($0, $1) },
-        clock: MacClock(), store: DefaultsStore(key: Self.choicesKey), pointer: pointer, keys: keys, apps: apps,
-        log: log, timers: timers, events: MacEvents(store: windows), grid: GridPanel(), badge: badge
-    )
     // hotkeys runs a window action when its shortcut is pressed.
-    lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
-    // overlay throws a window while the overlay's trigger key is held.
-    lazy var overlay: TriggerOverlay = {
-        TriggerOverlay(
-            platform: platform, anchors: anchors, actions: actions, footprint: Footprint(),
-            gridView: GridPanel(), picker: gridPicker, ticker: timers.scheduler())
-    }()
-    // stasher parks windows at a screen edge, reading the pointer from mouse events while one is.
-    lazy var stasher: Stasher = {
-        let s = Stasher(platform: platform, anchors: anchors, rest: timers.scheduler())
-        s.wake = { [unowned self] in wake() }
-        return s
-    }()
-    // gridPicker pops a grid of cells for the grid actions.
-    lazy var gridPicker = GridPicker(platform: platform, anchors: anchors, actions: actions)
+    lazy var hotkeys = Hotkeys { [weak self] name in self?.engine.actions.run(name) }
     // strips edits the strip widths and row heights on screen.
     lazy var strips = StripEditor(app: self)
-    // tiler keeps free windows in the tiling mode's layout.
-    lazy var tiler: Tiler = {
-        let t = Tiler(platform: platform, anchors: anchors, organizer: organizer)
-        t.changed = { [unowned self] in save() }
-        t.wake = { [unowned self] in wake() }
-        t.moor = { [unowned self] in moor() }
-        return t
-    }()
     // edges moves the edge two windows share for both while the edge resize keys are held.
     lazy var edges = EdgeResizer(app: self)
-    // hover moves or resizes the window under the pointer while the hover modifiers are held.
-    lazy var hover: HoverMover = {
-        let h = HoverMover(platform: platform, anchors: anchors, ticker: timers.scheduler())
-        h.wake = { [unowned self] in wake() }
-        return h
-    }()
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     // launching is when passes stop looking for the first window of an app that just launched.
     private var launching = 0.0
-    // badgeTimer reads the pointer for the stack badge while the badge is on.
-    private var badgeTimer: Timer?
     // quitting reports whether Quit Moorings was chosen, so the icon stays blank while the boat sinks.
     private var quitting = false
     // sinking plays the quit animation.
@@ -228,17 +167,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             MainActor.assumeIsolated { self.checkUpdate() }
         }
         updateTimer?.tolerance = 10
-        anchors.launch(now: Self.now)
-        _ = workspaces
         tap.onDown = { [weak self] p, flags in
             guard let self else { return false }
-            if self.gridPicker.showing {
-                if self.gridPicker.contains(Point(x: p.x, y: p.y)) {
+            let picker = self.engine.gridPicker
+            if picker.showing {
+                if picker.contains(Point(x: p.x, y: p.y)) {
                     return false
                 }
-                self.gridPicker.cancel()
+                picker.cancel()
             }
-            self.stasher.clicked(Point(x: p.x, y: p.y))
+            self.engine.stasher.clicked(Point(x: p.x, y: p.y))
             if self.edges.pressed(p, flags: flags) {
                 return true
             }
@@ -260,20 +198,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         tap.onSwallowedUp = { [weak self] _ in self?.edges.released() }
         tap.onUp = { [weak self] _, _ in
             self?.snap.released()
-            self?.tiler.mouseUp()
-            self?.wake()
+            self?.engine.tiler.mouseUp()
+            self?.engine.wake()
         }
         tap.onOther = { [weak self] button, down in self?.mouseButton(button, down: down) ?? false }
         tap.onFlags = { [weak self] flags, p in
             let m = Modifiers(flags: flags)
-            self?.overlay.flagsChanged(m, at: Point(x: p.x, y: p.y))
-            self?.hover.flagsChanged(m, at: Point(x: p.x, y: p.y))
+            self?.engine.overlay.flagsChanged(m, at: Point(x: p.x, y: p.y))
+            self?.engine.hover.flagsChanged(m, at: Point(x: p.x, y: p.y))
         }
         tap.start()
-        rebind()
+        engine.start()
         refreshShortcuts()
-        wake()
-        moor()
+        hintAnchor(Screens.current())
     }
 
     // quit pulls the menu bar sailboat under the water, then quits. With Reduce Motion on, the icon
@@ -299,7 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // applicationWillTerminate puts stashed windows back, so none is left parked off screen.
     func applicationWillTerminate(_ notification: Notification) {
-        stasher.unstashAll()
+        engine.stasher.unstashAll()
     }
 
     // applicationShouldHandleReopen opens the settings window when Moorings is opened again while it
@@ -314,7 +251,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for url in urls where url.scheme == "moorings" {
             switch url.host() {
             case "status": status()
-            case "moor": moor()
+            case "moor": engine.moor()
             case "action": runLink(url)
             case "settings": settings.show()
             case "selftest":
@@ -331,7 +268,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first {
                     $0.name == "name"
                 }?.value
-                workspaces.recall(name ?? "")
+                engine.workspaces.recall(name ?? "")
             default: logger.notice("unknown link: \(url.absoluteString, privacy: .public)")
             }
         }
@@ -347,49 +284,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // popMenu opens the menu under the pointer as a context menu. Moorings is not brought forward,
-    // so the front app's entries and window actions still act on the window that was in front.
-    // runExtra runs the actions the engine routes to the Mac: the menus, the grid, stash, organize,
-    // tiling, workspaces and profiles.
-    private func runExtra(_ name: String, window: WindowID?) -> Bool {
-        if name == Keymaps.menuName {
-            DispatchQueue.main.async { [self] in popMenu() }
-            return true
-        }
-        if name == Keymaps.stripsName {
-            DispatchQueue.main.async { [self] in strips.show() }
-            return true
-        }
-        if let size = Overlay.gridSize(name, anchors.choices.overlay) {
-            return gridPicker.show(cols: size.cols, rows: size.rows, window: window)
-        }
-        if Keymaps.stashNames.contains(name) {
-            return stasher.run(name)
-        }
-        if Tile.handles(name) {
-            return organizer.run(name)
-        }
-        if Tiling.handles(name) {
-            return tiler.run(name)
-        }
-        if name.hasPrefix(Keymaps.workspacePrefix) {
-            return workspaces.recall(String(name.dropFirst(Keymaps.workspacePrefix.count)))
-        }
-        if name.hasPrefix(Profile.prefix) {
-            let title = String(name.dropFirst(Profile.prefix.count))
-            guard anchors.choices.profiles.contains(where: { $0.name == title }) else { return false }
-            DispatchQueue.main.async { [self] in workspaces.applyProfile(title) }
-            return true
-        }
-        return false
-    }
-
     // titleBarClick maximizes or restores the window whose title bar was double-clicked at p. It needs
     // the choice on and macOS set to do nothing on a title bar double-click, as Rectangle does, so
     // the two never both act. The window is read after the event, never inside the tap.
     func titleBarClick(_ p: CGPoint) {
-        let b = anchors.choices.behavior
-        guard b.doubleClickTitleBar, !anchors.choices.paused, windows.trusted else { return }
+        let b = engine.anchors.choices.behavior
+        guard b.doubleClickTitleBar, !engine.anchors.choices.paused, windows.trusted else { return }
         guard UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") == "None" else {
             log.note(
                 .actions,
@@ -404,10 +304,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             guard let w = windows.scan(screens).windows.first(where: { $0.id == hit.id }),
                 !b.doubleClickIgnoredApps.contains(w.bundle)
             else { return }
-            actions.titleBar(w, screens: screens)
+            engine.actions.titleBar(w, screens: screens)
         }
     }
 
+    // popMenu opens the menu under the pointer as a context menu. Moorings is not brought forward,
+    // so the front app's entries and window actions still act on the window that was in front.
     func popMenu() {
         let menu = NSMenu()
         for entry in MenuBuilder(app: self).items() {
@@ -426,68 +328,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if note == kAXWindowMovedNotification || note == kAXWindowResizedNotification, let id,
             let echo = windows.echoes[id], Self.now - echo.at < Pace.settleSeconds
         {
-            passes.wake()
+            engine.passes.wake(full: false)
             return
         }
         if let pid = Windows.pid(el) {
             wake(pid)
         } else {
-            wake()
+            engine.wake()
         }
-    }
-
-    // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle, and
-    // read every app.
-    func wake() {
-        windows.fullWoke = Self.now
-        passes.wake()
     }
 
     // wake marks the windows of the app with pid as changing, so passes run every Pace.pollSeconds
     // until they settle, and read that app.
-    func wake(_ pid: pid_t) {
+    private func wake(_ pid: pid_t) {
         windows.appWoke[pid] = Self.now
-        passes.wake()
-    }
-
-    // echo records frame as where an action just read back the window with id after moving it, and
-    // runs passes until windows settle. The window's own move events then only poll, and the pass
-    // after reads its app only when the window server lists it somewhere else.
-    func echo(_ id: WindowID, at frame: Frame) {
-        windows.echoes[id] = (frame, Self.now)
-        passes.wake()
-    }
-
-    // landed records frame as the last frame read for the window with id, which an action just read
-    // back after moving it, so the pass after reads it at rest and ends the polling.
-    func landed(_ id: WindowID, at frame: Frame) {
-        passes.landed(id, at: frame)
-    }
-
-    // moor runs one pass now.
-    func moor() {
-        passes.moor()
-    }
-
-    // paced starts or stops the stack badge's pointer reads after each pass.
-    private func paced() {
-        if anchors.choices.stacking.badge, badgeTimer == nil {
-            badgeTimer = Timer.scheduledTimer(withTimeInterval: Pace.pollSeconds, repeats: true) { _ in
-                MainActor.assumeIsolated { self.updateBadge() }
-            }
-        } else if !anchors.choices.stacking.badge, let badgeTimer {
-            badgeTimer.invalidate()
-            self.badgeTimer = nil
-            stackBadge.hide()
-        }
-    }
-
-    // updateBadge shows or hides the stack badge for the pointer's place.
-    private func updateBadge() {
-        stackBadge.update(
-            pointer: pointer.position, buttonDown: pointer.buttonDown,
-            frames: BadgePanel.frames, palette: .harbor, choices: anchors.choices.stacking,
-            gap: anchors.choices.gapPx)
+        engine.passes.wake(full: false)
     }
 
     // ticked catches an Accessibility grant or loss before a timed pass. A loss tears down the tap and
@@ -510,25 +365,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // passed runs the Mac's part of each pass: it watches the windows for closing, lets the workspaces
-    // and the tiler see the windows, and hints how to anchor an app on a first ultrawide.
-    private func passed(_ scan: Scan, _ screens: Screens, _ mouseHeld: Bool) {
-        watcher.watchClosing(windows.elements)
-        workspaces.seen(scan.windows, screens: screens)
-        tiler.pass(scan.windows, screens: screens, mouseHeld: mouseHeld)
-        hintAnchor(screens)
-    }
-
     // mouseButton runs the action bound to an extra mouse button when it goes down, and reports
     // whether the button is bound, so both halves are swallowed. Unbound buttons, and every button
     // while paused or while an ignored app is in front, pass on.
     private func mouseButton(_ button: Int, down: Bool) -> Bool {
-        let sizes = Set(Bindings(anchors.choices).sizes.map(\.name))
-        guard !anchors.choices.paused, hotkeys.enabled,
-            let name = MouseButtons.valid(anchors.choices.mouseButtons, sizes: sizes).map[button]
+        let sizes = Set(Bindings(engine.anchors.choices).sizes.map(\.name))
+        guard !engine.anchors.choices.paused, hotkeys.enabled,
+            let name = MouseButtons.valid(engine.anchors.choices.mouseButtons, sizes: sizes).map[button]
         else { return false }
         if down {
-            DispatchQueue.main.async { [weak self] in self?.actions.run(name) }
+            DispatchQueue.main.async { [weak self] in self?.engine.actions.run(name) }
         }
         return true
     }
@@ -538,7 +384,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // is read only for a press in a window's top left corner while a binding takes these modifiers, and
     // the green button of an anchored window keeps its lift.
     private func buttonDown(_ p: CGPoint, flags: CGEventFlags) -> Bool {
-        let choices = anchors.choices
+        let choices = engine.anchors.choices
         guard !choices.buttonClicks.isEmpty, !choices.paused, hotkeys.enabled, windows.trusted,
             let modifier = ButtonClicks.modifier(
                 shift: flags.contains(.maskShift),
@@ -557,12 +403,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 sizes: Set(Bindings(choices).sizes.map(\.name)))
         else { return false }
         if button == .green {
-            switch anchors.zoomClick(point, option: flags.contains(.maskAlternate), front: front) {
+            switch engine.anchors.zoomClick(point, option: flags.contains(.maskAlternate), front: front) {
             case .lift, .lower, .remoor: return false
             default: break
             }
         }
-        DispatchQueue.main.async { [weak self] in self?.actions.run(name, window: hit.id) }
+        DispatchQueue.main.async { [weak self] in self?.engine.actions.run(name, window: hit.id) }
         return true
     }
 
@@ -570,7 +416,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // the lift, fill or re-moor after the event, so the tap never waits on it.
     private func zoomDown(_ p: CGPoint, option: Bool) -> Bool {
         guard windows.trusted,
-            let action = anchors.zoomClick(Point(x: p.x, y: p.y), option: option, front: Windows.front())
+            let action = engine.anchors.zoomClick(Point(x: p.x, y: p.y), option: option, front: Windows.front())
         else { return false }
         DispatchQueue.main.async { [weak self] in self?.zoom(action) }
         return true
@@ -580,25 +426,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func zoom(_ action: ZoomAction) {
         switch action {
         case let .lift(id), let .lower(id):
-            anchors.toggleLift(id: id)
-            if anchors.isLifted(id) {
+            engine.anchors.toggleLift(id: id)
+            if engine.anchors.isLifted(id) {
                 windows.raise(id)
             }
         case let .remoor(id):
-            anchors.remoor(id)
+            engine.anchors.remoor(id)
         case let .fill(id), let .restore(id):
             let screens = Screens.current()
             guard let w = windows.scan(screens).windows.first(where: { $0.id == id }) else { return }
             if case .fill = action {
-                if actions.apply("maximize", to: w, screens: screens), let f = windows.frame(id) {
-                    anchors.markFilled(id, f, from: w.frame)
+                if engine.actions.apply("maximize", to: w, screens: screens), let f = windows.frame(id) {
+                    engine.anchors.markFilled(id, f, from: w.frame)
                 }
-            } else if let f = anchors.unfill(id) {
+            } else if let f = engine.anchors.unfill(id) {
                 windows.move(id, to: f)
             }
         }
-        wake()
-        moor()
+        engine.wake()
+        engine.moor()
     }
 
     // hintKey is the defaults key that records the first anchor hint was shown.
@@ -610,10 +456,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // hintAnchor says once how to anchor an app, while an ultrawide is attached and nothing is
-    // anchored. Emptied slots count as a choice.
+    // anchored. Emptied slots count as a choice. It runs at launch, when the displays change and after
+    // each save.
     private func hintAnchor(_ screens: Screens) {
         let defaults = UserDefaults.standard
-        guard screens.wide != nil, anchors.choices.slots.isEmpty, !defaults.bool(forKey: Self.hintKey) else { return }
+        guard screens.wide != nil, engine.anchors.choices.slots.isEmpty, !defaults.bool(forKey: Self.hintKey) else {
+            return
+        }
         defaults.set(true, forKey: Self.hintKey)
         notify(
             "Anchor an app to an edge",
@@ -650,7 +499,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // checkUpdate looks for a newer release when the last check is older than fresh seconds, a minute
     // after launch at the earliest.
     private func checkUpdate(fresh: TimeInterval = UpdateSchedule.everySeconds) {
-        guard anchors.choices.checkUpdates, update == nil else { return }
+        guard engine.anchors.choices.checkUpdates, update == nil else { return }
         let defaults = UserDefaults.standard
         let last = defaults.object(forKey: Self.checkedKey) as? Date
         guard UpdateSchedule.isDue(lastChecked: last, launched: launched, now: Date(), fresh: fresh) else {
@@ -693,49 +542,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // save writes the choices to defaults, binds the shortcuts again, then runs a pass so the change
-    // shows at once.
-    func save() {
-        if let data = try? Choices.encode(anchors.choices) {
-            UserDefaults.standard.set(data, forKey: Self.choicesKey)
-        }
-        rebind()
-        refreshShortcuts()
-        showIcon()
-        wake()
-        moor()
-    }
-
     // showIcon shows the menu bar icon unless the choices hide it. Opening Moorings again while it
     // runs opens the settings, where the icon can be turned back on.
     private func showIcon() {
-        item.isVisible = !anchors.choices.behavior.hideMenuBarIcon
-    }
-
-    // rebind registers every shortcut in effect and logs the problems with the saved ones.
-    func rebind() {
-        let bindings = Bindings(anchors.choices)
-        for p in bindings.problems {
-            logger.notice("\(p, privacy: .public)")
-        }
-        keys.bind(bindings.map)
+        item.isVisible = !engine.anchors.choices.behavior.hideMenuBarIcon
     }
 
     // refreshShortcuts turns the shortcuts off while an app in the ignore list is in front.
     func refreshShortcuts() {
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        hotkeys.setEnabled(front.map { !anchors.choices.ignores.contains($0) } ?? true)
+        hotkeys.setEnabled(front.map { !engine.anchors.choices.ignores.contains($0) } ?? true)
     }
 
     // runLink runs the action a moorings://action?name= link asks for.
     private func runLink(_ url: URL) {
         let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "name" }?
             .value
-        guard let name, actions.runnable(name) else {
+        guard let name, engine.actions.runnable(name) else {
             logger.notice("a moorings link asked for unknown action \(name ?? "none", privacy: .public)")
             return
         }
-        actions.run(name)
+        engine.actions.run(name)
     }
 
     // open opens the app with bundle the way a Dock click does, which launches it or asks a running
@@ -765,16 +592,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let screens = Screens.current()
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         logger.notice(
-            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.anchors.choices.paused) tap=\(self.tap.running) observed=\(self.watcher.count) hotkeys=\(self.hotkeys.enabled)"
+            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) observed=\(self.watcher.count) hotkeys=\(self.hotkeys.enabled)"
         )
-        for (key, bundle) in anchors.assignments().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
-            let held = anchors.slotWindows(key).map(String.init).joined(separator: ",")
+        for (key, bundle) in engine.anchors.assignments().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
+            let held = engine.anchors.slotWindows(key).map(String.init).joined(separator: ",")
             logger.notice(
                 "slot \(key.rawValue, privacy: .public): \(bundle, privacy: .public) held=[\(held, privacy: .public)]")
         }
         for w in windows.scan(screens).windows {
             logger.notice(
-                "window \(w.id) \(w.bundle, privacy: .public) frame=\(w.frame.description, privacy: .public) wide=\(w.onUltrawide) main=\(w.isMain) panel=\(w.isFilePanel) pinned=\(self.anchors.pinned(w)) castOff=\(self.anchors.isCastOff(w.id))"
+                "window \(w.id) \(w.bundle, privacy: .public) frame=\(w.frame.description, privacy: .public) wide=\(w.onUltrawide) main=\(w.isMain) panel=\(w.isFilePanel) pinned=\(self.engine.anchors.pinned(w)) castOff=\(self.engine.anchors.isCastOff(w.id))"
             )
         }
         for line in windows.explain(screens) {
@@ -799,7 +626,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 windows.lastFront = app.processIdentifier
                 if windows.trusted,
                     Behavior.disablesEnhancedUIOnActivation(
-                        anchors.choices.behavior.enhancedUI, bundle: app.bundleIdentifier,
+                        engine.anchors.choices.behavior.enhancedUI, bundle: app.bundleIdentifier,
                         assistive: NSWorkspace.shared.isVoiceOverEnabled)
                 {
                     Windows.dropEnhancedUI(app.processIdentifier)
@@ -808,10 +635,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             refreshShortcuts()
         }
         if note.name == NSApplication.didChangeScreenParametersNotification {
-            anchors.screensChanged()
-            workspaces.screensChanged()
+            engine.anchors.screensChanged()
+            engine.workspaces.screensChanged()
+            hintAnchor(Screens.current())
         }
-        wake()
+        engine.wake()
     }
 
     // regularApps returns the processes of the apps that can show windows, other than moorings.
@@ -828,7 +656,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             windows.forget(app.processIdentifier)
             watcher.forget(app.processIdentifier)
         }
-        wake()
+        engine.wake()
     }
 }
 
@@ -876,10 +704,14 @@ final class MacScheduler: @preconcurrency Scheduler {
 final class DefaultsStore: ChoicesStore {
     // key is the defaults key the choices live under.
     private let key: String
+    // saved runs after each save with the choices saved, for the parts of the app a choice shows:
+    // the menu bar icon and the ignore-list switch.
+    let saved: (Choices) -> Void
 
-    // init keeps the choices under key.
-    init(key: String) {
+    // init keeps the choices under key and tells saved after each save.
+    init(key: String, saved: @escaping (Choices) -> Void) {
         self.key = key
+        self.saved = saved
     }
 
     // load decodes the saved choices, or the defaults when none are saved.
@@ -890,6 +722,7 @@ final class DefaultsStore: ChoicesStore {
     // save encodes choices under the key.
     func save(_ choices: Choices) throws {
         UserDefaults.standard.set(try Choices.encode(choices), forKey: key)
+        saved(choices)
     }
 
     // changed is false: Moorings is the only writer of its defaults, and a choice changed under it is

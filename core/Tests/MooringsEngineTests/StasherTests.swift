@@ -14,14 +14,14 @@ final class StashRig {
     let clock = FakeClock()
     // pointer is the fake pointer, which tells the stasher of each move while it tracks.
     let pointer = FakePointer(Point(x: 1700, y: 700))
-    // restTicks runs the stasher's rest check.
-    let restTicks: FakeScheduler
+    // timers hands out the engine's schedulers, the stasher's second, after the workspaces'.
+    let timers: FakeTimers
+    // engine builds the stasher and runs the passes it wakes.
+    let engine: Engine
     // anchors holds the choices.
     let anchors: Anchors
     // stasher is the stasher under test.
     let stasher: Stasher
-    // wakes counts the wake calls.
-    var wakes = 0
     // id is the focused window.
     let id: WindowID
     // start is where the focused window begins, nearest the left edge.
@@ -29,13 +29,21 @@ final class StashRig {
 
     // init builds the rig with choices and a window that refuses moves when refuses is set.
     init(_ choices: Choices = Choices(), refuses: Bool = false) {
-        anchors = Anchors(choices: choices)
-        restTicks = FakeScheduler(clock: clock)
-        let platform = newTestPlatform(windows: windows, screens: screens, clock: clock, pointer: pointer)
+        timers = FakeTimers(clock: clock)
+        engine = newTestEngine(
+            newTestPlatform(
+                windows: windows, screens: screens, clock: clock, store: FakeStore(choices), pointer: pointer,
+                timers: timers))
+        anchors = engine.anchors
         id = windows.add(bundle: "com.example.pad", frame: start, refuses: refuses, focus: true)
-        stasher = Stasher(platform: platform, anchors: anchors, rest: restTicks)
-        stasher.wake = { [unowned self] in wakes += 1 }
+        stasher = engine.stasher
     }
+
+    // restTicks runs the stasher's rest check.
+    var restTicks: FakeScheduler { timers.made[1] }
+
+    // woke reports whether the stasher marked windows as changing, which sets the next pass.
+    var woke: Bool { engine.passes.due != nil }
 
     // hidden is where start parks at the left edge.
     var hidden: Frame { Frame(x: Stash.sliver - start.w, y: start.y, w: start.w, h: start.h) }
@@ -81,7 +89,7 @@ final class StashRig {
     #expect(rig.anchors.stashed == [rig.id])
     #expect(rig.stasher.entries.map(\.s.edge) == [.left])
     #expect(rig.watched == [true])
-    #expect(rig.wakes == 1)
+    #expect(rig.woke)
 }
 
 // A pointer that rests on the sliver slides the window out and raises it, on the rest scheduler.

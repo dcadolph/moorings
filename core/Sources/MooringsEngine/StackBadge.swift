@@ -7,28 +7,59 @@ public final class StackBadge {
     // resting.
     public static let restMove = 2.0
 
-    // view paints the badge.
-    private let view: any BadgeView
+    // engine is the orchestration this object calls: wake, moor, save, landed.
+    unowned let engine: Engine
+    // platform reads the pointer and the windows and paints the badge.
+    private let platform: Platform
+    // anchors holds the stacking choices and the gap.
+    private let anchors: Anchors
+    // ticker runs the ticks, a scheduler of the badge's own.
+    private let ticker: any Scheduler
     // pointer is the pointer position at the previous tick.
     private var pointer: Point?
     // settled reports whether the badge was already worked out for the current rest.
     private var settled = false
+    // running reports whether the ticks are on.
+    public private(set) var running = false
 
-    // init builds a badge painted by view.
-    public init(view: any BadgeView) {
-        self.view = view
+    // init builds a badge on platform and anchors that ticks on its own scheduler from the timers.
+    public init(engine: Engine, platform: Platform, anchors: Anchors) {
+        self.engine = engine
+        self.platform = platform
+        self.anchors = anchors
+        ticker = platform.timers.scheduler()
     }
 
-    // update runs once a tick with the pointer at p, in top-left coordinates. Any move of more than
-    // restMove hides the badge and restarts the rest. On the first tick of a rest it shows the count
-    // of the stack whose front window has its top-left corner under the pointer, or hides the badge
-    // when there is none. frames lists the visible windows front to back and is read once per rest,
-    // never while the pointer moves or stays still. A mouse button down hides the badge.
-    public func update(
-        pointer p: Point, buttonDown: Bool, frames: () -> [Frame], palette: Palette,
-        choices: StackChoices, gap: Double
-    ) {
-        guard !buttonDown else {
+    // sync starts the ticks when the badge choice is on and this platform has a badge, and stops them
+    // and hides the badge otherwise. The engine calls it after init, save and reload.
+    public func sync() {
+        let on = anchors.choices.stacking.badge && engine.features.contains(.badge)
+        guard on != running else { return }
+        running = on
+        pointer = nil
+        settled = false
+        if on {
+            schedule()
+        } else {
+            ticker.cancel()
+            hide()
+        }
+    }
+
+    // schedule sets the next tick Pace.pollSeconds from now.
+    private func schedule() {
+        ticker.schedule(at: platform.clock.now + Pace.pollSeconds) { [weak self] in self?.tick() }
+    }
+
+    // tick runs once per Pace.pollSeconds while running: it reads the pointer, hides the badge on a
+    // move of more than restMove or a held button, and on the first tick of a rest counts the stack
+    // whose front window has its top-left corner under the pointer from one scan and shows the count
+    // on its front window.
+    private func tick() {
+        guard running else { return }
+        schedule()
+        let p = platform.pointer.position
+        guard !platform.pointer.buttonDown else {
             hide()
             pointer = nil
             return
@@ -41,16 +72,16 @@ public final class StackBadge {
         }
         guard !settled else { return }
         settled = true
-        let list = frames()
-        guard let i = Tile.hovered(at: p, frames: list, gap: gap) else { return }
-        let n = Tile.stack(anchorOf: i, among: list, choices: choices).count
+        let list = platform.windows.scan(platform.screens.current(), full: false).windows.map(\.frame)
+        guard let i = Tile.hovered(at: p, frames: list, gap: anchors.choices.gapPx) else { return }
+        let n = Tile.stack(anchorOf: i, among: list, choices: anchors.choices.stacking).count
         if n > 1 {
-            view.show(n, at: list[i], palette: palette)
+            platform.badge.show(n, at: list[i], palette: .harbor)
         }
     }
 
     // hide takes the badge off screen.
     public func hide() {
-        view.hide()
+        platform.badge.hide()
     }
 }

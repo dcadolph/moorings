@@ -11,30 +11,46 @@ let stackFrames = [
     Frame(x: 1010, y: 310, w: 700, h: 500),
 ]
 
-// BadgeRig is a stack badge on a fake view that counts how often it reads the window frames.
+// BadgeRig is a stack badge with its choice on, on an engine over fakes, that counts how often it
+// reads the windows.
 final class BadgeRig {
     // view is the fake badge view.
     let view = FakeBadge()
+    // windows holds the stacked windows.
+    let windows = FakeWindows()
+    // clock runs the badge's ticks.
+    let clock = FakeClock()
+    // pointer is where each tick reads the pointer.
+    let pointer = FakePointer()
+    // engine builds the badge.
+    let engine: Engine
     // badge is the stack badge under test.
     let badge: StackBadge
-    // reads counts the frame reads.
-    var reads = 0
-    // frames is what a frame read returns.
-    var frames = stackFrames
 
-    // init builds the rig.
-    init() {
-        badge = StackBadge(view: view)
+    // init builds the rig with a window at each of frames, front to back, and the routed features.
+    init(_ frames: [Frame] = stackFrames, features: Engine.Features = .all) {
+        var c = Choices()
+        c.stacking.badge = true
+        for f in frames.reversed() {
+            windows.add(bundle: "com.example.pad", frame: f)
+        }
+        engine = newTestEngine(
+            newTestPlatform(
+                windows: windows, screens: FakeScreens.ultrawide(), clock: clock, store: FakeStore(c),
+                pointer: pointer, badge: view),
+            features: features)
+        badge = engine.badge
+        badge.sync()
     }
 
-    // tick runs one update with the pointer at x, y.
+    // reads counts the window reads.
+    var reads: Int { windows.calls.filter { $0 == .scan(full: false) }.count }
+
+    // tick puts the pointer at x, y and runs one tick.
     func tick(_ x: Double, _ y: Double, down: Bool = false) {
-        badge.update(
-            pointer: Point(x: x, y: y), buttonDown: down,
-            frames: {
-                self.reads += 1; return self.frames
-            },
-            palette: .harbor, choices: StackChoices(), gap: 0)
+        pointer.position = Point(x: x, y: y)
+        pointer.buttonDown = down
+        clock.advance(by: Pace.pollSeconds)
     }
 }
 
@@ -85,9 +101,26 @@ final class BadgeRig {
 
 // Test 4: A lone window at the corner shows no badge.
 @Test func testStackBadgeLoneWindow() {
-    let rig = BadgeRig()
-    rig.frames = [stackFrames[0]]
+    let rig = BadgeRig([stackFrames[0]])
     rig.tick(1030, 330)
     rig.tick(1030, 330)
     #expect(rig.view.shown == nil)
+}
+
+// Test 5: The badge ticks only while its choice is on and the platform declares a badge, and a save
+// that turns the choice off stops the ticks and hides it.
+@Test func testStackBadgeSync() {
+    let rig = BadgeRig()
+    #expect(rig.badge.running)
+    rig.tick(1030, 330)
+    rig.tick(1030, 330)
+    #expect(rig.view.shown?.count == 3)
+    rig.engine.anchors.choices.stacking.badge = false
+    rig.engine.save()
+    #expect(!rig.badge.running && rig.view.shown == nil)
+    let none = BadgeRig(features: .all.subtracting(.badge))
+    #expect(!none.badge.running)
+    none.tick(1030, 330)
+    none.tick(1030, 330)
+    #expect(none.view.shown == nil && none.reads == 0)
 }

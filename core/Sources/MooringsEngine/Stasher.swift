@@ -19,9 +19,8 @@ public final class Stasher {
         public var area: Frame
     }
 
-    // wake runs after a stash or unstash, so the passes look again.
-    public var wake: () -> Void = {}
-
+    // engine is the orchestration this object calls: wake, moor, save, landed.
+    unowned let engine: Engine
     // platform reads and moves the windows, reads the screens and follows the pointer.
     private let platform: Platform
     // anchors holds the choices, the slots and the set of stashed windows the passes leave alone.
@@ -33,8 +32,10 @@ public final class Stasher {
     // watched reports whether the pointer is tracked for the stash.
     private var watched = false
 
-    // init builds a stasher on platform and anchors that checks a resting pointer through rest.
-    public init(platform: Platform, anchors: Anchors, rest: any Scheduler) {
+    // init builds a stasher on engine's platform and anchors that checks a resting pointer through
+    // rest.
+    public init(engine: Engine, platform: Platform, anchors: Anchors, rest: any Scheduler) {
+        self.engine = engine
         self.platform = platform
         self.anchors = anchors
         self.rest = rest
@@ -112,7 +113,7 @@ public final class Stasher {
             watched = true
             platform.pointer.track { [weak self] in self?.moved() }
         }
-        wake()
+        engine.wake()
         return true
     }
 
@@ -121,7 +122,7 @@ public final class Stasher {
         guard let e = entries.first(where: { $0.s.id == id }) else { return }
         forget(id)
         platform.windows.move(id, to: e.s.original, from: nil, behavior: anchors.choices.behavior)
-        wake()
+        engine.wake()
     }
 
     // unstashAll puts every stashed window back where it was.

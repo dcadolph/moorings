@@ -9,22 +9,6 @@ public protocol DragPanelHook: AnyObject {
     func reset()
 }
 
-// StashHook is how a platform stashes a window a Command-drag drops at a screen edge.
-public struct StashHook {
-    // edge returns the screen edge a drop at a point with the held keys would stash at, nil for none.
-    public var edge: (Point, Modifiers) -> StashEdge?
-    // stash parks the window at the edge, to come back to the frame the drag began at.
-    public var stash: (WindowInfo, StashEdge, Frame?) -> Void
-
-    // init builds the hook from its two parts.
-    public init(
-        edge: @escaping (Point, Modifiers) -> StashEdge?, stash: @escaping (WindowInfo, StashEdge, Frame?) -> Void
-    ) {
-        self.edge = edge
-        self.stash = stash
-    }
-}
-
 // DragFollower follows a window dragged by its frame. While the window moves, the zone or slot
 // under the pointer shows as a footprint; on the drop the zone's action runs, or with option held
 // over an ultrawide strip the window's app is anchored there. It reads the window at most once per
@@ -36,26 +20,11 @@ public final class DragFollower {
     // platform can round a moving window's size by a pixel.
     public static let sizeTolerance = 1.0
 
-    // preview returns the frame an action gives a window on the screen at an index, without moving it.
-    public var preview: (String, WindowInfo, Screens, Int) -> Frame?
-    // apply runs an action on a window on the screen at an index.
-    public var apply: (String, WindowInfo, Screens, Int?) -> Void
-    // placed returns the frame the window's last action gave it, nil when none did.
-    public var placed: (WindowID) -> Frame? = { _ in nil }
-    // unsnap gives a dragged window back its size from before a snap, at its frame, with the pointer
-    // the given points from its left edge kept over it.
-    public var unsnap: (WindowInfo, Frame, Double) -> Void = { _, _, _ in }
-    // changed runs after a drop changed the choices, to save them and wake the passes.
-    public var changed: () -> Void = {}
-    // stash stashes a Command-drag dropped at an edge, nil where the platform has no stash.
-    public var stash: StashHook?
     // panel is the snap panel, nil where the platform has none.
     public var panel: DragPanelHook?
-    // showed is told each footprint shown for a new zone and its style.
-    public var showed: (Frame, FootprintStyle) -> Void = { _, _ in }
-    // dropped is told the window and what it dropped on at the end of each drag that moved a window.
-    public var dropped: (WindowID, SnapDrop?) -> Void = { _, _ in }
 
+    // engine is the orchestration this object calls: wake, moor, save, landed.
+    unowned let engine: Engine
     // platform reads the windows and screens and shows the footprint and messages.
     private let platform: Platform
     // anchors holds the choices, the slots and the pins.
@@ -91,17 +60,17 @@ public final class DragFollower {
     // stashAt is the edge a Command-drag would stash the window at, nil when it would not.
     private var stashAt: StashEdge?
 
-    // init builds a follower on platform and anchors that previews and applies actions through the
-    // given closures.
-    public init(
-        platform: Platform, anchors: Anchors, preview: @escaping (String, WindowInfo, Screens, Int) -> Frame?,
-        apply: @escaping (String, WindowInfo, Screens, Int?) -> Void
-    ) {
+    // init builds a follower on engine's platform and anchors that previews and applies actions
+    // through the engine's action runner.
+    public init(engine: Engine, platform: Platform, anchors: Anchors) {
+        self.engine = engine
         self.platform = platform
         self.anchors = anchors
-        self.preview = preview
-        self.apply = apply
     }
+
+    // following reports whether a drag is under way, from the platform's start to the drop, whether
+    // it moves or sizes the window.
+    public var following: Bool { down }
 
     // began starts following a drag. window is the dragged window when the platform knows it and
     // moving its answer to move versus size when it has one; at is where the button went down.
@@ -126,7 +95,7 @@ public final class DragFollower {
         guard down, !done, !choices.paused, choices.snap || choices.behavior.unsnapRestore, isMoving(p),
             choices.snap, let w = win
         else { return }
-        stashAt = anchors.pinned(w) ? nil : stash?.edge(p, held)
+        stashAt = anchors.pinned(w) ? nil : engine.stashEdge(p, held: held)
         if stashAt != nil {
             hide()
             return
@@ -164,7 +133,7 @@ public final class DragFollower {
             case let .park(key):
                 SlotKey(rawValue: key).map { anchors.slotFrame(screens.usable[i], $0) }
             case let .zone(name):
-                preview(name, current(w), screens, i)
+                engine.actions.frame(name, for: current(w), screens: screens, index: i).0
             case .none:
                 nil
             }
@@ -174,7 +143,7 @@ public final class DragFollower {
         }
         let style = choices.snapping.footprint
         platform.overlay.show(frame, style: style, palette: .harbor)
-        showed(frame, style)
+        engine.observers.showed(frame, style)
     }
 
     // ended finishes the drag: a drop in a zone runs its action, a drop on a slot anchors the app, and
@@ -185,11 +154,11 @@ public final class DragFollower {
         guard moved, var w else { return }
         guard let f = platform.windows.frame(w.id) else { return }
         w.frame = f
-        if let stashAt, let stash {
-            stash.stash(w, stashAt, start)
+        if let stashAt {
+            engine.stash(w, edge: stashAt, original: start)
             return
         }
-        defer { dropped(w.id, drop) }
+        defer { engine.observers.dropped(w.id, drop) }
         switch drop {
         case let .park(key):
             guard let slot = SlotKey(rawValue: key) else { return }
@@ -198,9 +167,9 @@ public final class DragFollower {
                 "\(platform.apps.name(w.bundle)) anchored",
                 "It holds the \(slot.title.lowercased()) slot now. "
                     + "Unanchor it from the Moorings menu to free the slot.")
-            changed()
+            engine.save()
         case let .zone(name):
-            apply(name, w, platform.screens.current(), screen)
+            engine.actions.apply(name, to: w, screens: platform.screens.current(), index: screen)
         case .none:
             break
         }
@@ -270,7 +239,7 @@ public final class DragFollower {
             }
             win = found
             start = found.frame
-            if let at, let from, let p = placed(found.id), !anchors.pinned(found),
+            if let at, let from, let p = engine.actions.placed(found.id), !anchors.pinned(found),
                 Behavior.snapped(p, start: found.frame, moved: abs(from.x - at.x) + abs(from.y - at.y))
             {
                 placedFrame = p
@@ -287,7 +256,7 @@ public final class DragFollower {
             moving = true
             if let p = placedFrame, let at, anchors.choices.behavior.unsnapRestore {
                 placedFrame = nil
-                unsnap(w, f, at.x - p.x)
+                engine.actions.unsnap(w, at: f, grab: at.x - p.x)
             }
         } else {
             checks += 1

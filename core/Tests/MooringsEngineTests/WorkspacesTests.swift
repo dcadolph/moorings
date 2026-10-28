@@ -13,6 +13,10 @@ final class KeeperRig {
     let notifier = FakeNotifier()
     // clock is the fake clock.
     let clock = FakeClock()
+    // store keeps the choices the engine saves.
+    let store: FakeStore
+    // engine builds the keeper and runs the passes its saves ask for.
+    let engine: Engine
     // anchors holds the choices.
     let anchors: Anchors
     // keeper is the keeper under test.
@@ -21,28 +25,27 @@ final class KeeperRig {
     var pads: [WindowID] = []
     // apps opens the apps a recall asks for, each showing one window.
     let apps: FakeApps
-    // saves counts the times the keeper reported a change.
-    var saves = 0
 
     // init builds the rig with choices changed by edit.
     init(_ edit: (inout Choices) -> Void = { _ in }) {
         var c = Choices()
         edit(&c)
-        anchors = Anchors(choices: c)
+        store = FakeStore(c)
         apps = FakeApps(windows: windows, names: ["com.example.mail": "Mail"])
-        let platform = newTestPlatform(windows: windows, screens: screens, clock: clock, notifier: notifier, apps: apps)
-        let organizer = Organizer(platform: platform, anchors: anchors)
-        keeper = WorkspaceKeeper(
-            platform: platform, anchors: anchors, organizer: organizer,
-            actions: ActionRunner(platform: platform, anchors: anchors))
+        engine = newTestEngine(
+            newTestPlatform(
+                windows: windows, screens: screens, clock: clock, notifier: notifier, store: store, apps: apps))
+        anchors = engine.anchors
+        keeper = engine.workspaces
         pads.append(
             windows.add(bundle: "com.example.pad", frame: Frame(x: 900, y: 200, w: 700, h: 500), title: "one"))
         pads.append(
             windows.add(
                 bundle: "com.example.pad", frame: Frame(x: 1700, y: 300, w: 600, h: 400), focus: true, title: "two"))
-        let rig = self
-        keeper.changed = { rig.saves += 1 }
     }
+
+    // saves counts the times the keeper saved the choices.
+    var saves: Int { store.saves }
 
     // frame returns the window's frame now.
     func frame(_ id: WindowID) -> Frame {
@@ -85,8 +88,8 @@ final class KeeperRig {
     #expect(!rig.keeper.recall("desk"))
 }
 
-// Test 3: A saved window whose app is not running opens the app, and its first window goes where
-// the workspace saved it, then is checked once more a moment later.
+// Test 3: A saved window whose app is not running opens the app, and the pass the recall's save runs
+// puts its first window where the workspace saved it, to be checked once more a moment later.
 @Test func testKeeperOpensMissingApp() throws {
     let rig = KeeperRig()
     let saved = Frame(x: 1000, y: 400, w: 800, h: 600)
@@ -99,10 +102,8 @@ final class KeeperRig {
     rig.look()
     #expect(rig.keeper.recall("mail"))
     #expect(rig.apps.opened == ["com.example.mail"])
-    #expect(rig.keeper.waiting)
     #expect(rig.notifier.notes.last?.body == "Recalled. Opening 1 app.")
     let mail = try #require(rig.windows.windows.first { $0.bundle == "com.example.mail" }?.id)
-    rig.look()
     #expect(rig.frame(mail) == saved)
     #expect(!rig.keeper.waiting)
     #expect(rig.keeper.deadlines() == [rig.clock.now + WorkspaceKeeper.recheckSeconds])

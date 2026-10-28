@@ -68,7 +68,7 @@ final class Selftest {
     }
 
     // anchors is the layout under test.
-    private var anchors: Anchors { app.anchors }
+    private var anchors: Anchors { app.engine.anchors }
 
     // start runs the selftest unless one is going, or the compatibility cases when apps names any.
     func start(apps: [String] = []) {
@@ -137,7 +137,7 @@ final class Selftest {
             return
         }
         let original = w.frame
-        let area = app.actions.area(for: w, screens: Screens.current())
+        let area = app.engine.actions.area(for: w, screens: Screens.current())
         let moved = Frame(
             x: area.x + 60, y: area.y + 60, w: min(w.frame.w, area.w - 120), h: min(w.frame.h, area.h - 120))
         app.windows.move(w.id, to: moved)
@@ -161,14 +161,16 @@ final class Selftest {
 
         _ = anchors.restore(w.id)
         let before = app.windows.frame(w.id) ?? resized
-        if let cur = info(w.id), let want = app.actions.frame("left-half", for: cur, screens: Screens.current()).0 {
-            app.actions.run("left-half", window: w.id)
+        if let cur = info(w.id),
+            let want = app.engine.actions.frame("left-half", for: cur, screens: Screens.current()).0
+        {
+            app.engine.actions.run("left-half", window: w.id)
             check("\(tag): snap left half", await settled { self.at(w.id, want) })
         } else {
             check("\(tag): snap left half", (false, "left half gave no frame"))
         }
 
-        app.actions.run("restore", window: w.id)
+        app.engine.actions.run("restore", window: w.id)
         check("\(tag): restore", await settled { self.at(w.id, before) })
         app.windows.move(w.id, to: original)
     }
@@ -220,7 +222,7 @@ final class Selftest {
         anchors.choices.paused = saved.paused
         anchors.choices.appRules = saved.appRules
         anchors.choices.slotStacks = saved.slotStacks
-        app.save()
+        app.engine.save()
         if !foreign {
             await quitTextEdit()
         }
@@ -261,7 +263,7 @@ final class Selftest {
     private func scenarios() async throws {
         anchors.choices.paused = false
         anchors.assign(slot, Self.bundle)
-        app.save()
+        app.engine.save()
         try await launch()
         let a = try await newDocument()
         try await dismissPanels()
@@ -274,12 +276,12 @@ final class Selftest {
             "second window is held in the slot when the slot holds all windows",
             await settled { self.landed(b) })
         anchors.choices.slotStacks = false
-        app.wake()
+        app.engine.wake()
         check(
             "second window goes to the channel when the slot holds one window",
             await settled { self.inChannel(b) })
         anchors.choices.slotStacks = stacks
-        app.wake()
+        app.engine.wake()
 
         try await close(a)
         check("next window takes the slot when the anchored one closes", await settled { self.landed(b) })
@@ -365,19 +367,19 @@ final class Selftest {
         }
 
         anchors.choices.paused = true
-        app.save()
+        app.engine.save()
         app.windows.move(c, to: moved)
         let held = app.windows.frame(c) ?? moved
         check("weigh anchor leaves windows where they are", await steady { self.at(c, held) })
         anchors.choices.paused = false
-        app.save()
+        app.engine.save()
         check("drop anchor puts the window back", await settled { self.landed(c) })
 
         let d = try await newDocument()
         let focusName = "focus next window brings the app's other window forward"
         let ids = windows(panels: false).map(\.id)
         if let want = Tile.neighbor(ids, of: d, forward: true) {
-            app.actions.run("focus-next-window")
+            app.engine.actions.run("focus-next-window")
             check(
                 focusName,
                 await settled {
@@ -390,7 +392,7 @@ final class Selftest {
 
         let ruleName = "an app rule places the app's first window"
         anchors.choices.slots[slot] = nil
-        app.save()
+        app.engine.save()
         for id in made {
             try await close(id)
         }
@@ -405,7 +407,7 @@ final class Selftest {
         try await Task.sleep(for: .seconds(Pace.settleSeconds + 0.5))
         let target = Frame(x: ch.x + 100, y: ch.y + 100, w: 700, h: 500)
         anchors.choices.appRules = [AppRule(bundle: Self.bundle, frame: target)]
-        app.save()
+        app.engine.save()
         let e = try await newDocument()
         check(ruleName, await settled { self.at(e, target) })
     }
@@ -427,7 +429,7 @@ final class Selftest {
         let end = Date().addingTimeInterval(seconds)
         var last = (false, "")
         while Date() < end {
-            app.moor()
+            app.engine.moor()
             last = test()
             if last.0 {
                 return last
@@ -441,7 +443,7 @@ final class Selftest {
     private func steady(_ test: @escaping () -> (Bool, String)) async -> (Bool, String) {
         let end = Date().addingTimeInterval(Self.holdSeconds)
         while Date() < end {
-            app.moor()
+            app.engine.moor()
             let r = test()
             if !r.0 {
                 return r

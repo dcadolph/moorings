@@ -11,9 +11,6 @@ public final class WorkspaceKeeper {
     // app that moves its own window once it shows.
     public static let recheckSeconds = 1.0
 
-    // changed saves the choices after the keeper changed them, and lets the platform follow.
-    public var changed: () -> Void = {}
-
     // Awaited is a window a recall is waiting for: the app it opened, the saved title and where it goes.
     struct Awaited {
         // bundle is the app opened.
@@ -26,6 +23,8 @@ public final class WorkspaceKeeper {
         let until: Double
     }
 
+    // engine is the orchestration this object calls: wake, moor, save, landed.
+    unowned let engine: Engine
     // platform reads and moves the windows and the displays, opens apps and logs.
     private let platform: Platform
     // settle waits for the displays to stay unchanged before a recall, a scheduler of its own.
@@ -46,8 +45,10 @@ public final class WorkspaceKeeper {
     // rechecks maps a window a rule or launch placed to the frame it was given and when to check it.
     private var rechecks: [WindowID: (frame: Frame, at: Double)] = [:]
 
-    // init builds a keeper on platform and anchors, with the organizer's areas and the action runner.
-    public init(platform: Platform, anchors: Anchors, organizer: Organizer, actions: ActionRunner) {
+    // init builds a keeper on engine's platform and anchors, with the organizer's areas and the
+    // action runner.
+    public init(engine: Engine, platform: Platform, anchors: Anchors, organizer: Organizer, actions: ActionRunner) {
+        self.engine = engine
         self.platform = platform
         self.anchors = anchors
         self.organizer = organizer
@@ -100,7 +101,7 @@ public final class WorkspaceKeeper {
             name: name, slots: c.slots, widths: anchors.widths,
             heights: anchors.heights, windows: windows,
             setup: c.workspaces[name]?.setup)
-        changed()
+        engine.save()
     }
 
     // recall puts back the workspace saved as name and reports whether it existed. Apps it opens get
@@ -108,9 +109,7 @@ public final class WorkspaceKeeper {
     // gone, stay where they are.
     @discardableResult
     public func recall(_ name: String) -> Bool {
-        let opening = awaited.count
-        guard let missed = place(name) else { return false }
-        let opened = awaited.count - opening
+        guard let (missed, opened) = place(name) else { return false }
         var text = missed > 0 ? "Recalled. \(missed) windows had no running app or display." : "Recalled."
         if opened > 0 {
             text += opened == 1 ? " Opening 1 app." : " Opening \(opened) apps."
@@ -120,8 +119,10 @@ public final class WorkspaceKeeper {
     }
 
     // place puts back the workspace saved as name without a banner and returns how many of its
-    // windows had no running app or display, or nil when paused or no workspace has that name.
-    private func place(_ name: String) -> Int? {
+    // windows had no running app or display and how many it waits for from apps it opened, or nil when
+    // paused or no workspace has that name. The counts are taken before the save's pass, which may
+    // already place an opened app's window.
+    private func place(_ name: String) -> (missed: Int, opened: Int)? {
         guard !anchors.choices.paused else { return nil }
         guard let ws = anchors.choices.workspaces[name] else {
             log("no workspace is named \(name)")
@@ -140,6 +141,7 @@ public final class WorkspaceKeeper {
         let areas = areas(screens)
         let matched = Workspaces.match(ws.windows, info)
         var missed = 0
+        var waits = 0
         var opened: Set<String> = []
         for (i, saved) in ws.windows.enumerated() {
             if matched[i] == nil, let b = saved.launchBundle, !b.isEmpty,
@@ -154,6 +156,7 @@ public final class WorkspaceKeeper {
                     Awaited(
                         bundle: saved.bundle, title: saved.title, frame: target,
                         until: now + Self.waitSeconds))
+                waits += 1
                 continue
             }
             guard let j = matched[i], let target = Workspaces.fit(saved.frame, areas) else {
@@ -166,14 +169,14 @@ public final class WorkspaceKeeper {
         if missed > 0 {
             log("workspace \(name): \(missed) windows had no running app or display")
         }
-        changed()
-        return missed
+        engine.save()
+        return (missed, waits)
     }
 
     // delete removes the workspace saved as name.
     public func delete(_ name: String) {
         anchors.choices.workspaces[name] = nil
-        changed()
+        engine.save()
     }
 
     // tied reports whether the workspace name comes back when the displays attached now are plugged
@@ -198,7 +201,7 @@ public final class WorkspaceKeeper {
             ws.setup = now
         }
         anchors.choices.workspaces[name] = ws
-        changed()
+        engine.save()
     }
 
     // screensChanged recalls workspaces once the displays have stayed unchanged for settleSeconds, so
@@ -289,7 +292,7 @@ public final class WorkspaceKeeper {
             anchors.choices.profiles.append(Profile(name: name, settings: settings))
         }
         anchors.choices.activeProfile = name
-        changed()
+        engine.save()
     }
 
     // applyProfile switches to the profile saved as name: its settings take effect, hotkeys
@@ -301,13 +304,13 @@ public final class WorkspaceKeeper {
             return false
         }
         anchors.choices = anchors.choices.applying(profile)
-        changed()
+        engine.save()
         let paused = anchors.choices.paused && !profile.workspaces.isEmpty
         var recalled: [String] = []
         var missing: [String] = []
         var missed = 0
         for ws in profile.workspaces where !paused {
-            if let n = place(ws) {
+            if let (n, _) = place(ws) {
                 recalled.append(ws)
                 missed += n
             } else {

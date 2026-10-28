@@ -22,32 +22,15 @@ public struct PassContext: Sendable {
 public final class PassLoop {
     // context returns the platform's part of the next pass.
     public var context: () -> PassContext = { PassContext() }
-    // mouseHeld reports whether the owner holds the mouse button, which leaves dragged pins alone. It
-    // starts as the pointer's primary button.
-    public var mouseHeld: () -> Bool = { false }
-    // deadlines lists the times the platform needs a pass at beyond the anchors' own.
-    public var deadlines: () -> [Double] = { [] }
     // ticked runs before each pass the timer starts, so the platform can catch a change of grant.
     public var ticked: () -> Void = {}
     // prepare runs before each pass the store is ready for.
     public var prepare: () -> Void = {}
-    // refreshed is told the windows still alive when the passes prune what is gone.
-    public var refreshed: (Set<WindowID>) -> Void = { _ in }
-    // after is told each pass's scan, screens and whether the mouse was held.
-    public var after: (Scan, Screens, Bool) -> Void = { _, _, _ in }
-    // paced runs after each pass set the next one.
-    public var paced: () -> Void = {}
     // greenButton reports whether a released pin goes back with a click on its green button.
     public var greenButton = false
     // tellsRefused reports whether a refused window gets a banner: on Windows a refusal means the
     // window runs as administrator.
     public var tellsRefused = false
-    // moved is told each move a pass applied, the time and where the window read back, when set.
-    public var moved: ((Move, Double, Frame?) -> Void)?
-    // released is told each pin the owner moved by hand, and the time.
-    public var released: (WindowID, Double) -> Void = { _, _ in }
-    // passed is told the time of each pass and how many moves it made.
-    public var passed: (Double, Int) -> Void = { _, _ in }
 
     // lastRead lists the ids the last pass read, front to back.
     public private(set) var lastRead: [WindowID] = []
@@ -55,13 +38,21 @@ public final class PassLoop {
     public private(set) var still = false
     // due is when the next pass runs, nil when none is set.
     public private(set) var due: Double?
+    // fullWoke is when the last wake came that named no window, so the scans read every app until
+    // the windows settle.
+    public private(set) var fullWoke = -Double.infinity
 
+    // engine is the orchestration this object calls: wake, moor, save, landed.
+    unowned let engine: Engine
     // platform reads and moves the windows and keeps the time.
     private let platform: Platform
     // scheduler sets the next pass, a scheduler of the passes' own.
     private let scheduler: any Scheduler
     // anchors decides where each window belongs.
     private let anchors: Anchors
+    // workspaces names the windows a recall waits for and the times its placed windows are due a
+    // second look.
+    private let workspaces: WorkspaceKeeper
     // lastFrames lists the frames the last pass read, in the order of lastRead.
     private var lastFrames: [Frame] = []
     // woke is when the last wake came.
@@ -73,19 +64,24 @@ public final class PassLoop {
     // toldRefused reports whether the banner told of a refused window this session.
     private var toldRefused = false
 
-    // init builds the passes on platform and anchors.
-    public init(platform: Platform, anchors: Anchors) {
+    // init builds the passes on engine's platform and anchors, waiting on workspaces' recalls.
+    public init(engine: Engine, platform: Platform, anchors: Anchors, workspaces: WorkspaceKeeper) {
+        self.engine = engine
         self.platform = platform
         self.anchors = anchors
+        self.workspaces = workspaces
         scheduler = platform.timers.scheduler()
-        let pointer = platform.pointer
-        mouseHeld = { pointer.primaryDown }
     }
 
-    // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle.
-    public func wake() {
+    // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle. A full
+    // wake also makes the scans read every app for Pace.settleSeconds; an event that named its window
+    // wakes narrow, since the source marked that window's app.
+    public func wake(full: Bool = true) {
         let t = platform.clock.now
         woke = t
+        if full {
+            fullWoke = t
+        }
         if let due, due <= t + Pace.pollSeconds {
             return
         }
@@ -114,19 +110,20 @@ public final class PassLoop {
         let screens = platform.screens.current()
         let t = platform.clock.now
         let ctx = context()
-        if PassPlan.refreshesApps(now: t, last: lastApps, waiting: ctx.waiting) {
+        let waiting = ctx.waiting || workspaces.waiting
+        if PassPlan.refreshesApps(now: t, last: lastApps, waiting: waiting) {
             lastApps = t
             let alive = platform.windows.alive()
             anchors.prune(alive: alive)
-            refreshed(alive)
+            engine.prune(alive: alive)
         } else if anchors.hasCastOff || !anchors.stashed.isEmpty {
             anchors.prune(alive: platform.windows.alive())
         }
-        let forced = !started || ctx.waiting || t < ctx.launching
+        let forced = !started || waiting || t < ctx.launching || t - fullWoke < Pace.settleSeconds
         let scan = platform.windows.scan(screens, full: forced)
         let refused = platform.windows.refused
         let list = scan.windows.filter { !refused.contains($0.id) }
-        let held = mouseHeld()
+        let held = engine.mouseHeld
         let scene = Scene(
             screen: screens.wide, windows: list, focused: scan.focused?.id, mouseHeld: held,
             now: platform.clock.now)
@@ -138,12 +135,14 @@ public final class PassLoop {
         still = moves.isEmpty && !held && read == lastRead && frames == lastFrames
         lastRead = read
         lastFrames = frames
-        after(Scan(windows: list, focused: scan.focused), screens, held)
+        let kept = Scan(windows: list, focused: scan.focused)
+        engine.passed(kept, screens, held)
+        platform.events.watch(kept)
         for id in anchors.justReleased {
             tellReleased(id, list)
         }
         tellRefused(scan.windows)
-        passed(t, moves.count)
+        engine.observers.passed(t, moves.count)
         if !started {
             started = true
             openAnchored()
@@ -174,7 +173,7 @@ public final class PassLoop {
         let w = platform.windows
         w.move(move.id, to: move.frame, from: nil, behavior: anchors.choices.behavior)
         let got = w.frame(move.id)
-        moved?(move, platform.clock.now, got)
+        engine.observers.moved?(move, platform.clock.now, got)
         guard !w.refused.contains(move.id) else { return }
         guard let got else {
             log("window \(move.id) \(bundle): move to \(move.frame) unreadable")
@@ -189,7 +188,7 @@ public final class PassLoop {
         }
         log("window \(move.id) read back at \(Int(got.w))x\(Int(got.h)) after a move: holding that size for now")
         w.move(again.id, to: again.frame, from: nil, behavior: anchors.choices.behavior)
-        if let moved {
+        if let moved = engine.observers.moved {
             moved(again, platform.clock.now, w.frame(again.id))
         }
     }
@@ -202,7 +201,7 @@ public final class PassLoop {
         let back = anchors.readBack(id).map { "\($0)" } ?? "?"
         let asked = anchors.target(id).map { "\($0)" } ?? "?"
         log("window \(id) was moved by hand: released at \(now), read back \(back), asked \(asked)")
-        released(id, platform.clock.now)
+        engine.observers.released(id, platform.clock.now)
         let name = w.map { platform.apps.name($0.bundle) } ?? "The window"
         platform.notifier.notify(
             "\(name) released",
@@ -235,9 +234,11 @@ public final class PassLoop {
     private func pace() {
         let t = platform.clock.now
         let ctx = context()
-        let busy = !platform.windows.ready || ctx.waiting || t < ctx.launching
-        schedule(Pace.next(now: t, woke: woke, busy: busy, deadlines: anchors.deadlines() + deadlines(), still: still))
-        paced()
+        let busy = !platform.windows.ready || ctx.waiting || workspaces.waiting || t < ctx.launching
+        schedule(
+            Pace.next(
+                now: t, woke: woke, busy: busy, deadlines: anchors.deadlines() + workspaces.deadlines(),
+                still: still))
     }
 
     // schedule sets the next pass at time at, or clears it when at is nil.
