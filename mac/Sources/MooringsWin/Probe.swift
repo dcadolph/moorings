@@ -105,6 +105,9 @@ let probes: [String: Probe] = [
     "hold": probeHold,
     "banner": probeBanner,
     "skip": probeSkip,
+    "lift": probeLift,
+    "login": probeLogin,
+    "quit": probeQuit,
 ]
 
 // probeVersion prints the version and the DPI awareness the thread runs with.
@@ -413,6 +416,83 @@ func probeSkip(_ opts: ProbeOptions) -> Int32 {
     for w in WinWindows.scan(screens: screens).windows {
         print("final \(hex(w.id)) frame \(pixels(w.frame))")
     }
+    return 0
+}
+
+// probeLift pins the front Notepad to the left top slot, lets the loop place it, then runs Maximize
+// on it twice, the way Ctrl+Alt+Enter does, and prints its frame after each.
+func probeLift(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    guard let wide = screens.wide else {
+        print("lift: no ultrawide")
+        return 1
+    }
+    let windows = WinWindows.scan(screens: screens).windows
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }),
+          let hwnd = WinWindows.hwnd(pad.id) else {
+        print("lift: no notepad window")
+        return 1
+    }
+    let store = Store()
+    do {
+        try store.save(Choices(slots: [.leftTop: pad.bundle], widths: Widths(left: 40, right: 30)))
+    } catch {
+        print("lift: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    let frame = { app.windows.frame(pad.id).map(pixels) ?? "gone" }
+    app.run(until: App.now + 1.5)
+    print("placed: \(frame())")
+    _ = bringForward(hwnd)
+    print("foreground: \(foreground()) notepad \(hex(pad.id))")
+    print("lift ran: \(app.actions.run("maximize")) lifted \(app.anchors.isLifted(pad.id))")
+    app.run(until: App.now + 1.5)
+    print("lifted: \(frame())")
+    print("lower ran: \(app.actions.run("maximize")) lifted \(app.anchors.isLifted(pad.id))")
+    app.run(until: App.now + 1.5)
+    print("lowered: \(frame())")
+    let use = app.anchors.inUse(wide)
+    print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
+    print("over: \(pixels(Geometry.lift(wide, .left, use.left, use.right)))")
+    return 0
+}
+
+// probeLogin chooses Launch at login once through the tray's command and prints whether the Run key
+// now holds Moorings and the command it holds.
+func probeLogin(_: ProbeOptions) -> Int32 {
+    let tray = Tray(app: App(store: Store()))
+    print("before: \(LoginItem.enabled)")
+    tray.perform(.atLogin)
+    print("after: \(LoginItem.enabled)")
+    print("executable: \(LoginItem.executable)")
+    return 0
+}
+
+// probeQuit adds the tray icon and runs the loop for two seconds to show it does not end by itself,
+// then chooses Quit through the tray's command, runs the loop again with five seconds to spare, and
+// prints how long each run took and whether the icon is gone after the tray hides.
+func probeQuit(_: ProbeOptions) -> Int32 {
+    let store = Store()
+    do {
+        try store.save(Choices())
+    } catch {
+        print("quit: \(error)")
+        return 1
+    }
+    let app = App(store: store)
+    let tray = Tray(app: app)
+    print("added: \(tray.show())")
+    var t = App.now
+    app.run(until: t + 2)
+    print("ran without quit: \(stamp(App.now - t)) s")
+    tray.perform(.quit)
+    t = App.now
+    app.run(until: t + 5)
+    print("ran after quit: \(stamp(App.now - t)) s")
+    let window = tray.window
+    tray.hide()
+    print("icon gone: \(window.map(Tray.iconGone) ?? false)")
     return 0
 }
 

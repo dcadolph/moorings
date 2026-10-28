@@ -37,7 +37,7 @@ final class Tray {
     // app runs the passes the menu changes.
     let app: App
     // window receives the icon's clicks and the menu's commands.
-    private var window: HWND?
+    private(set) var window: HWND?
     // icon is the image the notification area shows.
     private var icon: HICON?
     // commands maps each open menu's item ids, from 1, to what they do.
@@ -140,7 +140,7 @@ final class Tray {
     // hide removes the icon and the hidden window.
     func hide() {
         guard let window else { return }
-        var data = notifyData(window)
+        var data = Self.notifyData(window)
         _ = Shell_NotifyIconW(DWORD(NIM_DELETE), &data)
         _ = DestroyWindow(window)
         if let icon {
@@ -151,11 +151,18 @@ final class Tray {
         Tray.current = nil
     }
 
+    // iconGone reports whether the notification area no longer holds the icon window added, which
+    // the quit probe asks after hide.
+    static func iconGone(_ window: HWND) -> Bool {
+        var data = notifyData(window)
+        return !Shell_NotifyIconW(DWORD(NIM_DELETE), &data)
+    }
+
     // add puts the icon in the notification area and reports whether Windows took it.
     @discardableResult
     private func add() -> Bool {
         guard let window else { return false }
-        var data = notifyData(window)
+        var data = Self.notifyData(window)
         data.uFlags = UINT(NIF_MESSAGE | NIF_ICON | NIF_TIP)
         data.uCallbackMessage = Tray.callback
         data.hIcon = icon
@@ -171,7 +178,7 @@ final class Tray {
     }
 
     // notifyData returns the record that names this process's icon.
-    private func notifyData(_ window: HWND) -> NOTIFYICONDATAW {
+    private static func notifyData(_ window: HWND) -> NOTIFYICONDATAW {
         var data = NOTIFYICONDATAW()
         data.cbSize = DWORD(MemoryLayout<NOTIFYICONDATAW>.size)
         data.hWnd = window

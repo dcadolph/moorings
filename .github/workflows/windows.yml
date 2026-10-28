@@ -480,6 +480,48 @@ jobs:
           Stop-Process -Id $tm.Id -ErrorAction SilentlyContinue
           Get-Process notepad, SystemSettings, CalculatorApp -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
 
+          Write-Host "probe lift"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $f = Probe @('--probe', 'lift', '--min-aspect', '1.0')
+          $strip = Rect ($f -match '^strip: ')[0] 'strip: '
+          $over = Rect ($f -match '^over: ')[0] 'over: '
+          if ($over[2] -le $strip[2]) { throw "the lifted frame is no wider than the strip, so the check proves nothing" }
+          if ((Off (Rect ($f -match '^placed: ')[0] 'placed: ') $strip) -gt 1) { throw "the pin was not placed in the strip" }
+          Expect $f '^lift ran: true lifted true$' 'Maximize lifted the pin'
+          $off = Off (Rect ($f -match '^lifted: ')[0] 'lifted: ') $over
+          if ($off -gt 1) { throw "the lifted pin is off the strip and channel by $off px" }
+          Expect $f '^lower ran: true lifted false$' 'Maximize again lowered the pin'
+          $off = Off (Rect ($f -match '^lowered: ')[0] 'lowered: ') $strip
+          if ($off -gt 1) { throw "the lowered pin is off the strip by $off px" }
+          Write-Host "  check: Maximize lifted the pin over the strip and channel, and again lowered it into the strip"
+          Stop-Process -Id $pad.Id
+
+          Write-Host "probe login"
+          $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+          Remove-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue
+          $g = Probe @('--probe', 'login')
+          Expect $g '^before: false$' 'no Run entry before'
+          Expect $g '^after: true$' 'the command turned launch at login on'
+          $path = [regex]::Match(($g -match '^executable: ')[0], '^executable: (.+)$').Groups[1].Value
+          $value = (Get-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue).Moorings
+          if ($value -ne "`"$path`"") { throw "the Run entry holds '$value', not the quoted '$path'" }
+          $g = Probe @('--probe', 'login')
+          Expect $g '^before: true$' 'the Run entry read back'
+          Expect $g '^after: false$' 'the command turned launch at login off'
+          if ($null -ne (Get-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue)) { throw "the Run entry is still there" }
+          Write-Host "  check: Launch at login wrote the quoted exe path to the Run key and removed it"
+
+          Write-Host "probe quit"
+          $q = Probe @('--probe', 'quit')
+          Expect $q '^added: true$' 'the tray icon added'
+          $without = [double][regex]::Match(($q -match '^ran without quit: ')[0], ': ([\d.]+) s$').Groups[1].Value
+          $after = [double][regex]::Match(($q -match '^ran after quit: ')[0], ': ([\d.]+) s$').Groups[1].Value
+          if ($without -lt 1.9) { throw "the loop ended after $without s without Quit" }
+          if ($after -gt 1) { throw "the loop ran $after s after Quit" }
+          Expect $q '^icon gone: true$' 'the icon removed on quit'
+          Write-Host "  check: the loop ran its 2 s without Quit, ended $after s after Quit, icon removed"
+
       - name: Package
         id: package
         run: |
