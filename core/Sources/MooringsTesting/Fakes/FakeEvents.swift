@@ -8,6 +8,10 @@ public final class FakeEvents: EventSource {
     public var waiting = false
     // watched counts the scans the source was asked to watch.
     public private(set) var watched = 0
+    // started counts the starts.
+    public private(set) var started = 0
+    // stopped counts the stops.
+    public private(set) var stopped = 0
     // windows is the store whose changes are delivered.
     private let windows: FakeWindows
 
@@ -18,11 +22,13 @@ public final class FakeEvents: EventSource {
 
     // start delivers each change to deliver until stop.
     public func start(_ deliver: @escaping (WindowEvent) -> Void) {
+        started += 1
         windows.onEvent = deliver
     }
 
     // stop ends delivery.
     public func stop() {
+        stopped += 1
         windows.onEvent = nil
     }
 

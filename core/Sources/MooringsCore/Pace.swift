@@ -8,6 +8,9 @@ public enum Pace {
     public static let settleSeconds = 2.0
     // busySeconds is the gap between passes while something is pending that sends no event.
     public static let busySeconds = 2.0
+    // launchSeconds is how long after an app launches passes keep reading every app for its first
+    // window, in case it shows one before the event source hears of it.
+    public static let launchSeconds = 30.0
     // slack is how long after a deadline its pass runs, so the decision has changed by then.
     static let slack = 0.05
 
