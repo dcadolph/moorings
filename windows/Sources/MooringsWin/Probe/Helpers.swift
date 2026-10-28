@@ -5,12 +5,11 @@ import MooringsCore
 import MooringsEngine
 import MooringsTesting
 
-// dragInput presses the left button at from, moves to to in 20 steps 15 ms apart and lets go, the
-// way a hand drags a window by its caption. With alt, Alt goes down before the press and up half a
-// second after the release.
-func dragInput(from: (x: Int32, y: Int32), to: (x: Int32, y: Int32), alt: Bool) {
-    if alt {
-        sendKey(0x12, up: false)
+// dragInput presses the keys down, presses the left button at from, moves to to in 20 steps 15 ms
+// apart, lets go there, and lets the keys up half a second later, all with SendInput.
+func dragInput(from: (x: Int32, y: Int32), to: (x: Int32, y: Int32), keys: [WORD]) {
+    for k in keys {
+        sendKey(k, up: false)
     }
     sendMouse(from.x, from.y, 0)
     Sleep(100)
@@ -23,9 +22,11 @@ func dragInput(from: (x: Int32, y: Int32), to: (x: Int32, y: Int32), alt: Bool) 
     }
     Sleep(200)
     sendMouse(to.x, to.y, 0x0004)
-    if alt {
+    if !keys.isEmpty {
         Sleep(500)
-        sendKey(0x12, up: true)
+    }
+    for k in keys.reversed() {
+        sendKey(k, up: true)
     }
 }
 

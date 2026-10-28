@@ -52,7 +52,7 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
     let alt = opts.alt
     Thread {
         Sleep(1000)
-        dragInput(from: from, to: dragTarget, alt: alt)
+        dragInput(from: from, to: dragTarget, keys: alt ? [0x12] : [])
     }.start()
     app.run(until: App.now + opts.seconds)
     print("hook delivered: \(WinMouseHook.delivered)")

@@ -27,6 +27,7 @@ final class ScenarioRig {
             newTestPlatform(windows: windows, screens: screens, clock: clock, store: store), features: features)
         host = FakeHost(windows: windows, clock: clock, screens: screens)
         host.store = store
+        host.drag = engine.drag
     }
 }
 
@@ -38,7 +39,7 @@ final class ScenarioRig {
     for r in results {
         print("scenario \(r.name): \(r.notes.joined(separator: "; "))")
     }
-    #expect(report.summary == "scenarios: 8 run, 0 failed")
+    #expect(report.summary == "scenarios: 12 run, 0 failed")
     #expect(report.failures.isEmpty, "\(report.failures)")
     #expect(Set(results.map(\.name)) == Set(Scenarios.all.map(\.name)))
 }
@@ -60,7 +61,7 @@ final class ScenarioRig {
     let results = Scenarios.run(rig.engine, host: rig.host)
     #expect(results.filter { $0.skipped != nil }.map(\.name) == ["quitRestoresStash"])
     #expect(results.first { $0.name == "quitRestoresStash" }?.skipped == "needs stash")
-    #expect(ScenarioReport(host: "fakes", results: results).summary == "scenarios: 7 run, 1 skipped, 0 failed")
+    #expect(ScenarioReport(host: "fakes", results: results).summary == "scenarios: 11 run, 1 skipped, 0 failed")
 }
 
 // Test 2: The run puts back the engine's choices and stops its passes.
@@ -89,6 +90,7 @@ final class ScenarioRig {
     #expect(report.summary == "scenarios: 1 run, 1 failed")
     #expect(report.html().contains("a &lt;rule&gt;: x &amp; y"))
     #expect(report.html().contains("src=\"a.png\""))
+    #expect(report.html().contains("<rect data-name=\"strip\" x=\"0\" y=\"25\" width=\"1376\" height=\"1415\">"))
     let back = try JSONDecoder().decode(ScenarioReport.self, from: report.json())
     #expect(back == report)
 }
