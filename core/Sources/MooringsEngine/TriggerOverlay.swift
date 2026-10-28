@@ -25,25 +25,11 @@ enum Hold {
 // footprint previews the pick, and letting go of the trigger applies it to the window that was
 // under the pointer when the trigger went down, else the focused one. Escape, or letting go inside
 // the dead zone, does nothing. Nothing runs while the trigger is up: no tick and no grabbed keys.
-// The platform reports modifier flags in the CGEventFlags layout the core reads, and the grabbed
-// keys by tag: move-left, move-right, move-up and move-down move the span, the grow- tags grow it,
-// return applies it and escape cancels.
+// The grabbed keys arrive by tag: move-left, move-right, move-up and move-down move the span, the
+// grow- tags grow it, return applies it and escape cancels.
 public final class TriggerOverlay {
     // tickSeconds is how often the pointer is read while the trigger is held.
     public static let tickSeconds = 1.0 / 60
-
-    // pointer returns where the pointer is in top-left coordinates and whether a mouse button is held.
-    public var pointer: () -> (Point, Bool) = { (Point(x: 0, y: 0), false) }
-    // hit returns the window under a point, nil when there is none.
-    public var hit: (Point) -> WindowID? = { _ in nil }
-    // shortcutsOn reports whether the shortcuts are on, since a hold is one.
-    public var shortcutsOn: () -> Bool = { true }
-    // grab takes the grid keys a hold of the trigger uses.
-    public var grab: (OverlayTrigger) -> Void = { _ in }
-    // ungrab lets the grid keys go.
-    public var ungrab: () -> Void = {}
-    // log is told why a hold did nothing.
-    public var log: (String) -> Void = { _ in }
 
     // platform reads the windows, the screens and the clock.
     private let platform: Platform
@@ -111,14 +97,14 @@ public final class TriggerOverlay {
         grid = nil
         area = nil
         if let why = Hold.blocker(
-            anchors, ready: platform.windows.ready, shortcutsOn: shortcutsOn(),
-            buttonDown: pointer().1)
+            anchors, ready: platform.windows.ready, shortcutsOn: platform.keys.shortcutsOn,
+            buttonDown: platform.pointer.buttonDown)
         {
             log("overlay: trigger held but \(why): nothing to throw")
             done = true
             return
         }
-        grab(anchors.choices.overlay.trigger)
+        _ = platform.keys.grab(Self.gridKeys(anchors.choices.overlay.trigger)) { [weak self] in self?.key($0) }
         ticker.schedule(at: platform.clock.now) { [weak self] in self?.read() }
     }
 
@@ -127,7 +113,7 @@ public final class TriggerOverlay {
     private func read() {
         guard held, !done else { return }
         let scan = platform.windows.scan(platform.screens.current(), full: true)
-        let id = hit(origin)
+        let id = platform.windows.hit(origin)
         let w = scan.windows.first { $0.id == id && !$0.isFilePanel } ?? scan.focused
         guard let w, !anchors.pinned(w), !w.isFullScreen else {
             log("overlay: no window to throw under the pointer or in front")
@@ -145,7 +131,7 @@ public final class TriggerOverlay {
         held = false
         reset()
         guard !done, let w else { return }
-        guard !pointer().1 else {
+        guard !platform.pointer.buttonDown else {
             log("overlay: trigger let go while a mouse button is down: nothing thrown")
             return
         }
@@ -163,7 +149,7 @@ public final class TriggerOverlay {
     // reset stops the ticks, lets the grid keys go and hides the preview.
     private func reset() {
         ticker.cancel()
-        ungrab()
+        platform.keys.ungrab()
         footprint.hide()
         gridView.hide()
     }
@@ -174,7 +160,7 @@ public final class TriggerOverlay {
         guard held, !done else { return }
         ticker.schedule(at: platform.clock.now + Self.tickSeconds) { [weak self] in self?.tick() }
         guard grid == nil, let w = target else { return }
-        let loc = pointer().0
+        let loc = platform.pointer.position
         let next = Overlay.pick(dx: loc.x - origin.x, dy: loc.y - origin.y)
         guard next != pick else { return }
         pick = next
@@ -205,7 +191,7 @@ public final class TriggerOverlay {
                 grid
                 ?? OverlayGrid(
                     cols: choices.overlay.gridColumns, rows: choices.overlay.gridRows,
-                    at: pointer().0, in: a)
+                    at: platform.pointer.position, in: a)
             if grid != nil {
                 g = tag.hasPrefix("grow-") ? g.grown(step) : g.moved(step)
             }
@@ -215,6 +201,38 @@ public final class TriggerOverlay {
             footprint.hide()
             gridView.show(g, in: a, gap: choices.gapPx, style: choices.snapping.footprint, palette: .harbor)
         }
+    }
+
+    // log writes why a hold did nothing.
+    private func log(_ line: String) {
+        platform.log.note(.overlay, line)
+    }
+
+    // gridKeys lists the keys a hold of trigger grabs: arrows move the span and Shift-arrows grow it,
+    // under the trigger's own modifier, plus Return, Enter and Escape. Fn has no modifier a grab can
+    // name, so for Fn the bare keys are grabbed, with Home, End, Page Up and Page Down standing in
+    // for the arrows Fn turns into them. The grid action's picker grabs with no trigger.
+    public static func gridKeys(_ trigger: OverlayTrigger) -> [GrabKey] {
+        let mods: Modifiers =
+            switch trigger {
+            case .rightOption: .option
+            case .rightCommand: .command
+            case .rightControl: .control
+            case .fn, .none: []
+            }
+        var arrows = [("left", "left"), ("right", "right"), ("up", "up"), ("down", "down")]
+        if trigger == .fn {
+            arrows += [("home", "left"), ("end", "right"), ("pageup", "up"), ("pagedown", "down")]
+        }
+        var out: [GrabKey] = []
+        for (key, dir) in arrows {
+            out.append(GrabKey(key: key, modifiers: mods, tag: "move-\(dir)"))
+            out.append(GrabKey(key: key, modifiers: mods.union(.shift), tag: "grow-\(dir)"))
+        }
+        for (key, tag) in [("return", "return"), ("enter", "return"), ("escape", "escape")] {
+            out.append(GrabKey(key: key, modifiers: mods, tag: tag))
+        }
+        return out
     }
 
     // step returns the direction a grid key's tag names.

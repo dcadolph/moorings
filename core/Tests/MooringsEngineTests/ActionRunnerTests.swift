@@ -25,10 +25,7 @@ final class ActionRig {
         var c = Choices(slots: [.leftTop: "com.tinyspeck.slackmacgap"])
         edit(&c)
         anchors = Anchors(choices: c)
-        let platform = Platform(
-            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(),
-            clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
-            warpCursor: { _ in })
+        let platform = newTestPlatform(windows: windows, screens: screens, clock: clock)
         runner = ActionRunner(platform: platform, anchors: anchors)
         slack = windows.add(bundle: "com.tinyspeck.slackmacgap", frame: Frame(x: 1500, y: 200, w: 800, h: 600))
         free = windows.add(bundle: "com.example.pad", frame: Frame(x: 1400, y: 300, w: 900, h: 700), focus: true)
@@ -126,21 +123,19 @@ final class ActionRig {
 
 // Move cursor warps the pointer to the center of the window an action moved.
 @Test func testRunnerMoveCursorWarps() {
-    var warped: [Point] = []
+    let pointer = FakePointer()
     let windows = FakeWindows()
     let screens = FakeScreens.ultrawide()
     let clock = FakeClock()
     var c = Choices()
     c.behavior.moveCursor = true
     let anchors = Anchors(choices: c)
-    let platform = Platform(
-        windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(), clock: clock,
-        scheduler: FakeScheduler(clock: clock), store: FakeStore(), warpCursor: { warped.append($0) })
+    let platform = newTestPlatform(windows: windows, screens: screens, clock: clock, pointer: pointer)
     let runner = ActionRunner(platform: platform, anchors: anchors)
     let id = windows.add(bundle: "com.example.pad", frame: Frame(x: 1400, y: 300, w: 900, h: 700), focus: true)
     #expect(runner.run("left-half"))
     let f = windows.frame(id)!
-    #expect(warped == [Point(x: f.x + f.w / 2, y: f.y + f.h / 2)])
+    #expect(pointer.warps == [Point(x: f.x + f.w / 2, y: f.y + f.h / 2)])
 }
 
 // Nothing runs while paused.

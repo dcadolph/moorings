@@ -2,24 +2,15 @@ import MooringsCore
 
 // HoverMover moves or resizes the window under the pointer while the hover modifiers are held and no
 // button is down. It reads the pointer on ticks only while they are held, so it costs nothing at
-// rest, and it leaves pinned, fullscreen, stashed windows and file panels alone. The platform reports
-// modifier flags in the CGEventFlags layout the core reads.
+// rest, and it leaves pinned, fullscreen, stashed windows and file panels alone.
 public final class HoverMover {
     // tickSeconds is how often the pointer is read while the modifiers are held.
     public static let tickSeconds = 1.0 / 60
 
-    // pointer returns where the pointer is in top-left coordinates and whether a mouse button is held.
-    public var pointer: () -> (Point, Bool) = { (Point(x: 0, y: 0), false) }
-    // hit returns the window under a point, nil when there is none.
-    public var hit: (Point) -> WindowID? = { _ in nil }
-    // shortcutsOn reports whether the shortcuts are on, since a hover is one.
-    public var shortcutsOn: () -> Bool = { true }
     // wake runs after a hover that held a window ends, so the passes look at where it landed.
     public var wake: () -> Void = {}
-    // log is told why a hover did nothing.
-    public var log: (String) -> Void = { _ in }
 
-    // platform reads and moves the windows and reads the clock.
+    // platform reads and moves the windows, reads the pointer and the clock, and logs.
     private let platform: Platform
     // anchors holds the choices, the pins and the stashed windows.
     private let anchors: Anchors
@@ -63,10 +54,10 @@ public final class HoverMover {
     // begin starts a hover of mode at p and reads the window under p on the first tick.
     private func begin(_ mode: HoverMode, at p: Point) {
         if let why = Hold.blocker(
-            anchors, ready: platform.windows.ready, shortcutsOn: shortcutsOn(),
-            buttonDown: pointer().1)
+            anchors, ready: platform.windows.ready, shortcutsOn: platform.keys.shortcutsOn,
+            buttonDown: platform.pointer.buttonDown)
         {
-            log("hover: keys held but \(why): nothing moves")
+            platform.log.note(.overlay, "hover: keys held but \(why): nothing moves")
             return
         }
         self.mode = mode
@@ -78,13 +69,13 @@ public final class HoverMover {
     // the ticks.
     private func read(_ mode: HoverMode) {
         guard self.mode == mode, target == nil else { return }
-        let id = hit(origin)
+        let id = platform.windows.hit(origin)
         guard
             let w = platform.windows.scan(platform.screens.current(), full: true).windows
                 .first(where: { $0.id == id && !$0.isFilePanel }),
             !anchors.pinned(w), !w.isFullScreen, !anchors.stashed.contains(w.id)
         else {
-            log("hover: no free window under the pointer")
+            platform.log.note(.overlay, "hover: no free window under the pointer")
             return
         }
         anchors.save(w)
@@ -111,8 +102,8 @@ public final class HoverMover {
     private func tick() {
         guard let mode, let id = target else { return }
         ticker.schedule(at: platform.clock.now + Self.tickSeconds) { [weak self] in self?.tick() }
-        let (loc, down) = pointer()
-        guard !down else { return }
+        guard !platform.pointer.buttonDown else { return }
+        let loc = platform.pointer.position
         let d = Point(x: (loc.x - origin.x).rounded(), y: (loc.y - origin.y).rounded())
         guard d != last else { return }
         last = d

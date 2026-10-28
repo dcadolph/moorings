@@ -10,8 +10,6 @@ public final class Tiler {
     public var wake: () -> Void = {}
     // moor runs a pass now, so a swap in the layout lands at once.
     public var moor: () -> Void = {}
-    // log is told what tiling did and why an action did nothing.
-    public var log: (String) -> Void = { _ in }
 
     // platform reads and moves the windows and shows messages.
     private let platform: Platform
@@ -33,6 +31,11 @@ public final class Tiler {
         self.platform = platform
         self.anchors = anchors
         self.organizer = organizer
+    }
+
+    // log writes what tiling did and why an action did nothing.
+    private func log(_ line: String) {
+        platform.log.note(.tiling, line)
     }
 
     // mouseUp records a mouse up, so a tiled window found off its frame after it was moved by hand.

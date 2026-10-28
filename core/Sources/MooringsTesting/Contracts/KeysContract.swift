@@ -2,7 +2,8 @@ import MooringsCore
 import MooringsEngine
 
 // KeysContract checks that a Keys grab counts its keys, delivers a grabbed press by tag, delivers
-// nothing after ungrab, and spells a shortcut.
+// nothing after ungrab, spells a shortcut, delivers a bound shortcut's action, and delivers nothing
+// once an empty map replaces the binding.
 public enum KeysContract {
     // keys are the keys the suite grabs: an arrow alone and one with Shift, as a grid hold takes them.
     static let keys = [
@@ -10,8 +11,16 @@ public enum KeysContract {
         GrabKey(key: "right", modifiers: .shift, tag: "grow-right"),
     ]
 
-    // run checks subject while host runs the platform and returns every rule it broke.
-    public static func run(_ subject: Keys, host: ContractHost) -> [ContractFailure] {
+    // bound is the shortcut the suite binds, one no platform or common app keeps for itself, and the
+    // press that sends it.
+    static let bound = (
+        name: "contract-bound", shortcut: Shortcut(mods: [.ctrl, .alt, .shift], key: "j"),
+        press: GrabKey(key: "j", modifiers: [.control, .option, .shift], tag: "contract-bound")
+    )
+
+    // run checks subject while host runs the platform and returns every rule it broke. actions lists
+    // the action names subject's bound shortcuts delivered so far.
+    public static func run(_ subject: Keys, host: ContractHost, actions: () -> [String]) -> [ContractFailure] {
         var out: [ContractFailure] = []
         let fail = { (rule: String, detail: String) in out.append(ContractFailure(rule: rule, detail: detail)) }
         var got: [String] = []
@@ -38,6 +47,26 @@ public enum KeysContract {
         }
         if subject.spell(Shortcut(mods: [.ctrl, .alt], key: "left")).isEmpty {
             fail("spell writes a shortcut", "empty")
+        }
+        defer { subject.bind([:]) }
+        subject.bind([bound.name: bound.shortcut])
+        let action = "a bound shortcut delivers its action within 250 ms"
+        let unbound = "bind of an empty map after a bind leaves no shortcut delivering"
+        guard host.press(bound.press) else {
+            Contract.skip(action, "the host cannot press a key")
+            Contract.skip(unbound, "the host cannot press a key")
+            return out
+        }
+        if !host.wait(until: host.now + 0.25, { actions().contains(bound.name) }) {
+            fail(action, "got \(actions())")
+        }
+        subject.bind([:])
+        let before = actions().count
+        if host.press(bound.press) {
+            _ = host.wait(until: host.now + 0.25) { false }
+            if actions().count != before {
+                fail(unbound, "got \(actions().dropFirst(before))")
+            }
         }
         return out
     }

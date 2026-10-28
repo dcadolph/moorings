@@ -3,6 +3,7 @@ import SwiftUI
 import os
 
 import MooringsCore
+import MooringsEngine
 
 // StripField names a value the strip editor edits.
 enum StripField: Hashable {
@@ -513,7 +514,7 @@ final class StripEditor {
         front = current?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : current
         NSApp.activate()
         p.makeKeyAndOrderFront(nil)
-        app.keys.grab(Hotkeys.gridKeys(.none)) { [weak self] tag in self?.key(tag) }
+        app.keys.grab(TriggerOverlay.gridKeys(.none)) { [weak self] tag in self?.key(tag) }
         return true
     }
 

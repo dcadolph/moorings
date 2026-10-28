@@ -45,8 +45,6 @@ public final class DragFollower {
     // unsnap gives a dragged window back its size from before a snap, at its frame, with the pointer
     // the given points from its left edge kept over it.
     public var unsnap: (WindowInfo, Frame, Double) -> Void = { _, _, _ in }
-    // appName returns the name to show for a bundle.
-    public var appName: (String) -> String = { $0 }
     // changed runs after a drop changed the choices, to save them and wake the passes.
     public var changed: () -> Void = {}
     // stash stashes a Command-drag dropped at an edge, nil where the platform has no stash.
@@ -197,7 +195,7 @@ public final class DragFollower {
             guard let slot = SlotKey(rawValue: key) else { return }
             anchors.assign(slot, w.bundle)
             platform.notifier.notify(
-                "\(appName(w.bundle)) anchored",
+                "\(platform.apps.name(w.bundle)) anchored",
                 "It holds the \(slot.title.lowercased()) slot now. "
                     + "Unanchor it from the Moorings menu to free the slot.")
             changed()
