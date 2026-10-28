@@ -374,9 +374,14 @@ final class Windows {
         AXUIElementSetAttributeValue(el, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
     }
 
-    // title returns the title of the window with id, empty when it has none.
-    func title(_ id: WindowID) -> String {
-        elements[id].flatMap { Self.string($0, kAXTitleAttribute) } ?? ""
+    // title returns the title of the window with id, nil when the window is gone or its title is empty.
+    func title(_ id: WindowID) -> String? {
+        elements[id].flatMap { Self.string($0, kAXTitleAttribute) }.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    // hit returns the window under p, in top-left coordinates, nil when no window is there.
+    func hit(_ p: Point) -> WindowID? {
+        Self.hit(CGPoint(x: p.x, y: p.y))?.id
     }
 
     // exitFullScreen asks the window with id to leave native fullscreen.
