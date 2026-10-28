@@ -271,7 +271,7 @@ jobs:
           }
           Expect $menu '^menu \[ \] Pause$' 'Pause unchecked'
           Expect $menu '^menu \[ \] Organize$' 'the Organize folder'
-          Expect $menu '^menu     \[ \] Undo tidy$' 'Undo tidy under Organize'
+          Expect $menu '^menu   \[ \] Undo tidy$' 'Undo tidy under Organize'
           if (@($menu -match '^menu   \[ \] Left \d+%, right \d+%$').Count -ne 3) { throw "want the three built-in width pairs unchecked" }
           Write-Host "  check: four slots each list notepad.exe, Pause unchecked"
 
