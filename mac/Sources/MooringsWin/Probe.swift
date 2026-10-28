@@ -160,8 +160,9 @@ func probePlace(_ opts: ProbeOptions) -> Int32 {
     return 0
 }
 
-// probeMoor pins the front Notepad to the left top slot in a fresh choices file, runs the pass loop
-// for the given seconds, and prints each move and release with its time, then the final frames.
+// probeMoor pins the front Notepad to the left top slot in a fresh choices file with slot stacks
+// off, so a second Notepad is kept in the channel, runs the pass loop for the given seconds, and
+// prints each move and release with its time, then the final frames.
 func probeMoor(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
     guard let wide = screens.wide else {
@@ -174,8 +175,9 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let store = Store()
-    let choices = Choices(slots: [.leftTop: pad.bundle], widths: Widths(left: 40, right: 30),
+    var choices = Choices(slots: [.leftTop: pad.bundle], widths: Widths(left: 40, right: 30),
                           paused: opts.paused)
+    choices.slotStacks = false
     do {
         try store.save(choices)
     } catch {
