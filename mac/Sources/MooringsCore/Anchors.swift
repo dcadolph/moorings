@@ -617,9 +617,15 @@ public final class Anchors {
     // slotFrame returns where the slot key sits on screen at its side's width, the chosen width when
     // the side is empty.
     public func slotFrame(_ screen: Frame, _ key: SlotKey) -> Frame {
+        strip(screen, key.side, key.row)
+    }
+
+    // strip returns row of the strip on side, the whole strip when row is nil, at the side's width,
+    // the chosen width when the side is empty.
+    func strip(_ screen: Frame, _ side: Side, _ row: Row?) -> Frame {
         let use = inUse(screen)
-        let pct = key.side == .left ? (use.left > 0 ? use.left : widths.left) : (use.right > 0 ? use.right : widths.right)
-        return Geometry.slot(screen, key.side, key.row, pct, topPct: heights[key.side])
+        let pct = side == .left ? (use.left > 0 ? use.left : widths.left) : (use.right > 0 ? use.right : widths.right)
+        return Geometry.slot(screen, side, row, pct, topPct: heights[side])
     }
 
     // rows returns the row of each held pin, nil when the pin has its side to itself.
@@ -648,6 +654,29 @@ public final class Anchors {
             return true
         }
         return choices.slotStacks && w.onUltrawide && !w.isFilePanel
+    }
+
+    // claim gives each pin without a holder the front-most window of its app that lies inside the
+    // pin's strip, so the window the owner sees anchored keeps the pin when the old holder closed or
+    // moorings just started. A pin with no window there is left to pinsWindow, which takes the main
+    // window.
+    func claim(_ windows: [WindowInfo], _ pins: [Pin], _ screen: Frame) {
+        for pin in pins where holders[pin.bundle] == nil {
+            let area = strip(screen, pin.slot.side, nil)
+            let w = windows.first {
+                $0.bundle == pin.bundle && $0.onUltrawide && !$0.isFilePanel && !$0.isFullScreen
+                    && Self.within($0.frame, area)
+            }
+            if let w {
+                holders[pin.bundle] = w.id
+            }
+        }
+    }
+
+    // within reports whether frame f lies inside area, give or take tolerance on each edge.
+    static func within(_ f: Frame, _ area: Frame) -> Bool {
+        f.x >= area.x - tolerance && f.y >= area.y - tolerance
+            && f.x + f.w <= area.x + area.w + tolerance && f.y + f.h <= area.y + area.h + tolerance
     }
 
     // slotWindows returns the windows the pin in slot key held in the last pass, in id order.
@@ -877,6 +906,8 @@ public final class Anchors {
         var shown: Set<String> = []
         held = [:]
         holdAreas = [:]
+        holders = holders.filter { id in scene.windows.contains { $0.id == id.value } }
+        claim(scene.windows, pins, screen)
         for w in scene.windows {
             if let pin = pin(w.bundle, in: pins), pinsWindow(pin, w) {
                 shown.insert(pin.bundle)
