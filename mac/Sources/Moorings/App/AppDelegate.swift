@@ -195,9 +195,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // applicationWillTerminate puts stashed windows back, so none is left parked off screen.
+    // applicationWillTerminate shuts the engine down, which puts stashed windows back, so none is left
+    // parked off screen.
     func applicationWillTerminate(_ notification: Notification) {
-        engine.stasher.unstashAll()
+        engine.shutdown()
     }
 
     // applicationShouldHandleReopen opens the settings window when Moorings is opened again while it

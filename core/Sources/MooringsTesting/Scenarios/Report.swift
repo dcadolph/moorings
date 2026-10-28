@@ -18,7 +18,10 @@ public struct ScenarioReport: Equatable, Sendable, Codable {
 
     // summary is the line a run ends with, the line the workflow checks.
     public var summary: String {
-        "scenarios: \(results.count) run, \(results.filter { !$0.passed }.count) failed"
+        let skipped = results.filter { $0.skipped != nil }.count
+        let ran = results.count - skipped
+        let failed = results.filter { !$0.passed }.count
+        return "scenarios: \(ran) run, " + (skipped > 0 ? "\(skipped) skipped, " : "") + "\(failed) failed"
     }
 
     // json writes the report as indented JSON with sorted keys.
@@ -81,10 +84,11 @@ public struct ScenarioReport: Equatable, Sendable, Codable {
 
     // section writes one scenario.
     private func section(_ r: ScenarioResult) -> String {
-        let rules =
+        let ran =
             r.failures.isEmpty
             ? "<p class=\"ok\">Passed in \(String(format: "%.3f", r.seconds)) s.</p>"
             : "<ul>" + r.failures.map { "<li class=\"bad\">\(esc($0.rule)): \(esc($0.detail))</li>" }.joined() + "</ul>"
+        let rules = r.skipped.map { "<p class=\"dim\">Skipped: \(esc($0)).</p>" } ?? ran
         let notes = r.notes.map { "<li>\(esc($0))</li>" }.joined()
         let rows = r.frames.map { f in
             "<tr><th>\(esc(f.name))</th><td>\(Int(f.x))</td><td>\(Int(f.y))</td><td>\(Int(f.w))</td><td>\(Int(f.h))</td></tr>"
@@ -102,7 +106,7 @@ public struct ScenarioReport: Equatable, Sendable, Codable {
 
     // mark is the word a scenario's line starts with.
     private func mark(_ r: ScenarioResult) -> String {
-        r.passed ? "Pass" : "Fail"
+        r.skipped != nil ? "Skip" : r.passed ? "Pass" : "Fail"
     }
 
     // esc escapes text for HTML.

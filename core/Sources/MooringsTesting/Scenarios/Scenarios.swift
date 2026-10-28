@@ -61,10 +61,14 @@ public struct ScenarioResult: Equatable, Sendable, Codable {
     public var shot: String?
     // seconds is how long it ran on the host's clock.
     public var seconds: Double
+    // skipped says why the scenario did not run, nil when it ran.
+    public var skipped: String?
 
     // init builds a result.
     public init(
-        name: String, failures: [ScenarioFailure], frames: [NamedFrame], notes: [String], shot: String?, seconds: Double
+        name: String, failures: [ScenarioFailure], frames: [NamedFrame], notes: [String], shot: String?,
+        seconds: Double,
+        skipped: String? = nil
     ) {
         self.name = name
         self.failures = failures
@@ -72,6 +76,7 @@ public struct ScenarioResult: Equatable, Sendable, Codable {
         self.notes = notes
         self.shot = shot
         self.seconds = seconds
+        self.skipped = skipped
     }
 
     // passed reports whether it broke no rule.
@@ -91,6 +96,8 @@ public final class Stage {
     var name = ""
     // failures lists the rules broken so far.
     var failures: [ScenarioFailure] = []
+    // skipped says why the scenario stopped without running, nil while it runs.
+    var skipped: String?
     // frames lists the frames measured so far.
     var frames: [NamedFrame] = []
     // notes lists the numbers measured so far.
@@ -109,6 +116,11 @@ public final class Stage {
         self.engine = engine
         self.host = host
         self.skew = skew
+    }
+
+    // skip records that the host cannot run the scenario, and why.
+    func skip(_ why: String) {
+        skipped = why
     }
 
     // fail records a broken rule.
@@ -231,6 +243,7 @@ public final class Stage {
     // reset clears what one scenario recorded before the next.
     func reset(_ scenario: String) {
         name = scenario
+        skipped = nil
         failures = []
         frames = []
         notes = []
@@ -254,18 +267,28 @@ public enum Scenarios {
     // core's 2 s release grace.
     static let graceSeconds = 3.0
 
-    // all lists every scenario by name, in the order run runs them.
-    public static let all: [(name: String, run: @Sendable (Stage) -> Void)] = [
-        ("pinPlacesOnStrip", pinPlacesOnStrip),
-        ("nudgedPinReleasesInGrace", nudgedPinReleasesInGrace),
-        ("secondWindowGoesToChannel", secondWindowGoesToChannel),
-        ("pausedMovesNothing", pausedMovesNothing),
-        ("eventsWakeAndRestHolds", eventsWakeAndRestHolds),
+    // all lists every scenario by name with the features it needs, in the order run runs them.
+    public static let all: [(name: String, needs: Engine.Features, run: @Sendable (Stage) -> Void)] = [
+        ("pinPlacesOnStrip", [], pinPlacesOnStrip),
+        ("nudgedPinReleasesInGrace", [], nudgedPinReleasesInGrace),
+        ("secondWindowGoesToChannel", [], secondWindowGoesToChannel),
+        ("pausedMovesNothing", [], pausedMovesNothing),
+        ("eventsWakeAndRestHolds", [], eventsWakeAndRestHolds),
+        ("maximizeLiftsPin", [], maximizeLiftsPin),
+        ("quitRestoresStash", .stash, quitRestoresStash),
+        ("refusedWindowTriedOnce", [], refusedWindowTriedOnce),
+    ]
+
+    // featureNames names each feature the way a skip line says it.
+    static let featureNames: [(Engine.Features, String)] = [
+        (.grid, "grid"), (.stash, "stash"), (.organize, "organize"), (.tiling, "tiling"),
+        (.workspaces, "workspaces"), (.profiles, "profiles"), (.badge, "badge"),
     ]
 
     // run runs every scenario named in only, every one when only is empty, on engine and host, and
-    // returns each result. The engine listens for window events while they run; its observers and
-    // choices are put back after.
+    // returns each result. A scenario that needs a feature the engine lacks, or a window the host
+    // cannot open, is skipped with the reason. The engine listens for window events while they run;
+    // its observers and choices are put back after.
     public static func run(
         _ engine: Engine, host: ScenarioHost, only: Set<String> = [], skew: Double = 0
     ) -> [ScenarioResult] {
@@ -280,17 +303,25 @@ public enum Scenarios {
             engine.anchors.choices = choices
         }
         var out: [ScenarioResult] = []
-        for (name, scenario) in all where only.isEmpty || only.contains(name) {
+        for (name, needs, scenario) in all where only.isEmpty || only.contains(name) {
+            let missing = featureNames.filter { needs.contains($0.0) && !engine.features.contains($0.0) }
+            guard missing.isEmpty else {
+                let why = "needs " + missing.map(\.1).joined(separator: " and ")
+                out.append(
+                    ScenarioResult(name: name, failures: [], frames: [], notes: [], shot: nil, seconds: 0, skipped: why)
+                )
+                continue
+            }
             stage.reset(name)
             let t0 = host.now
             scenario(stage)
-            let shot = host.shot(name)
+            let shot = stage.skipped == nil ? host.shot(name) : nil
             host.finish()
             stage.choose { _ in }
             out.append(
                 ScenarioResult(
                     name: name, failures: stage.failures, frames: stage.frames, notes: stage.notes, shot: shot,
-                    seconds: host.now - t0))
+                    seconds: host.now - t0, skipped: stage.skipped))
         }
         return out
     }
