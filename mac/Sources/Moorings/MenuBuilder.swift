@@ -284,8 +284,8 @@ struct MenuBuilder {
     private func workspaceItems() -> [NSMenuItem] {
         var out: [NSMenuItem] = [ActionItem("Save workspace…", tip: "Save the slots, widths, heights and where each free "
                 + "window sits under a name.") {
-            if let name = Organizer.askName() {
-                app.organizer.saveWorkspace(name)
+            if let name = WorkspaceKeeper.askName() {
+                app.workspaces.saveWorkspace(name)
             }
         }]
         let names = anchors.choices.workspaces.keys.sorted()
@@ -293,17 +293,17 @@ struct MenuBuilder {
             out.append(.separator())
         }
         for name in names {
-            let tied = app.organizer.tied(name)
+            let tied = app.workspaces.tied(name)
             out.append(folder(name, [
                 ActionItem("Recall", tip: "Put this workspace's layout back.", enabled: !anchors.choices.paused) {
-                    app.organizer.recall(name)
+                    app.workspaces.recall(name)
                 },
                 ActionItem("Recall with these displays", tip: "Recall this workspace whenever the displays attached now "
                         + "are plugged in.", checked: tied) {
-                    app.organizer.tie(name)
+                    app.workspaces.tie(name)
                 },
                 ActionItem("Delete", tip: "Forget this workspace.") {
-                    app.organizer.delete(name)
+                    app.workspaces.delete(name)
                 },
             ]))
         }
@@ -315,9 +315,9 @@ struct MenuBuilder {
     private func profileItems() -> [NSMenuItem] {
         var out: [NSMenuItem] = [ActionItem("Save current as profile…", tip: "Save the shortcuts, snapping, behavior, "
                 + "menu and app rules under a name. Settings > Workspaces picks the workspaces it recalls.") {
-            if let name = Organizer.askName("Save profile", "Name these settings. Switching to the profile later "
+            if let name = WorkspaceKeeper.askName("Save profile", "Name these settings. Switching to the profile later "
                 + "brings them back, and anchored apps stay where they are.") {
-                app.organizer.saveProfile(name)
+                app.workspaces.saveProfile(name)
             }
         }]
         let profiles = anchors.choices.profiles
@@ -327,7 +327,7 @@ struct MenuBuilder {
         for p in profiles {
             out.append(ActionItem(p.name, tip: "Switch to this profile.", checked: anchors.choices.activeProfile == p.name,
                                   enabled: !anchors.choices.paused) {
-                app.organizer.applyProfile(p.name)
+                app.workspaces.applyProfile(p.name)
             })
         }
         return out

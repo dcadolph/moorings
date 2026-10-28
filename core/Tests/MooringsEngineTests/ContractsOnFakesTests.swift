@@ -32,6 +32,36 @@ func fakeHost() -> (FakeWindows, FakeClock, FakeHost) {
     #expect(failures.isEmpty, "\(failures)")
 }
 
+// The fake badge keeps every BadgeView rule.
+@Test func testBadgeContractOnFake() {
+    let (windows, _, host) = fakeHost()
+    let failures = BadgeContract.run(FakeBadge(), store: windows, host: host)
+    #expect(failures.isEmpty, "\(failures)")
+}
+
+// StuckBadge is a BadgeView that keeps its first mark, for the badge contract's negative control.
+final class StuckBadge: BadgeView {
+    // shown is the first mark shown, nil when hidden.
+    private(set) var shown: BadgeMark?
+
+    // show keeps the mark only when none is shown.
+    func show(_ count: Int, at front: Frame, palette: Palette) {
+        shown = shown ?? BadgeMark(count: count, front: front)
+    }
+
+    // hide clears the mark.
+    func hide() {
+        shown = nil
+    }
+}
+
+// A badge that does not move on a second show breaks that rule, by name.
+@Test func testBadgeContractCatchesStuck() {
+    let (windows, _, host) = fakeHost()
+    let failures = BadgeContract.run(StuckBadge(), store: windows, host: host)
+    #expect(failures.map(\.rule) == ["a second show moves the badge"])
+}
+
 // The fake notifier keeps every Notifier rule.
 @Test func testNotifierContractOnFake() {
     let (windows, _, host) = fakeHost()
