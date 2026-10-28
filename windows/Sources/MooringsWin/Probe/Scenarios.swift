@@ -6,9 +6,10 @@ import MooringsEngine
 import MooringsTesting
 
 // probeScenarios runs the shared scenarios named after --scenarios, every one when none is named, on
-// the Win32 adapters against stand-in windows from this exe's stand probe. It writes report.json,
-// report.html and one PNG per scenario into the report folder, prints each number, frame and broken
-// rule, and ends with the summary line the workflow checks.
+// the Win32 adapters against stand-in windows from this exe's stand probe, with the mouse hook
+// feeding drags to the engine as the app's loop does. It writes report.json, report.html and one PNG
+// per scenario into the report folder, prints each number, frame and broken rule, and ends with the
+// summary line the workflow checks.
 func probeScenarios(_ opts: ProbeOptions) -> Int32 {
     let only = Set(opts.scenarios)
     let unknown = Scenarios.unknown(only)
@@ -32,10 +33,19 @@ func probeScenarios(_ opts: ProbeOptions) -> Int32 {
     let app = App(store: Store(url: file), minAspect: opts.minAspect)
     app.notify = { title, body in print("notice: \(title): \(body)") }
     let host = WinHost(minAspect: opts.minAspect)
-    host.timers = { app.timers.fire($0) }
+    host.timers = { app.timers.fire($0) || app.mouse.tick($0) }
     host.hotkey = { app.hotkeys.fire($0) }
+    host.mouse = { app.mouse.deliver($0) }
     host.shots = dir
+    app.mouse.handler = { message, p in
+        if message == UINT(WM_MOUSEMOVE) {
+            app.drag.pointer(p)
+        }
+    }
+    app.mouse.start()
     let results = Scenarios.run(app.engine, host: host, only: only, skew: opts.skew)
+    app.mouse.stop()
+    print("hook reinstalled: \(app.mouse.reinstalls)")
     app.hotkeys.unbind()
     let report = ScenarioReport(host: "windows", results: results)
     for r in results {
@@ -71,6 +81,26 @@ extension WinHost: ScenarioHost {
         return true
     }
 
+    // drag brings the window forward, then from another thread presses on its title bar with
+    // SendInput, holds the keys in held, moves the pointer by offset in 20 steps and lets go, while
+    // this thread pumps the messages the mouse hook and the window events arrive by. It reports
+    // whether the window was there and the input finished within 5 s.
+    func drag(_ id: WindowID, by offset: Point, held: Modifiers) -> Bool {
+        guard let hwnd = WinWindows.hwnd(id), let f = WinWindows().frame(id) else { return false }
+        _ = bringForward(hwnd)
+        let grab = Scenarios.grab(f)
+        let from = (x: Int32(grab.x.rounded()), y: Int32(grab.y.rounded()))
+        let to = (x: Int32((grab.x + offset.x).rounded()), y: Int32((grab.y + offset.y).rounded()))
+        let keys = Self.modifierKeys.filter { held.contains($0.0) }.map(\.1)
+        let done = InputDone()
+        Thread {
+            Sleep(200)
+            dragInput(from: from, to: to, keys: keys)
+            done.finish()
+        }.start()
+        return wait(until: now + 5) { done.finished }
+    }
+
     // shot copies the virtual desktop with GDI into name.png in the report folder and returns the
     // file's name, nil when there is no folder or the copy failed. A picture with every pixel black
     // prints a line, since a headless desktop can give one.
@@ -83,6 +113,28 @@ extension WinHost: ScenarioHost {
         let data = PNG.encode(width: picture.w, height: picture.h, pixels: picture.pixels, red: 2, blue: 0)
         guard (try? data.write(to: shots.appendingPathComponent(file))) != nil else { return nil }
         return file
+    }
+}
+
+// InputDone tells the loop thread that the input thread finished.
+final class InputDone: @unchecked Sendable {
+    // lock guards done.
+    private let lock = NSLock()
+    // done is whether the input thread finished.
+    private var done = false
+
+    // finish marks the input thread finished.
+    func finish() {
+        lock.lock()
+        done = true
+        lock.unlock()
+    }
+
+    // finished reports whether the input thread finished.
+    var finished: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return done
     }
 }
 
