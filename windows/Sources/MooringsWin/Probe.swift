@@ -1226,18 +1226,27 @@ extension Frame {
 func probeContracts(_ opts: ProbeOptions) -> Int32 {
     let host = WinHost(minAspect: opts.minAspect)
     let windows = WinWindows()
-    let scheduler = WinScheduler()
-    host.timers = { scheduler.fire($0) }
+    let timers = WinTimers()
+    let scheduler = timers.make()
+    host.timers = { timers.fire($0) }
+    let hotkeys = WinHotkeys { _ in }
+    host.hotkey = { hotkeys.fire($0) }
     let banner = BannerWindow(minAspect: opts.minAspect)
     var failures = WindowStoreContract.run(windows, host: host)
     failures += OverlayContract.run(WinFootprint(), store: windows, host: host)
     failures += NotifierContract.run(WinNotifier { banner.show($0, $1) }, store: windows, host: host)
     failures += SchedulerContract.run(scheduler, clock: WinClock(), host: host)
+    failures += PointerContract.run(WinPointer(), host: host)
+    failures += KeysContract.run(WinKeys(hotkeys), host: host)
+    failures += LogContract.run(WinLog(), host: host)
+    failures += TimersContract.run(timers, clock: WinClock(), host: host)
+    failures += EventSourceContract.run(WinEvents(), store: windows, host: host)
+    failures += AppsContract.run(WinApps(), store: windows, host: host)
     failures += modifiersTable()
     for f in failures {
         print("contract failed: \(f)")
     }
-    print("contracts: 4 suites, \(failures.count) failures")
+    print("contracts: 10 suites, \(failures.count) failures")
     return failures.isEmpty ? 0 : 1
 }
 
@@ -1277,6 +1286,13 @@ func modifiersTable() -> [ContractFailure] {
 final class WinHost: ContractHost {
     // timers runs a thread timer's work and reports whether the timer was its.
     var timers: (UINT_PTR) -> Bool = { _ in false }
+    // hotkey is handed each WM_HOTKEY this thread receives while waiting.
+    var hotkey: (WPARAM) -> Void = { _ in }
+    // modifierKeys pairs each modifier with the virtual key press holds for it, Command as the left
+    // Windows key.
+    private static let modifierKeys: [(Modifiers, WORD)] = [
+        (.shift, 0x10), (.control, 0x11), (.option, 0x12), (.command, 0x5B),
+    ]
     // minAspect is the ratio a monitor needs to count as ultrawide.
     private let minAspect: Double
     // stands lists the stand-in processes the host started.
@@ -1336,6 +1352,29 @@ final class WinHost: ContractHost {
         nil
     }
 
+    // knownApp is Notepad's image path, the identity the store gives its windows.
+    var knownApp: String? {
+        let root = ProcessInfo.processInfo.environment["SystemRoot"] ?? "C:\\Windows"
+        return (root + "\\System32\\notepad.exe").lowercased()
+    }
+
+    // press injects key with its modifiers through SendInput and reports whether Windows took every
+    // event.
+    func press(_ key: GrabKey) -> Bool {
+        guard let vk = WinHotkeys.keyCodes[key.key] else { return false }
+        let vks = Self.modifierKeys.filter { key.modifiers.contains($0.0) }.map(\.1) + [WORD(vk)]
+        return MooringsWin.press(vks) == UINT(vks.count * 2)
+    }
+
+    // nudge moves the window with id 8 pixels right and down from outside the store, as a drag would.
+    func nudge(_ id: WindowID) -> Bool {
+        guard let hwnd = WinWindows.hwnd(id) else { return false }
+        var r = RECT()
+        guard GetWindowRect(hwnd, &r) else { return false }
+        let flags = UINT(SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
+        return SetWindowPos(hwnd, nil, r.left + 8, r.top + 8, 0, 0, flags)
+    }
+
     // wait pumps this thread's messages, handing its thread timers to timers, until done or the
     // deadline.
     func wait(until deadline: Double, _ done: () -> Bool) -> Bool {
@@ -1344,6 +1383,10 @@ final class WinHost: ContractHost {
             guard now < deadline else { return false }
             while PeekMessageW(&msg, nil, 0, 0, UINT(PM_REMOVE)) {
                 if msg.message == UINT(WM_TIMER), msg.hwnd == nil, timers(msg.wParam) {
+                    continue
+                }
+                if msg.message == UINT(WM_HOTKEY), msg.hwnd == nil {
+                    hotkey(msg.wParam)
                     continue
                 }
                 _ = TranslateMessage(&msg)

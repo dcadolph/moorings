@@ -36,6 +36,9 @@ final class WinWatcher {
     private(set) var passed = 0
     // hooks holds the installed hooks.
     private var hooks: [HWINEVENTHOOK] = []
+    // known holds the top-level windows an event or know named, since a destroyed window has no
+    // ancestor left to prove it was one.
+    private var known: Set<HWND> = []
 
     // init builds a watcher that calls handler on each kept event.
     init(handler: @escaping (WinEvent, HWND) -> Void) {
@@ -65,7 +68,13 @@ final class WinWatcher {
             _ = UnhookWinEvent(hook)
         }
         hooks = []
+        known = []
         WinWatcher.current = nil
+    }
+
+    // know records hwnd as a top-level window, so its destroy is passed on.
+    func know(_ hwnd: HWND) {
+        known.insert(hwnd)
     }
 
     // current is the running watcher, which the hook callback reaches since it cannot capture.
@@ -77,14 +86,19 @@ final class WinWatcher {
     // root is GA_ROOT, which GetAncestor answers with the top-level window.
     static let root = UINT(2)
 
-    // deliver counts an event and passes it on when it is about a top-level window itself.
+    // deliver counts an event and passes it on when it is about a top-level window itself. A destroy
+    // passes only for a window known to be top-level, which it then forgets.
     private func deliver(_ event: DWORD, _ hwnd: HWND?, _ idObject: LONG, _ idChild: LONG) {
         raw += 1
         guard let hwnd, let kind = WinEvent(rawValue: event) else { return }
         if filters {
-            guard idObject == Self.objectWindow, idChild == Self.childSelf,
-                GetAncestor(hwnd, Self.root) == hwnd
-            else { return }
+            guard idObject == Self.objectWindow, idChild == Self.childSelf else { return }
+            if kind == .destroy {
+                guard known.remove(hwnd) != nil else { return }
+            } else {
+                guard GetAncestor(hwnd, Self.root) == hwnd else { return }
+                known.insert(hwnd)
+            }
         }
         passed += 1
         handler(kind, hwnd)
