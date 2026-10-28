@@ -172,6 +172,7 @@ final class WinDrag {
             start = nil
             moving = nil
             drop = nil
+            app.footprint.hide()
         }
         guard let id, moving == true, let p = app.mouse.point else { return }
         guard let w = update(p, option: Self.down(Self.alt)) else { return }
@@ -192,20 +193,23 @@ final class WinDrag {
         }
     }
 
-    // update sets the drop for a pointer at p with option standing for Alt, and returns the dragged
-    // window as a pass would read it, nil when it cannot be read.
+    // update sets the drop for a pointer at p with option standing for Alt, moves the footprint to
+    // it when it changed, and returns the dragged window as a pass would read it, nil when it cannot
+    // be read.
     @discardableResult
     private func update(_ p: SnapPoint, option: Bool) -> WindowInfo? {
         let choices = app.anchors.choices
         let screens = Screens.current(minAspect: app.minAspect)
         guard let id, let hwnd = WinWindows.hwnd(id), let w = WinWindows.describe(hwnd, screens: screens) else {
             drop = nil
+            app.footprint.hide()
             return nil
         }
         guard !choices.paused, choices.snap, let i = screens.full.firstIndex(where: {
             p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h
         }) else {
             drop = nil
+            app.footprint.hide()
             return w
         }
         let ch = i == screens.ultrawide ? app.anchors.channel(screens.usable[i]) : nil
@@ -213,9 +217,24 @@ final class WinDrag {
         if case let .zone(z) = drop {
             prev = z
         }
-        drop = Snap.drop(p, screens.full[i], ch, prev: prev, option: option, parkable: true,
-                         pinned: app.anchors.pinned(w), castOff: app.anchors.isCastOff(w.id),
-                         snapping: choices.snapping, held: Self.held())
+        let next = Snap.drop(p, screens.full[i], ch, prev: prev, option: option, parkable: true,
+                             pinned: app.anchors.pinned(w), castOff: app.anchors.isCastOff(w.id),
+                             snapping: choices.snapping, held: Self.held())
+        let unchanged = next == drop && app.footprint.shown != nil
+        drop = next
+        if unchanged {
+            return w
+        }
+        let frame: Frame? = switch next {
+        case let .park(key): SlotKey(rawValue: key).map { app.anchors.slotFrame(screens.usable[i], $0) }
+        case let .zone(name): app.actions.preview(name, for: w, screens: screens)
+        case .none: nil
+        }
+        if let frame {
+            app.footprint.show(frame, style: choices.snapping.footprint)
+        } else {
+            app.footprint.hide()
+        }
         return w
     }
 

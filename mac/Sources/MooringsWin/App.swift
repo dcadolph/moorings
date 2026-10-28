@@ -33,6 +33,8 @@ final class App {
     private(set) lazy var mouse = WinMouseHook()
     // drag follows a window moved by its frame and runs its drop.
     private(set) lazy var drag = WinDrag(app: self)
+    // footprint shows where a dragged window will land.
+    let footprint = WinFootprint()
     // hooksMouse is false only in the drag probe's negative control, which runs without the hook.
     var hooksMouse = true
     // watcher delivers the window events.

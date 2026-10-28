@@ -545,6 +545,29 @@ jobs:
           Expect $q '^icon gone: true$' 'the icon removed on quit'
           Write-Host "  check: the loop ran its 2 s without Quit, ended $after s after Quit, icon removed"
 
+          Write-Host "probe footprint"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $null = Probe @('--probe', 'nudge', '--pid', "$($pad.Id)", '--frame', '200,150,500,350')
+          $f = Probe @('--probe', 'footprint', '--frame', '250,200,300,200')
+          $padId = [regex]::Match(($f -match '^foreground before: ')[0], 'notepad (0x[0-9a-f]+)$').Groups[1].Value
+          Expect $f "^foreground before: $padId notepad $padId$" 'Notepad in front before the footprint'
+          if ((Off (Rect ($f -match '^rect: ')[0] 'rect: ') @(250, 200, 300, 200)) -gt 1) { throw "the footprint is not at the asked frame" }
+          Expect $f '^exstyle: transparent true noactivate true layered true topmost true toolwindow true$' 'the footprint style bits'
+          Expect $f '^visible: true$' 'the footprint shown'
+          Expect $f "^foreground after show: $padId$" 'showing the footprint left Notepad in front'
+          Expect $f "^foreground after click: $padId footprint " 'a click on the footprint went through to Notepad'
+          Expect $f '^visible after hide: false$' 'the footprint hidden'
+          Write-Host "  check: footprint at 250 200 300 200, pass-through, Notepad kept the foreground through the show and a click"
+
+          Write-Host "probe footprint --activate"
+          $f = Probe @('--probe', 'footprint', '--frame', '250,200,300,200', '--activate')
+          Expect $f '^exstyle: transparent false noactivate false ' 'the negative control without the pass-through bits'
+          $foot = [regex]::Match(($f -match '^foreground after click: ')[0], 'footprint (0x[0-9a-f]+)$').Groups[1].Value
+          Expect $f "^foreground after click: $foot footprint $foot$" 'without the pass-through bits the click activated the footprint'
+          Write-Host "  check: without the pass-through bits a click took the foreground, so the check can fail"
+          Stop-Process -Id $pad.Id
+
           Write-Host "SIM: the runner as a 3440x1440 ultrawide"
           $modes = Probe @('--probe', 'modes')
           $big = @($modes -match '^mode \d+x\d+ ' | ForEach-Object {
@@ -610,6 +633,10 @@ jobs:
           $off = Off (Rect ($d -match '^after: ')[0] 'after: ') $half
           if ($off -gt 1) { throw "after the drop the stand-in is off the channel's left half by $off px" }
           Write-Host "  check: the drag dropped on left-half and the stand-in took the channel's left half $($half -join ' ')"
+          $fp = ($d -match '^footprint: ')[0]
+          if ($fp -notmatch ' hidden true$') { throw "the footprint stayed up after the drop" }
+          if ((Off (Rect $fp 'footprint: ') $half) -gt 1) { throw "the footprint did not show the left half the drop took" }
+          Write-Host "  check: the footprint showed $($half -join ' ') during the drag and hid on the drop"
           $d = Drag @('--no-hook')
           if ($d -match '^dropped ') { throw "a drag without the hook ran a drop" }
           if ((Off (Rect ($d -match '^after: ')[0] 'after: ') $half) -le 1) { throw "the stand-in reached the left half without the hook, so the drop is untested" }

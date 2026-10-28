@@ -176,6 +176,18 @@ final class WinActions {
         return true
     }
 
+    // preview returns where action name would put w without moving it, nil on a pin or a full-screen
+    // window and for the actions that land on no frame of their own: restore, undo and redo, the
+    // arrows and the fills.
+    func preview(_ name: String, for w: WindowInfo, screens: Screens) -> Frame? {
+        guard !screens.full.isEmpty, !anchors.pinned(w), !w.isFullScreen,
+              !["restore", "undo-move", "redo-move"].contains(name), !Actions.arrowNames.contains(name),
+              !Actions.fillNames.contains(name) else { return nil }
+        let choices = anchors.choices
+        return Actions.frame(name, cur: w.frame, target: target(for: w, screens: screens), gap: choices.gapPx,
+                             sizes: Bindings(choices).specs, last: last[w.id], behavior: choices.behavior).0
+    }
+
     // apply applies action name to window w and reports whether it moved. On a pin, Maximize lifts
     // or lowers it and Restore re-moors it; every other action leaves a pin alone. A drag's drop runs
     // its zone's action through it too.

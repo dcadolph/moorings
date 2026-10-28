@@ -57,6 +57,9 @@ struct ProbeOptions {
     var noHook = false
     // alt holds Alt through the drag probe's drop.
     var alt = false
+    // activate leaves the footprint probe's window without its pass-through bits, its negative
+    // control.
+    var activate = false
     // app is the end of the image path of the app whose window the probes act on: Notepad, or the
     // stand probe's window under the fake ultrawide, which Windows would not size past the desktop.
     var app = "\\notepad.exe"
@@ -90,6 +93,8 @@ struct ProbeOptions {
                 noHook = true
             case "--alt":
                 alt = true
+            case "--activate":
+                activate = true
             case "--screen", "--mode":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let size = Size(value) else { throw ProbeError.badValue(flag, value) }
@@ -165,6 +170,7 @@ let probes: [String: Probe] = [
     "login": probeLogin,
     "quit": probeQuit,
     "drag": probeDrag,
+    "footprint": probeFootprint,
     "stand": probeStand,
 ]
 
@@ -703,9 +709,56 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
     app.run(until: App.now + opts.seconds)
     print("hook delivered: \(WinMouseHook.delivered)")
     print("hook reinstalled: \(app.mouse.reinstalls)")
+    print("footprint: \(app.footprint.last.map(pixels) ?? "never") shows \(app.footprint.shows)",
+          "hidden \(app.footprint.shown == nil)")
     print("after: \(app.windows.frame(pad.id).map(pixels) ?? "gone")")
     print("channel: \(pixels(app.anchors.channel(wide)))")
     print("left top: \(app.anchors.choices.slots[.leftTop] ?? "")")
+    return 0
+}
+
+// probeFootprint brings the front Notepad forward, shows the footprint over it at the given frame,
+// or inside Notepad, and prints its rect, its style bits and the foreground window after the show
+// and after a click on the footprint's middle.
+func probeFootprint(_ opts: ProbeOptions) -> Int32 {
+    let windows = WinWindows.scan(screens: .current(minAspect: opts.minAspect)).windows
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
+          let hwnd = WinWindows.hwnd(pad.id) else {
+        print("footprint: no window of \(opts.app)")
+        return 1
+    }
+    _ = bringForward(hwnd)
+    pump(until: App.now + 0.3)
+    print("foreground before: \(foreground()) notepad \(hex(pad.id))")
+    let f = opts.frame ?? Frame(x: pad.frame.x + 50, y: pad.frame.y + 50, w: 300, h: 200)
+    let footprint = WinFootprint()
+    footprint.activates = opts.activate
+    footprint.show(f, style: FootprintStyle())
+    pump(until: App.now + 0.5)
+    guard let window = footprint.window else {
+        print("footprint: no window: \(GetLastError())")
+        return 1
+    }
+    var r = RECT()
+    _ = GetWindowRect(window, &r)
+    print("rect: \(pixels(Frame(r)))")
+    let ex = DWORD(truncatingIfNeeded: GetWindowLongPtrW(window, GWL_EXSTYLE))
+    let bit = { (b: DWORD) in ex & b == b }
+    print("exstyle: transparent \(bit(WinFootprint.transparent)) noactivate \(bit(WinFootprint.noActivate))",
+          "layered \(bit(WinFootprint.layered)) topmost \(bit(WinFootprint.topmost))",
+          "toolwindow \(bit(WinFootprint.toolWindow))")
+    print("visible: \(IsWindowVisible(window))")
+    print("foreground after show: \(foreground())")
+    let mid = (x: Int32((f.x + f.w / 2).rounded()), y: Int32((f.y + f.h / 2).rounded()))
+    sendMouse(mid.x, mid.y, 0)
+    pump(until: App.now + 0.1)
+    sendMouse(mid.x, mid.y, 0x0002)
+    sendMouse(mid.x, mid.y, 0x0004)
+    pump(until: App.now + 0.5)
+    print("foreground after click: \(foreground()) footprint \(hex(WinWindows.id(window)))")
+    footprint.hide()
+    pump(until: App.now + 0.3)
+    print("visible after hide: \(IsWindowVisible(window))")
     return 0
 }
 
