@@ -53,6 +53,9 @@ struct ProbeOptions {
     var mode: Size?
     // reset makes the modes probe restore the display mode kept in the registry.
     var reset = false
+    // app is the end of the image path of the app whose window the probes act on: Notepad, or the
+    // stand probe's window under the fake ultrawide, which Windows would not size past the desktop.
+    var app = "\\notepad.exe"
 
     // init parses args, the command line without the program name.
     init(_ args: [String]) throws {
@@ -76,6 +79,9 @@ struct ProbeOptions {
                 noApps = true
             case "--reset":
                 reset = true
+            case "--app":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                app = value.lowercased()
             case "--screen", "--mode":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let size = Size(value) else { throw ProbeError.badValue(flag, value) }
@@ -150,6 +156,7 @@ let probes: [String: Probe] = [
     "lift": probeLift,
     "login": probeLogin,
     "quit": probeQuit,
+    "stand": probeStand,
 ]
 
 // probeVersion prints the version and the DPI awareness the thread runs with.
@@ -229,8 +236,8 @@ func probeList(_ opts: ProbeOptions) -> Int32 {
 // probePlace moves the front Notepad window twice and prints each read-back and its insets.
 func probePlace(_ opts: ProbeOptions) -> Int32 {
     let windows = WinWindows.scan(screens: .current(minAspect: opts.minAspect)).windows
-    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }) else {
-        print("place: no notepad window")
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }) else {
+        print("place: no window of \(opts.app)")
         return 1
     }
     let placer = WinWindows()
@@ -257,8 +264,8 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let windows = WinWindows.scan(screens: screens).windows
-    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }) else {
-        print("moor: no notepad window")
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }) else {
+        print("moor: no window of \(opts.app)")
         return 1
     }
     let store = Store()
@@ -343,8 +350,8 @@ func printMenu(_ items: [MenuItem], depth: Int = 0) {
 // through the menu's commands, prints the saved choices after each, and removes the icon.
 func probeTray(_ opts: ProbeOptions) -> Int32 {
     let windows = WinWindows.scan(screens: .current(minAspect: opts.minAspect)).windows
-    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }) else {
-        print("tray: no notepad window")
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }) else {
+        print("tray: no window of \(opts.app)")
         return 1
     }
     let store = Store()
@@ -379,9 +386,9 @@ func probeHotkeys(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let windows = WinWindows.scan(screens: screens).windows
-    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }),
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
           let hwnd = WinWindows.hwnd(pad.id) else {
-        print("hotkeys: no notepad window")
+        print("hotkeys: no window of \(opts.app)")
         return 1
     }
     let store = Store()
@@ -472,8 +479,8 @@ func probeSkip(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let windows = WinWindows.scan(screens: screens).windows
-    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }) else {
-        print("skip: no notepad window")
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }) else {
+        print("skip: no window of \(opts.app)")
         return 1
     }
     let store = Store()
@@ -517,9 +524,9 @@ func probeLift(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let windows = WinWindows.scan(screens: screens).windows
-    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }),
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
           let hwnd = WinWindows.hwnd(pad.id) else {
-        print("lift: no notepad window")
+        print("lift: no window of \(opts.app)")
         return 1
     }
     let store = Store()
@@ -582,6 +589,58 @@ func probeQuit(_: ProbeOptions) -> Int32 {
     let window = tray.window
     tray.hide()
     print("icon gone: \(window.map(Tray.iconGone) ?? false)")
+    return 0
+}
+
+// standClass is the window class of the stand probe's window.
+let standClass = "MooringsStandIn"
+
+// probeStand shows a captioned window that accepts any size for the given seconds, then closes. Windows
+// caps a window that leaves its size limits to the default at the desktop plus its border, 1044 by 788
+// on the runner, so Notepad cannot take a 3440x1440 slot there. This window answers WM_GETMINMAXINFO
+// with no cap, as every window on a real ultrawide is capped past its size, and stands in for the
+// app under the fake ultrawide.
+func probeStand(_ opts: ProbeOptions) -> Int32 {
+    let instance = GetModuleHandleW(nil)
+    var wc = WNDCLASSEXW()
+    wc.cbSize = UINT(MemoryLayout<WNDCLASSEXW>.size)
+    wc.hInstance = instance
+    wc.lpfnWndProc = { hwnd, msg, wParam, lParam in
+        switch msg {
+        case UINT(WM_GETMINMAXINFO):
+            if let info = UnsafeMutablePointer<MINMAXINFO>(bitPattern: Int(lParam)) {
+                info.pointee.ptMaxTrackSize = POINT(x: 32000, y: 32000)
+                info.pointee.ptMaxSize = POINT(x: 32000, y: 32000)
+            }
+            return 0
+        case UINT(WM_DESTROY):
+            PostQuitMessage(0)
+            return 0
+        default:
+            return DefWindowProcW(hwnd, msg, wParam, lParam)
+        }
+    }
+    let name = wide(standClass)
+    let registered = name.withUnsafeBufferPointer { buffer in
+        wc.lpszClassName = buffer.baseAddress
+        return RegisterClassExW(&wc) != 0
+    }
+    guard registered else {
+        print("stand: class not registered: \(GetLastError())")
+        return 1
+    }
+    // 0x00CF0000 is WS_OVERLAPPEDWINDOW and 0x10000000 is WS_VISIBLE.
+    let style: DWORD = 0x00CF_0000 | 0x1000_0000
+    guard let hwnd = CreateWindowExW(0, name, wide("Moorings stand-in"), style, 100, 100, 600, 400, nil, nil,
+                                     instance, nil) else {
+        print("stand: no window: \(GetLastError())")
+        return 1
+    }
+    print("stand: \(hex(WinWindows.id(hwnd))) pid \(GetCurrentProcessId())")
+    pump(until: App.now + opts.seconds)
+    if IsWindow(hwnd) {
+        _ = DestroyWindow(hwnd)
+    }
     return 0
 }
 

@@ -131,16 +131,25 @@ jobs:
             ,$lines
           }
 
+          $script:standIn = $false
+          $script:stands = 0
+          function Pad {
+            if (-not $script:standIn) { return Start-Process notepad -PassThru }
+            $script:stands++
+            $log = Join-Path $env:RUNNER_TEMP "stand$($script:stands).txt"
+            Start-Process $exe -ArgumentList @('--probe', 'stand', '--seconds', '600') -RedirectStandardOutput $log -NoNewWindow -PassThru
+          }
+
           function MoorCheck([string[]] $geo) {
             Write-Host "probe moor $geo"
-            $a = Start-Process notepad -PassThru
+            $a = Pad
             Start-Sleep -Seconds 3
             $script:nudges = @()
             $m = Moor (Join-Path $env:RUNNER_TEMP 'moor.txt') (@('--probe', 'moor', '--seconds', '14') + $geo) {
               Start-Sleep -Seconds 5
               $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($a.Id)", '--frame', '420,260,300,200')
               Start-Sleep -Seconds 2
-              $script:b = Start-Process notepad -PassThru
+              $script:b = Pad
               Start-Sleep -Seconds 2
               $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
             }
@@ -294,7 +303,7 @@ jobs:
 
           function HotkeyCheck([string[]] $geo) {
             Write-Host "probe hotkeys $geo"
-            $pad = Start-Process notepad -PassThru
+            $pad = Pad
             Start-Sleep -Seconds 3
             $h = Hotkeys $geo
             $n = [regex]::Match(($h -match '^table: ')[0], '^table: (\d+) registered: (\d+) skipped: (\d+)$')
@@ -493,7 +502,7 @@ jobs:
 
           function LiftCheck([string[]] $geo) {
             Write-Host "probe lift $geo"
-            $pad = Start-Process notepad -PassThru
+            $pad = Pad
             Start-Sleep -Seconds 3
             $f = Probe (@('--probe', 'lift') + $geo)
             $strip = Rect ($f -match '^strip: ')[0] 'strip: '
@@ -566,13 +575,26 @@ jobs:
           }
           Stop-Process -Id $pad.Id
 
-          MoorCheck $sim
+          Write-Host "SIM stand-in place past the desktop"
+          $script:standIn = $true
+          $simApp = $sim + @('--app', '\mooringswin.exe')
+          $pad = Pad
+          Start-Sleep -Seconds 3
+          foreach ($frame in '0,0,1376,1392', '2064,0,1376,1392', '0,0,3440,1392') {
+            $off = (Placed (Probe (@('--probe', 'place', '--frame', $frame) + $simApp)))[0]
+            if ($off -gt 1) { throw "the stand-in read back $off px off $frame" }
+          }
+          Stop-Process -Id $pad.Id
+          Write-Host "  check: the stand-in read back the left strip, the right strip and the whole usable area within 1 px"
+
+          MoorCheck $simApp
           if ((Off $script:strip @(0, 0, 1376, 1392)) -gt 1) { throw "SIM strip is $($script:strip -join ' '), not the left 40 percent of 3440x1392" }
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392"
-          HotkeyCheck $sim
+          HotkeyCheck $simApp
           if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
-          LiftCheck $sim
+          LiftCheck $simApp
+          $script:standIn = $false
           SkipCheck ($sim -join ' ')
 
           Write-Host "SIM negative control: --screen 1024x768 at the default min aspect"
