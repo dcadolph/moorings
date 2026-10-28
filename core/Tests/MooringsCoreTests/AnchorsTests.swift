@@ -154,12 +154,18 @@ struct SlotCase: Sendable, CustomTestStringConvertible {
 
 // slotCases mirrors anchors_test.lua tests 33 to 36 and 159 for the four slots.
 let slotCases: [SlotCase] = [
-    SlotCase(slots: [.leftTop: "a"], bundle: "a", wantFrame: leftFull), // Test 0: Lone top fills the side.
-    SlotCase(slots: [.leftBottom: "a"], bundle: "a", wantFrame: leftFull), // Test 1: Lone bottom fills the side.
-    SlotCase(slots: [.leftTop: "a", .leftBottom: "b"], bundle: "a", wantFrame: Frame(x: 0, y: 25, w: 512, h: 707)), // Test 2: Top half.
-    SlotCase(slots: [.leftTop: "a", .leftBottom: "b"], bundle: "b", wantFrame: Frame(x: 0, y: 732, w: 512, h: 708)), // Test 3: Bottom half.
-    SlotCase(slots: [.rightTop: "a", .rightBottom: "b"], bundle: "b", wantFrame: Frame(x: 2816, y: 732, w: 2304, h: 708)), // Test 4: Right bottom.
-    SlotCase(slots: [.rightBottom: "a"], bundle: "a", wantFrame: rightFull), // Test 5: Lone right bottom.
+    // Test 0: Lone top fills the side.
+    SlotCase(slots: [.leftTop: "a"], bundle: "a", wantFrame: leftFull),
+    // Test 1: Lone bottom fills the side.
+    SlotCase(slots: [.leftBottom: "a"], bundle: "a", wantFrame: leftFull),
+    // Test 2: Top half.
+    SlotCase(slots: [.leftTop: "a", .leftBottom: "b"], bundle: "a", wantFrame: Frame(x: 0, y: 25, w: 512, h: 707)),
+    // Test 3: Bottom half.
+    SlotCase(slots: [.leftTop: "a", .leftBottom: "b"], bundle: "b", wantFrame: Frame(x: 0, y: 732, w: 512, h: 708)),
+    // Test 4: Right bottom.
+    SlotCase(slots: [.rightTop: "a", .rightBottom: "b"], bundle: "b", wantFrame: Frame(x: 2816, y: 732, w: 2304, h: 708)),
+    // Test 5: Lone right bottom.
+    SlotCase(slots: [.rightBottom: "a"], bundle: "a", wantFrame: rightFull),
 ]
 
 // testSlotFrames checks where each pin lands, matching the Lua frames for the same widths.
@@ -476,14 +482,18 @@ struct CastReasonCase: Sendable, CustomTestStringConvertible {
 
 // castReasonCases mirrors anchors_test.lua test 205.
 let castReasonCases: [CastReasonCase] = [
-    CastReasonCase(window: nil, wantReason: "There is no focused window to cast off."), // Test 0: No window.
+    // Test 0: No window.
+    CastReasonCase(window: nil, wantReason: "There is no focused window to cast off."),
+    // Test 1: Pinned.
     CastReasonCase(window: WindowInfo(id: 1, bundle: slack, frame: leftFull, onUltrawide: true, isMain: true),
-                   wantReason: "Pinned windows stay in their slot."), // Test 1: Pinned.
+                   wantReason: "Pinned windows stay in their slot."),
+    // Test 2: Other screen.
     CastReasonCase(window: WindowInfo(id: 3, bundle: "com.apple.Notes", frame: Frame(x: 5300, y: 100, w: 600, h: 400),
                                       onUltrawide: false, isMain: true),
-                   wantReason: "Only windows on the ultrawide are held in the channel."), // Test 2: Other screen.
+                   wantReason: "Only windows on the ultrawide are held in the channel."),
+    // Test 3: Free.
     CastReasonCase(window: WindowInfo(id: 4, bundle: "com.apple.Safari", frame: Frame(x: 1000, y: 100, w: 800, h: 600),
-                                      onUltrawide: true, isMain: true), wantReason: nil), // Test 3: Free.
+                                      onUltrawide: true, isMain: true), wantReason: nil),
 ]
 
 // testCastReason checks when Cast off is disabled and that a pin is refused and left in place.
