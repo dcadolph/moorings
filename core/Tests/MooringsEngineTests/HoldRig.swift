@@ -6,12 +6,12 @@ import MooringsTesting
 // no slots, Right Option as the trigger, Control-Option to hover move and Control-Command to hover
 // resize, and one free window focused.
 final class HoldRig {
-    // rightOption is Right Option's flags: its own device bit and the Option bit.
-    static let rightOption: UInt64 = 0x40 | 0x80000
+    // rightOption is Right Option held: its own right-hand bit and the Option bit.
+    static let rightOption: Modifiers = [.rightOption, .option]
     // ctrlAlt is Control and Option held.
-    static let ctrlAlt: UInt64 = 0x40000 | 0x80000
+    static let ctrlAlt: Modifiers = [.control, .option]
     // ctrlCmd is Control and Command held.
-    static let ctrlCmd: UInt64 = 0x40000 | 0x100000
+    static let ctrlCmd: Modifiers = [.control, .command]
 
     // windows is the fake window store.
     let windows = FakeWindows()
@@ -113,8 +113,8 @@ final class HoldRig {
 
     // release lets every modifier go and runs what that schedules.
     func release() {
-        overlay.flagsChanged(0, at: at)
-        hover.flagsChanged(0, at: at)
+        overlay.flagsChanged([], at: at)
+        hover.flagsChanged([], at: at)
         clock.advance(by: 0)
     }
 

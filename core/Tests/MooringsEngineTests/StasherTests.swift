@@ -221,12 +221,12 @@ final class StashRig {
 // without command, or with command needed for snapping it does not.
 @Test @MainActor func testStashDropEdge() {
     let rig = StashRig()
-    #expect(rig.stasher.dropEdge(Point(x: 1, y: 700), held: ["command"]) == .left)
-    #expect(rig.stasher.dropEdge(Point(x: 3439, y: 700), held: ["command"]) == .right)
-    #expect(rig.stasher.dropEdge(Point(x: 1700, y: 1439), held: ["command"]) == .bottom)
-    #expect(rig.stasher.dropEdge(Point(x: 1700, y: 700), held: ["command"]) == nil)
+    #expect(rig.stasher.dropEdge(Point(x: 1, y: 700), held: .command) == .left)
+    #expect(rig.stasher.dropEdge(Point(x: 3439, y: 700), held: .command) == .right)
+    #expect(rig.stasher.dropEdge(Point(x: 1700, y: 1439), held: .command) == .bottom)
+    #expect(rig.stasher.dropEdge(Point(x: 1700, y: 700), held: .command) == nil)
     #expect(rig.stasher.dropEdge(Point(x: 1, y: 700), held: []) == nil)
     var c = Choices()
     c.snapping.snapModifiers = ["command"]
-    #expect(StashRig(c).stasher.dropEdge(Point(x: 1, y: 700), held: ["command"]) == nil)
+    #expect(StashRig(c).stasher.dropEdge(Point(x: 1, y: 700), held: .command) == nil)
 }

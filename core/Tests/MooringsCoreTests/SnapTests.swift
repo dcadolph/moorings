@@ -147,7 +147,7 @@ func snapZone(_ f: Frame, _ ch: Frame?, _ x: Double, _ y: Double, _ prev: String
     var m = SnapChoices()
     m.snapModifiers = ["shift"]
     #expect(Snap.zone(SnapPoint(0, 540), snapScreen, nil, nil, snapping: m) == nil)
-    #expect(Snap.zone(SnapPoint(0, 540), snapScreen, nil, nil, snapping: m, held: ["shift"]) == "left-half")
+    #expect(Snap.zone(SnapPoint(0, 540), snapScreen, nil, nil, snapping: m, held: .shift) == "left-half")
 }
 
 // Swift only: edge margins, the snap-before distance and the corner size move where areas start.
@@ -210,7 +210,7 @@ func snapZone(_ f: Frame, _ ch: Frame?, _ x: Double, _ y: Double, _ prev: String
     #expect(Snap.zone(SnapPoint(2560, 720), snapWide, ch, nil, snapping: m) == nil)
     m.snapModifiers = ["shift"]
     #expect(Snap.zone(SnapPoint(960, 540), snapScreen, nil, nil, snapping: m) == nil)
-    #expect(Snap.zone(SnapPoint(960, 540), snapScreen, nil, nil, snapping: m, held: ["shift"]) == "center-third")
+    #expect(Snap.zone(SnapPoint(960, 540), snapScreen, nil, nil, snapping: m, held: .shift) == "center-third")
 }
 
 // Swift only: snap choices saved before custom areas and the panel load with neither, a bad area field

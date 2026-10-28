@@ -146,7 +146,7 @@ let rightHalf = Frame(x: 1720, y: 25, w: 1720, h: 1415)
 @Test func testThrowOtherModifier() {
     let rig = HoldRig()
     rig.at = Point(x: 2000, y: 700)
-    rig.overlay.flagsChanged(HoldRig.rightOption | 0x100000, at: rig.at)
+    rig.overlay.flagsChanged(HoldRig.rightOption.union(.command), at: rig.at)
     rig.clock.advance(by: 0)
     #expect(rig.grabs.isEmpty)
 }

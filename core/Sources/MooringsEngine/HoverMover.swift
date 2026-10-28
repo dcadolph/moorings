@@ -50,9 +50,9 @@ public final class HoverMover {
 
     // flagsChanged starts, switches or ends a hover as the held modifiers change. It may run inside
     // the platform's event callback, so it reads no window.
-    public func flagsChanged(_ flags: UInt64, at p: Point) {
+    public func flagsChanged(_ m: Modifiers, at p: Point) {
         let choices = anchors.choices
-        let next = choices.overlay.trigger.held(flags) ? nil : Hover.mode(flags, choices.overlay)
+        let next = choices.overlay.trigger.held(m) ? nil : Hover.mode(m, choices.overlay)
         guard next != mode else { return }
         end()
         if let next {

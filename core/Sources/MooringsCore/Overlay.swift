@@ -4,11 +4,6 @@ import Foundation
 public enum OverlayTrigger: String, Codable, CaseIterable, Sendable {
     case none, rightOption, rightCommand, rightControl, fn
 
-    // control, option and command are the device-independent modifier bits of a CGEventFlags value.
-    static let control: UInt64 = 0x40000
-    static let option: UInt64 = 0x80000
-    static let command: UInt64 = 0x100000
-
     // title is the trigger's name in Settings.
     public var title: String {
         switch self {
@@ -20,34 +15,34 @@ public enum OverlayTrigger: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    // bit is the flag bit that is set only while the trigger's own key is down: the device-dependent
-    // bit of the right-hand modifier, or the secondary function bit for Fn. None has no bit.
-    public var bit: UInt64 {
+    // key is the bit set only while the trigger's own key is down: the right-hand bit of its
+    // modifier, or Fn. None has no key.
+    public var key: Modifiers {
         switch self {
-        case .none: 0
-        case .rightOption: 0x40
-        case .rightCommand: 0x10
-        case .rightControl: 0x2000
-        case .fn: 0x800000
+        case .none: []
+        case .rightOption: .rightOption
+        case .rightCommand: .rightCommand
+        case .rightControl: .rightControl
+        case .fn: .function
         }
     }
 
-    // own is the device-independent modifier bit the trigger's key also sets, 0 for Fn and None.
-    var own: UInt64 {
+    // own is the side-free modifier the trigger's key also sets, empty for Fn and None.
+    var own: Modifiers {
         switch self {
-        case .rightOption: Self.option
-        case .rightCommand: Self.command
-        case .rightControl: Self.control
-        case .none, .fn: 0
+        case .rightOption: .option
+        case .rightCommand: .command
+        case .rightControl: .control
+        case .none, .fn: []
         }
     }
 
-    // held reports whether flags show the trigger down with no Control, Option or Command besides
-    // the trigger's own. Shift may be down, since it grows the grid.
-    public func held(_ flags: UInt64) -> Bool {
-        guard self != .none, flags & bit != 0 else { return false }
-        let others = (Self.control | Self.option | Self.command) & ~own
-        return flags & others == 0
+    // held reports whether m shows the trigger down with no Control, Option or Command besides the
+    // trigger's own. Shift may be down, since it grows the grid.
+    public func held(_ m: Modifiers) -> Bool {
+        guard self != .none, m.isSuperset(of: key) else { return false }
+        let others: Modifiers = [.control, .option, .command]
+        return m.isDisjoint(with: others.subtracting(own))
     }
 }
 
@@ -275,8 +270,6 @@ public enum HoverCorner: Sendable {
 // Every frame is computed from where the window and pointer were when the modifiers went down, so a
 // size the app refuses never builds up drift.
 public enum Hover {
-    // bits pairs each modifier with its device-independent bit in a CGEventFlags value.
-    static let bits: [(Modifier, UInt64)] = [(.shift, 0x20000), (.ctrl, 0x40000), (.alt, 0x80000), (.cmd, 0x100000)]
     // minimum is the smallest width and height in points a hover resize shrinks a window to.
     public static let minimum = (w: 160.0, h: 100.0)
 
@@ -286,11 +279,11 @@ public enum Hover {
         mods.contains { $0 != .shift }
     }
 
-    // mode returns what the modifiers in flags do: move when they are exactly the move set, resize
-    // when they are exactly the resize set, nil otherwise. A set that is not usable, or a resize set
-    // equal to the move set, does nothing.
-    public static func mode(_ flags: UInt64, _ choices: OverlayChoices) -> HoverMode? {
-        let held = Set(bits.filter { flags & $0.1 != 0 }.map(\.0))
+    // mode returns what the modifiers in m do: move when they are exactly the move set, resize when
+    // they are exactly the resize set, nil otherwise. A set that is not usable, or a resize set equal
+    // to the move set, does nothing.
+    public static func mode(_ m: Modifiers, _ choices: OverlayChoices) -> HoverMode? {
+        let held = Set(m.shortcut)
         if usable(choices.hoverMove), Set(choices.hoverMove) == held {
             return .move
         }
@@ -302,9 +295,9 @@ public enum Hover {
         return nil
     }
 
-    // holds reports whether the modifiers in flags are exactly mods and mods can drive a drag.
-    public static func holds(_ flags: UInt64, _ mods: [Modifier]) -> Bool {
-        usable(mods) && Set(bits.filter { flags & $0.1 != 0 }.map(\.0)) == Set(mods)
+    // holds reports whether the modifiers in m are exactly mods and mods can drive a drag.
+    public static func holds(_ m: Modifiers, _ mods: [Modifier]) -> Bool {
+        usable(mods) && Set(m.shortcut) == Set(mods)
     }
 
     // corner returns the corner of f nearest p, by which half of f p is in.
