@@ -2,11 +2,16 @@ import Foundation
 import WinSDK
 
 import MooringsCore
+import MooringsEngine
 
 // Command is what choosing a tray menu item does.
 enum Command: Equatable {
     case slot(SlotKey, String)
     case widths(Widths)
+    case saveWorkspace
+    case recall(String)
+    case tie(String)
+    case deleteWorkspace(String)
     case pause
     case atLogin
     case about
@@ -63,7 +68,7 @@ final class Tray {
 
     // menu builds the tray menu from the choices, the bundles of the running apps, and whether
     // Moorings starts at login. It is pure so the menu probe can print it.
-    static func menu(choices: Choices, running: [String], atLogin: Bool) -> [MenuItem] {
+    static func menu(choices: Choices, running: [String], atLogin: Bool, tiedKey: String = "") -> [MenuItem] {
         let apps = Array(Set(running)).sorted { appName($0).lowercased() < appName($1).lowercased() }
         var slots: [MenuItem] = []
         for key in SlotKey.allCases {
@@ -90,9 +95,23 @@ final class Tray {
             widths.append(.separator)
             widths += owned.map(pair)
         }
+        var spaces = [MenuItem(title: "Save workspace", enabled: !choices.paused, command: .saveWorkspace)]
+        let names = choices.workspaces.keys.sorted()
+        if !names.isEmpty {
+            spaces.append(.separator)
+        }
+        for name in names {
+            let tied = !tiedKey.isEmpty && choices.workspaces[name]?.setup == tiedKey
+            spaces.append(MenuItem(title: name, submenu: [
+                MenuItem(title: "Recall", enabled: !choices.paused, command: .recall(name)),
+                MenuItem(title: "Recall with these displays", checked: tied, command: .tie(name)),
+                MenuItem(title: "Delete", command: .deleteWorkspace(name)),
+            ]))
+        }
         return [
             MenuItem(title: "Slots", submenu: slots),
             MenuItem(title: "Widths", submenu: widths),
+            MenuItem(title: "Workspaces", submenu: spaces),
             .separator,
             MenuItem(title: "Pause", checked: choices.paused, command: .pause),
             MenuItem(title: "Launch at login", checked: atLogin, command: .atLogin),
@@ -201,6 +220,9 @@ final class Tray {
                 perform(commands[id - 1])
             }
             return 0
+        case UINT(WM_DISPLAYCHANGE):
+            app.workspaces.screensChanged()
+            return nil
         case Tray.taskbarCreated where Tray.taskbarCreated != 0:
             add()
             return 0
@@ -213,7 +235,8 @@ final class Tray {
     // when the owner clicks elsewhere.
     private func open(_ hwnd: HWND) {
         let running = WinWindows.scan(screens: .current(minAspect: app.minAspect)).windows.map(\.bundle)
-        let items = Tray.menu(choices: app.anchors.choices, running: running, atLogin: LoginItem.enabled)
+        let items = Tray.menu(choices: app.anchors.choices, running: running, atLogin: LoginItem.enabled,
+                              tiedKey: WinScreens.deviceKey())
         commands = []
         guard let menu = build(items) else { return }
         defer { _ = DestroyMenu(menu) }
@@ -262,6 +285,20 @@ final class Tray {
             anchors.lock(key, bundle, now: App.now)
         case .widths(let w):
             anchors.setWidths(w)
+        case .saveWorkspace:
+            let taken = Set(anchors.choices.workspaces.keys)
+            let name = (1...).lazy.map { "Workspace \($0)" }.first { !taken.contains($0) } ?? "Workspace"
+            app.workspaces.saveWorkspace(name)
+            return
+        case .recall(let name):
+            app.workspaces.recall(name)
+            return
+        case .tie(let name):
+            app.workspaces.tie(name)
+            return
+        case .deleteWorkspace(let name):
+            app.workspaces.delete(name)
+            return
         case .pause:
             anchors.choices.paused.toggle()
         case .atLogin:

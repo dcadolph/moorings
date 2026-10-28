@@ -169,6 +169,8 @@ let probes: [String: Probe] = [
     "banner": probeBanner,
     "skip": probeSkip,
     "lift": probeLift,
+    "workspace": probeWorkspace,
+    "apprule": probeAppRule,
     "login": probeLogin,
     "quit": probeQuit,
     "drag": probeDrag,
@@ -530,6 +532,90 @@ func probeSkip(_ opts: ProbeOptions) -> Int32 {
     for w in WinWindows.scan(screens: screens).windows {
         print("final \(hex(w.id)) frame \(pixels(w.frame))")
     }
+    return 0
+}
+
+// probeWorkspace puts every window of the app at staggered frames, saves them as a workspace,
+// moves them away, recalls the workspace and prints each window's saved frame beside where it
+// landed.
+func probeWorkspace(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    let store = Store()
+    do {
+        try store.save(Choices())
+    } catch {
+        print("workspace: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    let pads = app.windows.scan(screens, full: true).windows.filter { $0.bundle.hasSuffix(opts.app) }
+    guard let i = pads.first.flatMap({ screens.index($0.frame) }) else {
+        print("workspace: no window of \(opts.app)")
+        return 1
+    }
+    let area = screens.usable[i]
+    for (k, p) in pads.enumerated() {
+        let d = Double(k)
+        app.windows.move(p.id, to: Frame(x: area.x + 60 + 260 * d, y: area.y + 80 + 30 * d, w: 420, h: 300),
+                         from: nil, behavior: Behaviors())
+    }
+    app.run(until: App.now + 0.5)
+    var saved: [WindowID: Frame] = [:]
+    for p in pads {
+        saved[p.id] = app.windows.frame(p.id)
+    }
+    app.workspaces.saveWorkspace("probe")
+    print("pads: \(pads.count)")
+    print("saved: \(app.anchors.choices.workspaces["probe"]?.windows.count ?? 0)")
+    for (k, p) in pads.enumerated() {
+        app.windows.move(p.id, to: Frame(x: area.x + 20 + 15 * Double(k), y: area.y + 20, w: 300, h: 200),
+                         from: nil, behavior: Behaviors())
+    }
+    app.run(until: App.now + 0.5)
+    print("recalled: \(app.workspaces.recall("probe"))")
+    app.run(until: App.now + 0.5)
+    for p in pads {
+        let got = app.windows.frame(p.id)
+        print("pad: want \(saved[p.id].map(pixels) ?? "none") got \(got.map(pixels) ?? "none")")
+    }
+    return 0
+}
+
+// probeAppRule learns the app's bundle from its front window, closes every window of it, sets a
+// rule that puts the app's first window at 150,120,600,400 on the screen, opens the app again the
+// way a workspace recall does, and prints where its new window landed.
+func probeAppRule(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    let first = WinWindows.scan(screens: screens).windows.filter { $0.bundle.hasSuffix(opts.app) }
+    guard let bundle = first.first?.bundle, let i = screens.index(first[0].frame) else {
+        print("apprule: no window of \(opts.app)")
+        return 1
+    }
+    for w in first {
+        if let hwnd = WinWindows.hwnd(w.id) {
+            _ = PostMessageW(hwnd, UINT(WM_CLOSE), 0, 0)
+        }
+    }
+    let area = screens.usable[i]
+    let target = Frame(x: area.x + 150, y: area.y + 120, w: 600, h: 400)
+    var choices = Choices()
+    choices.appRules = [AppRule(bundle: bundle, frame: target)]
+    let store = Store()
+    do {
+        try store.save(choices)
+    } catch {
+        print("apprule: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    app.run(until: App.now + 1.5)
+    let gone = WinWindows.scan(screens: screens).windows.filter { $0.bundle == bundle }.isEmpty
+    print("closed: \(gone)")
+    WinWindows.open(bundle, target: nil)
+    app.run(until: App.now + 4)
+    let now = app.windows.scan(screens, full: true).windows.filter { $0.bundle == bundle }
+    print("windows: \(now.count)")
+    print("rule: want \(pixels(target)) got \(now.first.map { pixels($0.frame) } ?? "none")")
     return 0
 }
 

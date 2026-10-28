@@ -270,6 +270,7 @@ jobs:
             if ($slots[$key][0] -ne 'Clear') { throw "$key does not start with Clear" }
           }
           Expect $menu '^menu \[ \] Pause$' 'Pause unchecked'
+          Expect $menu '^menu   \[ \] Save workspace$' 'Save workspace under Workspaces'
           if (@($menu -match '^menu   \[ \] Left \d+%, right \d+%$').Count -ne 3) { throw "want the three built-in width pairs unchecked" }
           Write-Host "  check: four slots each list notepad.exe, Pause unchecked"
 
@@ -524,6 +525,38 @@ jobs:
           }
           LiftCheck @('--min-aspect', '1.0')
 
+          function WorkspaceCheck([string[]] $geo) {
+            Write-Host "probe workspace $geo"
+            $pads = @(1..2 | ForEach-Object { Pad })
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'workspace') + $geo)
+            $n = [int]([regex]::Match(($f -match '^pads: ')[0], '^pads: (\d+)$').Groups[1].Value)
+            if ($n -lt 2) { throw "want two windows of the app, got $n" }
+            Expect $f "^saved: $n$" 'every window saved in the workspace'
+            Expect $f '^recalled: true$' 'the workspace recalled'
+            foreach ($l in @($f -match '^pad: ')) {
+              $m = [regex]::Match($l, '^pad: want (-?\d+ -?\d+ \d+ \d+) got (-?\d+ -?\d+ \d+ \d+)$')
+              if (-not $m.Success) { throw "pad line unreadable: $l" }
+              $off = Off ($m.Groups[1].Value -split ' ' | ForEach-Object { [int]$_ }) ($m.Groups[2].Value -split ' ' | ForEach-Object { [int]$_ })
+              if ($off -gt 1) { throw "a recalled window is $off px off its saved frame: $l" }
+            }
+            Write-Host "  check: $n windows saved, moved away and recalled onto their saved frames within 1 px"
+            $pads | ForEach-Object { Stop-Process -Id $_.Id -ErrorAction SilentlyContinue }
+          }
+          WorkspaceCheck @('--min-aspect', '1.0')
+
+          Write-Host "probe apprule"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $f = Probe @('--probe', 'apprule', '--min-aspect', '1.0')
+          Expect $f '^closed: true$' 'every Notepad closed before the rule'
+          $m = [regex]::Match(($f -match '^rule: ')[0], '^rule: want (-?\d+ -?\d+ \d+ \d+) got (-?\d+ -?\d+ \d+ \d+)$')
+          if (-not $m.Success) { throw "no ruled window: $(($f -match '^rule: ')[0])" }
+          $off = Off ($m.Groups[1].Value -split ' ' | ForEach-Object { [int]$_ }) ($m.Groups[2].Value -split ' ' | ForEach-Object { [int]$_ })
+          if ($off -gt 1) { throw "the ruled Notepad is $off px off its rule's frame" }
+          Write-Host "  check: the reopened Notepad's first window took its rule's frame $($m.Groups[1].Value)"
+          Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+
           Write-Host "probe login"
           $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
           Remove-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue
@@ -621,6 +654,7 @@ jobs:
           if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
           LiftCheck $simApp
+          WorkspaceCheck $simApp
 
           Write-Host "SIM probe drag"
           $pad = Pad

@@ -38,6 +38,24 @@ final class App {
         r.log = { line in FileHandle.standardError.write(Data("actions: \(line)\n".utf8)) }
         return r
     }()
+    // organizer gives the areas workspaces are placed in.
+    private(set) lazy var organizer = Organizer(platform: platform, anchors: anchors)
+    // settle runs the workspace keeper's deferred recall after the displays change.
+    let settle = WinScheduler()
+    // workspaces saves and recalls workspaces, places a ruled app's first window and switches
+    // profiles.
+    private(set) lazy var workspaces: WorkspaceKeeper = {
+        let k = WorkspaceKeeper(platform: platform, anchors: anchors, organizer: organizer, actions: actions)
+        k.title = { WinWindows.title($0) }
+        k.openApp = { bundle, target in WinWindows.open(bundle, target: target) }
+        k.after = { [unowned self] seconds, work in settle.schedule(at: Self.now + seconds, work) }
+        k.changed = { [unowned self] in
+            save()
+            wake()
+        }
+        k.log = { line in FileHandle.standardError.write(Data("workspaces: \(line)\n".utf8)) }
+        return k
+    }()
     // hotkeys delivers the shortcuts bound for the actions.
     private(set) lazy var hotkeys = WinHotkeys { [unowned self] name in self.actions.run(name) }
     // mouse delivers the pointer for drag snapping.
@@ -67,7 +85,12 @@ final class App {
         let p = PassLoop(platform: platform, anchors: anchors)
         p.mouseHeld = { [unowned self] in dragging || GetAsyncKeyState(VK_LBUTTON) < 0 }
         p.refreshed = { [unowned self] alive in actions.prune(alive: alive) }
-        p.after = { [unowned self] _, screens, _ in self.screens = screens }
+        p.after = { [unowned self] scan, screens, _ in
+            self.screens = screens
+            workspaces.seen(scan.windows, screens: screens)
+        }
+        p.context = { [unowned self] in PassContext(waiting: workspaces.waiting) }
+        p.deadlines = { [unowned self] in workspaces.deadlines() }
         p.appName = { Tray.appName($0) }
         p.spell = { WinHotkeys.spelled($0) }
         p.tellsRefused = true
@@ -97,6 +120,7 @@ final class App {
         self.store = store
         self.minAspect = minAspect
         anchors = Anchors(choices: store.load())
+        _ = workspaces
     }
 
     // now is the time in seconds since the system started, the same clock in every process.
@@ -175,7 +199,7 @@ final class App {
                 case stop where stop != 0:
                     return
                 default:
-                    if !scheduler.fire(msg.wParam) {
+                    if !scheduler.fire(msg.wParam), !settle.fire(msg.wParam) {
                         _ = mouse.tick(msg.wParam)
                     }
                 }
