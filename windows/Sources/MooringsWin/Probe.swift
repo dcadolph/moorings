@@ -573,11 +573,11 @@ func probeLift(_ opts: ProbeOptions) -> Int32 {
     return 0
 }
 
-// probeActions binds the whole default keymap, then runs every action in it once from a fixed
-// start frame on the front window of the app, and prints the frame the engine's preview wanted
-// beside the frame the window ended at. Routed actions have no Windows hook yet and are listed
-// without running. The actions that minimize or close come last, and the window is restored after
-// each minimize, so every action starts from the same frame.
+// probeActions binds the whole default keymap, then runs every action in it and in the Window
+// folder's families once from a fixed start frame on the front window of the app, and prints the
+// frame the engine's preview wanted beside the frame the window ended at. Routed actions have no
+// Windows hook yet and are listed without running. The actions that minimize or close come last,
+// and the window is restored after each minimize, so every action starts from the same frame.
 func probeActions(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
     let windows = WinWindows.scan(screens: screens).windows
@@ -602,7 +602,8 @@ func probeActions(_ opts: ProbeOptions) -> Int32 {
         print("skipped \(s.name): \(s.reason) routed \(app.actions.routed(s.name))")
     }
     let last = ["minimize-others", "close-others", "minimize-window", "close-window"]
-    let names = map.keys.sorted()
+    let window = ActionRunner.families.flatMap { $0.names + $0.groups.flatMap(\.names) }
+    let names = Set(map.keys).union(window).sorted()
     let ordered = names.filter { !last.contains($0) } + last.filter { names.contains($0) }
     let start = Frame(x: 200, y: 150, w: 500, h: 350)
     var compared = 0, bare = 0
