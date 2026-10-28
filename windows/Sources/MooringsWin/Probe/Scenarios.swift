@@ -39,6 +39,9 @@ func probeScenarios(_ opts: ProbeOptions) -> Int32 {
     app.hotkeys.unbind()
     let report = ScenarioReport(host: "windows", results: results)
     for r in results {
+        if let why = r.skipped {
+            print("scenario \(r.name): skipped, \(why)")
+        }
         for f in r.frames {
             print("scenario \(r.name) frame \(f.name): \(Int(f.x)) \(Int(f.y)) \(Int(f.w)) \(Int(f.h))")
         }

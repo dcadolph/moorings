@@ -5,8 +5,8 @@ import MooringsEngine
 import MooringsTesting
 import Testing
 
-// ScenarioRig is one Engine on fakes over one 3440x1440 ultrawide with nothing saved, and the FakeHost
-// that opens and moves its windows.
+// ScenarioRig is one Engine on fakes over one 3440x1440 ultrawide with nothing saved and the features
+// given, and the FakeHost that opens and moves its windows.
 final class ScenarioRig {
     // windows is the fake window store.
     let windows = FakeWindows()
@@ -21,9 +21,10 @@ final class ScenarioRig {
     // host opens, places and closes the fake windows.
     let host: FakeHost
 
-    // init builds the rig.
-    init() {
-        engine = newTestEngine(newTestPlatform(windows: windows, screens: screens, clock: clock, store: store))
+    // init builds the rig with features, every one unless a test names fewer.
+    init(features: Engine.Features = .all) {
+        engine = newTestEngine(
+            newTestPlatform(windows: windows, screens: screens, clock: clock, store: store), features: features)
         host = FakeHost(windows: windows, clock: clock, screens: screens)
         host.store = store
     }
@@ -37,7 +38,7 @@ final class ScenarioRig {
     for r in results {
         print("scenario \(r.name): \(r.notes.joined(separator: "; "))")
     }
-    #expect(report.summary == "scenarios: 5 run, 0 failed")
+    #expect(report.summary == "scenarios: 8 run, 0 failed")
     #expect(report.failures.isEmpty, "\(report.failures)")
     #expect(Set(results.map(\.name)) == Set(Scenarios.all.map(\.name)))
 }
@@ -51,6 +52,15 @@ final class ScenarioRig {
     #expect(results.map(\.name) == ["pinPlacesOnStrip"])
     #expect(
         results.first?.failures.map(\.rule) == ["a pinned window reads back at its strip within 2 s, 1 point"])
+}
+
+// Test 6: An engine without the stash skips the stash scenario by name with its reason and runs the rest.
+@Test func testScenariosSkipMissingFeature() {
+    let rig = ScenarioRig(features: [])
+    let results = Scenarios.run(rig.engine, host: rig.host)
+    #expect(results.filter { $0.skipped != nil }.map(\.name) == ["quitRestoresStash"])
+    #expect(results.first { $0.name == "quitRestoresStash" }?.skipped == "needs stash")
+    #expect(ScenarioReport(host: "fakes", results: results).summary == "scenarios: 7 run, 1 skipped, 0 failed")
 }
 
 // Test 2: The run puts back the engine's choices and stops its passes.
