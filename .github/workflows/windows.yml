@@ -29,15 +29,15 @@ jobs:
         run: swift --version
 
       - name: Core tests
-        run: swift test
+        run: swift test -Xswiftc -warnings-as-errors
         working-directory: core
 
       - name: Build
-        run: swift build
+        run: swift build -Xswiftc -warnings-as-errors
 
       - name: Probe
         run: |
-          $exe = Join-Path (swift build --show-bin-path) 'MooringsWin.exe'
+          $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
           function Probe([string[]] $probeArgs) {
             $out = @(& $exe @probeArgs)
             if ($LASTEXITCODE -ne 0) { throw "probe $probeArgs exited $LASTEXITCODE" }
@@ -742,7 +742,7 @@ jobs:
       - name: Contracts
         timeout-minutes: 5
         run: |
-          $exe = Join-Path (swift build --show-bin-path) 'MooringsWin.exe'
+          $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
           $out = @(& $exe --probe contracts)
           $code = $LASTEXITCODE
           $out | ForEach-Object { Write-Host "  $_" }
@@ -752,9 +752,9 @@ jobs:
       - name: Package
         id: package
         run: |
-          swift build -c release
+          swift build -c release -Xswiftc -warnings-as-errors
           if ($LASTEXITCODE -ne 0) { throw "release build failed" }
-          $bin = swift build -c release --show-bin-path
+          $bin = swift build -c release -Xswiftc -warnings-as-errors --show-bin-path
           $runtime = Split-Path (where.exe swiftCore.dll | Select-Object -First 1)
           $short = '${{ github.event.pull_request.head.sha || github.sha }}'.Substring(0, 7)
           $name = "moorings-windows-$short"

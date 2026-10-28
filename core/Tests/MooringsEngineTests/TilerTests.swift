@@ -90,7 +90,7 @@ final class TileRig {
 @Test @MainActor func testTilerOpenAndClose() {
     let rig = TileRig()
     let a = rig.add(), b = rig.add()
-    rig.tiler.run("tiling-columns")
+    #expect(rig.tiler.run("tiling-columns"))
     rig.pass()
     let c = rig.add()
     rig.pass()
@@ -106,7 +106,7 @@ final class TileRig {
     let rig = TileRig()
     rig.add()
     rig.add()
-    rig.tiler.run("tiling-columns")
+    #expect(rig.tiler.run("tiling-columns"))
     rig.pass()
     let moved = rig.moves
     rig.pass()
@@ -118,7 +118,7 @@ final class TileRig {
 @Test @MainActor func testTilerDraggedWindowFloats() {
     let rig = TileRig()
     let a = rig.add(), b = rig.add(), c = rig.add()
-    rig.tiler.run("tiling-columns")
+    #expect(rig.tiler.run("tiling-columns"))
     rig.pass()
     rig.clock.advance(by: 1)
     let dropped = Frame(x: 900, y: 600, w: 700, h: 500)
@@ -129,7 +129,7 @@ final class TileRig {
     rig.pass()
     #expect(rig.windows.frame(b) == dropped)
     #expect(TileRig.near(rig.frames([a, c]), rig.columns(2)))
-    rig.tiler.run("tiling-columns")
+    #expect(rig.tiler.run("tiling-columns"))
     rig.pass()
     #expect(rig.tiler.floated.isEmpty)
     #expect(TileRig.near(rig.frames([a, b, c]), rig.columns(3)))
@@ -151,7 +151,7 @@ final class TileRig {
     let rig = TileRig()
     rig.add()
     rig.add()
-    rig.tiler.run("tiling-columns")
+    #expect(rig.tiler.run("tiling-columns"))
     rig.pass(mouseHeld: true)
     #expect(rig.moves == 0)
     rig.anchors.choices.paused = true
@@ -165,7 +165,7 @@ final class TileRig {
     let a = rig.add(), b = rig.add(), c = rig.add()
     rig.anchors.stashed.insert(c)
     let parked = rig.windows.frame(c)
-    rig.tiler.run("tiling-columns")
+    #expect(rig.tiler.run("tiling-columns"))
     rig.pass()
     #expect(TileRig.near(rig.frames([a, b]), rig.columns(2)))
     #expect(rig.windows.frame(c) == parked)
@@ -178,9 +178,11 @@ final class TileRig {
     #expect(rig.tiler.run("grow-main"))
     #expect(rig.anchors.choices.tiling.ratio > was)
     #expect(rig.changes == 1)
-    for _ in 0..<20 {
-        rig.tiler.run("grow-main")
+    var grew = 0
+    for _ in 0..<20 where rig.tiler.run("grow-main") {
+        grew += 1
     }
+    #expect(grew < 20)
     let top = rig.changes
     #expect(!rig.tiler.run("grow-main"))
     #expect(rig.changes == top)
@@ -197,7 +199,7 @@ final class TileRig {
 @Test @MainActor func testTilerSwapInLayout() {
     let rig = TileRig()
     let a = rig.add(), b = rig.add()
-    rig.tiler.run("tiling-columns")
+    #expect(rig.tiler.run("tiling-columns"))
     rig.pass()
     let left = rig.windows.frame(a)!.x < rig.windows.frame(b)!.x ? a : b
     let right = left == a ? b : a
