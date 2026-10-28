@@ -269,7 +269,7 @@ func span(_ g: OverlayGrid) -> [Int] {
 // Swift only: overlay choices default to no trigger, load missing or bad fields as defaults, clamp the
 // grid and round trip.
 @Test func testOverlayChoicesDecode() throws {
-    #expect(Choices.decode(Data(#"{"snap":true}"#.utf8)).overlay == OverlayChoices())
+    #expect(Choices.decode(Data(#"{"snap":true}"#.utf8)).choices.overlay == OverlayChoices())
     #expect(OverlayChoices().trigger == .none)
     #expect(try JSONDecoder().decode(OverlayChoices.self, from: Data("{}".utf8)) == OverlayChoices())
     let bad = Data(#"{"trigger":"capsLock","gridColumns":99,"gridRows":0}"#.utf8)
@@ -280,7 +280,7 @@ func span(_ g: OverlayGrid) -> [Int] {
     c.overlay.gridColumns = 8
     c.overlay.hoverMove = [.ctrl, .alt]
     c.overlay.hoverResize = [.cmd]
-    #expect(Choices.decode(try Choices.encode(c)) == c)
+    #expect(Choices.decode(try Choices.encode(c)).choices == c)
     let mods = Data(#"{"hoverMove":["option","Control","option","hyper"],"hoverResize":7}"#.utf8)
     let h = try JSONDecoder().decode(OverlayChoices.self, from: mods)
     #expect(h.hoverMove == [.ctrl, .alt] && h.hoverResize.isEmpty)

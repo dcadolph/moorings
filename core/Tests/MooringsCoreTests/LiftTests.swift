@@ -293,10 +293,10 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
 @Test func testLiftFullscreenChoiceSaved() throws {
     var choices = Choices()
     choices.pinFullscreenFills = false
-    let back = Choices.decode(try Choices.encode(choices))
+    let back = Choices.decode(try Choices.encode(choices)).choices
     #expect(back.pinFullscreenFills == false)
     #expect(back.fullscreenFills == true)
-    #expect(Choices.decode(Data("{}".utf8)).pinFullscreenFills == true)
+    #expect(Choices.decode(Data("{}".utf8)).choices.pinFullscreenFills == true)
 }
 
 // Lua case 165: A left pin that will not shrink to the strip keeps its own width at the edge and

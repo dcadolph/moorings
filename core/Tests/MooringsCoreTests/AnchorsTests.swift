@@ -367,17 +367,17 @@ func testSlotFrames(test: SlotCase) {
     c.paused = true
     c.widthPresets = [Widths(left: 12, right: 38)]
     let data = try Choices.encode(c)
-    #expect(Choices.decode(data) == c)
+    #expect(Choices.decode(data).choices == c)
     #expect(c.restoringDefaults().widthPresets == [Widths(left: 12, right: 38)])
-    let reopened = Anchors(choices: Choices.decode(data))
+    let reopened = Anchors(choices: Choices.decode(data).choices)
     #expect(reopened.widths == Widths(left: 8, right: 46))
     #expect(reopened.heights == Heights(left: 33, right: 75))
     #expect(reopened.pins() == [Pin(bundle: slack, slot: .leftTop), Pin(bundle: iterm, slot: .rightBottom)])
-    #expect(Choices.decode(Data("garbage".utf8)) == Choices())
+    #expect(Choices.decode(Data("garbage".utf8)).choices == Choices())
     let bad = Data(
         #"{"slots":{"left-top":"a","middle":"b"},"widths":{"left":60,"right":45},"heights":{"left":5,"right":50}}"#.utf8
     )
-    let fixed = Anchors(choices: Choices.decode(bad))
+    let fixed = Anchors(choices: Choices.decode(bad).choices)
     #expect(fixed.pins() == [Pin(bundle: "a", slot: .leftTop)])
     #expect(fixed.widths == Layout.defaultWidths)
     #expect(fixed.heights == Heights(left: 50, right: 50))

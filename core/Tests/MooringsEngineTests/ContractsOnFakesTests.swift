@@ -1,3 +1,5 @@
+import Foundation
+
 import MooringsCore
 import MooringsEngine
 import MooringsTesting
@@ -277,7 +279,7 @@ final class DeafStore: ChoicesStore {
     let inner = FakeStore()
 
     // load loads from the inner store.
-    func load() -> Choices {
+    func load() -> Loaded {
         inner.load()
     }
 
@@ -343,4 +345,97 @@ final class BackwardClock: Clock {
     windows.forgetsMinimized = true
     let failures = WindowStoreContract.run(windows, host: host)
     #expect(failures.map(\.rule) == ["a listed window stays actionable until it is gone"])
+}
+
+// KeepStore is a ChoicesStore that leaves a payload it cannot read in place, for the corrupt-payload
+// rule's negative control.
+final class KeepStore: ChoicesStore {
+    // inner is the fake that holds the choices.
+    let inner = FakeStore()
+    // payload is the spoiled payload, kept in place.
+    var payload: Data?
+
+    // load falls back on a spoiled payload every time and never moves it aside.
+    func load() -> Loaded {
+        if let payload {
+            return Choices.decode(payload)
+        }
+        return inner.load()
+    }
+
+    // save saves to the inner store and drops the payload.
+    func save(_ choices: Choices) throws {
+        payload = nil
+        try inner.save(choices)
+    }
+
+    // changed asks the inner store.
+    func changed() -> Bool {
+        inner.changed()
+    }
+}
+
+// KeepHost is a FakeHost that spoils a KeepStore.
+final class KeepHost: ContractHost {
+    // base is the fake host the rest is asked of.
+    let base: FakeHost
+    // store is the store spoilChoices writes to.
+    let store: KeepStore
+
+    // init builds a host over base and store.
+    init(base: FakeHost, store: KeepStore) {
+        self.base = base
+        self.store = store
+    }
+
+    // minimum is the base host's.
+    var minimum: (w: Double, h: Double)? { base.minimum }
+    // now is the base host's clock.
+    var now: Double { base.now }
+
+    // screens returns the base host's displays.
+    func screens() -> Screens {
+        base.screens()
+    }
+
+    // open opens a base host window.
+    func open() -> WindowID? {
+        base.open()
+    }
+
+    // openRefusing opens a base host window that refuses moves.
+    func openRefusing() -> WindowID? {
+        base.openRefusing()
+    }
+
+    // wait waits on the base host.
+    func wait(until deadline: Double, _ done: () -> Bool) -> Bool {
+        base.wait(until: deadline, done)
+    }
+
+    // finish closes the base host's windows.
+    func finish() {
+        base.finish()
+    }
+
+    // spoilChoices keeps payload in the store.
+    func spoilChoices(_ payload: Data) -> Bool {
+        store.payload = payload
+        return true
+    }
+
+    // choicesAside is nil: the store moves nothing aside.
+    func choicesAside() -> Data? {
+        nil
+    }
+}
+
+// A store that leaves an unreadable payload in place breaks the corrupt-payload rule, by name.
+@Test func testChoicesStoreContractCatchesKeptPayload() {
+    let (_, _, base) = fakeHost()
+    let store = KeepStore()
+    let failures = ChoicesStoreContract.run(store, host: KeepHost(base: base, store: store))
+    #expect(
+        Set(failures.map(\.rule)) == ["a corrupt payload loads the defaults with a reason and moves aside"],
+        "\(failures)")
 }

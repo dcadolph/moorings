@@ -76,7 +76,7 @@ private func testProfileChoices(gap: Double = 8) -> Choices {
     var c = testProfileChoices()
     c.profiles = [Profile(name: "Work", settings: c.profileSettings(), workspaces: ["Desk"])]
     c.activeProfile = "Work"
-    #expect(Choices.decode(try Choices.encode(c)) == c)
+    #expect(Choices.decode(try Choices.encode(c)).choices == c)
 }
 
 // Swift only: the switch banner names what was recalled, what does not exist and what missed.

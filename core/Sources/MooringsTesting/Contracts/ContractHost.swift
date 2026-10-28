@@ -1,3 +1,5 @@
+import Foundation
+
 import MooringsCore
 import MooringsEngine
 
@@ -46,6 +48,12 @@ public protocol ContractHost: AnyObject {
     // touchChoices rewrites the saved choices from outside the store, as another program would, and
     // reports whether the host could.
     func touchChoices() -> Bool
+    // spoilChoices writes payload where the store keeps the saved choices, as a damaged disk or a hand
+    // edit would, and reports whether the host could.
+    func spoilChoices(_ payload: Data) -> Bool
+    // choicesAside returns what the store moved aside, nil when nothing is there or the host cannot
+    // look.
+    func choicesAside() -> Data?
 }
 
 extension ContractHost {
@@ -65,6 +73,16 @@ extension ContractHost {
     // touchChoices reports that the host cannot rewrite the saved choices.
     public func touchChoices() -> Bool {
         false
+    }
+
+    // spoilChoices reports that the host cannot write a payload.
+    public func spoilChoices(_ payload: Data) -> Bool {
+        false
+    }
+
+    // choicesAside is nil for a host that cannot look.
+    public func choicesAside() -> Data? {
+        nil
     }
 }
 
@@ -199,5 +217,17 @@ public final class FakeHost: ContractHost {
         c.gapPx = 3
         store.rewrite(c)
         return true
+    }
+
+    // spoilChoices spoils store with payload, when the host has one.
+    public func spoilChoices(_ payload: Data) -> Bool {
+        guard let store else { return false }
+        store.spoil(payload)
+        return true
+    }
+
+    // choicesAside is what store moved aside, when the host has one.
+    public func choicesAside() -> Data? {
+        store?.aside
     }
 }
