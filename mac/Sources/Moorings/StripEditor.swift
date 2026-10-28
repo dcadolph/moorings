@@ -513,7 +513,7 @@ final class StripEditor {
         front = current?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : current
         NSApp.activate()
         p.makeKeyAndOrderFront(nil)
-        app.hotkeys.grab(Hotkeys.gridKeys(.none))
+        app.keys.grab(Hotkeys.gridKeys(.none)) { [weak self] tag in self?.key(tag) }
         return true
     }
 
@@ -525,7 +525,7 @@ final class StripEditor {
         panel = nil
         state = nil
         p.orderOut(nil)
-        app.hotkeys.ungrab()
+        app.keys.ungrab()
         if let front {
             NSApp.yieldActivation(to: front)
             front.activate()

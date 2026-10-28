@@ -68,6 +68,17 @@ final class MacHost: @preconcurrency ContractHost {
         nil
     }
 
+    // knownApp is TextEdit, the app the host opens its windows in.
+    var knownApp: String? { Self.textEdit }
+
+    // nudge moves the window with id 8 points right and down through the store, which posts the
+    // window's moved notification as a drag would.
+    func nudge(_ id: WindowID) -> Bool {
+        guard let f = store.frame(id) else { return false }
+        store.position(id, x: f.x + 8, y: f.y + 8)
+        return true
+    }
+
     // wait runs the main run loop in 10 ms turns until done or the deadline.
     func wait(until deadline: Double, _ done: () -> Bool) -> Bool {
         while !done() {
@@ -108,6 +119,24 @@ final class MacHost: @preconcurrency ContractHost {
     failures += GridContract.run(GridPanel(), store: store, host: host)
     failures += NotifierContract.run(MacNotifier { banner.show($0, $1, palette: .harbor) }, store: store, host: host)
     failures += SchedulerContract.run(MacScheduler(), clock: MacClock(), host: host)
-    print("Mac contracts: 6 suites, \(failures.count) failures")
+    failures += PointerContract.run(MacPointer(), host: host)
+    failures += KeysContract.run(MacKeys(Hotkeys { _ in }), host: host)
+    failures += LogContract.run(MacLog(), host: host)
+    failures += TimersContract.run(MacTimers(), clock: MacClock(), host: host)
+    failures += EventSourceContract.run(MacEvents(store: store), store: store, host: host)
+    failures += AppsContract.run(MacApps(), store: store, host: host)
+    print("Mac contracts: 12 suites, \(failures.count) failures")
     #expect(failures.isEmpty, "\(failures)")
+}
+
+// The Mac adapters that need no Accessibility and open no window keep their rules: the log, the
+// timers, and the apps' refusal of a bundle that does not exist.
+@Test @MainActor func testMacPureAdapters() {
+    let host = MacHost(store: Windows())
+    var failures = LogContract.run(MacLog(), host: host)
+    failures += TimersContract.run(MacTimers(), clock: MacClock(), host: host)
+    #expect(failures.isEmpty, "\(failures)")
+    #expect(!MacApps().open("com.example.moorings.no-such-app", background: true, target: nil))
+    #expect(MacLog.name(.passes) == "anchors")
+    #expect(MacLog.name(.choices) == "choices")
 }

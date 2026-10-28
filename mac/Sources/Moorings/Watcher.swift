@@ -63,14 +63,21 @@ final class Watcher {
     // that closes behind the focused one sends no app notification.
     func watchClosing(_ elements: [WindowID: AXUIElement]) {
         closing.formIntersection(elements.keys)
+        for (id, el) in elements {
+            watchClosing(id, el)
+        }
+    }
+
+    // watchClosing observes the close of the one window id with element el, leaving the others
+    // observed, so a window seen between scans reports its close too.
+    func watchClosing(_ id: WindowID, _ el: AXUIElement) {
+        guard !closing.contains(id) else { return }
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(el, &pid) == .success, let observer = observer(pid) else { return }
         let refcon = Unmanaged.passUnretained(self).toOpaque()
-        for (id, el) in elements where !closing.contains(id) {
-            var pid: pid_t = 0
-            guard AXUIElementGetPid(el, &pid) == .success, let observer = observer(pid) else { continue }
-            let err = AXObserverAddNotification(observer, el, kAXUIElementDestroyedNotification as CFString, refcon)
-            if err == .success || err == .notificationAlreadyRegistered {
-                closing.insert(id)
-            }
+        let err = AXObserverAddNotification(observer, el, kAXUIElementDestroyedNotification as CFString, refcon)
+        if err == .success || err == .notificationAlreadyRegistered {
+            closing.insert(id)
         }
     }
 
