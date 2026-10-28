@@ -2,6 +2,7 @@ import Foundation
 import WinSDK
 
 import MooringsCore
+import MooringsEngine
 
 // WinMouseHook delivers the pointer through a low-level mouse hook on the loop thread. The hook
 // callback only posts the point and the button message to the thread, so it stays far under the
@@ -105,38 +106,27 @@ final class WinMouseHook {
     }
 }
 
-// WinDrag follows a window moved by its frame: while it moves, the pointer from the hook picks the
-// zone or slot the core's Snap gives, and on the drop the zone's action runs or, with Alt held on a
-// strip, the window's app is anchored there, the Option-drop of the Mac.
+// WinDrag feeds a window moved by its frame to the engine's DragFollower: the window's hit test at
+// the press says move or size, the hook's pointer follows, and the drop runs at the hook's last point.
+// Alt stands for the Mac's Option and the Windows key for Command.
 final class WinDrag {
-    // app runs the passes, the actions and the layout the drop reads.
+    // app holds the follower and the hook.
     private unowned let app: App
     // dropped is told each finished drag, the window and what it dropped on.
-    var dropped: (WindowID, SnapDrop?) -> Void = { _, _ in }
-    // id is the dragged window, nil when no drag is under way.
-    private var id: WindowID?
-    // start is the dragged window's frame when the drag began.
-    private var start: Frame?
-    // moving is true for a drag that moves the window and false for one that sizes it. The window's
-    // hit test at the press decides it: the caption moves, a border sizes. When the hit test gets no
-    // answer, the first frame change decides it, a move when the size held, since Windows snapping a
-    // window at a screen edge resizes it on the drop. Without window contents shown while dragging
-    // the frame holds until the drop, so the hit test comes first.
-    private var moving: Bool?
-    // drop is the zone or slot under the pointer.
-    private(set) var drop: SnapDrop?
+    var dropped: (WindowID, SnapDrop?) -> Void {
+        get { app.follower.dropped }
+        set { app.follower.dropped = newValue }
+    }
 
-    // init builds a drag follower for app.
+    // init builds the glue for app.
     init(app: App) {
         self.app = app
     }
 
-    // began starts following hwnd, which the owner started moving or sizing.
+    // began starts following hwnd, which the owner started moving or sizing. The caption moves and a
+    // border sizes; with no answer the follower decides from the first frame change.
     func began(_ hwnd: HWND) {
-        id = WinWindows.id(hwnd)
-        start = WinWindows.bounds(hwnd)
-        moving = Self.hit(hwnd).map { $0 == Self.caption }
-        drop = nil
+        app.follower.began(window: WinWindows.id(hwnd), moving: Self.hit(hwnd).map { $0 == Self.caption })
     }
 
     // caption is HTCAPTION.
@@ -156,86 +146,17 @@ final class WinDrag {
 
     // pointer follows the pointer at p while a drag is under way.
     func pointer(_ p: SnapPoint) {
-        guard let id else { return }
-        if moving == nil, let start, let f = app.windows.frame(id), f != start {
-            moving = abs(f.w - start.w) <= 1 && abs(f.h - start.h) <= 1
-        }
-        guard moving == true else { return }
-        update(p, option: Self.down(Self.alt))
+        app.follower.moved(Point(x: p.x, y: p.y), held: Self.held())
     }
 
-    // ended runs the drop at the hook's last point once the drag ends, when the drag moved the
-    // window.
+    // ended runs the drop at the hook's last point once the drag ends.
     func ended() {
-        defer {
-            id = nil
-            start = nil
-            moving = nil
-            drop = nil
-            app.footprint.hide()
+        guard let p = app.mouse.point else {
+            app.follower.cancel()
+            return
         }
-        guard let id, moving == true, let p = app.mouse.point else { return }
-        guard let w = update(p, option: Self.down(Self.alt)) else { return }
-        let drop = self.drop
-        defer { dropped(id, drop) }
-        switch drop {
-        case let .park(key):
-            guard let slot = SlotKey(rawValue: key) else { return }
-            app.anchors.assign(slot, w.bundle)
-            app.notify("\(Tray.appName(w.bundle)) anchored", "It holds the \(slot.title.lowercased()) slot now. "
-                + "Unanchor it from the Moorings menu to free the slot.")
-            app.save()
-            app.wake()
-        case let .zone(name):
-            app.actions.apply(name, to: w, screens: Screens.current(minAspect: app.minAspect))
-        case .none:
-            break
-        }
-    }
-
-    // update sets the drop for a pointer at p with option standing for Alt, moves the footprint to
-    // it when it changed, and returns the dragged window as a pass would read it, nil when it cannot
-    // be read.
-    @discardableResult
-    private func update(_ p: SnapPoint, option: Bool) -> WindowInfo? {
-        let choices = app.anchors.choices
-        let screens = Screens.current(minAspect: app.minAspect)
-        guard let id, let hwnd = WinWindows.hwnd(id), let w = WinWindows.describe(hwnd, screens: screens) else {
-            drop = nil
-            app.footprint.hide()
-            return nil
-        }
-        guard !choices.paused, choices.snap, let i = screens.full.firstIndex(where: {
-            p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h
-        }) else {
-            drop = nil
-            app.footprint.hide()
-            return w
-        }
-        let ch = i == screens.ultrawide ? app.anchors.channel(screens.usable[i]) : nil
-        var prev: String?
-        if case let .zone(z) = drop {
-            prev = z
-        }
-        let next = Snap.drop(p, screens.full[i], ch, prev: prev, option: option, parkable: true,
-                             pinned: app.anchors.pinned(w), castOff: app.anchors.isCastOff(w.id),
-                             snapping: choices.snapping, held: Self.held())
-        let unchanged = next == drop && app.footprint.shown != nil
-        drop = next
-        if unchanged {
-            return w
-        }
-        let frame: Frame? = switch next {
-        case let .park(key): SlotKey(rawValue: key).map { app.anchors.slotFrame(screens.usable[i], $0) }
-        case let .zone(name): app.actions.preview(name, for: w, screens: screens)
-        case .none: nil
-        }
-        if let frame {
-            app.footprint.show(frame, style: choices.snapping.footprint)
-        } else {
-            app.footprint.hide()
-        }
-        return w
+        pointer(p)
+        app.follower.ended(held: Self.held())
     }
 
     // alt is VK_MENU.

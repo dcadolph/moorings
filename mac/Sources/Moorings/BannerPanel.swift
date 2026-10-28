@@ -137,19 +137,20 @@ final class BannerPanel {
     }
 }
 
-// MacNotifier is the Mac Notifier: the banner in the harbor palette.
+// MacNotifier is the Mac Notifier. It hands each message to send, which the app wires to its logged
+// banner in the harbor palette.
 @MainActor
 final class MacNotifier: @preconcurrency Notifier {
-    // banner is the panel the messages show in.
-    private let banner: BannerPanel
+    // send shows a title and a body.
+    private let send: (String, String) -> Void
 
-    // init shows messages in banner.
-    init(_ banner: BannerPanel) {
-        self.banner = banner
+    // init shows messages through send.
+    init(_ send: @escaping (String, String) -> Void) {
+        self.send = send
     }
 
-    // notify shows title and body in the banner.
+    // notify shows title and body.
     func notify(_ title: String, _ body: String) {
-        banner.show(title, body, palette: .harbor)
+        send(title, body)
     }
 }

@@ -96,68 +96,36 @@ extension Footprint: @preconcurrency OverlayView {
     }
 }
 
-// DragSnap follows a drag and snaps the dragged window to the zone under the cursor when the
-// button comes up, or anchors its app with Option over a strip. It never reads a window inside
-// the tap: reads run after the event, one at a time, once the cursor has traveled.
+// MacDrag feeds the event tap's drag to the engine's DragFollower one main queue turn after each
+// event, so the tap never waits on a window read, and taps the trackpad when the footprint style
+// asks for it.
 @MainActor
-final class DragSnap {
-    // travel is how many points the cursor must move between reads of the dragged window.
-    static let travel = 8.0
+final class MacDrag {
+    // follower is the engine's drag follower.
+    let follower: DragFollower
 
-    // app is the running app delegate.
-    private unowned let app: AppDelegate
-    // footprint shows the zone.
-    private let footprint = Footprint()
-    // down reports whether the primary button is down for a drag that may snap.
-    private var down = false
-    // done reports whether this drag will not snap.
-    private var done = false
-    // win is the dragged window, nil until the first read.
-    private var win: WindowInfo?
-    // start is the dragged window's frame at the first read.
-    private var start: Frame?
-    // checks counts the reads that found the window still.
-    private var checks = 0
-    // firstRead is when a read first found the dragged window still, nil before.
-    private var firstRead: Double?
-    // moving reports whether the drag is moving the window.
-    private var moving = false
-    // from is where the cursor was at the last read.
-    private var from: CGPoint?
-    // pending reports whether a read is queued.
-    private var pending = false
-    // drag counts drags, so a read queued for an earlier drag changes nothing.
-    private var drag = 0
-    // drop is the zone or park slot under the cursor.
-    private var drop: SnapDrop?
-    // screen is the index of the screen the drop is on.
-    private var screen: Int?
-    // at is where the button went down.
-    private var at: CGPoint?
-    // placed is the frame the dragged window's last action gave it, nil unless the window still sat
-    // there when the drag began.
-    private var placed: Frame?
-    // stashAt is the edge a Command-drag would stash the window at, nil when it would not.
-    private var stashAt: StashEdge?
-    // panel shows the snap panel's targets.
-    private let panel = SnapPanelWindow()
-    // cells are the snap panel's target frames while it shows, nil while it is hidden.
-    private var cells: [Frame]?
-    // dwell fires once the cursor has paused during a drag.
-    private var dwell: Timer?
-    // dwellFrom is where the cursor was when the current pause began.
-    private var dwellFrom: CGPoint?
-
-    // init builds a drag follower for app.
+    // init builds the follower on app's platform with the Mac's actions, stash and snap panel.
     init(app: AppDelegate) {
-        self.app = app
-    }
-
-    // pressed starts following a new drag from p.
-    func pressed(_ p: CGPoint) {
-        reset()
-        down = true
-        at = p
+        follower = DragFollower(platform: app.platform, anchors: app.anchors, preview: { [unowned app] name, w, screens, i in
+            app.actions.frame(name, for: w, screens: screens, index: i).0
+        }, apply: { [unowned app] name, w, screens, i in
+            app.actions.apply(name, to: w, screens: screens, index: i)
+        })
+        follower.placed = { [unowned app] id in app.actions.placed(id) }
+        follower.unsnap = { [unowned app] w, f, grab in app.actions.unsnap(w, at: f, grab: grab) }
+        follower.appName = { [unowned app] bundle in app.appName(bundle) }
+        follower.changed = { [unowned app] in app.save() }
+        follower.stash = StashHook(edge: { [unowned app] p, held in
+            app.stasher.dropEdge(CGPoint(x: p.x, y: p.y), flags: held.contains("command") ? .maskCommand : [])
+        }, stash: { [unowned app] w, edge, original in
+            _ = app.stasher.stash(w, edge: edge, original: original)
+        })
+        follower.panel = MacDragPanel(app: app)
+        follower.showed = { _, style in
+            if style.haptic {
+                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+            }
+        }
     }
 
     // held returns the names of the snap modifiers down in flags.
@@ -167,121 +135,63 @@ final class DragSnap {
         return Set(names.filter { flags.contains($0.0) }.map(\.1))
     }
 
-    // dragged follows the cursor at p with flags down and moves the footprint when the zone changes, with a
-    // haptic tap when the style asks for one.
+    // pressed starts following a new drag from p.
+    func pressed(_ p: CGPoint) {
+        DispatchQueue.main.async { [weak self] in self?.follower.began(at: Point(x: p.x, y: p.y)) }
+    }
+
+    // dragged follows the cursor at p with flags down.
     func dragged(_ p: CGPoint, flags: CGEventFlags) {
-        let option = flags.contains(.maskAlternate)
-        let choices = app.anchors.choices
-        guard down, !done, !choices.paused, choices.snap || choices.behavior.unsnapRestore, isMoving(p),
-              choices.snap, let w = win
-        else { return }
-        stashAt = app.anchors.pinned(w) ? nil : app.stasher.dropEdge(p, flags: flags)
-        if stashAt != nil {
-            drop = nil
-            footprint.hide()
-            return
-        }
-        let screens = Screens.current()
-        guard let i = screens.full.firstIndex(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
-        else {
-            drop = nil
-            footprint.hide()
-            return
-        }
-        let ch = i == screens.ultrawide ? app.anchors.channel(screens.usable[i]) : nil
-        var prev: String?
-        if case let .zone(z) = drop {
-            prev = z
-        }
         let held = Self.held(flags)
-        let s = choices.snapping
-        let panelOn = s.snapPanel && !option && !app.anchors.pinned(w) && !app.anchors.isCastOff(w.id)
-            && Set(s.snapModifiers).isSubset(of: held)
-        let hit = panelOn ? cells.flatMap { SnapPanel.hit(SnapPoint(p.x, p.y), $0) } : nil
-        panel.highlight(hit)
-        if panelOn {
-            wait(p)
-        }
-        let next: SnapDrop? = if let hit, hit < s.panelActions.count {
-            .zone(s.panelActions[hit])
-        } else {
-            Snap.drop(SnapPoint(p.x, p.y), screens.full[i], ch, prev: prev, option: option, parkable: true,
-                      pinned: app.anchors.pinned(w), castOff: app.anchors.isCastOff(w.id), snapping: s, held: held)
-        }
-        if next == drop && i == screen {
-            return
-        }
-        drop = next
-        screen = i
-        var frame: Frame?
-        switch next {
-        case let .park(key):
-            frame = SlotKey(rawValue: key).map { app.anchors.slotFrame(screens.usable[i], $0) }
-        case let .zone(name):
-            var at = w
-            at.frame = app.windows.frame(w.id) ?? w.frame
-            frame = app.actions.frame(name, for: at, screens: screens, index: i).0
-        case .none:
-            frame = nil
-        }
-        if let frame {
-            let style = choices.snapping.footprint
-            footprint.show(frame, palette: .harbor, style: style)
-            if style.haptic {
-                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
-            }
-        } else {
-            footprint.hide()
-        }
+        DispatchQueue.main.async { [weak self] in self?.follower.moved(Point(x: p.x, y: p.y), held: held) }
     }
 
-    // released snaps the window, or anchors its app, when the drag ended in a zone, or stashes it when a
-    // Command-drag ended at an edge, to come back where the drag began. The work runs after the event, so the tap never waits on a window.
+    // released drops the window where the drag ended.
     func released() {
-        let (w, drop, screen, stashAt, start) = (win, drop, screen, stashAt, start)
-        reset()
-        if var w, let stashAt {
-            DispatchQueue.main.async { [app] in
-                w.frame = app.windows.frame(w.id) ?? w.frame
-                app.stasher.stash(w, edge: stashAt, original: start)
-            }
-            return
-        }
-        guard var w, let drop else { return }
-        DispatchQueue.main.async { [app] in
-            switch drop {
-            case let .park(key):
-                guard let slot = SlotKey(rawValue: key) else { return }
-                app.anchors.assign(slot, w.bundle)
-                app.notify("\(app.appName(w.bundle)) anchored", "It holds the \(slot.title.lowercased()) slot now. "
-                    + "Unanchor it from the Moorings menu to free the slot.")
-                app.save()
-            case let .zone(name):
-                let screens = Screens.current()
-                w.frame = app.windows.frame(w.id) ?? w.frame
-                app.actions.apply(name, to: w, screens: screens, index: screen)
-            }
-        }
+        DispatchQueue.main.async { [weak self] in self?.follower.ended(held: []) }
+    }
+}
+
+// MacDragPanel is the snap panel during a drag: once the cursor pauses it shows a row of targets
+// above the cursor, and the target under the cursor picks the drop.
+@MainActor
+final class MacDragPanel: @preconcurrency DragPanelHook {
+    // app is the running app delegate.
+    private unowned let app: AppDelegate
+    // panel shows the snap panel's targets.
+    private let panel = SnapPanelWindow()
+    // cells are the snap panel's target frames while it shows, nil while it is hidden.
+    private var cells: [Frame]?
+    // dwell fires once the cursor has paused during a drag.
+    private var dwell: Timer?
+    // dwellFrom is where the cursor was when the current pause began.
+    private var dwellFrom: CGPoint?
+    // drag counts drags, so a pause timer from an earlier drag shows nothing.
+    private var drag = 0
+
+    // init builds the panel for app.
+    init(app: AppDelegate) {
+        self.app = app
     }
 
-    // reset forgets the drag and removes the footprint.
-    private func reset() {
-        footprint.hide()
+    // zone highlights the target under p when the panel is on for w with held, waits for a pause to
+    // show the panel, and returns the target's action.
+    func zone(at p: Point, window w: WindowInfo, held: Set<String>, option: Bool) -> String? {
+        let s = app.anchors.choices.snapping
+        let on = s.snapPanel && !option && !app.anchors.pinned(w) && !app.anchors.isCastOff(w.id)
+            && Set(s.snapModifiers).isSubset(of: held)
+        let hit = on ? cells.flatMap { SnapPanel.hit(SnapPoint(p.x, p.y), $0) } : nil
+        panel.highlight(hit)
+        if on {
+            wait(CGPoint(x: p.x, y: p.y))
+        }
+        guard let hit, hit < s.panelActions.count else { return nil }
+        return s.panelActions[hit]
+    }
+
+    // reset hides the panel and forgets the pause.
+    func reset() {
         drag += 1
-        down = false
-        done = false
-        win = nil
-        start = nil
-        checks = 0
-        firstRead = nil
-        moving = false
-        from = nil
-        pending = false
-        drop = nil
-        screen = nil
-        at = nil
-        placed = nil
-        stashAt = nil
         dwell?.invalidate()
         dwell = nil
         dwellFrom = nil
@@ -301,85 +211,23 @@ final class DragSnap {
         let this = drag
         dwell = Timer.scheduledTimer(withTimeInterval: SnapPanel.dwellSeconds, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, self.drag == this, self.down, !self.done else { return }
-                self.showPanel()
+                guard let self, self.drag == this else { return }
+                self.show()
             }
         }
     }
 
-    // showPanel shows the snap panel over the paused cursor, on the display under it.
-    private func showPanel() {
+    // show shows the snap panel over the paused cursor, on the display under it.
+    private func show() {
         guard let p = dwellFrom, cells == nil else { return }
         let screens = Screens.current()
         guard let f = screens.full.first(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
         else { return }
-        let choices = app.anchors.choices
-        let names = choices.snapping.panelActions
+        let names = app.anchors.choices.snapping.panelActions
         guard !names.isEmpty else { return }
         let layout = SnapPanel.layout(names.count, at: SnapPoint(p.x, p.y), screen: f)
         cells = layout.cells
         panel.show(layout.panel, cells: layout.cells, names: names, palette: .harbor)
-    }
-
-    // isMoving reports whether the drag is moving a window, queueing one read of it at a time once
-    // the cursor at p has traveled since the last read.
-    private func isMoving(_ p: CGPoint) -> Bool {
-        if moving {
-            return true
-        }
-        if pending {
-            return false
-        }
-        if let from, abs(p.x - from.x) + abs(p.y - from.y) < Self.travel {
-            return false
-        }
-        from = p
-        pending = true
-        let this = drag
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.drag == this else { return }
-            self.pending = false
-            self.look()
-        }
-        return false
-    }
-
-    // look reads the dragged window: the focused window the first time, then its frame, until it
-    // moves, resizes, or Behavior.stillDrag gives up on it. A snapped window that starts moving gets its size from
-    // before the snap back.
-    private func look() {
-        guard let w = win, let s = start else {
-            guard let focused = app.windows.scan(Screens.current()).focused else {
-                done = true
-                return
-            }
-            win = focused
-            start = focused.frame
-            if let at, let from, let p = app.actions.placed(focused.id), !app.anchors.pinned(focused),
-               Behavior.snapped(p, start: focused.frame, moved: abs(from.x - at.x) + abs(from.y - at.y)) {
-                placed = p
-            }
-            return
-        }
-        guard let f = app.windows.frame(w.id) else {
-            done = true
-            return
-        }
-        if f.w != s.w || f.h != s.h {
-            done = true
-        } else if f.x != s.x || f.y != s.y {
-            moving = true
-            if let p = placed, let at, app.anchors.choices.behavior.unsnapRestore {
-                placed = nil
-                app.actions.unsnap(w, at: f, grab: at.x - p.x)
-            }
-        } else {
-            checks += 1
-            let now = AppDelegate.now
-            let first = firstRead ?? now
-            firstRead = first
-            done = Behavior.stillDrag(reads: checks, seconds: now - first)
-        }
     }
 }
 

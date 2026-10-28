@@ -32,8 +32,22 @@ final class App {
     private(set) lazy var hotkeys = WinHotkeys { [unowned self] name in self.actions.run(name) }
     // mouse delivers the pointer for drag snapping.
     private(set) lazy var mouse = WinMouseHook()
-    // drag follows a window moved by its frame and runs its drop.
+    // drag feeds a window moved by its frame to the follower.
     private(set) lazy var drag = WinDrag(app: self)
+    // follower follows a dragged window, shows where it will land, and runs its drop.
+    private(set) lazy var follower: DragFollower = {
+        let f = DragFollower(platform: platform, anchors: anchors, preview: { [unowned self] name, w, screens, _ in
+            actions.preview(name, for: w, screens: screens)
+        }, apply: { [unowned self] name, w, screens, _ in
+            actions.apply(name, to: w, screens: screens)
+        })
+        f.appName = { Tray.appName($0) }
+        f.changed = { [unowned self] in
+            save()
+            wake()
+        }
+        return f
+    }()
     // footprint shows where a dragged window will land.
     let footprint = WinFootprint()
     // scheduler runs the engine's deferred work from the message loop's timer branch.

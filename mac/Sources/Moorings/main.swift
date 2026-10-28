@@ -64,10 +64,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // organizer lays out several windows at once and keeps the workspaces.
     lazy var organizer = Organizer(app: self)
     // snap follows drags and snaps the dragged window to the zone under the cursor.
-    lazy var snap = DragSnap(app: self)
+    lazy var snap = MacDrag(app: self)
     // platform is what the engine reads and drives on the Mac.
     lazy var platform = Platform(
-        windows: windows, screens: MacScreens(), overlay: Footprint(), notifier: MacNotifier(banner),
+        windows: windows, screens: MacScreens(), overlay: Footprint(), notifier: MacNotifier { [unowned self] in self.notify($0, $1) },
         clock: MacClock(), scheduler: MacScheduler(), store: DefaultsStore(key: Self.choicesKey),
         warpCursor: { p in CGWarpMouseCursorPosition(CGPoint(x: p.x, y: p.y)) }
     )
