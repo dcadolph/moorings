@@ -23,14 +23,17 @@ final class App {
     var noticed: (WinEvent, WindowID, Double) -> Void = { _, _, _ in }
     // passed is told the time of each pass and how many moves it made.
     var passed: (Double, Int) -> Void = { _, _ in }
+    // openMenu opens the tray menu under the pointer and reports whether it opened. It does nothing
+    // until the app wires the tray, so probes open none.
+    var openMenu: () -> Bool = { false }
     // notify shows a banner with a title and a body. It does nothing until the app wires the
     // banner, so probes print none.
     var notify: (String, String) -> Void = { _, _ in }
     // actions runs the window actions the shortcuts name.
     private(set) lazy var actions: ActionRunner = {
         let r = ActionRunner(platform: platform, anchors: anchors)
-        r.extra = ExtraActions(handles: { Tile.handles($0) }, run: { [unowned self] name, window in
-            organizer.run(name, window: window)
+        r.extra = ExtraActions(handles: { Tile.handles($0) || $0 == Keymaps.menuName }, run: { [unowned self] name, window in
+            name == Keymaps.menuName ? openMenu() : organizer.run(name, window: window)
         })
         r.landed = { [unowned self] id, frame in
             landed(id, at: frame)

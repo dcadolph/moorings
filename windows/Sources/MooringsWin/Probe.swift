@@ -170,6 +170,7 @@ let probes: [String: Probe] = [
     "skip": probeSkip,
     "lift": probeLift,
     "organize": probeOrganize,
+    "sizes": probeSizes,
     "badge": probeBadge,
     "login": probeLogin,
     "quit": probeQuit,
@@ -629,6 +630,52 @@ func probeBadge(_ opts: ProbeOptions) -> Int32 {
     app.updateBadge()
     print("away: \(app.badge.shown.map { "\($0.count) at \(pixels($0.front))" } ?? "none")")
     app.badge.hide()
+    return 0
+}
+
+// probeSizes saves two custom sizes, one in shares of the area and one in points, with a 12 pixel
+// gap, runs each on the front window of the app through the action runner and prints the engine's
+// preview beside the read-back. It then runs the share size again with no gap, for the control.
+func probeSizes(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    var choices = Choices()
+    choices.sizes = [StoredSize(title: "Quarter", x: 0.1, y: 0.1, w: 0.5, h: 0.5),
+                     StoredSize(title: "Note", width: 400, height: 300)]
+    choices.gapPx = 12
+    let store = Store()
+    do {
+        try store.save(choices)
+    } catch {
+        print("sizes: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    guard let pad = app.windows.scan(screens, full: true).windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
+          let hwnd = WinWindows.hwnd(pad.id) else {
+        print("sizes: no window of \(opts.app)")
+        return 1
+    }
+    let names = Bindings(app.anchors.choices).sizes.map(\.name)
+    print("sizes: \(names.joined(separator: " "))")
+    let start = Frame(x: 200, y: 150, w: 500, h: 350)
+    let run = { (name: String, label: String) in
+        app.windows.move(pad.id, to: start, from: nil, behavior: Behaviors())
+        _ = bringForward(hwnd)
+        app.run(until: App.now + 0.3)
+        let w = app.windows.scan(screens, full: true).windows.first { $0.id == pad.id }
+        let want = w.flatMap { app.actions.preview(name, for: $0, screens: screens) }
+        let ran = app.actions.run(name, window: pad.id)
+        app.run(until: App.now + 0.3)
+        let got = app.windows.frame(pad.id)
+        print("\(label): ran \(ran) want \(want.map(pixels) ?? "none") got \(got.map(pixels) ?? "none")")
+    }
+    for name in names {
+        run(name, name)
+    }
+    if let first = names.first {
+        app.anchors.choices.gapPx = 0
+        run(first, "nogap \(first)")
+    }
     return 0
 }
 

@@ -8,6 +8,7 @@ import MooringsEngine
 enum Command: Equatable {
     case slot(SlotKey, String)
     case widths(Widths)
+    case action(String)
     case organize(String)
     case tidy(Int)
     case undoTidy
@@ -103,10 +104,14 @@ final class Tray {
             MenuItem(title: "Tidy channel: \($0) front windows", enabled: !choices.paused, command: .tidy($0))
         }
         organize.append(MenuItem(title: "Undo tidy", enabled: !choices.paused, command: .undoTidy))
+        let sizes = Bindings(choices).sizes.map {
+            MenuItem(title: Keymaps.label($0.name), enabled: !choices.paused, command: .action($0.name))
+        }
         return [
             MenuItem(title: "Slots", submenu: slots),
             MenuItem(title: "Widths", submenu: widths),
             MenuItem(title: "Organize", submenu: organize),
+        ] + (sizes.isEmpty ? [] : [MenuItem(title: "Custom sizes", submenu: sizes)]) + [
             .separator,
             MenuItem(title: "Pause", checked: choices.paused, command: .pause),
             MenuItem(title: "Launch at login", checked: atLogin, command: .atLogin),
@@ -226,10 +231,12 @@ final class Tray {
     // open shows the menu at the cursor. The window comes to the front first so the menu closes
     // when the owner clicks elsewhere.
     private func open(_ hwnd: HWND) {
-        let running = WinWindows.scan(screens: .current(minAspect: app.minAspect)).windows.map(\.bundle)
-        let items = Tray.menu(choices: app.anchors.choices, running: running, atLogin: LoginItem.enabled)
+        let scan = WinWindows.scan(screens: .current(minAspect: app.minAspect)).windows
+        let items = Tray.menu(choices: app.anchors.choices, running: scan.map(\.bundle), atLogin: LoginItem.enabled)
         commands = []
-        front = GetForegroundWindow().map { WinWindows.id($0) }
+        let foreground = GetForegroundWindow()
+        let id = foreground.map { WinWindows.id($0) }
+        front = scan.contains { $0.id == id } ? id : scan.first?.id
         guard let menu = build(items) else { return }
         defer { _ = DestroyMenu(menu) }
         var cursor = POINT()
@@ -237,6 +244,17 @@ final class Tray {
         _ = SetForegroundWindow(hwnd)
         _ = TrackPopupMenuEx(menu, UINT(TPM_RIGHTBUTTON), cursor.x, cursor.y, hwnd, nil)
         _ = PostMessageW(hwnd, UINT(WM_NULL), 0, 0)
+        if let front, let back = WinWindows.hwnd(front) {
+            _ = SetForegroundWindow(back)
+        }
+    }
+
+    // openAtCursor opens the menu under the pointer, as the show-menu action does, and gives the
+    // foreground back to the window in front once it closes. It reports whether the menu opened.
+    func openAtCursor() -> Bool {
+        guard let window else { return false }
+        open(window)
+        return true
     }
 
     // build turns items into a popup menu, numbering each command in commands.
@@ -277,6 +295,9 @@ final class Tray {
             anchors.lock(key, bundle, now: App.now)
         case .widths(let w):
             anchors.setWidths(w)
+        case .action(let name):
+            app.actions.run(name, window: front)
+            return
         case .organize(let name):
             app.organizer.run(name, window: front)
             return

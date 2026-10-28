@@ -582,6 +582,30 @@ jobs:
           }
           BadgeCheck @('--min-aspect', '1.0')
 
+          function SizesCheck([string[]] $geo) {
+            Write-Host "probe sizes $geo"
+            $pad = Pad
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'sizes') + $geo)
+            Expect $f '^sizes: \S+ \S+$' 'two custom sizes became actions'
+            $rows = @{}
+            foreach ($l in @($f -match ': ran ')) {
+              $m = [regex]::Match($l, '^(.+): ran true want (-?\d+ -?\d+ \d+ \d+) got (-?\d+ -?\d+ \d+ \d+)$')
+              if (-not $m.Success) { throw "size line unreadable or not run: $l" }
+              $want = $m.Groups[2].Value -split ' ' | ForEach-Object { [int]$_ }
+              $got = $m.Groups[3].Value -split ' ' | ForEach-Object { [int]$_ }
+              if ((Off $want $got) -gt 1) { throw "a size landed off the engine's frame: $l" }
+              $rows[$m.Groups[1].Value] = $got
+            }
+            if ($rows.Count -ne 3) { throw "want two sizes and the control, got $($rows.Count) rows" }
+            $first = @($rows.Keys | Where-Object { $_ -notlike 'nogap *' -and $rows["nogap $_"] })[0]
+            $gap = $rows[$first]; $none = $rows["nogap $first"]
+            if ((Off $gap $none) -lt 6) { throw "the 12 px gap moved $first by under 6 px: $($gap -join ' ') against $($none -join ' ')" }
+            Write-Host "  check: both sizes landed on the engine's frames with the gap, and the gap moved $first from $($none -join ' ') to $($gap -join ' ')"
+            Stop-Process -Id $pad.Id -ErrorAction SilentlyContinue
+          }
+          SizesCheck @('--min-aspect', '1.0')
+
           Write-Host "probe login"
           $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
           Remove-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue
@@ -680,6 +704,7 @@ jobs:
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
           LiftCheck $simApp
           OrganizeCheck $simApp
+          SizesCheck $simApp
           BadgeCheck $simApp
 
           Write-Host "SIM probe drag"

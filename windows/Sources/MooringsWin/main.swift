@@ -22,6 +22,7 @@ guard let name = options.probe else {
     app.notify = { banner.show($0, $1) }
     app.hotkeys.bind(Bindings(app.anchors.choices).map, runnable: app.actions.supports)
     let tray = Tray(app: app)
+    app.openMenu = { tray.openAtCursor() }
     tray.show()
     app.anchors.launch(now: App.now)
     app.run()
