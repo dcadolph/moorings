@@ -192,8 +192,9 @@ func probeVersion(_: ProbeOptions) -> Int32 {
 func probeMonitors(_ opts: ProbeOptions) -> Int32 {
     let monitors = Monitor.all()
     for (i, m) in monitors.enumerated() {
-        print("monitor \(i): full \(pixels(m.full)) usable \(pixels(m.usable))",
-              "primary \(m.primary)")
+        print(
+            "monitor \(i): full \(pixels(m.full)) usable \(pixels(m.usable))",
+            "primary \(m.primary)")
     }
     let index = Layout.ultrawide(monitors.map(\.full), minAspect: opts.minAspect)
     print("ultrawide: \(index.map(String.init) ?? "none")")
@@ -247,8 +248,9 @@ func probeModes(_ opts: ProbeOptions) -> Int32 {
 func probeList(_ opts: ProbeOptions) -> Int32 {
     let (windows, focused) = WinWindows.scan(screens: .current(minAspect: opts.minAspect))
     for w in windows {
-        print("window \(hex(w.id)): \(w.bundle) frame \(pixels(w.frame))",
-              "main \(w.isMain) fullscreen \(w.isFullScreen)")
+        print(
+            "window \(hex(w.id)): \(w.bundle) frame \(pixels(w.frame))",
+            "main \(w.isMain) fullscreen \(w.isFullScreen)")
     }
     print("focused: \(focused.map { hex($0.id) } ?? "none")")
     return 0
@@ -263,15 +265,17 @@ func probePlace(_ opts: ProbeOptions) -> Int32 {
     }
     let placer = WinWindows()
     placer.corrects = !opts.noDelta
-    let targets = opts.frame.map { [$0] }
+    let targets =
+        opts.frame.map { [$0] }
         ?? [Frame(x: 100, y: 100, w: 800, h: 600), Frame(x: 300, y: 200, w: 640, h: 480)]
     for target in targets {
         placer.move(pad.id, to: target)
         print("asked: \(pixels(target)) placed: \(placer.frame(pad.id).map(pixels) ?? "gone")")
     }
     let d = WinWindows.hwnd(pad.id).flatMap(WinWindows.insets) ?? Insets()
-    print("delta: \(Int(d.left)) \(Int(d.top)) \(Int(d.right)) \(Int(d.bottom))",
-          "elevated \(placer.elevated.contains(pad.id))")
+    print(
+        "delta: \(Int(d.left)) \(Int(d.top)) \(Int(d.right)) \(Int(d.bottom))",
+        "elevated \(placer.elevated.contains(pad.id))")
     return 0
 }
 
@@ -290,8 +294,9 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let store = Store()
-    var choices = Choices(slots: [.leftTop: pad.bundle], widths: Widths(left: 40, right: 30),
-                          paused: opts.paused)
+    var choices = Choices(
+        slots: [.leftTop: pad.bundle], widths: Widths(left: 40, right: 30),
+        paused: opts.paused)
     choices.slotStacks = false
     do {
         try store.save(choices)
@@ -302,8 +307,9 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
     let app = App(store: store, minAspect: opts.minAspect)
     print("start at \(stamp(App.now)) pinned \(hex(pad.id)) paused \(app.anchors.choices.paused)")
     app.moved = { move, t, got in
-        print("move \(hex(move.id)) at \(stamp(t)) to \(pixels(move.frame))",
-              "got \(got.map(pixels) ?? "gone")")
+        print(
+            "move \(hex(move.id)) at \(stamp(t)) to \(pixels(move.frame))",
+            "got \(got.map(pixels) ?? "gone")")
     }
     app.released = { id, t in print("released \(hex(id)) at \(stamp(t))") }
     app.notify = { title, body in print("notice: \(title): \(body)") }
@@ -312,8 +318,9 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
     print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
     print("channel: \(pixels(app.anchors.channel(wide)))")
     for w in WinWindows.scan(screens: screens).windows {
-        print("final \(hex(w.id)) pid \(WinWindows.hwnd(w.id).map(WinWindows.processID) ?? 0)",
-              "frame \(pixels(w.frame))")
+        print(
+            "final \(hex(w.id)) pid \(WinWindows.hwnd(w.id).map(WinWindows.processID) ?? 0)",
+            "frame \(pixels(w.frame))")
     }
     return 0
 }
@@ -408,7 +415,8 @@ func probeHotkeys(_ opts: ProbeOptions) -> Int32 {
     }
     let windows = WinWindows.scan(screens: screens).windows
     guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
-          let hwnd = WinWindows.hwnd(pad.id) else {
+        let hwnd = WinWindows.hwnd(pad.id)
+    else {
         print("hotkeys: no window of \(opts.app)")
         return 1
     }
@@ -468,8 +476,10 @@ func probeBanner(_ opts: ProbeOptions) -> Int32 {
     }
     let before = GetForegroundWindow()
     let banner = BannerWindow(minAspect: opts.minAspect)
-    banner.show("Moorings", "The banner probe shows this box, which fades after three seconds and never "
-        + "takes the foreground.")
+    banner.show(
+        "Moorings",
+        "The banner probe shows this box, which fades after three seconds and never "
+            + "takes the foreground.")
     guard let hwnd = banner.window else {
         print("banner: not shown")
         return 1
@@ -479,8 +489,9 @@ func probeBanner(_ opts: ProbeOptions) -> Int32 {
     let exStyle = DWORD(truncatingIfNeeded: GetWindowLongPtrW(hwnd, GWL_EXSTYLE))
     print("banner: \(pixels(Frame(r))) scale \(banner.scale)")
     print("screen: \(pixels(screen))")
-    print("visible: \(IsWindowVisible(hwnd)) topmost: \(exStyle & 0x8 != 0)",
-          "noactivate: \(exStyle & 0x0800_0000 != 0)")
+    print(
+        "visible: \(IsWindowVisible(hwnd)) topmost: \(exStyle & 0x8 != 0)",
+        "noactivate: \(exStyle & 0x0800_0000 != 0)")
     pump(until: App.now + 1)
     print("foreground is banner: \(GetForegroundWindow() == hwnd) kept: \(GetForegroundWindow() == before)")
     print("open at 1 s: \(IsWindow(hwnd))")
@@ -520,8 +531,9 @@ func probeSkip(_ opts: ProbeOptions) -> Int32 {
     let app = App(store: store, minAspect: opts.minAspect)
     print("start at \(stamp(App.now)) pinned \(hex(pad.id))")
     app.moved = { move, t, got in
-        print("move \(hex(move.id)) at \(stamp(t)) to \(pixels(move.frame))",
-              "got \(got.map(pixels) ?? "gone")")
+        print(
+            "move \(hex(move.id)) at \(stamp(t)) to \(pixels(move.frame))",
+            "got \(got.map(pixels) ?? "gone")")
     }
     app.notify = { title, body in print("notice: \(title): \(body)") }
     app.run(until: App.now + opts.seconds)
@@ -546,7 +558,8 @@ func probeLift(_ opts: ProbeOptions) -> Int32 {
     }
     let windows = WinWindows.scan(screens: screens).windows
     guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
-          let hwnd = WinWindows.hwnd(pad.id) else {
+        let hwnd = WinWindows.hwnd(pad.id)
+    else {
         print("lift: no window of \(opts.app)")
         return 1
     }
@@ -584,7 +597,8 @@ func probeChain(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
     let windows = WinWindows.scan(screens: screens).windows
     guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
-          let hwnd = WinWindows.hwnd(pad.id) else {
+        let hwnd = WinWindows.hwnd(pad.id)
+    else {
         print("chain: no window of \(opts.app)")
         return 1
     }
@@ -702,7 +716,8 @@ func probeActions(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
     let windows = WinWindows.scan(screens: screens).windows
     guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
-          let hwnd = WinWindows.hwnd(pad.id) else {
+        let hwnd = WinWindows.hwnd(pad.id)
+    else {
         print("actions: no window of \(opts.app)")
         return 1
     }
@@ -775,7 +790,8 @@ func probeActions(_ opts: ProbeOptions) -> Int32 {
 // length is under the app's least length, the window keeps that least length and its near edge
 // may shift back by the difference to stay on the screen, so either edge in that range is on.
 func actionAxis(_ want: Double, _ wantLen: Double, _ got: Double, _ gotLen: Double, least: Double)
-    -> (Double, Double) {
+    -> (Double, Double)
+{
     guard wantLen < least - 1 else {
         return (abs(want - got), abs(wantLen - gotLen))
     }
@@ -861,8 +877,11 @@ func probeStand(_ opts: ProbeOptions) -> Int32 {
     }
     // 0x00CF0000 is WS_OVERLAPPEDWINDOW and 0x10000000 is WS_VISIBLE.
     let style: DWORD = 0x00CF_0000 | 0x1000_0000
-    guard let hwnd = CreateWindowExW(0, name, wide("Moorings stand-in"), style, 100, 100, 600, 400, nil, nil,
-                                     instance, nil) else {
+    guard
+        let hwnd = CreateWindowExW(
+            0, name, wide("Moorings stand-in"), style, 100, 100, 600, 400, nil, nil,
+            instance, nil)
+    else {
         print("stand: no window: \(GetLastError())")
         return 1
     }
@@ -889,7 +908,8 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
     }
     let windows = WinWindows.scan(screens: screens).windows
     guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
-          let hwnd = WinWindows.hwnd(pad.id) else {
+        let hwnd = WinWindows.hwnd(pad.id)
+    else {
         print("drag: no window of \(opts.app)")
         return 1
     }
@@ -903,11 +923,12 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
     let app = App(store: store, minAspect: opts.minAspect)
     app.hooksMouse = !opts.noHook
     app.drag.dropped = { id, drop in
-        let on = switch drop {
-        case let .zone(name): "zone \(name)"
-        case let .park(key): "park \(key)"
-        case .none: "nothing"
-        }
+        let on =
+            switch drop {
+            case let .zone(name): "zone \(name)"
+            case let .park(key): "park \(key)"
+            case .none: "nothing"
+            }
         print("dropped \(hex(id)) on \(on) at \(stamp(App.now))")
     }
     _ = bringForward(hwnd)
@@ -924,8 +945,9 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
     app.run(until: App.now + opts.seconds)
     print("hook delivered: \(WinMouseHook.delivered)")
     print("hook reinstalled: \(app.mouse.reinstalls)")
-    print("footprint: \(app.footprint.last.map(pixels) ?? "never") shows \(app.footprint.shows)",
-          "hidden \(app.footprint.shown == nil)")
+    print(
+        "footprint: \(app.footprint.last.map(pixels) ?? "never") shows \(app.footprint.shows)",
+        "hidden \(app.footprint.shown == nil)")
     print("after: \(app.windows.frame(pad.id).map(pixels) ?? "gone")")
     print("channel: \(pixels(app.anchors.channel(wide)))")
     print("left top: \(app.anchors.choices.slots[.leftTop] ?? "")")
@@ -938,7 +960,8 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
 func probeFootprint(_ opts: ProbeOptions) -> Int32 {
     let windows = WinWindows.scan(screens: .current(minAspect: opts.minAspect)).windows
     guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
-          let hwnd = WinWindows.hwnd(pad.id) else {
+        let hwnd = WinWindows.hwnd(pad.id)
+    else {
         print("footprint: no window of \(opts.app)")
         return 1
     }
@@ -959,9 +982,10 @@ func probeFootprint(_ opts: ProbeOptions) -> Int32 {
     print("rect: \(pixels(Frame(r)))")
     let ex = DWORD(truncatingIfNeeded: GetWindowLongPtrW(window, GWL_EXSTYLE))
     let bit = { (b: DWORD) in ex & b == b }
-    print("exstyle: transparent \(bit(WinFootprint.transparent)) noactivate \(bit(WinFootprint.noActivate))",
-          "layered \(bit(WinFootprint.layered)) topmost \(bit(WinFootprint.topmost))",
-          "toolwindow \(bit(WinFootprint.toolWindow))")
+    print(
+        "exstyle: transparent \(bit(WinFootprint.transparent)) noactivate \(bit(WinFootprint.noActivate))",
+        "layered \(bit(WinFootprint.layered)) topmost \(bit(WinFootprint.topmost))",
+        "toolwindow \(bit(WinFootprint.toolWindow))")
     print("visible: \(IsWindowVisible(window))")
     print("foreground after show: \(foreground())")
     let mid = (x: Int32((f.x + f.w / 2).rounded()), y: Int32((f.y + f.h / 2).rounded()))
@@ -1041,7 +1065,8 @@ func integrity(_ pid: DWORD) -> String {
     guard GetTokenInformation(token, TokenIntegrityLevel, buffer, size, &size) else { return "unknown" }
     let label = buffer.load(as: TOKEN_MANDATORY_LABEL.self)
     guard let sid = label.Label.Sid, let count = GetSidSubAuthorityCount(sid)?.pointee, count > 0,
-          let rid = GetSidSubAuthority(sid, DWORD(count) - 1)?.pointee else { return "unknown" }
+        let rid = GetSidSubAuthority(sid, DWORD(count) - 1)?.pointee
+    else { return "unknown" }
     switch rid {
     case ..<0x2000: return "low"
     case ..<0x3000: return "medium"
@@ -1163,18 +1188,20 @@ struct Monitor {
         }
         let found = MonitorList()
         let context = LPARAM(Int(bitPattern: Unmanaged.passUnretained(found).toOpaque()))
-        _ = EnumDisplayMonitors(nil, nil, { handle, _, _, context in
-            let raw = UnsafeRawPointer(bitPattern: Int(context))!
-            let found = Unmanaged<MonitorList>.fromOpaque(raw).takeUnretainedValue()
-            var info = MONITORINFO()
-            info.cbSize = DWORD(MemoryLayout<MONITORINFO>.size)
-            if GetMonitorInfoW(handle, &info) {
-                let primary = info.dwFlags & DWORD(MONITORINFOF_PRIMARY) != 0
-                let full = Frame(info.rcMonitor), usable = Frame(info.rcWork)
-                found.monitors.append(Monitor(full: full, usable: usable, primary: primary))
-            }
-            return true
-        }, context)
+        _ = EnumDisplayMonitors(
+            nil, nil,
+            { handle, _, _, context in
+                let raw = UnsafeRawPointer(bitPattern: Int(context))!
+                let found = Unmanaged<MonitorList>.fromOpaque(raw).takeUnretainedValue()
+                var info = MONITORINFO()
+                info.cbSize = DWORD(MemoryLayout<MONITORINFO>.size)
+                if GetMonitorInfoW(handle, &info) {
+                    let primary = info.dwFlags & DWORD(MONITORINFOF_PRIMARY) != 0
+                    let full = Frame(info.rcMonitor), usable = Frame(info.rcWork)
+                    found.monitors.append(Monitor(full: full, usable: usable, primary: primary))
+                }
+                return true
+            }, context)
         return withExtendedLifetime(found) { found.monitors }
     }
 }
@@ -1188,8 +1215,9 @@ final class MonitorList {
 extension Frame {
     // init converts a Win32 RECT.
     init(_ r: RECT) {
-        self.init(x: Double(r.left), y: Double(r.top), w: Double(r.right - r.left),
-                  h: Double(r.bottom - r.top))
+        self.init(
+            x: Double(r.left), y: Double(r.top), w: Double(r.right - r.left),
+            h: Double(r.bottom - r.top))
     }
 }
 

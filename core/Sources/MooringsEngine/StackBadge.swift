@@ -24,8 +24,10 @@ public final class StackBadge {
     // of the stack whose front window has its top-left corner under the pointer, or hides the badge
     // when there is none. frames lists the visible windows front to back and is read once per rest,
     // never while the pointer moves or stays still. A mouse button down hides the badge.
-    public func update(pointer p: Point, buttonDown: Bool, frames: () -> [Frame], palette: Palette,
-                       choices: StackChoices, gap: Double) {
+    public func update(
+        pointer p: Point, buttonDown: Bool, frames: () -> [Frame], palette: Palette,
+        choices: StackChoices, gap: Double
+    ) {
         guard !buttonDown else {
             hide()
             pointer = nil

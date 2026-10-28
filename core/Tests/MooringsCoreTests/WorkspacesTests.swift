@@ -69,11 +69,13 @@ import Testing
 // Swift only: only unmatched entries with a launch bundle are launched, with their target.
 @Test func testWorkspacesLaunches() {
     let z = F(0, 0, 1, 1)
-    let ws = Workspace(name: "W", windows: [
-        SavedWindow(bundle: "safari", title: "a", frame: z, launchBundle: "safari", openTarget: "https://x.test"),
-        SavedWindow(bundle: "notes", title: "b", frame: z, launchBundle: "notes"),
-        SavedWindow(bundle: "mail", title: "c", frame: z),
-    ])
+    let ws = Workspace(
+        name: "W",
+        windows: [
+            SavedWindow(bundle: "safari", title: "a", frame: z, launchBundle: "safari", openTarget: "https://x.test"),
+            SavedWindow(bundle: "notes", title: "b", frame: z, launchBundle: "notes"),
+            SavedWindow(bundle: "mail", title: "c", frame: z),
+        ])
     let live = [WorkspaceWindow(id: 1, bundle: "notes", title: "b", frame: z)]
     #expect(Workspaces.launches(ws, live) == [LaunchRequest(bundle: "safari", target: "https://x.test")])
     #expect(Workspaces.launches(ws, []).count == 2)

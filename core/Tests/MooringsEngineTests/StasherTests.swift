@@ -35,8 +35,9 @@ final class StashRig {
     init(_ choices: Choices = Choices(), refuses: Bool = false) {
         anchors = Anchors(choices: choices)
         passes = FakeScheduler(clock: clock)
-        let platform = Platform(windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(),
-                                clock: clock, scheduler: passes, store: FakeStore(), warpCursor: { _ in })
+        let platform = Platform(
+            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(),
+            clock: clock, scheduler: passes, store: FakeStore(), warpCursor: { _ in })
         id = windows.add(bundle: "com.example.pad", frame: start, refuses: refuses, focus: true)
         stasher = Stasher(platform: platform, anchors: anchors, rest: FakeScheduler(clock: clock))
         stasher.pointer = { [unowned self] in (p, held) }

@@ -33,12 +33,14 @@ final class KeeperRig {
         var c = Choices()
         edit(&c)
         anchors = Anchors(choices: c)
-        let platform = Platform(windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier,
-                                clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
-                                warpCursor: { _ in })
+        let platform = Platform(
+            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier,
+            clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
+            warpCursor: { _ in })
         let organizer = Organizer(platform: platform, anchors: anchors)
-        keeper = WorkspaceKeeper(platform: platform, anchors: anchors, organizer: organizer,
-                                 actions: ActionRunner(platform: platform, anchors: anchors))
+        keeper = WorkspaceKeeper(
+            platform: platform, anchors: anchors, organizer: organizer,
+            actions: ActionRunner(platform: platform, anchors: anchors))
         pads.append(windows.add(bundle: "com.example.pad", frame: Frame(x: 900, y: 200, w: 700, h: 500)))
         pads.append(windows.add(bundle: "com.example.pad", frame: Frame(x: 1700, y: 300, w: 600, h: 400), focus: true))
         titles = [pads[0]: "one", pads[1]: "two"]
@@ -97,7 +99,9 @@ final class KeeperRig {
     let saved = Frame(x: 1000, y: 400, w: 800, h: 600)
     rig.anchors.choices.workspaces["mail"] = Workspace(
         name: "mail", slots: [:], widths: nil, heights: nil,
-        windows: [SavedWindow(bundle: "com.example.mail", title: "Inbox", frame: saved, launchBundle: "com.example.mail")],
+        windows: [
+            SavedWindow(bundle: "com.example.mail", title: "Inbox", frame: saved, launchBundle: "com.example.mail")
+        ],
         setup: nil)
     rig.look()
     #expect(rig.keeper.recall("mail"))
@@ -115,8 +119,9 @@ final class KeeperRig {
 // workspace once, from the last change of the burst after the displays settle.
 @Test func testKeeperTieAndDisplayChange() {
     let rig = KeeperRig()
-    let office = Screens(full: [Frame(x: 0, y: 0, w: 1920, h: 1080)], usable: [Frame(x: 0, y: 25, w: 1920, h: 1055)],
-                         ultrawide: nil)
+    let office = Screens(
+        full: [Frame(x: 0, y: 0, w: 1920, h: 1080)], usable: [Frame(x: 0, y: 25, w: 1920, h: 1055)],
+        ultrawide: nil)
     rig.screens.screens = office
     rig.keeper.saveWorkspace("desk")
     rig.keeper.tie("desk")
@@ -140,8 +145,9 @@ final class KeeperRig {
     let before = rig.pads.map(rig.frame)
     rig.keeper.saveWorkspace("desk")
     rig.keeper.tie("desk")
-    rig.screens.screens = Screens(full: [Frame(x: 0, y: 0, w: 1920, h: 1080)], usable: [Frame(x: 0, y: 25, w: 1920, h: 1055)],
-                                  ultrawide: nil)
+    rig.screens.screens = Screens(
+        full: [Frame(x: 0, y: 0, w: 1920, h: 1080)], usable: [Frame(x: 0, y: 25, w: 1920, h: 1055)],
+        ultrawide: nil)
     rig.keeper.screensChanged()
     rig.later.removeLast().1()
     rig.windows.nudge(rig.pads[0], to: Frame(x: 100, y: 100, w: 400, h: 300))
@@ -157,7 +163,9 @@ final class KeeperRig {
 @Test func testKeeperRuleFirstWindow() {
     let target = Frame(x: 1200, y: 300, w: 900, h: 700)
     let rig = KeeperRig {
-        $0.appRules = [AppRule(bundle: "com.example.notes", frame: target), AppRule(bundle: "com.example.pad", frame: target)]
+        $0.appRules = [
+            AppRule(bundle: "com.example.notes", frame: target), AppRule(bundle: "com.example.pad", frame: target),
+        ]
     }
     rig.look()
     #expect(rig.frame(rig.pads[0]) != target && rig.frame(rig.pads[1]) != target)

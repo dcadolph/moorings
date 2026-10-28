@@ -25,8 +25,9 @@ let watchRetryCases: [WatchRetryCase] = [
     // Test 3: Once the eager tries run out, it stops keeping passes looking and waits.
     WatchRetryCase(Failures: WatchRetry.tries, At: Double(WatchRetry.tries), WantEager: false, WantDue: false),
     // Test 4: It is asked again once the slow pace has passed, never given up for good.
-    WatchRetryCase(Failures: WatchRetry.tries, At: Double(WatchRetry.tries - 1) + WatchRetry.slowSeconds,
-                   WantEager: false, WantDue: true),
+    WatchRetryCase(
+        Failures: WatchRetry.tries, At: Double(WatchRetry.tries - 1) + WatchRetry.slowSeconds,
+        WantEager: false, WantDue: true),
     // Test 5: Refusals on the slow pace keep it on the slow pace.
     WatchRetryCase(Failures: WatchRetry.tries + 3, At: Double(WatchRetry.tries + 3), WantEager: false, WantDue: false),
 ]
@@ -34,7 +35,7 @@ let watchRetryCases: [WatchRetryCase] = [
 @Test(arguments: watchRetryCases)
 func testWatchRetry(test: WatchRetryCase) {
     var retry = WatchRetry()
-    for i in 0 ..< test.Failures {
+    for i in 0..<test.Failures {
         retry.failed(Double(i))
     }
     #expect(retry.eager == test.WantEager)

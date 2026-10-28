@@ -33,23 +33,28 @@ final class DragRig {
     init(_ choices: Choices = Choices()) {
         anchors = Anchors(choices: choices)
         let scheduler = FakeScheduler(clock: clock)
-        let platform = Platform(windows: windows, screens: screens, overlay: overlay, notifier: notifier, clock: clock,
-                                scheduler: scheduler, store: FakeStore(), warpCursor: { _ in })
+        let platform = Platform(
+            windows: windows, screens: screens, overlay: overlay, notifier: notifier, clock: clock,
+            scheduler: scheduler, store: FakeStore(), warpCursor: { _ in })
         id = windows.add(bundle: "com.example.pad", frame: start, focus: true)
-        follower = DragFollower(platform: platform, anchors: anchors, preview: { name, _, screens, i in
-            DragRig.frames(screens.usable[i])[name]
-        }, apply: { _, _, _, _ in })
+        follower = DragFollower(
+            platform: platform, anchors: anchors,
+            preview: { name, _, screens, i in
+                DragRig.frames(screens.usable[i])[name]
+            }, apply: { _, _, _, _ in })
         follower.apply = { [unowned self] name, _, _, i in applied.append((name, i)) }
         follower.changed = { [unowned self] in changes += 1 }
     }
 
     // frames lists the frames the fake preview gives on a usable area.
     static func frames(_ u: Frame) -> [String: Frame] {
-        ["left-half": Frame(x: u.x, y: u.y, w: u.w / 2, h: u.h),
-         "maximize": u,
-         "first-third": Frame(x: u.x, y: u.y, w: u.w / 3, h: u.h),
-         "first-two-thirds": Frame(x: u.x, y: u.y, w: u.w * 2 / 3, h: u.h),
-         "center-third": Frame(x: u.x + u.w / 3, y: u.y, w: u.w / 3, h: u.h)]
+        [
+            "left-half": Frame(x: u.x, y: u.y, w: u.w / 2, h: u.h),
+            "maximize": u,
+            "first-third": Frame(x: u.x, y: u.y, w: u.w / 3, h: u.h),
+            "first-two-thirds": Frame(x: u.x, y: u.y, w: u.w * 2 / 3, h: u.h),
+            "center-third": Frame(x: u.x + u.w / 3, y: u.y, w: u.w / 3, h: u.h),
+        ]
     }
 
     // drag presses at p0, moves the window with the pointer through points, and returns nothing.
@@ -58,8 +63,11 @@ final class DragRig {
         var last = points[0]
         for p in points.dropFirst() {
             if moveWindow {
-                windows.nudge(id, to: Frame(x: start.x + p.x - points[0].x, y: start.y + p.y - points[0].y,
-                                            w: start.w, h: start.h))
+                windows.nudge(
+                    id,
+                    to: Frame(
+                        x: start.x + p.x - points[0].x, y: start.y + p.y - points[0].y,
+                        w: start.w, h: start.h))
             }
             follower.moved(p, held: held)
             last = p
@@ -91,7 +99,8 @@ final class DragRig {
     let rig = DragRig()
     rig.follower.began(at: Point(x: 2000, y: 1000))
     for (i, p) in DragRig.path(Point(x: 2000, y: 1000), Point(x: 2, y: 700)).enumerated() {
-        rig.windows.nudge(rig.id, to: Frame(x: rig.start.x, y: rig.start.y, w: rig.start.w + Double(i * 8), h: rig.start.h))
+        rig.windows.nudge(
+            rig.id, to: Frame(x: rig.start.x, y: rig.start.y, w: rig.start.w + Double(i * 8), h: rig.start.h))
         rig.follower.moved(p, held: [])
     }
     rig.follower.ended(held: [])
@@ -131,7 +140,9 @@ final class DragRig {
 @Test @MainActor func testDragPrevKeepsZone() {
     let rig = DragRig()
     let y = 1438.0
-    rig.drag(DragRig.path(Point(x: 1600, y: 415), Point(x: 500, y: y)) + DragRig.path(Point(x: 500, y: y), Point(x: 1700, y: y)))
+    rig.drag(
+        DragRig.path(Point(x: 1600, y: 415), Point(x: 500, y: y))
+            + DragRig.path(Point(x: 500, y: y), Point(x: 1700, y: y)))
     #expect(rig.follower.drop == .zone("first-two-thirds"))
 }
 

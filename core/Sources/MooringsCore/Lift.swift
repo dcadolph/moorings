@@ -107,7 +107,7 @@ extension Anchors {
         var by: [Side: String] = [:]
         for w in windows {
             guard let pin = pins.first(where: { $0.bundle == w.bundle }), let fl = floors[w.id],
-                  fl.w > (mins[pin.slot.side] ?? 0)
+                fl.w > (mins[pin.slot.side] ?? 0)
             else { continue }
             mins[pin.slot.side] = fl.w
             by[pin.slot.side] = w.bundle
@@ -138,8 +138,9 @@ extension Anchors {
         }
         // Only an axis the window refused is learned, so a slot's own size never becomes a minimum.
         let prior = floors[move.id]
-        floors[move.id] = Floor(w: got.w > move.frame.w + Self.tolerance ? got.w : prior?.w ?? 0,
-                                h: got.h > move.frame.h + Self.tolerance ? got.h : prior?.h ?? 0)
+        floors[move.id] = Floor(
+            w: got.w > move.frame.w + Self.tolerance ? got.w : prior?.w ?? 0,
+            h: got.h > move.frame.h + Self.tolerance ? got.h : prior?.h ?? 0)
         let want = fit(move.id, move.target, move.anchor)
         if Actions.near(got, want, tolerance: Self.tolerance) {
             return nil
@@ -169,13 +170,16 @@ extension Anchors {
     // when the read-back caught it partway through its own animation.
     func moorPin(_ w: WindowInfo, _ target: Frame, _ anchor: Edges) -> Move? {
         var last = placed[w.id]
-        if let p = last, Actions.near(w.frame, p.target, tolerance: Self.tolerance)
-            || Actions.near(w.frame, fit(w.id, p.target, anchor), tolerance: Self.tolerance) {
+        if let p = last,
+            Actions.near(w.frame, p.target, tolerance: Self.tolerance)
+                || Actions.near(w.frame, fit(w.id, p.target, anchor), tolerance: Self.tolerance)
+        {
             last?.at = w.frame
             placed[w.id]?.at = w.frame
         }
         if let last, now - last.t > Self.releaseGrace, !Actions.near(w.frame, last.at, tolerance: Self.tolerance),
-           !released.contains(w.id) {
+            !released.contains(w.id)
+        {
             released.insert(w.id)
             lifted.remove(w.id)
             justReleased.append(w.id)
@@ -187,7 +191,8 @@ extension Anchors {
         let move = place(w, target, anchor)
         let at = move?.frame ?? w.frame
         if last == nil || !Actions.near(last!.at, at, tolerance: Self.tolerance)
-            || !Actions.near(last!.target, target, tolerance: Self.tolerance) {
+            || !Actions.near(last!.target, target, tolerance: Self.tolerance)
+        {
             placed[w.id] = PinPlacement(target: target, at: at, t: now)
         }
         cacheZoom(w, at, free: false)

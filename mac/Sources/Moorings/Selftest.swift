@@ -88,7 +88,8 @@ final class Selftest {
     // bundles and reports.
     private func compatibility(_ bundles: [String]) async {
         checks = []
-        let why = !app.windows.trusted ? "Accessibility is not granted" : anchors.choices.paused ? "moorings is paused" : nil
+        let why =
+            !app.windows.trusted ? "Accessibility is not granted" : anchors.choices.paused ? "moorings is paused" : nil
         if let why {
             logger.notice("selftest not run: \(why, privacy: .public)")
             app.notify("Selftest not run", why + ".")
@@ -100,7 +101,8 @@ final class Selftest {
         let failed = checks.filter { $0.ok == false }.count
         let skipped = checks.filter { $0.ok == nil }.count
         let kept = checks.filter(\.minimum).count
-        let summary = "\(checks.count) checks on \(bundles.count) apps, \(failed) failed, \(skipped) skipped, "
+        let summary =
+            "\(checks.count) checks on \(bundles.count) apps, \(failed) failed, \(skipped) skipped, "
             + "\(kept) kept an app minimum"
         logger.notice("selftest: \(summary, privacy: .public)")
         app.notify(failed == 0 ? "Selftest passed" : "Selftest failed", summary + ". The log has each check.")
@@ -126,14 +128,18 @@ final class Selftest {
             }
         }
         var found: WindowInfo?
-        _ = await settled({ found = self.free(bundle); return (found != nil, "") }, Self.openSeconds)
+        _ = await settled(
+            {
+                found = self.free(bundle); return (found != nil, "")
+            }, Self.openSeconds)
         guard let w = found else {
             skip(tag, "no free window. Open one that is not anchored, fullscreen, stashed or a panel")
             return
         }
         let original = w.frame
         let area = app.actions.area(for: w, screens: Screens.current())
-        let moved = Frame(x: area.x + 60, y: area.y + 60, w: min(w.frame.w, area.w - 120), h: min(w.frame.h, area.h - 120))
+        let moved = Frame(
+            x: area.x + 60, y: area.y + 60, w: min(w.frame.w, area.w - 120), h: min(w.frame.h, area.h - 120))
         app.windows.move(w.id, to: moved)
         check("\(tag): move", await settled { self.at(w.id, moved) })
 
@@ -221,7 +227,9 @@ final class Selftest {
         let failed = checks.filter { $0.ok == false }.count
         let summary = "\(checks.count) checks, \(failed) failed" + (stopped.map { ", stopped: \($0)" } ?? "")
         logger.notice("selftest: \(summary, privacy: .public)")
-        app.notify(failed == 0 && stopped == nil ? "Selftest passed" : "Selftest failed", summary + ". The log has each check.")
+        app.notify(
+            failed == 0 && stopped == nil ? "Selftest passed" : "Selftest failed", summary + ". The log has each check."
+        )
     }
 
     // prepare picks the slot TextEdit borrows, preferring one on a side with no other app, and
@@ -262,12 +270,14 @@ final class Selftest {
         let stacks = anchors.choices.slotStacks
         anchors.choices.slotStacks = true
         let b = try await newDocument()
-        check("second window is held in the slot when the slot holds all windows",
-              await settled { self.landed(b) })
+        check(
+            "second window is held in the slot when the slot holds all windows",
+            await settled { self.landed(b) })
         anchors.choices.slotStacks = false
         app.wake()
-        check("second window goes to the channel when the slot holds one window",
-              await settled { self.inChannel(b) })
+        check(
+            "second window goes to the channel when the slot holds one window",
+            await settled { self.inChannel(b) })
         anchors.choices.slotStacks = stacks
         app.wake()
 
@@ -277,11 +287,13 @@ final class Selftest {
         try await close(b)
         let freed = "an anchored app with no window frees its side"
         if emptySide, let wide = Screens.current().wide {
-            check(freed, await settled {
-                let use = self.anchors.inUse(wide)
-                let pct = self.slot.side == .left ? use.left : use.right
-                return (pct == 0, String(format: "the side is still %.0f%% wide", pct))
-            })
+            check(
+                freed,
+                await settled {
+                    let use = self.anchors.inUse(wide)
+                    let pct = self.slot.side == .left ? use.left : use.right
+                    return (pct == 0, String(format: "the side is still %.0f%% wide", pct))
+                })
         } else {
             checks.append(Check(name: freed, ok: nil, detail: "another app shares the side"))
         }
@@ -291,8 +303,13 @@ final class Selftest {
             te.activate()
             key(kVK_ANSI_O, [.maskCommand], te.processIdentifier)
             var panel: WindowInfo?
-            if await settled({ panel = self.windows(panels: true).first; return (panel != nil, "") }, Self.openSeconds).0,
-               let panel {
+            if await settled(
+                {
+                    panel = self.windows(panels: true).first; return (panel != nil, "")
+                }, Self.openSeconds
+            ).0,
+                let panel
+            {
                 check(picker, await steady { (!self.anchors.pinned(self.info(panel.id) ?? panel), "anchored") })
                 try await dismissPanels()
             } else {
@@ -304,13 +321,17 @@ final class Selftest {
         check("a new document takes the slot back", await settled { self.landed(c) })
 
         try await Task.sleep(for: .seconds(Self.graceSeconds))
-        guard let wide = Screens.current().wide, let f = app.windows.frame(c) else { throw Stop(reason: "lost the window") }
+        guard let wide = Screens.current().wide, let f = app.windows.frame(c) else {
+            throw Stop(reason: "lost the window")
+        }
         let ch = anchors.channel(wide)
         app.windows.move(c, to: Frame(x: ch.x + 40, y: ch.y + 40, w: min(f.w, ch.w - 80), h: f.h))
         let moved = app.windows.frame(c) ?? f
-        check("moving the anchored window releases it", await settled {
-            (self.anchors.isReleased(c), "not released")
-        })
+        check(
+            "moving the anchored window releases it",
+            await settled {
+                (self.anchors.isReleased(c), "not released")
+            })
         check("a released window stays where it was put", await steady { self.at(c, moved) })
 
         app.windows.raise(c)
@@ -328,9 +349,11 @@ final class Selftest {
         let drop = CGPoint(x: ch.x + ch.w / 2, y: ch.y + ch.h / 3)
         await drag(from: grab, to: drop)
         let dropped = app.windows.frame(c) ?? pinned
-        check("dragging the anchored window by its title bar releases it", await settled {
-            (self.anchors.isReleased(c), "not released, at \(self.app.windows.frame(c) ?? pinned)")
-        })
+        check(
+            "dragging the anchored window by its title bar releases it",
+            await settled {
+                (self.anchors.isReleased(c), "not released, at \(self.app.windows.frame(c) ?? pinned)")
+            })
         check("a dragged window stays where it was dropped", await steady { self.at(c, dropped) })
         app.windows.raise(c)
         let greenDrag = "green button puts a dragged window back"
@@ -355,10 +378,12 @@ final class Selftest {
         let ids = windows(panels: false).map(\.id)
         if let want = Tile.neighbor(ids, of: d, forward: true) {
             app.actions.run("focus-next-window")
-            check(focusName, await settled {
-                let got = self.app.windows.scan(Screens.current()).focused?.id
-                return (got == want, "focused \(got.map(String.init) ?? "nothing"), want \(want)")
-            })
+            check(
+                focusName,
+                await settled {
+                    let got = self.app.windows.scan(Screens.current()).focused?.id
+                    return (got == want, "focused \(got.map(String.init) ?? "nothing"), want \(want)")
+                })
         } else {
             check(focusName, (false, "TextEdit shows one window"))
         }
@@ -370,8 +395,9 @@ final class Selftest {
             try await close(id)
         }
         made = []
-        let empty = await settled({ (self.windows(panels: false).isEmpty, "TextEdit still shows a window") },
-                                  Self.openSeconds)
+        let empty = await settled(
+            { (self.windows(panels: false).isEmpty, "TextEdit still shows a window") },
+            Self.openSeconds)
         guard empty.0 else {
             check(ruleName, empty)
             return
@@ -395,7 +421,9 @@ final class Selftest {
     }
 
     // settled waits up to seconds for test to pass, and returns the last result.
-    private func settled(_ test: @escaping () -> (Bool, String), _ seconds: Double = landSeconds) async -> (Bool, String) {
+    private func settled(_ test: @escaping () -> (Bool, String), _ seconds: Double = landSeconds) async -> (
+        Bool, String
+    ) {
         let end = Date().addingTimeInterval(seconds)
         var last = (false, "")
         while Date() < end {
@@ -439,7 +467,9 @@ final class Selftest {
         guard anchors.pinned(w) else { return (false, "not anchored, at \(w.frame)") }
         guard let target = anchors.target(id) else { return (false, "anchored but never placed") }
         guard let s = Screens.current().wide else { return (false, "no ultrawide") }
-        let edge = slot.side == .left ? abs(w.frame.x - s.x) <= Anchors.tolerance
+        let edge =
+            slot.side == .left
+            ? abs(w.frame.x - s.x) <= Anchors.tolerance
             : abs(w.frame.x + w.frame.w - s.x - s.w) <= Anchors.tolerance
         if Actions.near(w.frame, target) && edge {
             return (true, "")
@@ -453,7 +483,8 @@ final class Selftest {
         guard !anchors.pinned(w) else { return (false, "anchored, at \(w.frame)") }
         guard let s = Screens.current().wide else { return (false, "no ultrawide") }
         let ch = anchors.channel(s)
-        let inside = w.frame.x >= ch.x - Anchors.tolerance
+        let inside =
+            w.frame.x >= ch.x - Anchors.tolerance
             && w.frame.x + w.frame.w <= ch.x + ch.w + Anchors.tolerance
         return (inside, "at \(w.frame), channel \(ch)")
     }
@@ -474,13 +505,15 @@ final class Selftest {
     // and leaves it alone.
     private func launch() async throws {
         app.open(Self.bundle, background: false)
-        _ = await settled({
-            (!self.windows(panels: true).isEmpty || !self.windows(panels: false).isEmpty, "")
-        }, Self.openSeconds)
+        _ = await settled(
+            {
+                (!self.windows(panels: true).isEmpty || !self.windows(panels: false).isEmpty, "")
+            }, Self.openSeconds)
         try await Task.sleep(for: .seconds(Self.restoreSeconds))
         if !windows(panels: false).isEmpty {
             foreign = true
-            throw Stop(reason: "TextEdit reopened a document from before. Save or close it, quit TextEdit, and run again")
+            throw Stop(
+                reason: "TextEdit reopened a document from before. Save or close it, quit TextEdit, and run again")
         }
         try await dismissPanels()
     }
@@ -497,14 +530,15 @@ final class Selftest {
         var found: WindowID?
         var asked = textEdit() != nil
         let started = Date()
-        _ = await settled({
-            found = self.windows(panels: false).first { !before.contains($0.id) }?.id
-            if found == nil, !asked, Date().timeIntervalSince(started) > 2, let te = self.textEdit() {
-                asked = true
-                self.key(kVK_ANSI_N, [.maskCommand], te.processIdentifier)
-            }
-            return (found != nil, "")
-        }, Self.openSeconds)
+        _ = await settled(
+            {
+                found = self.windows(panels: false).first { !before.contains($0.id) }?.id
+                if found == nil, !asked, Date().timeIntervalSince(started) > 2, let te = self.textEdit() {
+                    asked = true
+                    self.key(kVK_ANSI_N, [.maskCommand], te.processIdentifier)
+                }
+                return (found != nil, "")
+            }, Self.openSeconds)
         guard let found else { throw Stop(reason: "the new TextEdit document did not show") }
         made.append(found)
         return found
@@ -558,7 +592,8 @@ final class Selftest {
     // tap like a real drag.
     private func drag(from: CGPoint, to: CGPoint) async {
         let post = { (type: CGEventType, p: CGPoint) in
-            CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+            CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(
+                tap: .cghidEventTap)
         }
         post(.leftMouseDown, from)
         try? await Task.sleep(for: .seconds(0.1))
@@ -575,7 +610,8 @@ final class Selftest {
     // click clicks the primary button at p, through the mouse tap like a real click.
     private func click(_ p: CGPoint) {
         for type in [CGEventType.leftMouseDown, .leftMouseUp] {
-            CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(tap: .cghidEventTap)
+            CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(
+                tap: .cghidEventTap)
         }
     }
 }

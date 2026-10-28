@@ -25,7 +25,8 @@ final class Sinking {
     func play(over item: CGRect, appearance: NSAppearance, accent: NSColor, done: @escaping @MainActor () -> Void) {
         let h = item.height + Self.below
         let rect = CGRect(x: item.midX - Self.width / 2, y: item.maxY - h, width: Self.width, height: h)
-        let p = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let p = NSPanel(
+            contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = false
@@ -102,7 +103,8 @@ final class SinkingView: NSView {
         let waterline = rest.y + 5
         ctx.setAlpha(pose.fade)
 
-        let pool = NSBezierPath(ovalIn: CGRect(x: 2, y: waterline - (h - waterline), width: w - 4, height: 2 * (h - waterline)))
+        let pool = NSBezierPath(
+            ovalIn: CGRect(x: 2, y: waterline - (h - waterline), width: w - 4, height: 2 * (h - waterline)))
         NSGraphicsContext.saveGraphicsState()
         let surface = NSBezierPath()
         let phase = (pose.reach + pose.depth + pose.bubbles) * 5
@@ -169,12 +171,17 @@ final class SinkingView: NSView {
             let a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t
             return CGPoint(x: a * p0.x + b * p1.x + c * p2.x + d * p3.x, y: a * p0.y + b * p1.y + c * p2.y + d * p3.y)
         }
-        let rise = (base, CGPoint(x: base.x + side * 4, y: base.y - 14), CGPoint(x: hook.x + side * 7, y: hook.y + 8),
-                    CGPoint(x: hook.x + side * 2, y: hook.y - 2))
-        let curl = (rise.3, CGPoint(x: hook.x - side * 1, y: hook.y - 6), CGPoint(x: hook.x - side * 6, y: hook.y - 5),
-                    CGPoint(x: hook.x - side * 5, y: hook.y + 1))
+        let rise = (
+            base, CGPoint(x: base.x + side * 4, y: base.y - 14), CGPoint(x: hook.x + side * 7, y: hook.y + 8),
+            CGPoint(x: hook.x + side * 2, y: hook.y - 2)
+        )
+        let curl = (
+            rise.3, CGPoint(x: hook.x - side * 1, y: hook.y - 6), CGPoint(x: hook.x - side * 6, y: hook.y - 5),
+            CGPoint(x: hook.x - side * 5, y: hook.y + 1)
+        )
         let at = { (t: CGFloat) -> CGPoint in
-            t < 0.75 ? bezier(rise.0, rise.1, rise.2, rise.3, t / 0.75)
+            t < 0.75
+                ? bezier(rise.0, rise.1, rise.2, rise.3, t / 0.75)
                 : bezier(curl.0, curl.1, curl.2, curl.3, (t - 0.75) / 0.25)
         }
         let steps = 32

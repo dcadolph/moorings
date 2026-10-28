@@ -104,7 +104,8 @@ public struct CustomSpec: Equatable, Sendable {
     public var height: Double?
 
     // init builds a spec, defaulting to the whole area.
-    public init(x: Double = 0, y: Double = 0, w: Double = 1, h: Double = 1, width: Double? = nil, height: Double? = nil) {
+    public init(x: Double = 0, y: Double = 0, w: Double = 1, h: Double = 1, width: Double? = nil, height: Double? = nil)
+    {
         self.x = x
         self.y = y
         self.w = w
@@ -191,7 +192,8 @@ public enum Geometry {
     // grid returns a cell for every square of an nc by nr grid, named by rowNames and colNames
     // joined with a hyphen and the suffix, with the names in reading order.
     private static func grid(_ nc: Int, _ nr: Int, _ colNames: [String], _ rowNames: [String], _ suffix: String)
-        -> [(String, Placement)] {
+        -> [(String, Placement)]
+    {
         var out: [(String, Placement)] = []
         for (r, rowName) in rowNames.enumerated() {
             for (c, colName) in colNames.enumerated() {
@@ -204,11 +206,14 @@ public enum Geometry {
     // sixths, ninths and eighths are the grid families with their names in reading order.
     private static let sixths = grid(3, 2, ["left", "center", "right"], ["top", "bottom"], "sixth")
     private static let ninths = grid(3, 3, ["left", "center", "right"], ["top", "middle", "bottom"], "ninth")
-    private static let eighths = grid(4, 2, ["left", "center-left", "center-right", "right"], ["top", "bottom"], "eighth")
+    private static let eighths = grid(
+        4, 2, ["left", "center-left", "center-right", "right"], ["top", "bottom"], "eighth")
 
     // verticalStrips returns the full-height columns of an n-column grid, named by ordinals.
     private static func verticalStrips(_ n: Int, _ ordinals: [String], _ suffix: String) -> [(String, Placement)] {
-        ordinals.enumerated().map { ("\($0.element)-vertical-\(suffix)", .cell(Cell($0.offset, $0.offset + 1, n, 0, 1, 1))) }
+        ordinals.enumerated().map {
+            ("\($0.element)-vertical-\(suffix)", .cell(Cell($0.offset, $0.offset + 1, n, 0, 1, 1)))
+        }
     }
 
     // verticalSixths and verticalEighths are the full-height column families on a landscape area.
@@ -277,7 +282,8 @@ public enum Geometry {
             "bottom-right-third": cornerThird(right: true, bottom: true),
         ]
         for (name, placement) in sixths + ninths + eighths + verticalSixths + verticalEighths + twelfths
-            + sixteenths + verticalThirds {
+            + sixteenths + verticalThirds
+        {
             cells[name] = placement
         }
         return cells
@@ -286,7 +292,8 @@ public enum Geometry {
     // span returns the start and length of parts i0 to i1 of n across length at origin, with the
     // outer gap at the area's edges and half the gap between parts.
     private static func span(_ origin: Double, _ length: Double, _ i0: Int, _ i1: Int, _ n: Int, _ gap: Double)
-        -> (Double, Double) {
+        -> (Double, Double)
+    {
         var a = origin + floor(length * Double(i0) / Double(n))
         var b = origin + floor(length * Double(i1) / Double(n))
         let half = floor(gap / 2)
@@ -324,8 +331,11 @@ public enum Geometry {
 
     // part returns the frame of columns c0 to c1 of nc and rows r0 to r1 of nr inside area, with gap
     // points around and between parts.
-    public static func part(_ area: Frame, _ c0: Int, _ c1: Int, _ nc: Int, _ r0: Int, _ r1: Int, _ nr: Int, gap: Double = 0)
-        -> Frame {
+    public static func part(
+        _ area: Frame, _ c0: Int, _ c1: Int, _ nc: Int, _ r0: Int, _ r1: Int, _ nr: Int, gap: Double = 0
+    )
+        -> Frame
+    {
         fromCell(Cell(c0, c1, nc, r0, r1, nr), area, gap)
     }
 
@@ -408,17 +418,34 @@ public enum Geometry {
         "move-bottom-left": { area, cur, gap in corner(inset(area, gap), cur, .down, .left) },
         "move-bottom-right": { area, cur, gap in corner(inset(area, gap), cur, .down, .right) },
         "larger-width": { area, cur, gap in axis(area, cur, gap, .horizontal) { grow($0, $1, $2, $3, Actions.step) } },
-        "smaller-width": { area, cur, gap in axis(area, cur, gap, .horizontal) { grow($0, $1, $2, $3, -Actions.step) } },
+        "smaller-width": { area, cur, gap in axis(area, cur, gap, .horizontal) { grow($0, $1, $2, $3, -Actions.step) }
+        },
         "larger-height": { area, cur, gap in axis(area, cur, gap, .vertical) { grow($0, $1, $2, $3, Actions.step) } },
         "smaller-height": { area, cur, gap in axis(area, cur, gap, .vertical) { grow($0, $1, $2, $3, -Actions.step) } },
-        "double-width-left": { area, cur, gap in axis(area, cur, gap, .horizontal) { double($0, $1, $2, $3, atStart: false) } },
-        "double-width-right": { area, cur, gap in axis(area, cur, gap, .horizontal) { double($0, $1, $2, $3, atStart: true) } },
-        "double-height-up": { area, cur, gap in axis(area, cur, gap, .vertical) { double($0, $1, $2, $3, atStart: false) } },
-        "double-height-down": { area, cur, gap in axis(area, cur, gap, .vertical) { double($0, $1, $2, $3, atStart: true) } },
-        "halve-width-left": { area, cur, gap in axis(area, cur, gap, .horizontal) { halve($0, $1, $2, $3, keepStart: true) } },
-        "halve-width-right": { area, cur, gap in axis(area, cur, gap, .horizontal) { halve($0, $1, $2, $3, keepStart: false) } },
-        "halve-height-up": { area, cur, gap in axis(area, cur, gap, .vertical) { halve($0, $1, $2, $3, keepStart: true) } },
-        "halve-height-down": { area, cur, gap in axis(area, cur, gap, .vertical) { halve($0, $1, $2, $3, keepStart: false) } },
+        "double-width-left": { area, cur, gap in
+            axis(area, cur, gap, .horizontal) { double($0, $1, $2, $3, atStart: false) }
+        },
+        "double-width-right": { area, cur, gap in
+            axis(area, cur, gap, .horizontal) { double($0, $1, $2, $3, atStart: true) }
+        },
+        "double-height-up": { area, cur, gap in
+            axis(area, cur, gap, .vertical) { double($0, $1, $2, $3, atStart: false) }
+        },
+        "double-height-down": { area, cur, gap in
+            axis(area, cur, gap, .vertical) { double($0, $1, $2, $3, atStart: true) }
+        },
+        "halve-width-left": { area, cur, gap in
+            axis(area, cur, gap, .horizontal) { halve($0, $1, $2, $3, keepStart: true) }
+        },
+        "halve-width-right": { area, cur, gap in
+            axis(area, cur, gap, .horizontal) { halve($0, $1, $2, $3, keepStart: false) }
+        },
+        "halve-height-up": { area, cur, gap in
+            axis(area, cur, gap, .vertical) { halve($0, $1, $2, $3, keepStart: true) }
+        },
+        "halve-height-down": { area, cur, gap in
+            axis(area, cur, gap, .vertical) { halve($0, $1, $2, $3, keepStart: false) }
+        },
     ]
 
     // Axis names the dimension a one-axis action changes.
@@ -447,7 +474,8 @@ public enum Geometry {
     // double doubles the span lo to lo+len. It grows toward the end when atStart is true, so the
     // start edge stays, and toward the start otherwise. The grown edge stops at the area edge.
     private static func double(_ lo: Double, _ len: Double, _ alo: Double, _ alen: Double, atStart: Bool)
-        -> (Double, Double) {
+        -> (Double, Double)
+    {
         if atStart {
             let hi = min(alo + alen, lo + 2 * len)
             return (lo, hi - lo)
@@ -544,7 +572,8 @@ public enum Geometry {
     // resize grows cur by d points on each free edge inside area, or shrinks it when d is negative,
     // never below minimum, a share of the area on each axis. cur is first clamped into the area.
     public static func resize(
-        _ area: Frame, _ cur: Frame, _ d: Double, gap: Double = 0, minimum: (w: Double, h: Double) = (minShare, minShare)
+        _ area: Frame, _ cur: Frame, _ d: Double, gap: Double = 0,
+        minimum: (w: Double, h: Double) = (minShare, minShare)
     ) -> Frame {
         let a = inset(area, gap)
         let f = clamp(cur, a)
@@ -560,7 +589,8 @@ public enum Geometry {
     ) -> Frame? {
         let step = -Actions.step
         switch name {
-        case "smaller-width": return axis(area, cur, gap, .horizontal) { grow($0, $1, $2, $3, step, minimum: minimum.w) }
+        case "smaller-width":
+            return axis(area, cur, gap, .horizontal) { grow($0, $1, $2, $3, step, minimum: minimum.w) }
         case "smaller-height": return axis(area, cur, gap, .vertical) { grow($0, $1, $2, $3, step, minimum: minimum.h) }
         case "halve-width-left", "halve-width-right":
             let keep = name == "halve-width-left"
@@ -590,7 +620,8 @@ public enum Geometry {
     // gap at the area's edges and half the gap between neighbors. It floors like span, with a little
     // slack so a share such as 2/3 does not lose a point to float error.
     private static func fspan(_ origin: Double, _ length: Double, _ f0: Double, _ f1: Double, _ gap: Double)
-        -> (Double, Double) {
+        -> (Double, Double)
+    {
         var a = origin + floor(length * f0 + 1e-9)
         var b = origin + floor(length * f1 + 1e-9)
         let half = floor(gap / 2)

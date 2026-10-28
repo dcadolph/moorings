@@ -51,7 +51,7 @@ public final class GridPicker {
         let screens = platform.screens.current()
         let scan = platform.windows.scan(screens, full: true)
         guard let w = window.flatMap({ id in scan.windows.first { $0.id == id } }) ?? scan.focused,
-              !anchors.pinned(w), !w.isFullScreen
+            !anchors.pinned(w), !w.isFullScreen
         else {
             log("grid: no free window in front")
             return false

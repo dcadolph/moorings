@@ -115,7 +115,8 @@ public enum Layout {
     // smallest that holds an app minPoints wide, at least 1, to the most that leaves the channel at
     // minChannelPct. The floor rises to the ceiling when the app cannot fit.
     public static func widthRange(_ w: Widths, _ side: Side, minPoints: Double = 0, screenWidth: Double? = nil)
-        -> ClosedRange<Double> {
+        -> ClosedRange<Double>
+    {
         let other = side == .left ? w.right : w.left
         let hi = max(1, floor(100 - minChannelPct - other))
         var lo = 1.0
@@ -126,8 +127,10 @@ public enum Layout {
     }
 
     // clamped returns w with side set to pct, rounded to a whole percent and kept inside widthRange.
-    public static func clamped(_ w: Widths, _ side: Side, _ pct: Double, minPoints: Double = 0,
-                               screenWidth: Double? = nil) -> Widths {
+    public static func clamped(
+        _ w: Widths, _ side: Side, _ pct: Double, minPoints: Double = 0,
+        screenWidth: Double? = nil
+    ) -> Widths {
         let r = widthRange(w, side, minPoints: minPoints, screenWidth: screenWidth)
         let v = min(max(pct.rounded(), r.lowerBound), r.upperBound)
         var out = w
@@ -152,8 +155,11 @@ public enum Layout {
     // stepped returns the widths after moving side by delta, and whether they still leave a usable
     // channel and do not narrow a side an app holds wider. minPoints is the learned minimum width
     // of the side's pin, zero when none.
-    public static func stepped(_ w: Widths, _ side: Side, _ delta: Double, minPoints: Double = 0, screenWidth: Double? = nil)
-        -> (Widths, ok: Bool) {
+    public static func stepped(
+        _ w: Widths, _ side: Side, _ delta: Double, minPoints: Double = 0, screenWidth: Double? = nil
+    )
+        -> (Widths, ok: Bool)
+    {
         var out = w
         if side == .left {
             out.left += delta
@@ -174,7 +180,8 @@ public enum Layout {
     // heights returns the top row heights in effect, side by side, with a warning for each
     // configured side that is set but unusable. A saved choice wins over the config.
     public static func heights(saved: PartialHeights, config: PartialHeights, configSet: Set<Side> = [])
-        -> (Heights, warnings: [String]) {
+        -> (Heights, warnings: [String])
+    {
         var out = Heights(left: defaultTop, right: defaultTop)
         var warnings: [String] = []
         for side in [Side.left, .right] {

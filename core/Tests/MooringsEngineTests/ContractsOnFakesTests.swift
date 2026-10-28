@@ -97,7 +97,8 @@ final class StuckGrid: GridView {
 @Test func testGridContractCatchesStuck() {
     let (windows, _, host) = fakeHost()
     let failures = GridContract.run(StuckGrid(), store: windows, host: host)
-    #expect(failures.map(\.rule) == ["a second show repaints the span", "contains is true at the middle of the shown area"])
+    #expect(
+        failures.map(\.rule) == ["a second show repaints the span", "contains is true at the middle of the shown area"])
 }
 
 // The fake notifier keeps every Notifier rule.

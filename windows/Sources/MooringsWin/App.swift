@@ -51,11 +51,14 @@ final class App {
     private(set) lazy var drag = WinDrag(app: self)
     // follower follows a dragged window, shows where it will land, and runs its drop.
     private(set) lazy var follower: DragFollower = {
-        let f = DragFollower(platform: platform, anchors: anchors, preview: { [unowned self] name, w, screens, _ in
-            actions.preview(name, for: w, screens: screens)
-        }, apply: { [unowned self] name, w, screens, _ in
-            actions.apply(name, to: w, screens: screens)
-        })
+        let f = DragFollower(
+            platform: platform, anchors: anchors,
+            preview: { [unowned self] name, w, screens, _ in
+                actions.preview(name, for: w, screens: screens)
+            },
+            apply: { [unowned self] name, w, screens, _ in
+                actions.apply(name, to: w, screens: screens)
+            })
         f.appName = { Tray.appName($0) }
         f.changed = { [unowned self] in
             save()

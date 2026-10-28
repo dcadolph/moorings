@@ -258,9 +258,11 @@ public struct SnapChoices: Equatable, Sendable, Codable {
     // init decodes saved snap choices, keeping the default for anything missing or unreadable.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        landscapeSnapAreas = (try? c.decodeIfPresent([String: String].self, forKey: .landscapeSnapAreas))
+        landscapeSnapAreas =
+            (try? c.decodeIfPresent([String: String].self, forKey: .landscapeSnapAreas))
             ?? SnapChoices.defaultAreas
-        portraitSnapAreas = (try? c.decodeIfPresent([String: String].self, forKey: .portraitSnapAreas))
+        portraitSnapAreas =
+            (try? c.decodeIfPresent([String: String].self, forKey: .portraitSnapAreas))
             ?? SnapChoices.defaultAreas
         ignoredSnapAreas = (try? c.decodeIfPresent([String].self, forKey: .ignoredSnapAreas)) ?? []
         snapModifiers = (try? c.decodeIfPresent([String].self, forKey: .snapModifiers)) ?? []
@@ -357,7 +359,9 @@ public struct CustomSnapArea: Equatable, Sendable, Codable {
 // pauses. Every function is pure.
 public enum SnapPanel {
     // defaultActions lists the targets a new panel offers.
-    public static let defaultActions = ["left-half", "maximize", "right-half", "first-third", "center-third", "last-third"]
+    public static let defaultActions = [
+        "left-half", "maximize", "right-half", "first-third", "center-third", "last-third",
+    ]
     // dwellSeconds is how long the cursor must pause during a drag before the panel appears.
     public static let dwellSeconds = 0.3
     // still is the most in points the cursor may move and still count as paused.

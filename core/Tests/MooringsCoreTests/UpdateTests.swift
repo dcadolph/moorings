@@ -81,7 +81,9 @@ struct UpdateCase: Sendable, CustomTestStringConvertible {
 }
 
 // release builds a GitHub release body.
-func release(tag: String, url: String = "https://github.com/dcadolph/moorings/releases/tag/v9", extra: String = "") -> String {
+func release(tag: String, url: String = "https://github.com/dcadolph/moorings/releases/tag/v9", extra: String = "")
+    -> String
+{
     "{\"tag_name\":\"\(tag)\",\"html_url\":\"\(url)\"\(extra)}"
 }
 

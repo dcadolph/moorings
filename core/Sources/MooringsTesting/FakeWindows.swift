@@ -87,8 +87,10 @@ public final class FakeWindows: WindowStore {
     ) -> WindowID {
         let id = nextID
         nextID += 1
-        windows.insert(Window(id: id, bundle: bundle, frame: frame, isMain: isMain, minW: minW, minH: minH,
-                              insets: insets, refuses: refuses, minimized: false), at: 0)
+        windows.insert(
+            Window(
+                id: id, bundle: bundle, frame: frame, isMain: isMain, minW: minW, minH: minH,
+                insets: insets, refuses: refuses, minimized: false), at: 0)
         if focus {
             focusedID = id
         }
@@ -111,8 +113,9 @@ public final class FakeWindows: WindowStore {
         calls.append(.scan(full: full))
         let infos = windows.compactMap { w -> WindowInfo? in
             guard !w.minimized, let i = screens.index(w.frame) else { return nil }
-            return WindowInfo(id: w.id, bundle: w.bundle, frame: w.frame, onUltrawide: i == screens.ultrawide,
-                              isMain: w.isMain)
+            return WindowInfo(
+                id: w.id, bundle: w.bundle, frame: w.frame, onUltrawide: i == screens.ultrawide,
+                isMain: w.isMain)
         }
         return Scan(windows: infos, focused: infos.first { $0.id == focusedID })
     }

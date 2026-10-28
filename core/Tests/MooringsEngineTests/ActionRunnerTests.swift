@@ -25,9 +25,10 @@ final class ActionRig {
         var c = Choices(slots: [.leftTop: "com.tinyspeck.slackmacgap"])
         edit(&c)
         anchors = Anchors(choices: c)
-        let platform = Platform(windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(),
-                                clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
-                                warpCursor: { _ in })
+        let platform = Platform(
+            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(),
+            clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
+            warpCursor: { _ in })
         runner = ActionRunner(platform: platform, anchors: anchors)
         slack = windows.add(bundle: "com.tinyspeck.slackmacgap", frame: Frame(x: 1500, y: 200, w: 800, h: 600))
         free = windows.add(bundle: "com.example.pad", frame: Frame(x: 1400, y: 300, w: 900, h: 700), focus: true)
@@ -41,7 +42,8 @@ final class ActionRig {
         clock.advance(by: 1)
         let s = screens.current()
         let scan = windows.scan(s, full: true)
-        let moves = anchors.moor(Scene(screen: s.wide, windows: scan.windows, focused: scan.focused?.id, now: clock.now))
+        let moves = anchors.moor(
+            Scene(screen: s.wide, windows: scan.windows, focused: scan.focused?.id, now: clock.now))
         for m in moves where !m.exitFullScreen {
             windows.move(m.id, to: m.frame, from: nil, behavior: Behaviors())
         }
@@ -74,8 +76,11 @@ final class ActionRig {
 // Maximize on a pin lifts it, and again lowers it.
 @Test func testRunnerMaximizeLiftsPin() {
     let rig = ActionRig()
-    #expect(rig.anchors.pinned(WindowInfo(id: rig.slack, bundle: "com.tinyspeck.slackmacgap", frame: rig.frame(rig.slack),
-                                          onUltrawide: true, isMain: true)))
+    #expect(
+        rig.anchors.pinned(
+            WindowInfo(
+                id: rig.slack, bundle: "com.tinyspeck.slackmacgap", frame: rig.frame(rig.slack),
+                onUltrawide: true, isMain: true)))
     rig.focus(rig.slack)
     #expect(rig.runner.run("maximize"))
     #expect(rig.anchors.isLifted(rig.slack))
@@ -111,8 +116,10 @@ final class ActionRig {
     #expect(rig.runner.run("chain:sides"))
     #expect(rig.frame(rig.free).x == ch.x)
     #expect(rig.runner.run("chain:sides"))
-    #expect(near(Frame(x: rig.frame(rig.free).x + rig.frame(rig.free).w, y: 0, w: 0, h: 0),
-                 Frame(x: ch.x + ch.w, y: 0, w: 0, h: 0)))
+    #expect(
+        near(
+            Frame(x: rig.frame(rig.free).x + rig.frame(rig.free).w, y: 0, w: 0, h: 0),
+            Frame(x: ch.x + ch.w, y: 0, w: 0, h: 0)))
     #expect(rig.runner.run("chain:sides"))
     #expect(rig.frame(rig.free).x == ch.x)
 }
@@ -126,8 +133,9 @@ final class ActionRig {
     var c = Choices()
     c.behavior.moveCursor = true
     let anchors = Anchors(choices: c)
-    let platform = Platform(windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(), clock: clock,
-                            scheduler: FakeScheduler(clock: clock), store: FakeStore(), warpCursor: { warped.append($0) })
+    let platform = Platform(
+        windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(), clock: clock,
+        scheduler: FakeScheduler(clock: clock), store: FakeStore(), warpCursor: { warped.append($0) })
     let runner = ActionRunner(platform: platform, anchors: anchors)
     let id = windows.add(bundle: "com.example.pad", frame: Frame(x: 1400, y: 300, w: 900, h: 700), focus: true)
     #expect(runner.run("left-half"))
@@ -180,7 +188,11 @@ final class ActionRig {
     var ran: [String] = []
     #expect(!rig.runner.supports("stash"))
     #expect(rig.runner.supports("left-half"))
-    rig.runner.extra = ExtraActions(handles: { $0 == "stash" }, run: { name, _ in ran.append(name); return true })
+    rig.runner.extra = ExtraActions(
+        handles: { $0 == "stash" },
+        run: { name, _ in
+            ran.append(name); return true
+        })
     #expect(rig.runner.supports("stash"))
     #expect(rig.runner.run("stash"))
     #expect(ran == ["stash"])

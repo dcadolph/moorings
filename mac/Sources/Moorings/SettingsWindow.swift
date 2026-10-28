@@ -82,7 +82,8 @@ final class SettingsModel: ObservableObject {
     func importRectangle() {
         let source = NSAlert()
         source.messageText = "Import from Rectangle"
-        source.informativeText = "Choose a file exported from Rectangle's settings, or read the settings "
+        source.informativeText =
+            "Choose a file exported from Rectangle's settings, or read the settings "
             + "Rectangle keeps on this Mac."
         source.addButton(withTitle: "Choose Export File…")
         source.addButton(withTitle: "Use Rectangle on This Mac")

@@ -28,8 +28,9 @@ public enum WindowStoreContract {
         let target = Frame(x: area.x + 40, y: area.y + 40, w: 640, h: 420)
         subject.move(a, to: target, from: wa.frame, behavior: Behaviors())
         if !host.wait(until: host.now + 0.25, { Contract.near(subject.frame(a), target) }) {
-            fail("a move on a cooperative window reads back within 1 px inside 250 ms",
-                 "asked \(target) got \(Contract.show(subject.frame(a)))")
+            fail(
+                "a move on a cooperative window reads back within 1 px inside 250 ms",
+                "asked \(target) got \(Contract.show(subject.frame(a)))")
         }
         if let min = host.minimum {
             let tiny = Frame(x: target.x, y: target.y, w: 1, h: 1)
@@ -41,7 +42,9 @@ public enum WindowStoreContract {
             }
             let read = subject.scan(screens, full: true).windows.first { $0.id == a }?.frame
             if !Contract.near(read, got) {
-                fail("the scan reads back the size a window kept", "frame \(Contract.show(got)) scan \(Contract.show(read))")
+                fail(
+                    "the scan reads back the size a window kept",
+                    "frame \(Contract.show(got)) scan \(Contract.show(read))")
             }
             subject.move(a, to: target, from: got, behavior: Behaviors())
             _ = host.wait(until: host.now + 0.25) { Contract.near(subject.frame(a), target) }
@@ -53,8 +56,9 @@ public enum WindowStoreContract {
         _ = host.wait(until: host.now + 1) { subject.scan(screens, full: true).windows.contains { $0.id == b } }
         let pair = subject.scan(screens, full: true).windows.filter { $0.id == a || $0.id == b }
         if pair.count != 2 || pair.filter(\.isMain).count != 1 {
-            fail("a second window of the same app lists main once",
-                 "listed \(pair.count), main \(pair.filter(\.isMain).count)")
+            fail(
+                "a second window of the same app lists main once",
+                "listed \(pair.count), main \(pair.filter(\.isMain).count)")
         }
         if let r = host.openRefusing() {
             _ = host.wait(until: host.now + 1) { subject.scan(screens, full: true).windows.contains { $0.id == r } }
@@ -64,7 +68,9 @@ public enum WindowStoreContract {
                 fail("a refused move lands in refused", "refused \(subject.refused.sorted())")
             }
             if subject.frame(r) != before {
-                fail("a refused move leaves the frame", "before \(Contract.show(before)) after \(Contract.show(subject.frame(r)))")
+                fail(
+                    "a refused move leaves the frame",
+                    "before \(Contract.show(before)) after \(Contract.show(subject.frame(r)))")
             }
         }
         subject.minimize(b)

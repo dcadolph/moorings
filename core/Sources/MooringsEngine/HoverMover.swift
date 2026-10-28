@@ -62,8 +62,10 @@ public final class HoverMover {
 
     // begin starts a hover of mode at p and reads the window under p on the first tick.
     private func begin(_ mode: HoverMode, at p: Point) {
-        if let why = Hold.blocker(anchors, ready: platform.windows.ready, shortcutsOn: shortcutsOn(),
-                                  buttonDown: pointer().1) {
+        if let why = Hold.blocker(
+            anchors, ready: platform.windows.ready, shortcutsOn: shortcutsOn(),
+            buttonDown: pointer().1)
+        {
             log("hover: keys held but \(why): nothing moves")
             return
         }
@@ -77,8 +79,9 @@ public final class HoverMover {
     private func read(_ mode: HoverMode) {
         guard self.mode == mode, target == nil else { return }
         let id = hit(origin)
-        guard let w = platform.windows.scan(platform.screens.current(), full: true).windows
-            .first(where: { $0.id == id && !$0.isFilePanel }),
+        guard
+            let w = platform.windows.scan(platform.screens.current(), full: true).windows
+                .first(where: { $0.id == id && !$0.isFilePanel }),
             !anchors.pinned(w), !w.isFullScreen, !anchors.stashed.contains(w.id)
         else {
             log("hover: no free window under the pointer")

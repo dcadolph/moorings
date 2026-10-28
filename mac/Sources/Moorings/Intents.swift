@@ -50,10 +50,12 @@ struct ActionOptions: DynamicOptionsProvider {
     // results returns the action names in menu order.
     @MainActor
     func results() async throws -> [String] {
-        let fixed = ActionRunner.families.flatMap { $0.names + $0.groups.flatMap(\.names) }
+        let fixed =
+            ActionRunner.families.flatMap { $0.names + $0.groups.flatMap(\.names) }
             + Keymaps.windowNames + Keymaps.organizeNames + Keymaps.stashNames
         let choices = delegate.anchors.choices
-        let saved = choices.chains.map(\.actionName) + choices.workspaces.keys.sorted().map { Keymaps.workspacePrefix + $0 }
+        let saved =
+            choices.chains.map(\.actionName) + choices.workspaces.keys.sorted().map { Keymaps.workspacePrefix + $0 }
             + choices.profiles.map { Profile.prefix + $0.name }
         var seen = Set<String>()
         return (fixed + saved).filter { seen.insert($0).inserted }
@@ -63,7 +65,8 @@ struct ActionOptions: DynamicOptionsProvider {
 // MooringsShortcuts offers RunAction in Shortcuts and Spotlight with no setup.
 struct MooringsShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
-        AppShortcut(intent: RunAction(), phrases: ["Run an action in \(.applicationName)"],
-                    shortTitle: "Run Action", systemImageName: "macwindow")
+        AppShortcut(
+            intent: RunAction(), phrases: ["Run an action in \(.applicationName)"],
+            shortTitle: "Run Action", systemImageName: "macwindow")
     }
 }

@@ -126,7 +126,8 @@ let positionCases: [PositionCase] = [
     // Test 11: Bottom right corner, gap.
     PositionCase(name: "move-bottom-right", area: channel, cur: window, gap: 10, wantFrame: F(1806, 630, 1000, 800)),
     // Test 11: Corner, too wide.
-    PositionCase(name: "move-top-right", area: channel, cur: F(0, 0, 3000, 800), gap: 0, wantFrame: F(512, 25, 2304, 800)),
+    PositionCase(
+        name: "move-top-right", area: channel, cur: F(0, 0, 3000, 800), gap: 0, wantFrame: F(512, 25, 2304, 800)),
 ]
 
 // testPosition checks each named position against the Lua frames.
@@ -212,7 +213,8 @@ let finerCases: [PositionCase] = [
     // Test 19: top-vertical-two-thirds.
     PositionCase(name: "top-vertical-two-thirds", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 0, 1200, 533)),
     // Test 19: bottom-vertical-two-thirds.
-    PositionCase(name: "bottom-vertical-two-thirds", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 266, 1200, 534)),
+    PositionCase(
+        name: "bottom-vertical-two-thirds", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 266, 1200, 534)),
     // Test 19: top-left-twelfth.
     PositionCase(name: "top-left-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 0, 300, 266)),
     // Test 19: top-center-left-twelfth.
@@ -224,17 +226,21 @@ let finerCases: [PositionCase] = [
     // Test 19: middle-left-twelfth.
     PositionCase(name: "middle-left-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 266, 300, 267)),
     // Test 19: middle-center-left-twelfth.
-    PositionCase(name: "middle-center-left-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(300, 266, 300, 267)),
+    PositionCase(
+        name: "middle-center-left-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(300, 266, 300, 267)),
     // Test 19: middle-center-right-twelfth.
-    PositionCase(name: "middle-center-right-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(600, 266, 300, 267)),
+    PositionCase(
+        name: "middle-center-right-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(600, 266, 300, 267)),
     // Test 19: middle-right-twelfth.
     PositionCase(name: "middle-right-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(900, 266, 300, 267)),
     // Test 19: bottom-left-twelfth.
     PositionCase(name: "bottom-left-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 533, 300, 267)),
     // Test 19: bottom-center-left-twelfth.
-    PositionCase(name: "bottom-center-left-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(300, 533, 300, 267)),
+    PositionCase(
+        name: "bottom-center-left-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(300, 533, 300, 267)),
     // Test 19: bottom-center-right-twelfth.
-    PositionCase(name: "bottom-center-right-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(600, 533, 300, 267)),
+    PositionCase(
+        name: "bottom-center-right-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(600, 533, 300, 267)),
     // Test 19: bottom-right-twelfth.
     PositionCase(name: "bottom-right-twelfth", area: finerArea, cur: nil, gap: 0, wantFrame: F(900, 533, 300, 267)),
     // Test 19: top-left-sixteenth.
@@ -246,27 +252,39 @@ let finerCases: [PositionCase] = [
     // Test 19: top-right-sixteenth.
     PositionCase(name: "top-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(900, 0, 300, 200)),
     // Test 19: upper-middle-left-sixteenth.
-    PositionCase(name: "upper-middle-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 200, 300, 200)),
+    PositionCase(
+        name: "upper-middle-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 200, 300, 200)),
     // Test 19: upper-middle-center-left-sixteenth.
-    PositionCase(name: "upper-middle-center-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(300, 200, 300, 200)),
+    PositionCase(
+        name: "upper-middle-center-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(300, 200, 300, 200)),
     // Test 19: upper-middle-center-right-sixteenth.
-    PositionCase(name: "upper-middle-center-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(600, 200, 300, 200)),
+    PositionCase(
+        name: "upper-middle-center-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(600, 200, 300, 200)
+    ),
     // Test 19: upper-middle-right-sixteenth.
-    PositionCase(name: "upper-middle-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(900, 200, 300, 200)),
+    PositionCase(
+        name: "upper-middle-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(900, 200, 300, 200)),
     // Test 19: lower-middle-left-sixteenth.
-    PositionCase(name: "lower-middle-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 400, 300, 200)),
+    PositionCase(
+        name: "lower-middle-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 400, 300, 200)),
     // Test 19: lower-middle-center-left-sixteenth.
-    PositionCase(name: "lower-middle-center-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(300, 400, 300, 200)),
+    PositionCase(
+        name: "lower-middle-center-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(300, 400, 300, 200)),
     // Test 19: lower-middle-center-right-sixteenth.
-    PositionCase(name: "lower-middle-center-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(600, 400, 300, 200)),
+    PositionCase(
+        name: "lower-middle-center-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(600, 400, 300, 200)
+    ),
     // Test 19: lower-middle-right-sixteenth.
-    PositionCase(name: "lower-middle-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(900, 400, 300, 200)),
+    PositionCase(
+        name: "lower-middle-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(900, 400, 300, 200)),
     // Test 19: bottom-left-sixteenth.
     PositionCase(name: "bottom-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(0, 600, 300, 200)),
     // Test 19: bottom-center-left-sixteenth.
-    PositionCase(name: "bottom-center-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(300, 600, 300, 200)),
+    PositionCase(
+        name: "bottom-center-left-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(300, 600, 300, 200)),
     // Test 19: bottom-center-right-sixteenth.
-    PositionCase(name: "bottom-center-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(600, 600, 300, 200)),
+    PositionCase(
+        name: "bottom-center-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(600, 600, 300, 200)),
     // Test 19: bottom-right-sixteenth.
     PositionCase(name: "bottom-right-sixteenth", area: finerArea, cur: nil, gap: 0, wantFrame: F(900, 600, 300, 200)),
     // Test 19: first-vertical-sixth.
@@ -306,7 +324,8 @@ let finerCases: [PositionCase] = [
     // Test 19: top-vertical-two-thirds.
     PositionCase(name: "top-vertical-two-thirds", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 10, 1180, 518)),
     // Test 19: bottom-vertical-two-thirds.
-    PositionCase(name: "bottom-vertical-two-thirds", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 271, 1180, 519)),
+    PositionCase(
+        name: "bottom-vertical-two-thirds", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 271, 1180, 519)),
     // Test 19: top-left-twelfth.
     PositionCase(name: "top-left-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 10, 285, 251)),
     // Test 19: top-center-left-twelfth.
@@ -318,49 +337,69 @@ let finerCases: [PositionCase] = [
     // Test 19: middle-left-twelfth.
     PositionCase(name: "middle-left-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 271, 285, 257)),
     // Test 19: middle-center-left-twelfth.
-    PositionCase(name: "middle-center-left-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 271, 290, 257)),
+    PositionCase(
+        name: "middle-center-left-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 271, 290, 257)),
     // Test 19: middle-center-right-twelfth.
-    PositionCase(name: "middle-center-right-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(605, 271, 290, 257)),
+    PositionCase(
+        name: "middle-center-right-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(605, 271, 290, 257)),
     // Test 19: middle-right-twelfth.
     PositionCase(name: "middle-right-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(905, 271, 285, 257)),
     // Test 19: bottom-left-twelfth.
     PositionCase(name: "bottom-left-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 538, 285, 252)),
     // Test 19: bottom-center-left-twelfth.
-    PositionCase(name: "bottom-center-left-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 538, 290, 252)),
+    PositionCase(
+        name: "bottom-center-left-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 538, 290, 252)),
     // Test 19: bottom-center-right-twelfth.
-    PositionCase(name: "bottom-center-right-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(605, 538, 290, 252)),
+    PositionCase(
+        name: "bottom-center-right-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(605, 538, 290, 252)),
     // Test 19: bottom-right-twelfth.
     PositionCase(name: "bottom-right-twelfth", area: finerArea, cur: nil, gap: 10, wantFrame: F(905, 538, 285, 252)),
     // Test 19: top-left-sixteenth.
     PositionCase(name: "top-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 10, 285, 185)),
     // Test 19: top-center-left-sixteenth.
-    PositionCase(name: "top-center-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 10, 290, 185)),
+    PositionCase(
+        name: "top-center-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 10, 290, 185)),
     // Test 19: top-center-right-sixteenth.
-    PositionCase(name: "top-center-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(605, 10, 290, 185)),
+    PositionCase(
+        name: "top-center-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(605, 10, 290, 185)),
     // Test 19: top-right-sixteenth.
     PositionCase(name: "top-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(905, 10, 285, 185)),
     // Test 19: upper-middle-left-sixteenth.
-    PositionCase(name: "upper-middle-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 205, 285, 190)),
+    PositionCase(
+        name: "upper-middle-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 205, 285, 190)),
     // Test 19: upper-middle-center-left-sixteenth.
-    PositionCase(name: "upper-middle-center-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 205, 290, 190)),
+    PositionCase(
+        name: "upper-middle-center-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 205, 290, 190)
+    ),
     // Test 19: upper-middle-center-right-sixteenth.
-    PositionCase(name: "upper-middle-center-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(605, 205, 290, 190)),
+    PositionCase(
+        name: "upper-middle-center-right-sixteenth", area: finerArea, cur: nil, gap: 10,
+        wantFrame: F(605, 205, 290, 190)),
     // Test 19: upper-middle-right-sixteenth.
-    PositionCase(name: "upper-middle-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(905, 205, 285, 190)),
+    PositionCase(
+        name: "upper-middle-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(905, 205, 285, 190)),
     // Test 19: lower-middle-left-sixteenth.
-    PositionCase(name: "lower-middle-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 405, 285, 190)),
+    PositionCase(
+        name: "lower-middle-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 405, 285, 190)),
     // Test 19: lower-middle-center-left-sixteenth.
-    PositionCase(name: "lower-middle-center-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 405, 290, 190)),
+    PositionCase(
+        name: "lower-middle-center-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 405, 290, 190)
+    ),
     // Test 19: lower-middle-center-right-sixteenth.
-    PositionCase(name: "lower-middle-center-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(605, 405, 290, 190)),
+    PositionCase(
+        name: "lower-middle-center-right-sixteenth", area: finerArea, cur: nil, gap: 10,
+        wantFrame: F(605, 405, 290, 190)),
     // Test 19: lower-middle-right-sixteenth.
-    PositionCase(name: "lower-middle-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(905, 405, 285, 190)),
+    PositionCase(
+        name: "lower-middle-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(905, 405, 285, 190)),
     // Test 19: bottom-left-sixteenth.
     PositionCase(name: "bottom-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(10, 605, 285, 185)),
     // Test 19: bottom-center-left-sixteenth.
-    PositionCase(name: "bottom-center-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 605, 290, 185)),
+    PositionCase(
+        name: "bottom-center-left-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(305, 605, 290, 185)),
     // Test 19: bottom-center-right-sixteenth.
-    PositionCase(name: "bottom-center-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(605, 605, 290, 185)),
+    PositionCase(
+        name: "bottom-center-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(605, 605, 290, 185)),
     // Test 19: bottom-right-sixteenth.
     PositionCase(name: "bottom-right-sixteenth", area: finerArea, cur: nil, gap: 10, wantFrame: F(905, 605, 285, 185)),
 ]
@@ -560,10 +599,11 @@ func testAxisActions(test: AxisCase) {
 
 // Test 17: The grid families list every grid name once, in reading order.
 @Test func testGrids() {
-    #expect(Geometry.grids["sixths"] == [
-        "top-left-sixth", "top-center-sixth", "top-right-sixth",
-        "bottom-left-sixth", "bottom-center-sixth", "bottom-right-sixth",
-    ])
+    #expect(
+        Geometry.grids["sixths"] == [
+            "top-left-sixth", "top-center-sixth", "top-right-sixth",
+            "bottom-left-sixth", "bottom-center-sixth", "bottom-right-sixth",
+        ])
     #expect(Geometry.grids["ninths"]?.count == 9)
     #expect(Geometry.grids["eighths"]?.count == 8)
     #expect(Geometry.grids["cornerThirds"]?.count == 4)
@@ -576,10 +616,15 @@ func testAxisActions(test: AxisCase) {
 @Test func testCustomShare() {
     #expect(Geometry.custom(channel, CustomSpec(x: 0.25, w: 0.5)) == F(1088, 25, 1152, 1415))
     #expect(Geometry.custom(channel, CustomSpec()) == channel)
-    #expect(Geometry.custom(channel, CustomSpec(x: 0.5, y: 0.5, w: 0.5, h: 0.5)) == Geometry.position("bottom-right", channel))
+    #expect(
+        Geometry.custom(channel, CustomSpec(x: 0.5, y: 0.5, w: 0.5, h: 0.5))
+            == Geometry.position("bottom-right", channel))
     #expect(Geometry.custom(channel, CustomSpec(w: 0.5), gap: 10) == Geometry.position("left-half", channel, gap: 10))
-    #expect(Geometry.custom(channel, CustomSpec(x: 0.5, w: 0.5), gap: 10) == Geometry.position("right-half", channel, gap: 10))
-    #expect(Geometry.custom(channel, CustomSpec(x: 1.0 / 3, w: 2.0 / 3)) == Geometry.position("last-two-thirds", channel))
+    #expect(
+        Geometry.custom(channel, CustomSpec(x: 0.5, w: 0.5), gap: 10)
+            == Geometry.position("right-half", channel, gap: 10))
+    #expect(
+        Geometry.custom(channel, CustomSpec(x: 1.0 / 3, w: 2.0 / 3)) == Geometry.position("last-two-thirds", channel))
     #expect(Geometry.custom(channel, CustomSpec(w: 2.0 / 3)) == Geometry.position("first-two-thirds", channel))
 }
 
@@ -671,8 +716,9 @@ let fillArea = F(0, 0, 1000, 800)
 // Test: Fill left leaves the gap, and a window already touching its stop is returned unchanged.
 @Test func testFillLeftGapAndTouching() {
     let cur = F(300, 100, 200, 300)
-    #expect(Geometry.fill(cur, .left, area: fillArea, others: [F(50, 50, 100, 200)], gap: 10)
-        == F(160, 100, 340, 300))
+    #expect(
+        Geometry.fill(cur, .left, area: fillArea, others: [F(50, 50, 100, 200)], gap: 10)
+            == F(160, 100, 340, 300))
     #expect(Geometry.fill(cur, .left, area: fillArea, others: [F(100, 50, 200, 200)]) == cur)
     #expect(Geometry.fill(F(0, 100, 200, 300), .left, area: fillArea, others: []) == F(0, 100, 200, 300))
     #expect(Geometry.fill(F(5, 100, 200, 300), .left, area: fillArea, others: [], gap: 10) == F(5, 100, 200, 300))

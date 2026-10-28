@@ -61,7 +61,8 @@ final class GridPanel {
 
     // makePanel builds the grid window at rect.
     private func makePanel(_ rect: NSRect) -> NSPanel {
-        let p = NSPanel(contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        let p = NSPanel(
+            contentRect: rect, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         p.isOpaque = false
         p.backgroundColor = .clear
         p.hasShadow = false

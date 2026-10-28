@@ -78,8 +78,12 @@ public enum Stash {
     public static func edge(_ w: Frame, area: Frame, allowed: Set<StashEdge>) -> StashEdge? {
         let cx = w.x + w.w / 2
         let cy = w.y + w.h / 2
-        let distance: [StashEdge: Double] = [.left: cx - area.x, .right: area.x + area.w - cx, .bottom: area.y + area.h - cy]
-        return StashEdge.allCases.filter { allowed.contains($0) }.min { distance[$0, default: 0] < distance[$1, default: 0] }
+        let distance: [StashEdge: Double] = [
+            .left: cx - area.x, .right: area.x + area.w - cx, .bottom: area.y + area.h - cy,
+        ]
+        return StashEdge.allCases.filter { allowed.contains($0) }.min {
+            distance[$0, default: 0] < distance[$1, default: 0]
+        }
     }
 
     // shown returns w slid out against edge of area, inside area and no larger than it. A bottom
@@ -119,7 +123,8 @@ public enum Stash {
     // stash returns window w stashed at the edge of area nearest it among allowed, nil when none is
     // allowed.
     public static func stash(_ id: WindowID, _ w: Frame, area: Frame, allowed: Set<StashEdge>, span: Frame? = nil)
-        -> Stashed? {
+        -> Stashed?
+    {
         guard let edge = edge(w, area: area, allowed: allowed) else { return nil }
         let out = shown(w, edge, area: area, span: span)
         return Stashed(id: id, original: w, edge: edge, hidden: hidden(out, edge, area: area), shown: out)
@@ -148,14 +153,16 @@ public enum Stash {
     // has been off the sliver once since the stash. A slid-out
     // window slides back once the pointer leaves it by more than slack. Nothing happens while a mouse
     // button is held.
-    public static func hover(_ s: inout Stashed, _ p: Point, screen: Frame, now: Double, mouseHeld: Bool) -> StashHover {
+    public static func hover(_ s: inout Stashed, _ p: Point, screen: Frame, now: Double, mouseHeld: Bool) -> StashHover
+    {
         guard !mouseHeld else {
             s.restSince = nil
             return .none
         }
         if s.out {
             let f = s.shown
-            let inside = p.x >= f.x - slack && p.x <= f.x + f.w + slack && p.y >= f.y - slack && p.y <= f.y + f.h + slack
+            let inside =
+                p.x >= f.x - slack && p.x <= f.x + f.w + slack && p.y >= f.y - slack && p.y <= f.y + f.h + slack
             return inside ? .none : .slideBack
         }
         let r = sliverRect(s.hidden, screen: screen)

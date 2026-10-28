@@ -59,15 +59,17 @@ final class WinMouseHook {
     // install sets the hook and reports whether Windows took it.
     @discardableResult
     private func install() -> Bool {
-        hook = SetWindowsHookExW(Self.mouseLowLevel, { code, wParam, lParam in
-            if code >= 0, let info = UnsafePointer<MSLLHOOKSTRUCT>(bitPattern: Int(lParam)) {
-                WinMouseHook.delivered &+= 1
-                let p = info.pointee.pt
-                let packed = LPARAM(Int(p.x) << 32 | Int(UInt32(bitPattern: p.y)))
-                _ = PostThreadMessageW(WinMouseHook.thread, WinMouseHook.message, wParam, packed)
-            }
-            return CallNextHookEx(nil, code, wParam, lParam)
-        }, GetModuleHandleW(nil), 0)
+        hook = SetWindowsHookExW(
+            Self.mouseLowLevel,
+            { code, wParam, lParam in
+                if code >= 0, let info = UnsafePointer<MSLLHOOKSTRUCT>(bitPattern: Int(lParam)) {
+                    WinMouseHook.delivered &+= 1
+                    let p = info.pointee.pt
+                    let packed = LPARAM(Int(p.x) << 32 | Int(UInt32(bitPattern: p.y)))
+                    _ = PostThreadMessageW(WinMouseHook.thread, WinMouseHook.message, wParam, packed)
+                }
+                return CallNextHookEx(nil, code, wParam, lParam)
+            }, GetModuleHandleW(nil), 0)
         return hook != nil
     }
 
@@ -139,8 +141,11 @@ final class WinDrag {
         guard GetCursorPos(&p) else { return nil }
         let x = UInt32(UInt16(truncatingIfNeeded: p.x)), y = UInt32(UInt16(truncatingIfNeeded: p.y))
         var result: DWORD_PTR = 0
-        guard SendMessageTimeoutW(hwnd, UINT(WM_NCHITTEST), 0, LPARAM(Int32(bitPattern: x | y << 16)),
-                                  UINT(SMTO_ABORTIFHUNG), 100, &result) != 0 else { return nil }
+        guard
+            SendMessageTimeoutW(
+                hwnd, UINT(WM_NCHITTEST), 0, LPARAM(Int32(bitPattern: x | y << 16)),
+                UINT(SMTO_ABORTIFHUNG), 100, &result) != 0
+        else { return nil }
         return result
     }
 
@@ -169,8 +174,10 @@ final class WinDrag {
 
     // held returns the names of the snap modifiers held now, the Windows key standing for command.
     static func held() -> Set<String> {
-        let keys: [(Int32, String)] = [(0x10, "shift"), (0x11, "control"), (alt, "option"), (0x5B, "command"),
-                                       (0x5C, "command")]
+        let keys: [(Int32, String)] = [
+            (0x10, "shift"), (0x11, "control"), (alt, "option"), (0x5B, "command"),
+            (0x5C, "command"),
+        ]
         return Set(keys.filter { down($0.0) }.map(\.1))
     }
 }

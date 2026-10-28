@@ -180,7 +180,8 @@ public enum RectangleImport {
         for (key, value) in domain {
             if let dict = value as? [String: Any] {
                 guard let code = (dict["keyCode"] as? NSNumber)?.intValue,
-                      let flags = (dict["modifierFlags"] as? NSNumber)?.uintValue else { continue }
+                    let flags = (dict["modifierFlags"] as? NSNumber)?.uintValue
+                else { continue }
                 shortcuts[key] = (code, flags)
             } else if let v = liveValue(value) {
                 defaults[key] = v
@@ -200,21 +201,21 @@ public enum RectangleImport {
     private static func liveValue(_ value: Any) -> RectangleValue? {
         if let s = value as? String { return .string(s) }
         #if canImport(Darwin)
-        guard let n = value as? NSNumber else { return nil }
-        if CFGetTypeID(n) == CFBooleanGetTypeID() { return .bool(n.boolValue) }
-        switch String(cString: n.objCType) {
-        case "f": return .float(n.floatValue)
-        case "d": return .double(n.doubleValue)
-        default: return .int(n.intValue)
-        }
+            guard let n = value as? NSNumber else { return nil }
+            if CFGetTypeID(n) == CFBooleanGetTypeID() { return .bool(n.boolValue) }
+            switch String(cString: n.objCType) {
+            case "f": return .float(n.floatValue)
+            case "d": return .double(n.doubleValue)
+            default: return .int(n.intValue)
+            }
         #else
-        switch value {
-        case let b as Bool: return .bool(b)
-        case let f as Float: return .float(f)
-        case let d as Double: return .double(d)
-        case let i as Int: return .int(i)
-        default: return nil
-        }
+            switch value {
+            case let b as Bool: return .bool(b)
+            case let f as Float: return .float(f)
+            case let d as Double: return .double(d)
+            case let i as Int: return .int(i)
+            default: return nil
+            }
         #endif
     }
 
@@ -278,8 +279,9 @@ public enum RectangleImport {
             }
             if s.keyCode < 0 { continue }
             guard let key = keyNames[s.keyCode] else {
-                warnings.append("Rectangle shortcut for \(rectangle) uses key code \(s.keyCode), which moorings "
-                    + "cannot bind, and was skipped.")
+                warnings.append(
+                    "Rectangle shortcut for \(rectangle) uses key code \(s.keyCode), which moorings "
+                        + "cannot bind, and was skipped.")
                 continue
             }
             if aliases[rectangle] != nil, let primary = shortcuts[primaryName(of: name)], primary.keyCode >= 0 {

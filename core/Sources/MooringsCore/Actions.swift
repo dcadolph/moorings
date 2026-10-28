@@ -100,7 +100,7 @@ public enum Actions {
     // matches asked or stopped above it on the way down, with at least one axis stopped above.
     public static func keptMinimum(start: Frame, asked: Frame, got: Frame, tolerance: Double = tolerance) -> Bool {
         guard abs(got.x - asked.x) <= tolerance, abs(got.y - asked.y) <= tolerance,
-              abs(got.w - start.w) > tolerance || abs(got.h - start.h) > tolerance
+            abs(got.w - start.w) > tolerance || abs(got.h - start.h) > tolerance
         else { return false }
         let axes = [(start.w, asked.w, got.w), (start.h, asked.h, got.h)]
         var above = false
@@ -153,8 +153,9 @@ public enum Actions {
         if !side {
             b.alwaysAccountForStage = false
         }
-        return Behavior.effectiveArea(a, b, isMain: i == 0, isMaximize: maximize, hasNotch: target.notched.contains(i),
-                                      stageActive: target.staged.contains(i) && side, stageOnRight: target.stageOnRight)
+        return Behavior.effectiveArea(
+            a, b, isMain: i == 0, isMaximize: maximize, hasNotch: target.notched.contains(i),
+            stageActive: target.staged.contains(i) && side, stageOnRight: target.stageOnRight)
     }
 
     // frame returns the frame action name gives a window at cur, the press count for a cycling
@@ -229,7 +230,9 @@ public enum Actions {
             return (Geometry.cycle(name, 1, there, cur, gap: gap), press, name)
         case .cycleQuadrant:
             let start = quadrants.firstIndex(of: name) ?? 0
-            return (Geometry.position(quadrants[(start + press - 1) % quadrants.count], area, cur, gap: gap), press, name)
+            return (
+                Geometry.position(quadrants[(start + press - 1) % quadrants.count], area, cur, gap: gap), press, name
+            )
         case .switchSide:
             let other = opposites[name] ?? name
             return (keep(Geometry.cycle(other, 1, area, cur, gap: gap), other), 1, other)
