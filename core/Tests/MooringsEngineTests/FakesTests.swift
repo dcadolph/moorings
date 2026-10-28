@@ -127,9 +127,9 @@ func near(_ a: Frame?, _ b: Frame?) -> Bool {
     var c = Choices()
     c.paused = true
     let store = FakeStore()
-    #expect(store.load() == Choices())
+    #expect(store.load() == Loaded(choices: Choices()))
     try store.save(c)
-    #expect(store.load() == c)
+    #expect(store.load() == Loaded(choices: c))
     store.failing = true
     #expect(throws: FakeStore.FakeError.self) { try store.save(Choices()) }
     #expect(store.saves == 1)
@@ -143,7 +143,7 @@ func near(_ a: Frame?, _ b: Frame?) -> Bool {
     c.gapPx = 9
     store.rewrite(c)
     #expect(store.changed())
-    #expect(store.load() == c)
+    #expect(store.load() == Loaded(choices: c))
     #expect(!store.changed())
     store.rewrite(Choices())
     try store.save(c)

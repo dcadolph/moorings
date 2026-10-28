@@ -32,6 +32,7 @@ func probeContracts(_ opts: ProbeOptions) -> Int32 {
     host.choices = file
     failures += ChoicesStoreContract.run(Store(url: file), host: host)
     try? FileManager.default.removeItem(at: file)
+    try? FileManager.default.removeItem(at: Store(url: file).aside)
     failures += ClockContract.run(WinClock(), host: host)
     failures += AppsContract.run(WinApps(), store: windows, host: host)
     failures += modifiersTable()
@@ -80,7 +81,8 @@ final class WinHost: ContractHost {
     var timers: (UINT_PTR) -> Bool = { _ in false }
     // hotkey is handed each WM_HOTKEY this thread receives while waiting.
     var hotkey: (WPARAM) -> Void = { _ in }
-    // choices is the choices file touchChoices rewrites, nil when the host has none.
+    // choices is the choices file touchChoices rewrites and spoilChoices writes, nil when the host has
+    // none.
     var choices: URL?
     // modifierKeys pairs each modifier with the virtual key press holds for it, Command as the left
     // Windows key.
@@ -176,6 +178,17 @@ final class WinHost: ContractHost {
         let file = Store(url: choices)
         guard let time = file.writeTime() else { return false }
         return file.setWriteTime(time + 10_000_000)
+    }
+
+    // spoilChoices writes payload over the choices file, as a damaged disk or a hand edit would.
+    func spoilChoices(_ payload: Data) -> Bool {
+        guard let choices else { return false }
+        return (try? payload.write(to: choices)) != nil
+    }
+
+    // choicesAside reads the file the store moved aside, nil when there is none.
+    func choicesAside() -> Data? {
+        choices.flatMap { try? Data(contentsOf: Store(url: $0).aside) }
     }
 
     // wait pumps this thread's messages, handing its thread timers to timers, until done or the

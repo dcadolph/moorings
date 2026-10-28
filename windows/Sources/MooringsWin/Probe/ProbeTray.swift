@@ -24,9 +24,9 @@ func probeTray(_ opts: ProbeOptions) -> Int32 {
     print("icon: \(Tray.loadIcon() == nil ? "none" : "loaded")")
     print("added: \(tray.show())")
     tray.perform(.slot(.leftTop, pad.bundle))
-    print("saved left top: \(store.load().slots[.leftTop] ?? "")")
+    print("saved left top: \(store.load().choices.slots[.leftTop] ?? "")")
     tray.perform(.pause)
-    print("saved paused: \(store.load().paused)")
+    print("saved paused: \(store.load().choices.paused)")
     tray.hide()
     return 0
 }

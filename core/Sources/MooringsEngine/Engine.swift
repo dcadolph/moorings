@@ -109,6 +109,9 @@ public final class Engine {
     public let throwViews: ThrowViews
     // wasReady is whether the window store could act at the last look, to catch a grant or a loss.
     private var wasReady: Bool
+    // fallback is why the choices init loaded are the defaults, nil when they are the saved ones;
+    // start logs it once.
+    private var fallback: String?
 
     // actions applies window actions to the focused window.
     public private(set) lazy var actions = ActionRunner(engine: self, platform: platform, anchors: anchors)
@@ -150,7 +153,9 @@ public final class Engine {
         self.features = features
         self.platformActions = platformActions
         self.throwViews = throwViews ?? ThrowViews(footprint: platform.overlay, grid: platform.grid)
-        anchors = Anchors(choices: platform.store.load())
+        let loaded = platform.store.load()
+        anchors = Anchors(choices: loaded.choices)
+        fallback = loaded.fallback
         wasReady = platform.windows.ready
         _ = actions
         _ = organizer
@@ -169,6 +174,10 @@ public final class Engine {
     // starts the badge when it is on, and runs the first pass. The roots call it once; the probes do
     // not.
     public func start() {
+        if let fallback {
+            platform.log.note(.choices, "choices fell back to the defaults: \(fallback)")
+            self.fallback = nil
+        }
         anchors.launch(now: platform.clock.now)
         wasReady = platform.windows.ready
         if wasReady {
@@ -221,9 +230,14 @@ public final class Engine {
         settle()
     }
 
-    // load re-reads the choices from the store and logs that it did.
+    // load re-reads the choices from the store and logs that it did, and why when they fell back to
+    // the defaults.
     private func load() {
-        anchors.choices = platform.store.load()
+        let loaded = platform.store.load()
+        anchors.choices = loaded.choices
+        if let fallback = loaded.fallback {
+            platform.log.note(.choices, "choices fell back to the defaults: \(fallback)")
+        }
         platform.log.note(.choices, "choices reloaded")
     }
 

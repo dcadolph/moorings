@@ -25,10 +25,29 @@ final class Store: ChoicesStore {
         self.url = url
     }
 
-    // load returns the saved choices, or the defaults when there is no readable file.
-    func load() -> Choices {
-        stamp = writeTime()
-        return Choices.decode((try? Data(contentsOf: url)) ?? Data())
+    // aside is where load moves a choices file it cannot read: choices.json.bad beside it.
+    var aside: URL { url.appendingPathExtension("bad") }
+
+    // load returns the saved choices, or the defaults when there is no file. A file it cannot read
+    // moves to aside, replacing an older one there, and loads as the defaults with the reason.
+    func load() -> Loaded {
+        defer { stamp = writeTime() }
+        guard FileManager.default.fileExists(atPath: url.path) else { return Loaded(choices: Choices()) }
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            return Loaded(choices: Choices(), fallback: "choices.json not read: \(error)")
+        }
+        let loaded = Choices.decode(data)
+        guard let reason = loaded.fallback else { return loaded }
+        do {
+            try? FileManager.default.removeItem(at: aside)
+            try FileManager.default.moveItem(at: url, to: aside)
+        } catch {
+            return Loaded(choices: loaded.choices, fallback: "\(reason), and it stayed in place: \(error)")
+        }
+        return loaded
     }
 
     // changed reports whether the file's last write time differs from the one kept.

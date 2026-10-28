@@ -10,7 +10,7 @@ import MooringsTesting
 func probeMenu(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
     let running = opts.noApps ? [] : WinWindows.scan(screens: screens).windows.map(\.bundle)
-    printMenu(Tray.menu(choices: Store().load(), running: running, atLogin: LoginItem.enabled))
+    printMenu(Tray.menu(choices: Store().load().choices, running: running, atLogin: LoginItem.enabled))
     return 0
 }
 

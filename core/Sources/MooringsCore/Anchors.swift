@@ -248,9 +248,44 @@ public struct Choices: Equatable, Sendable, Codable {
         return try encoder.encode(choices)
     }
 
-    // decode returns saved choices, or the defaults when data is not readable.
-    public static func decode(_ data: Data) -> Choices {
-        (try? JSONDecoder().decode(Choices.self, from: data)) ?? Choices()
+    // decode returns saved choices, or the defaults with the reason when data is empty or not
+    // readable. A field that cannot be read takes its default and the rest still load, so a field
+    // from a newer or older version never costs the others.
+    public static func decode(_ data: Data) -> Loaded {
+        guard !data.isEmpty else {
+            return Loaded(choices: Choices(), fallback: "the saved choices are empty")
+        }
+        do {
+            return Loaded(choices: try JSONDecoder().decode(Choices.self, from: data))
+        } catch {
+            return Loaded(choices: Choices(), fallback: "the saved choices are not readable: \(reason(error))")
+        }
+    }
+
+    // reason writes a decoding error as its one-line description.
+    private static func reason(_ error: Error) -> String {
+        switch error {
+        case DecodingError.dataCorrupted(let c), DecodingError.typeMismatch(_, let c),
+            DecodingError.valueNotFound(_, let c), DecodingError.keyNotFound(_, let c):
+            return c.debugDescription
+        default:
+            return "\(error)"
+        }
+    }
+}
+
+// Loaded is what a store read: the choices, and why they are the defaults when the saved ones could
+// not be read.
+public struct Loaded: Equatable, Sendable {
+    // choices is what loaded, the defaults after a fallback.
+    public var choices: Choices
+    // fallback says why the saved choices were not used, nil when they were or none were saved.
+    public var fallback: String?
+
+    // init builds a load result.
+    public init(choices: Choices, fallback: String? = nil) {
+        self.choices = choices
+        self.fallback = fallback
     }
 }
 
