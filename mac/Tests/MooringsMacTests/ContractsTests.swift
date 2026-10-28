@@ -21,6 +21,8 @@ final class MacHost: @preconcurrency ContractHost {
     private var files: [URL] = []
     // opened lists the windows the host opened.
     private var opened: [WindowID] = []
+    // defaults is the store spoilChoices writes under, nil when the host spoils none.
+    var defaults: DefaultsStore?
 
     // init builds a host whose windows store reads.
     init(store: Windows) {
@@ -100,6 +102,18 @@ final class MacHost: @preconcurrency ContractHost {
         }
         files = []
     }
+
+    // spoilChoices writes payload under the defaults store's key, when the host has one.
+    func spoilChoices(_ payload: Data) -> Bool {
+        guard let defaults else { return false }
+        UserDefaults.standard.set(payload, forKey: defaults.key)
+        return true
+    }
+
+    // choicesAside reads what the defaults store moved aside, when the host has one.
+    func choicesAside() -> Data? {
+        defaults.flatMap { UserDefaults.standard.data(forKey: $0.asideKey) }
+    }
 }
 
 // The Mac adapters keep every contract rule. Without Accessibility access the suite prints why and
@@ -126,21 +140,24 @@ final class MacHost: @preconcurrency ContractHost {
     failures += TimersContract.run(MacTimers(), clock: MacClock(), host: host)
     failures += EventSourceContract.run(MacEvents(store: store), store: store, host: host)
     failures += ScreenSourceContract.run(MacScreens(), host: host)
-    let key = "moorings.contract.\(UUID().uuidString)"
-    failures += ChoicesStoreContract.run(DefaultsStore(key: key) { _ in }, host: host)
-    UserDefaults.standard.removeObject(forKey: key)
     failures += ClockContract.run(MacClock(), host: host)
     failures += AppsContract.run(MacApps(), store: store, host: host)
-    print("Mac contracts: 15 suites, \(failures.count) failures")
+    print("Mac contracts: 14 suites, \(failures.count) failures")
     #expect(failures.isEmpty, "\(failures)")
 }
 
 // The Mac adapters that need no Accessibility and open no window keep their rules: the log, the
-// timers, and the apps' refusal of a bundle that does not exist.
+// timers, the choices under a throwaway defaults key, and the apps' refusal of a bundle that does not
+// exist.
 @Test @MainActor func testMacPureAdapters() {
     let host = MacHost(store: Windows())
     var failures = LogContract.run(MacLog(), host: host)
     failures += TimersContract.run(MacTimers(), clock: MacClock(), host: host)
+    let defaults = DefaultsStore(key: "moorings.contract.\(UUID().uuidString)") { _ in }
+    host.defaults = defaults
+    failures += ChoicesStoreContract.run(defaults, host: host)
+    UserDefaults.standard.removeObject(forKey: defaults.key)
+    UserDefaults.standard.removeObject(forKey: defaults.asideKey)
     #expect(failures.isEmpty, "\(failures)")
     #expect(!MacApps().open("com.example.moorings.no-such-app", background: true, target: nil))
     #expect(MacLog.name(.passes) == "anchors")

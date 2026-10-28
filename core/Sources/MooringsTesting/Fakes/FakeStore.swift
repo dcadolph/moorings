@@ -1,3 +1,5 @@
+import Foundation
+
 import MooringsCore
 import MooringsEngine
 
@@ -16,16 +18,31 @@ public final class FakeStore: ChoicesStore {
     private let initial: Choices
     // moved reports whether the choices were rewritten from outside since the last load or save.
     private var moved = false
+    // spoiled is a payload put in the store from outside, read at the next load.
+    private var spoiled: Data?
+    // aside is the payload a load moved aside because it could not be read, nil when none was.
+    public private(set) var aside: Data?
 
     // init builds a store that loads initial until something is saved.
     public init(_ initial: Choices = Choices()) {
         self.initial = initial
     }
 
-    // load returns the last saved choices, or the initial ones.
-    public func load() -> Choices {
+    // load returns the last saved choices, or the initial ones. A spoiled payload that decodes
+    // becomes the saved choices; one that does not moves aside and loads the defaults.
+    public func load() -> Loaded {
         moved = false
-        return saved ?? initial
+        if let raw = spoiled {
+            spoiled = nil
+            let loaded = Choices.decode(raw)
+            if loaded.fallback == nil {
+                saved = loaded.choices
+            } else {
+                aside = raw
+            }
+            return loaded
+        }
+        return Loaded(choices: saved ?? initial)
     }
 
     // save keeps choices, or throws when failing is set.
@@ -36,6 +53,7 @@ public final class FakeStore: ChoicesStore {
         saved = choices
         saves += 1
         moved = false
+        spoiled = nil
     }
 
     // changed reports whether rewrite ran since the last load or save.
@@ -46,6 +64,14 @@ public final class FakeStore: ChoicesStore {
     // rewrite puts choices in the store as another program writing the file would.
     public func rewrite(_ choices: Choices) {
         saved = choices
+        spoiled = nil
+        moved = true
+    }
+
+    // spoil puts payload in the store as the saved choices, as a damaged disk or a hand edit would.
+    public func spoil(_ payload: Data) {
+        saved = nil
+        spoiled = payload
         moved = true
     }
 }

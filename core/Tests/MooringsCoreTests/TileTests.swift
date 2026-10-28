@@ -319,8 +319,8 @@ func testTilingLayout(test: TilingCase) {
         try d.decode(TilingChoices.self, from: Data(#"{"mode":"bsp","ratio":5}"#.utf8))
             == TilingChoices(mode: .bsp, ratio: 0.8))
     #expect(try d.decode(TilingChoices.self, from: Data(#"{"mode":"spiral"}"#.utf8)).mode == .off)
-    #expect(Choices.decode(Data(#"{"gapPx":4}"#.utf8)).tiling == TilingChoices())
+    #expect(Choices.decode(Data(#"{"gapPx":4}"#.utf8)).choices.tiling == TilingChoices())
     var c = Choices()
     c.tiling = TilingChoices(mode: .wide, ratio: 0.3)
-    #expect(Choices.decode(try Choices.encode(c)).tiling == c.tiling)
+    #expect(Choices.decode(try Choices.encode(c)).choices.tiling == c.tiling)
 }

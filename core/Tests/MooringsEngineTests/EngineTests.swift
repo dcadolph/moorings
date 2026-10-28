@@ -1,3 +1,5 @@
+import Foundation
+
 import MooringsCore
 import MooringsEngine
 import MooringsTesting
@@ -290,4 +292,32 @@ final class EngineRig {
     #expect(noticed == [.moved(999)])
     #expect(passes == 1)
     #expect(rig.windows.calls.dropFirst(from).first == .scan(full: false))
+}
+
+// Test 15: A store whose saved choices cannot be read starts the engine on the defaults and logs why
+// under .choices, once.
+@Test func testEngineLogsChoicesFallback() {
+    let store = FakeStore()
+    store.spoil(Data(#"{"gapPx":"#.utf8))
+    let log = FakeLog()
+    let windows = FakeWindows()
+    let engine = newTestEngine(
+        newTestPlatform(
+            windows: windows, screens: FakeScreens.ultrawide(), clock: FakeClock(100), store: store, log: log))
+    engine.start()
+    let lines = log.lines.filter { $0.category == .choices }.map(\.text)
+    #expect(lines.filter { $0.hasPrefix("choices fell back to the defaults: ") }.count == 1, "\(lines)")
+    #expect(engine.anchors.choices == Choices())
+    #expect(store.aside != nil)
+}
+
+// Test 16: Negative control: a store that reads its saved choices logs no fallback.
+@Test func testEngineLogsNoFallbackForGoodChoices() {
+    let log = FakeLog()
+    let engine = newTestEngine(
+        newTestPlatform(
+            windows: FakeWindows(), screens: FakeScreens.ultrawide(), clock: FakeClock(100), store: FakeStore(),
+            log: log))
+    engine.start()
+    #expect(!log.lines.contains { $0.text.hasPrefix("choices fell back") })
 }

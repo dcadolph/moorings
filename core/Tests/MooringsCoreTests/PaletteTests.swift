@@ -68,7 +68,7 @@ private func palette(_ hexes: String...) -> Palette {
     let saved = try JSONSerialization.jsonObject(with: try Choices.encode(c)) as! [String: Any]
     var old = saved
     old["theme"] = "rose"
-    let got = Choices.decode(try JSONSerialization.data(withJSONObject: old))
+    let got = Choices.decode(try JSONSerialization.data(withJSONObject: old)).choices
     #expect(got.paused)
     #expect(got.gapPx == 6)
     #expect(got == c)
