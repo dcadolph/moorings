@@ -224,8 +224,8 @@ jobs:
           $tn = At $run.Nudge
           $padId = [regex]::Match($run.Nudge, 'nudged (0x[0-9a-f]+)').Groups[1].Value
           if (-not $padId) { throw "no window id in the nudge line" }
-          $moved = @($e -match "^event locationChange $padId at " | Where-Object { (At $_) -ge $tn })
-          if ($moved.Count -eq 0) { throw "no location change event for the nudged Notepad" }
+          $moved = @($e -match "^event moved $padId at " | Where-Object { (At $_) -ge $tn })
+          if ($moved.Count -eq 0) { throw "no moved event for the nudged Notepad" }
           $events = @($e -match '^event ')
           function Cause([double] $at) { @($events | Where-Object { (At $_) -le $at }) | Select-Object -Last 1 }
           $passes = @($e -match '^pass at ' | ForEach-Object { At $_ })
@@ -236,7 +236,7 @@ jobs:
             if ($null -eq $cause) { $_ -gt $t0 + 1.5 } else { $_ - (At $cause) -gt 1 }
           })
           if ($idle.Count -ne 0) { throw "$($idle.Count) passes ran more than 1 s after the last window event" }
-          Write-Host "  check: $($moved.Count) location events and $($forMove.Count) passes for one move, none at rest"
+          Write-Host "  check: $($moved.Count) moved events and $($forMove.Count) passes for one move, none at rest"
 
           Write-Host "probe events --no-filter"
           $raw = Events 'events-raw' @('--no-filter') '250,180,500,350'

@@ -193,3 +193,101 @@ final class EngineRig {
     rig.engine.moor()
     #expect(rig.windows.calls.dropFirst(from).first == .scan(full: true))
 }
+
+// Test 10: A grant between passes starts the events once and says Moorings is ready.
+@Test func testEngineGrantStartsEvents() {
+    let windows = FakeWindows()
+    windows.ready = false
+    let notifier = FakeNotifier()
+    let platform = newTestPlatform(
+        windows: windows, screens: FakeScreens.ultrawide(), clock: FakeClock(), notifier: notifier)
+    let engine = newTestEngine(platform)
+    let events = platform.events as! FakeEvents
+    engine.moor()
+    #expect(events.started == 0)
+    windows.ready = true
+    engine.moor()
+    engine.moor()
+    #expect(events.started == 1)
+    #expect(notifier.notes.map(\.title) == ["Moorings is ready"])
+    windows.ready = false
+    engine.moor()
+    #expect(events.stopped == 1)
+}
+
+// Test 11: Negative control: a store that could act all along starts nothing and says nothing.
+@Test func testEngineSteadyReadyStartsNothing() {
+    let notifier = FakeNotifier()
+    let platform = newTestPlatform(
+        windows: FakeWindows(), screens: FakeScreens.ultrawide(), clock: FakeClock(), notifier: notifier)
+    let engine = newTestEngine(platform)
+    let events = platform.events as! FakeEvents
+    for _ in 0..<3 {
+        engine.moor()
+    }
+    #expect(events.started == 0)
+    #expect(events.stopped == 0)
+    #expect(notifier.notes.isEmpty)
+}
+
+// Test 12: Choices another program wrote are read before the next pass and their shortcuts bound,
+// once; a store that did not change reloads nothing.
+@Test func testEngineReloadsChangedStore() {
+    let store = FakeStore()
+    let keys = FakeKeys()
+    let log = FakeLog()
+    let engine = newTestEngine(
+        newTestPlatform(
+            windows: FakeWindows(), screens: FakeScreens.ultrawide(), clock: FakeClock(), store: store, keys: keys,
+            log: log))
+    let reloads = { log.lines.filter { $0.category == .choices && $0.text == "choices reloaded" }.count }
+    engine.moor()
+    #expect(reloads() == 0)
+    var c = Choices()
+    c.gapPx = 14
+    c.shortcuts["left-half"] = nil
+    store.rewrite(c)
+    engine.moor()
+    #expect(engine.anchors.choices == c)
+    #expect(keys.bound == Bindings(c).map.filter { engine.actions.supports($0.key) })
+    #expect(reloads() == 1)
+    engine.moor()
+    #expect(reloads() == 1)
+}
+
+// Test 13: An app launch makes the scans read every app for Pace.launchSeconds, past the settle.
+@Test func testEngineLaunchReadsEveryApp() {
+    let rig = EngineRig(features: .all)
+    rig.engine.start()
+    rig.clock.advance(by: Pace.settleSeconds + 1)
+    rig.windows.onEvent?(.appLaunched("com.example.new"))
+    rig.clock.advance(by: Pace.settleSeconds + 1)
+    rig.engine.passes.stop()
+    var from = rig.windows.calls.count
+    rig.engine.moor()
+    #expect(rig.windows.calls.dropFirst(from).first == .scan(full: true))
+    rig.clock.advance(by: Pace.launchSeconds)
+    rig.engine.passes.stop()
+    from = rig.windows.calls.count
+    rig.engine.moor()
+    #expect(rig.windows.calls.dropFirst(from).first == .scan(full: false))
+}
+
+// Test 14: Negative control: a move of a window no pass listed, after the windows settled, wakes
+// exactly one narrow pass.
+@Test func testEngineUnknownMoveWakesOnePass() {
+    let rig = EngineRig(features: .all)
+    rig.engine.start()
+    rig.clock.advance(by: Pace.settleSeconds + 1)
+    #expect(rig.engine.passes.due == nil)
+    var passes = 0
+    rig.engine.observers.passed = { _, _ in passes += 1 }
+    var noticed: [WindowEvent] = []
+    rig.engine.observers.noticed = { e, _ in noticed.append(e) }
+    let from = rig.windows.calls.count
+    rig.windows.onEvent?(.moved(999))
+    rig.clock.advance(by: Pace.settleSeconds + 1)
+    #expect(noticed == [.moved(999)])
+    #expect(passes == 1)
+    #expect(rig.windows.calls.dropFirst(from).first == .scan(full: false))
+}

@@ -21,13 +21,9 @@ final class App {
     let store: Store
     // minAspect is the ratio a monitor needs to count as ultrawide. Only probes change it.
     let minAspect: Double
-    // noticed is told each window event that wakes the passes, the window, and the time.
-    var noticed: (WinEvent, WindowID, Double) -> Void = { _, _, _ in }
     // notify shows a banner with a title and a body. It does nothing until the app wires the
     // banner, so probes print none.
     var notify: (String, String) -> Void = { _, _ in }
-    // reloads counts the times the choices were re-read because the file changed.
-    private(set) var reloads = 0
     // hotkeys delivers the shortcuts bound for the actions.
     private(set) lazy var hotkeys = WinHotkeys { [unowned self] name in self.engine.actions.run(name) }
     // keys spells the shortcuts and grabs the keys a hold takes.
@@ -38,34 +34,31 @@ final class App {
     private(set) lazy var drag = WinDrag(app: self)
     // footprint shows where a dragged window will land.
     let footprint = WinFootprint()
+    // screens reads the attached monitors.
+    private(set) lazy var screens = WinScreens(minAspect: minAspect)
+    // events delivers the window events and hands a move or size by a window's frame to the drag.
+    private(set) lazy var events: WinEvents = {
+        let e = WinEvents(screens: screens)
+        e.dragBegan = { [unowned self] in drag.began($0) }
+        e.dragEnded = { [unowned self] in drag.ended() }
+        return e
+    }()
     // engine builds and runs every engine object on the Windows platform, with none of the routed
-    // actions yet. Until the event source goes live, prepare re-reads a choices file another program
-    // changed and keeps the displays the describe filter reads.
+    // actions yet.
     private(set) lazy var engine: Engine = {
         let e = Engine(platform: platform, features: [])
-        e.passes.prepare = { [unowned self] in
-            screens = platform.screens.current()
-            if store.changed() {
-                reloads += 1
-                engine.reload()
-            }
-        }
         e.passes.tellsRefused = true
         return e
     }()
     // platform is what the engine reads and drives on Windows.
     private(set) lazy var platform = Platform(
-        windows: windows, screens: WinScreens(minAspect: minAspect), overlay: footprint,
+        windows: windows, screens: screens, overlay: footprint,
         notifier: WinNotifier { [unowned self] in self.notify($0, $1) }, clock: WinClock(), store: store,
-        pointer: pointer, keys: keys, apps: apps, log: log, timers: timers, events: WinEvents(), grid: WinNoGrid(),
+        pointer: pointer, keys: keys, apps: apps, log: log, timers: timers, events: events, grid: WinNoGrid(),
         badge: WinNoBadge()
     )
     // hooksMouse is false only in the drag probe's negative control, which runs without the hook.
     var hooksMouse = true
-    // watcher delivers the window events.
-    private(set) lazy var watcher = WinWatcher { [unowned self] kind, hwnd in self.event(kind, hwnd) }
-    // screens are the displays the last pass read.
-    private var screens: Screens?
 
     // init builds the app on store, whose choices the engine loads.
     init(store: Store, minAspect: Double = Layout.minAspect) {
@@ -76,32 +69,11 @@ final class App {
     // now is the time in seconds since the system started, the same clock in every process.
     static var now: Double { Double(GetTickCount64()) / 1000 }
 
-    // event wakes the passes for a window event a pass acts on. A move or birth of a window no scan
-    // keeps changes nothing a pass decides, so it is dropped. Moving or sizing a window by its frame
-    // counts as the mouse button held until it ends, through the drag follower.
-    private func event(_ kind: WinEvent, _ hwnd: HWND) {
-        switch kind {
-        case .moveSizeStart:
-            drag.began(hwnd)
-        case .moveSizeEnd:
-            drag.ended()
-        default:
-            break
-        }
-        let id = WinWindows.id(hwnd)
-        if kind.geometry, !engine.passes.lastRead.contains(id) {
-            let screens = screens ?? Screens.current(minAspect: minAspect)
-            guard WinWindows.describe(hwnd, screens: screens) != nil else { return }
-        }
-        noticed(kind, id, Self.now)
-        engine.wake()
-    }
-
     // run watches window events, pumps messages and runs passes until until, or until WM_QUIT when
     // until is nil.
     func run(until: Double? = nil) {
         let stop = until.map { SetTimer(nil, 0, Self.millis($0 - Self.now), nil) } ?? 0
-        watcher.start()
+        engine.listen()
         if hooksMouse {
             mouse.handler = { [unowned self] message, p in
                 if message == UINT(WM_MOUSEMOVE) {
@@ -112,7 +84,7 @@ final class App {
         }
         defer {
             mouse.stop()
-            watcher.stop()
+            events.stop()
             if stop != 0 {
                 _ = KillTimer(nil, stop)
             }

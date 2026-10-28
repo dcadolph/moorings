@@ -1,31 +1,10 @@
 import MooringsCore
 
-// PassContext is what a platform adds to a pass beyond the windows.
-public struct PassContext: Sendable {
-    // waiting reports whether an observer the platform set is still waiting on an app, which reads
-    // every app and keeps the passes coming.
-    public var waiting: Bool
-    // launching is when the passes stop looking for the first window of an app that just launched.
-    public var launching: Double
-
-    // init builds a context; the defaults wait on nothing.
-    public init(waiting: Bool = false, launching: Double = -Double.infinity) {
-        self.waiting = waiting
-        self.launching = launching
-    }
-}
-
 // PassLoop runs the passes: each reads the windows, asks Anchors where they belong, moves them,
 // reads them back, tells the owner about released pins and refused windows, and sets the next pass
 // through the platform's Scheduler. Passes run every Pace.pollSeconds while windows change, and
 // stop once three reads in a row find nothing new until an event wakes them.
 public final class PassLoop {
-    // context returns the platform's part of the next pass.
-    public var context: () -> PassContext = { PassContext() }
-    // ticked runs before each pass the timer starts, so the platform can catch a change of grant.
-    public var ticked: () -> Void = {}
-    // prepare runs before each pass the store is ready for.
-    public var prepare: () -> Void = {}
     // greenButton reports whether a released pin goes back with a click on its green button.
     public var greenButton = false
     // tellsRefused reports whether a refused window gets a banner: on Windows a refusal means the
@@ -41,6 +20,8 @@ public final class PassLoop {
     // fullWoke is when the last wake came that named no window, so the scans read every app until
     // the windows settle.
     public private(set) var fullWoke = -Double.infinity
+    // launching is when the passes stop looking for the first window of an app that just launched.
+    public var launching = -Double.infinity
 
     // engine is the orchestration this object calls: wake, moor, save, landed.
     unowned let engine: Engine
@@ -105,12 +86,11 @@ public final class PassLoop {
     public func moor() {
         still = false
         defer { pace() }
+        engine.beforePass()
         guard platform.windows.ready else { return }
-        prepare()
         let screens = platform.screens.current()
         let t = platform.clock.now
-        let ctx = context()
-        let waiting = ctx.waiting || workspaces.waiting
+        let waiting = platform.events.waiting || workspaces.waiting
         if PassPlan.refreshesApps(now: t, last: lastApps, waiting: waiting) {
             lastApps = t
             let alive = platform.windows.alive()
@@ -119,7 +99,7 @@ public final class PassLoop {
         } else if anchors.hasCastOff || !anchors.stashed.isEmpty {
             anchors.prune(alive: platform.windows.alive())
         }
-        let forced = !started || waiting || t < ctx.launching || t - fullWoke < Pace.settleSeconds
+        let forced = !started || waiting || t < launching || t - fullWoke < Pace.settleSeconds
         let scan = platform.windows.scan(screens, full: forced)
         let refused = platform.windows.refused
         let list = scan.windows.filter { !refused.contains($0.id) }
@@ -233,8 +213,7 @@ public final class PassLoop {
     // pending sends no event, at the next deadline, or not at all.
     private func pace() {
         let t = platform.clock.now
-        let ctx = context()
-        let busy = !platform.windows.ready || ctx.waiting || workspaces.waiting || t < ctx.launching
+        let busy = !platform.windows.ready || platform.events.waiting || workspaces.waiting || t < launching
         schedule(
             Pace.next(
                 now: t, woke: woke, busy: busy, deadlines: anchors.deadlines() + workspaces.deadlines(),
@@ -251,7 +230,6 @@ public final class PassLoop {
         scheduler.schedule(at: at) { [weak self] in
             guard let self else { return }
             due = nil
-            ticked()
             moor()
         }
     }
