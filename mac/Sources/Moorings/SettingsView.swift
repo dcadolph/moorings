@@ -225,7 +225,7 @@ struct SettingsView: View {
                 }
             }
             Button("Save current as profile…") {
-                if let name = WorkspaceKeeper.askName("Save profile", "Name these settings. Switching to the profile later "
+                if let name = NamePrompt.ask("Save profile", "Name these settings. Switching to the profile later "
                     + "brings them back, and anchored apps stay where they are.") {
                     model.app.workspaces.saveProfile(name)
                     model.reload()

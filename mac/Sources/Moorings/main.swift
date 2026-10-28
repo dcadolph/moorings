@@ -92,7 +92,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return o
     }()
     // workspaces saves and recalls workspaces, applies app rules and switches profiles.
-    lazy var workspaces = WorkspaceKeeper(app: self)
+    lazy var workspaces: WorkspaceKeeper = {
+        let k = WorkspaceKeeper(platform: platform, anchors: anchors, organizer: organizer, actions: actions)
+        let settle = MacScheduler()
+        k.title = { [unowned self] id in windows.title(id) }
+        k.openApp = { [unowned self] bundle, target in open(bundle, background: true, target: target) }
+        k.after = { seconds, work in settle.schedule(at: Self.now + seconds, work) }
+        k.changed = { [unowned self] in save() }
+        k.log = { [unowned self] line in organizeLogger.notice("\(line, privacy: .public)") }
+        return k
+    }()
+    // organizeLogger writes what a workspace, rule or profile could not do.
+    let organizeLogger = Logger(subsystem: "com.dcadolph.moorings", category: "organize")
     // snap follows drags and snaps the dragged window to the zone under the cursor.
     lazy var snap = MacDrag(app: self)
     // passes run the window passes on the engine's pass loop.
