@@ -1,6 +1,7 @@
 import SwiftUI
 
 import MooringsCore
+import MooringsEngine
 
 // SettingsView is the settings window's content: shortcuts, sizes, workspaces, layout, snapping, behavior,
 // menu and general choices.

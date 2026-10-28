@@ -24,7 +24,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // watcher wakes the passes on window events.
     private lazy var watcher = Watcher { [weak self] el, note in self?.windowEvent(el, note) }
     // actions applies window actions to the focused window.
-    lazy var actions = ActionRunner(app: self)
+    lazy var actions: ActionRunner = {
+        let r = ActionRunner(platform: platform, anchors: anchors)
+        r.extra = ExtraActions(handles: { _ in true }, run: { [unowned self] name, window in runExtra(name, window: window) })
+        r.read = { [unowned self] id, screens in
+            if let id {
+                return windows.window(id, screens: screens)
+            }
+            return windows.focused(screens)
+        }
+        r.landed = { [unowned self] id, frame in
+            landed(id, at: frame)
+            if windows.pid(id) != nil {
+                echo(id, at: frame)
+            } else {
+                wake()
+            }
+        }
+        r.wake = { [unowned self] in wake() }
+        r.moor = { [unowned self] in moor() }
+        r.log = { [unowned self] line in actionLogger.notice("\(line, privacy: .public)") }
+        return r
+    }()
+    // actionLogger writes why an action did nothing.
+    let actionLogger = Logger(subsystem: "com.dcadolph.moorings", category: "actions")
     // accessibilityPane is the Privacy and Security pane that grants Accessibility.
     static let accessibilityPane = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
     // releasesPage is the project's releases page.
@@ -182,7 +205,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.snap.pressed(p)
             return false
         }
-        tap.onDoubleClick = { [weak self] p in self?.actions.titleBarClick(p) }
+        tap.onDoubleClick = { [weak self] p in self?.titleBarClick(p) }
         tap.onDrag = { [weak self] p, flags in
             guard let self else { return }
             if self.edges.active {
@@ -283,6 +306,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // popMenu opens the menu under the pointer as a context menu. Moorings is not brought forward,
     // so the front app's entries and window actions still act on the window that was in front.
+    // runExtra runs the actions the engine routes to the Mac: the menus, the grid, stash, organize,
+    // tiling, workspaces and profiles.
+    private func runExtra(_ name: String, window: WindowID?) -> Bool {
+        if name == Keymaps.menuName {
+            DispatchQueue.main.async { [self] in popMenu() }
+            return true
+        }
+        if name == Keymaps.stripsName {
+            DispatchQueue.main.async { [self] in strips.show() }
+            return true
+        }
+        if let size = Overlay.gridSize(name, anchors.choices.overlay) {
+            return gridPicker.show(cols: size.cols, rows: size.rows, window: window)
+        }
+        if Keymaps.stashNames.contains(name) {
+            return stasher.run(name)
+        }
+        if Tile.handles(name) {
+            return organizer.run(name)
+        }
+        if Tiling.handles(name) {
+            return tiler.run(name)
+        }
+        if name.hasPrefix(Keymaps.workspacePrefix) {
+            return organizer.recall(String(name.dropFirst(Keymaps.workspacePrefix.count)))
+        }
+        if name.hasPrefix(Profile.prefix) {
+            let title = String(name.dropFirst(Profile.prefix.count))
+            guard anchors.choices.profiles.contains(where: { $0.name == title }) else { return false }
+            DispatchQueue.main.async { [self] in organizer.applyProfile(title) }
+            return true
+        }
+        return false
+    }
+
+    // titleBarClick maximizes or restores the window whose title bar was double-clicked at p. It needs
+    // the choice on and macOS set to do nothing on a title bar double-click, as Rectangle does, so
+    // the two never both act. The window is read after the event, never inside the tap.
+    func titleBarClick(_ p: CGPoint) {
+        let b = anchors.choices.behavior
+        guard b.doubleClickTitleBar, !anchors.choices.paused, windows.trusted else { return }
+        guard UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") == "None" else {
+            actionLogger.notice("title bar double-click: macOS handles it; set Double-click a window's title bar to Do Nothing")
+            return
+        }
+        DispatchQueue.main.async { [self] in
+            guard let hit = Windows.hit(p),
+                  Behavior.onTitleBar(Point(x: p.x, y: p.y), window: hit.frame, button: hit.button, role: hit.role)
+            else { return }
+            let screens = Screens.current()
+            guard let w = windows.scan(screens).windows.first(where: { $0.id == hit.id }),
+                  !b.doubleClickIgnoredApps.contains(w.bundle)
+            else { return }
+            actions.titleBar(w, screens: screens)
+        }
+    }
+
     func popMenu() {
         let menu = NSMenu()
         for entry in MenuBuilder(app: self).items() {

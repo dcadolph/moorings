@@ -1,6 +1,7 @@
 import AppKit
 
 import MooringsCore
+import MooringsEngine
 
 // ActionItem is a menu item that runs a closure when chosen.
 @MainActor

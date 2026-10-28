@@ -2,6 +2,7 @@ import Foundation
 import WinSDK
 
 import MooringsCore
+import MooringsEngine
 
 // Per-Monitor-V2 must be set before any window call, so frames come back in physical pixels.
 _ = SetProcessDpiAwarenessContext(perMonitorAwareV2)

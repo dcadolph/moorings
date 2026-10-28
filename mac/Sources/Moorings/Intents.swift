@@ -2,6 +2,7 @@ import AppIntents
 import AppKit
 
 import MooringsCore
+import MooringsEngine
 
 // RunAction is the Shortcuts action that runs one moorings action by name, as a
 // moorings://action?name= link does.

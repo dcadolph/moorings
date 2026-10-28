@@ -2,6 +2,7 @@ import Foundation
 import WinSDK
 
 import MooringsCore
+import MooringsEngine
 
 // version is the build's version, shown by the version probe and, later, the tray's About item.
 let version = "dev"

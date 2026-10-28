@@ -27,7 +27,17 @@ final class App {
     // banner, so probes print none.
     var notify: (String, String) -> Void = { _, _ in }
     // actions runs the window actions the shortcuts name.
-    private(set) lazy var actions = WinActions(app: self)
+    private(set) lazy var actions: ActionRunner = {
+        let r = ActionRunner(platform: platform, anchors: anchors)
+        r.landed = { [unowned self] id, frame in
+            landed(id, at: frame)
+            wake()
+        }
+        r.wake = { [unowned self] in wake() }
+        r.moor = { [unowned self] in moor() }
+        r.log = { line in FileHandle.standardError.write(Data("actions: \(line)\n".utf8)) }
+        return r
+    }()
     // hotkeys delivers the shortcuts bound for the actions.
     private(set) lazy var hotkeys = WinHotkeys { [unowned self] name in self.actions.run(name) }
     // mouse delivers the pointer for drag snapping.
@@ -218,7 +228,9 @@ final class App {
         self.screens = screens
         if PassPlan.refreshesApps(now: t, last: lastApps, waiting: false) {
             lastApps = t
-            anchors.prune(alive: Set(WinWindows.topLevel().map(WinWindows.id)))
+            let alive = windows.alive()
+            anchors.prune(alive: alive)
+            actions.prune(alive: alive)
         }
         let (all, focused) = WinWindows.scan(screens: screens)
         let list = all.filter { !windows.elevated.contains($0.id) }

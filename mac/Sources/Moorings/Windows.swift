@@ -643,9 +643,14 @@ extension Windows: @preconcurrency WindowStore {
         return Scan(windows: read.windows, focused: read.focused)
     }
 
-    // move places the window with the app's Enhanced UI handled as behavior says.
+    // move places the window with the app's Enhanced UI handled as behavior says, sliding it there
+    // from its last read frame when behavior animates and that frame is known.
     func move(_ id: WindowID, to frame: Frame, from: Frame?, behavior: Behaviors) {
-        move(id, to: frame, enhancedUI: behavior.enhancedUI, from: from)
+        if behavior.animate, let from {
+            slide(id, from: from, to: frame, enhancedUI: behavior.enhancedUI)
+        } else {
+            move(id, to: frame, enhancedUI: behavior.enhancedUI, from: from)
+        }
     }
 
     // refused lists the windows Accessibility would not move or size.
