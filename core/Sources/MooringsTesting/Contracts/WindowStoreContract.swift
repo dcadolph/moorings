@@ -106,6 +106,10 @@ public enum WindowStoreContract {
         if !host.wait(until: host.now + 1, { !subject.scan(screens, full: true).windows.contains { $0.id == b } }) {
             fail("minimize removes the window from scan within 1 s", "still listed")
         }
+        subject.close(b)
+        if !host.wait(until: host.now + 1, { !subject.alive().contains(b) }) {
+            fail("a listed window stays actionable until it is gone", "still alive")
+        }
         subject.close(a)
         if !host.wait(until: host.now + 1, { !subject.alive().contains(a) }) {
             fail("close removes the window from alive within 1 s", "still alive")
