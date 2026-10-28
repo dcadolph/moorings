@@ -50,6 +50,7 @@ to my ultrawide way of working.
 - [Docs](#docs)
 - [Moving from the Hammerspoon version](#moving-from-the-hammerspoon-version)
 - [Coming from Rectangle](#coming-from-rectangle)
+- [Building](#building)
 - [Support](#support)
 - [License](#license)
 
@@ -414,6 +415,29 @@ from Rectangle brings over your shortcuts, gaps, snapping and behavior choices, 
 it applies them. The default keymap matches the old one. Links and scripts keep the same action
 names and need the `moorings://action?name=<action>` URL. [COMPARISON.md](COMPARISON.md) lists
 every feature with the check behind it.
+
+## Building
+
+The code is three Swift packages. `core/` is MooringsCore, with three libraries. MooringsCore holds
+the pure logic: geometry, snapping, actions, anchors and pacing. MooringsEngine holds the seven
+platform protocols (WindowStore, ScreenSource, OverlayView, Notifier, Clock, Scheduler and
+ChoicesStore) and the code both apps run on them: DragFollower, ActionRunner and PassLoop.
+MooringsTesting holds a fake for every protocol and the contract suites, in plain Swift with no
+XCTest. `mac/` is the Mac app, with the release build, Makefile and Info.plist. `windows/` is
+MooringsWin, the Windows app, built only on Windows. Both apps depend on `core/`.
+
+Run `swift test` in `core/` for the core tests, the engine tests on the fakes and the contract
+suites on the fakes. Run `swift build` in `mac/` to build the app, and `make app` or `make zip` to
+bundle it.
+
+Run `swift test` in `mac/` for the contract suites on the Mac adapters against real TextEdit
+windows. The shell or test host needs Accessibility access (System Settings, Privacy and Security,
+Accessibility). Without it the suites skip and print a line saying so. The suites move real windows
+while they run, so do not use the Mac until they finish. CI has no such grant, so CI skips them.
+
+The Windows contract has no test target. It runs on GitHub's Windows runner on every push as
+`MooringsWin.exe --probe contracts`, against stand-in windows the exe opens, next to the other
+probes in the windows workflow.
 
 ## Support
 
