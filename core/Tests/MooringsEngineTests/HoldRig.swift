@@ -2,6 +2,26 @@ import MooringsCore
 import MooringsEngine
 import MooringsTesting
 
+// newTestPlatform builds a Platform on fakes over windows, screens and clock, with a fresh fake for
+// every part a test does not pass.
+func newTestPlatform(
+    windows: FakeWindows, screens: FakeScreens, clock: FakeClock, overlay: any OverlayView = FakeOverlay(),
+    notifier: any Notifier = FakeNotifier(), store: any ChoicesStore = FakeStore(),
+    pointer: any Pointer = FakePointer(), keys: any Keys = FakeKeys(), apps: (any Apps)? = nil,
+    log: any Log = FakeLog(), timers: (any Timers)? = nil, grid: any GridView = FakeGrid(),
+    badge: any BadgeView = FakeBadge()
+) -> Platform {
+    Platform(
+        windows: windows, screens: screens, overlay: overlay, notifier: notifier, clock: clock, store: store,
+        pointer: pointer, keys: keys, apps: apps ?? FakeApps(windows: windows), log: log,
+        timers: timers ?? FakeTimers(clock: clock), events: FakeEvents(windows: windows), grid: grid, badge: badge)
+}
+
+// center returns the middle of f.
+func center(_ f: Frame) -> Point {
+    Point(x: f.x + f.w / 2, y: f.y + f.h / 2)
+}
+
 // HoldRig is the throw overlay, grid picker and hover mover on fakes over one 3440x1440 ultrawide with
 // no slots, Right Option as the trigger, Control-Option to hover move and Control-Command to hover
 // resize, and one free window focused.
@@ -13,17 +33,23 @@ final class HoldRig {
     // ctrlCmd is Control and Command held.
     static let ctrlCmd: Modifiers = [.control, .command]
 
-    // windows is the fake window store.
+    // windows is the fake window store, whose hit test finds the window under the pointer.
     let windows = FakeWindows()
     // screens is the fake ultrawide.
     let screens = FakeScreens.ultrawide()
     // clock is the fake clock.
     let clock = FakeClock()
+    // pointer is the fake pointer.
+    let pointer = FakePointer(Point(x: 0, y: 0))
+    // keys records the grabs and turns the shortcuts off.
+    let keys = FakeKeys()
+    // log keeps every line logged.
+    let log = FakeLog()
     // footprint is the throw's preview.
     let footprint = FakeOverlay()
     // throwGrid draws the throw's keyboard grid.
     let throwGrid = FakeGrid()
-    // pickerGrid draws the grid action's grid.
+    // pickerGrid draws the grid action's grid, the platform's grid.
     let pickerGrid = FakeGrid()
     // throwTicks is the throw's scheduler.
     let throwTicks: FakeScheduler
@@ -41,22 +67,8 @@ final class HoldRig {
     let hover: HoverMover
     // pad is the free window, focused.
     let pad: WindowID
-    // at is where the pointer is.
-    var at = Point(x: 0, y: 0)
-    // down reports whether a mouse button is held.
-    var down = false
-    // under is the window the hit test finds, the pad by default.
-    var under: WindowID?
-    // shortcuts reports whether the shortcuts are on.
-    var shortcuts = true
-    // grabs lists every grab, by trigger.
-    var grabs: [OverlayTrigger] = []
-    // ungrabs counts the ungrabs.
-    var ungrabs = 0
     // wakes counts the hover's wakes.
     var wakes = 0
-    // logs lists every line logged.
-    var logs: [String] = []
 
     // init builds the rig with choices changed by edit.
     init(_ edit: (inout Choices) -> Void = { _ in }) {
@@ -68,35 +80,34 @@ final class HoldRig {
         anchors = Anchors(choices: c)
         throwTicks = FakeScheduler(clock: clock)
         hoverTicks = FakeScheduler(clock: clock)
-        let platform = Platform(
-            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(),
-            clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
-            warpCursor: { _ in })
+        let platform = newTestPlatform(
+            windows: windows, screens: screens, clock: clock, pointer: pointer, keys: keys, log: log,
+            grid: pickerGrid)
         actions = ActionRunner(platform: platform, anchors: anchors)
-        picker = GridPicker(platform: platform, anchors: anchors, actions: actions, view: pickerGrid)
+        picker = GridPicker(platform: platform, anchors: anchors, actions: actions)
         overlay = TriggerOverlay(
             platform: platform, anchors: anchors, actions: actions, footprint: footprint,
             gridView: throwGrid, picker: picker, ticker: throwTicks)
         hover = HoverMover(platform: platform, anchors: anchors, ticker: hoverTicks)
         pad = windows.add(bundle: "com.example.pad", frame: Frame(x: 1400, y: 300, w: 900, h: 700), focus: true)
-        under = pad
         let rig = self
-        overlay.pointer = { (rig.at, rig.down) }
-        overlay.hit = { _ in rig.under }
-        overlay.shortcutsOn = { rig.shortcuts }
-        overlay.grab = { rig.grabs.append($0) }
-        overlay.ungrab = { rig.ungrabs += 1 }
-        overlay.log = { rig.logs.append($0) }
-        picker.pointer = { rig.at }
-        picker.grab = { rig.grabs.append($0) }
-        picker.ungrab = { rig.ungrabs += 1 }
-        picker.log = { rig.logs.append($0) }
-        hover.pointer = { (rig.at, rig.down) }
-        hover.hit = { _ in rig.under }
-        hover.shortcutsOn = { rig.shortcuts }
         hover.wake = { rig.wakes += 1 }
-        hover.log = { rig.logs.append($0) }
     }
+
+    // at is where the pointer is.
+    var at: Point {
+        get { pointer.position }
+        set { pointer.position = newValue }
+    }
+
+    // down reports whether a mouse button is held.
+    var down: Bool {
+        get { pointer.buttonDown }
+        set { pointer.buttonDown = newValue }
+    }
+
+    // logs lists the text of every line logged.
+    var logs: [String] { log.lines.map(\.text) }
 
     // press holds the throw trigger with the pointer at p and runs the first tick.
     func press(at p: Point) {

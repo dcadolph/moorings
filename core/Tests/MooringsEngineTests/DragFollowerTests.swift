@@ -32,10 +32,8 @@ final class DragRig {
     // init builds the rig with choices, a focused window at start, and a preview that names the half.
     init(_ choices: Choices = Choices()) {
         anchors = Anchors(choices: choices)
-        let scheduler = FakeScheduler(clock: clock)
-        let platform = Platform(
-            windows: windows, screens: screens, overlay: overlay, notifier: notifier, clock: clock,
-            scheduler: scheduler, store: FakeStore(), warpCursor: { _ in })
+        let platform = newTestPlatform(
+            windows: windows, screens: screens, clock: clock, overlay: overlay, notifier: notifier)
         id = windows.add(bundle: "com.example.pad", frame: start, focus: true)
         follower = DragFollower(
             platform: platform, anchors: anchors,

@@ -120,7 +120,8 @@ final class MacHost: @preconcurrency ContractHost {
     failures += NotifierContract.run(MacNotifier { banner.show($0, $1, palette: .harbor) }, store: store, host: host)
     failures += SchedulerContract.run(MacScheduler(), clock: MacClock(), host: host)
     failures += PointerContract.run(MacPointer(), host: host)
-    failures += KeysContract.run(MacKeys(Hotkeys { _ in }), host: host)
+    var delivered: [String] = []
+    failures += KeysContract.run(MacKeys(Hotkeys { delivered.append($0) }), host: host, actions: { delivered })
     failures += LogContract.run(MacLog(), host: host)
     failures += TimersContract.run(MacTimers(), clock: MacClock(), host: host)
     failures += EventSourceContract.run(MacEvents(store: store), store: store, host: host)

@@ -10,13 +10,13 @@ let rightHalf = Frame(x: 1720, y: 25, w: 1720, h: 1415)
 @Test func testThrowRight() {
     let rig = HoldRig()
     rig.press(at: Point(x: 2000, y: 700))
-    #expect(rig.grabs == [.rightOption])
+    #expect(rig.keys.grabs == 1 && rig.keys.grabbed == TriggerOverlay.gridKeys(.rightOption))
     rig.point(Point(x: 2100, y: 700))
     #expect(rig.footprint.shown == rightHalf)
     rig.release()
     #expect(rig.frame == rightHalf)
     #expect(rig.footprint.shown == nil)
-    #expect(rig.ungrabs == 1)
+    #expect(rig.keys.ungrabs == 1 && rig.keys.grabbed.isEmpty)
 }
 
 // Letting go inside the dead zone moves nothing.
@@ -74,10 +74,10 @@ let rightHalf = Frame(x: 1720, y: 25, w: 1720, h: 1415)
 @Test func testThrowBlocked() {
     let paused = HoldRig { $0.paused = true }
     paused.press(at: Point(x: 2000, y: 700))
-    #expect(paused.grabs.isEmpty)
+    #expect(paused.keys.grabs == 0)
     #expect(paused.logs == ["overlay: trigger held but moorings is paused: nothing to throw"])
     let off = HoldRig()
-    off.shortcuts = false
+    off.keys.shortcutsOn = false
     off.press(at: Point(x: 2000, y: 700))
     #expect(off.logs == ["overlay: trigger held but shortcuts are off: nothing to throw"])
     let button = HoldRig()
@@ -94,16 +94,14 @@ let rightHalf = Frame(x: 1720, y: 25, w: 1720, h: 1415)
 // With no window under the pointer the focused one is thrown, and with neither nothing is.
 @Test func testThrowTarget() {
     let focused = HoldRig()
-    focused.under = nil
-    focused.press(at: Point(x: 2000, y: 700))
-    focused.point(Point(x: 2100, y: 700))
+    focused.press(at: Point(x: 500, y: 700))
+    focused.point(Point(x: 600, y: 700))
     focused.release()
     #expect(focused.frame == rightHalf)
     let none = HoldRig()
-    none.under = nil
     none.windows.focusedID = nil
-    none.press(at: Point(x: 2000, y: 700))
-    none.point(Point(x: 2100, y: 700))
+    none.press(at: Point(x: 500, y: 700))
+    none.point(Point(x: 600, y: 700))
     none.release()
     #expect(none.moves == 0)
     #expect(none.logs == ["overlay: no window to throw under the pointer or in front"])
@@ -148,7 +146,7 @@ let rightHalf = Frame(x: 1720, y: 25, w: 1720, h: 1415)
     rig.at = Point(x: 2000, y: 700)
     rig.overlay.flagsChanged(HoldRig.rightOption.union(.command), at: rig.at)
     rig.clock.advance(by: 0)
-    #expect(rig.grabs.isEmpty)
+    #expect(rig.keys.grabs == 0)
 }
 
 // A hold puts an open grid picker away.

@@ -1,8 +1,9 @@
 import MooringsCore
 import MooringsEngine
 
-// PointerContract checks that a Pointer reads a position on a screen, warps within a point, and
-// reports no button while the host holds none.
+// PointerContract checks that a Pointer reads a position on a screen, warps within a point, reports
+// no button while the host holds none, never reports the primary button without a button, and stops
+// tracking when told.
 public enum PointerContract {
     // run checks subject while host runs the platform and returns every rule it broke. It puts the
     // pointer back where it found it.
@@ -29,6 +30,20 @@ public enum PointerContract {
         }
         if subject.buttonDown {
             fail("buttonDown is false while the host holds nothing", "down")
+        }
+        if subject.primaryDown {
+            fail("primaryDown is false while the host holds nothing", "down")
+        }
+        if subject.primaryDown, !subject.buttonDown {
+            fail("primaryDown is never true while buttonDown is false", "primary down, no button down")
+        }
+        var tracked = 0
+        subject.track { tracked += 1 }
+        subject.track(nil)
+        subject.warp(start)
+        _ = host.wait(until: host.now + 1) { false }
+        if tracked > 0 {
+            fail("track(nil) after track(f) delivers nothing within 1 s", "delivered \(tracked)")
         }
         return out
     }

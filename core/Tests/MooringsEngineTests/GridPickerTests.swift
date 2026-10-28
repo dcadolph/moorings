@@ -12,7 +12,7 @@ let usableArea = Frame(x: 0, y: 25, w: 3440, h: 1415)
     let rig = HoldRig()
     rig.at = Point(x: 100, y: 100)
     #expect(rig.picker.show(cols: 4, rows: 2, window: nil))
-    #expect(rig.grabs == [.none])
+    #expect(rig.keys.grabs == 1 && rig.keys.grabbed == TriggerOverlay.gridKeys(.none))
     let first = OverlayGrid(cols: 4, rows: 2, at: Point(x: 100, y: 100), in: usableArea)
     #expect(rig.pickerGrid.shown == GridMark(grid: first, area: usableArea))
     rig.picker.key("move-right")
@@ -23,7 +23,7 @@ let usableArea = Frame(x: 0, y: 25, w: 3440, h: 1415)
     #expect(rig.frame == span.frame(usableArea))
     #expect(!rig.picker.showing)
     #expect(rig.pickerGrid.shown == nil)
-    #expect(rig.ungrabs == 1)
+    #expect(rig.keys.ungrabs == 1 && rig.keys.grabbed.isEmpty)
 }
 
 // A drag across cells picks the span between the press and the release and fills it on release.
@@ -76,7 +76,7 @@ let usableArea = Frame(x: 0, y: 25, w: 3440, h: 1415)
     none.windows.focusedID = nil
     #expect(!none.picker.show(cols: 4, rows: 2, window: nil))
     #expect(none.logs == ["grid: no free window in front"])
-    #expect(none.grabs.isEmpty)
+    #expect(none.keys.grabs == 0)
     let pinned = HoldRig { $0.slots = [.leftTop: "com.example.pad"] }
     pinned.moor()
     #expect(pinned.anchors.pinned(pinned.windows.scan(pinned.screens.current(), full: true).windows[0]))

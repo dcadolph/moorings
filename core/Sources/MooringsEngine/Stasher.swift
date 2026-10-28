@@ -2,9 +2,9 @@ import MooringsCore
 
 // Stasher parks windows at a screen edge with a sliver left on screen. Resting the pointer on the
 // sliver slides the window out, and moving the pointer off it slides the window back. A click in a
-// slid-out window, the stash action again, or unstash-all ends the stash. The platform reports the
-// pointer through moved only while watching says a window is stashed, from its own pointer events,
-// so a still pointer costs nothing, and the adapter puts stashed windows back when it quits.
+// slid-out window, the stash action again, or unstash-all ends the stash. The pointer tracks moves
+// only while a window is stashed, so a still pointer costs nothing, and the platform puts stashed
+// windows back when it quits.
 public final class Stasher {
     // restMargin is how long in seconds past the rest time the rest check runs, so it lands after it.
     public static let restMargin = 0.01
@@ -19,17 +19,10 @@ public final class Stasher {
         public var area: Frame
     }
 
-    // pointer returns where the pointer is in top-left coordinates and whether a mouse button is held.
-    public var pointer: () -> (Point, Bool) = { (Point(x: 0, y: 0), false) }
-    // watching is told true when the first window is stashed, so the platform starts calling moved on
-    // pointer events, and false when the last stash ends.
-    public var watching: (Bool) -> Void = { _ in }
     // wake runs after a stash or unstash, so the passes look again.
     public var wake: () -> Void = {}
-    // log is told why a stash did nothing.
-    public var log: (String) -> Void = { _ in }
 
-    // platform reads and moves the windows and reads the screens.
+    // platform reads and moves the windows, reads the screens and follows the pointer.
     private let platform: Platform
     // anchors holds the choices, the slots and the set of stashed windows the passes leave alone.
     private let anchors: Anchors
@@ -37,7 +30,7 @@ public final class Stasher {
     private let rest: any Scheduler
     // entries lists the stashed windows.
     public private(set) var entries: [Entry] = []
-    // watched reports whether watching was last told true.
+    // watched reports whether the pointer is tracked for the stash.
     private var watched = false
 
     // init builds a stasher on platform and anchors that checks a resting pointer through rest.
@@ -117,7 +110,7 @@ public final class Stasher {
         entries.append(Entry(s: s, area: area))
         if !watched {
             watched = true
-            watching(true)
+            platform.pointer.track { [weak self] in self?.moved() }
         }
         wake()
         return true
@@ -152,7 +145,7 @@ public final class Stasher {
         if entries.isEmpty, watched {
             watched = false
             rest.cancel()
-            watching(false)
+            platform.pointer.track(nil)
         }
     }
 
@@ -190,12 +183,12 @@ public final class Stasher {
         return nil
     }
 
-    // moved slides a stashed window out or back as the pointer asks. The platform calls it on each
-    // pointer move and button release while watching. A window that has moved since it was parked or
+    // moved slides a stashed window out or back as the pointer asks. The pointer calls it on each
+    // move and button release while a window is stashed. A window that has moved since it was parked or
     // slid out was taken by the owner, so its stash ends where it is.
     public func moved() {
         guard !anchors.choices.paused else { return }
-        let (p, held) = pointer()
+        let p = platform.pointer.position, held = platform.pointer.buttonDown
         let now = platform.clock.now
         for i in entries.indices.reversed() {
             var e = entries[i]
@@ -225,6 +218,11 @@ public final class Stasher {
             }
         }
         scheduleRest(now: now)
+    }
+
+    // log writes why a stash did nothing.
+    private func log(_ line: String) {
+        platform.log.note(.stash, line)
     }
 
     // scheduleRest checks the pointer again when the earliest parked window resting under it has

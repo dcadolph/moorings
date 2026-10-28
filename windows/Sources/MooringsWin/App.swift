@@ -48,7 +48,6 @@ final class App {
         }
         r.wake = { [unowned self] in wake() }
         r.moor = { [unowned self] in moor() }
-        r.log = { [unowned self] line in log.note(.actions, line) }
         return r
     }()
     // hotkeys delivers the shortcuts bound for the actions.
@@ -69,7 +68,6 @@ final class App {
             apply: { [unowned self] name, w, screens, _ in
                 actions.apply(name, to: w, screens: screens)
             })
-        f.appName = { [unowned self] in apps.name($0) }
         f.changed = { [unowned self] in
             save()
             wake()
@@ -78,8 +76,6 @@ final class App {
     }()
     // footprint shows where a dragged window will land.
     let footprint = WinFootprint()
-    // scheduler runs the engine's deferred work from the message loop's timer branch.
-    private(set) lazy var scheduler = timers.make()
     // passes run the window passes on the engine's pass loop.
     private(set) lazy var passes: PassLoop = {
         let p = PassLoop(platform: platform, anchors: anchors)
@@ -88,23 +84,21 @@ final class App {
                 reload()
             }
         }
-        p.mouseHeld = { [unowned self] in dragging || GetAsyncKeyState(VK_LBUTTON) < 0 }
+        p.mouseHeld = { [unowned self] in dragging || pointer.primaryDown }
         p.refreshed = { [unowned self] alive in actions.prune(alive: alive) }
         p.after = { [unowned self] _, screens, _ in self.screens = screens }
-        p.appName = { [unowned self] in apps.name($0) }
-        p.spell = { [unowned self] in keys.spell($0) }
         p.tellsRefused = true
         p.moved = { [unowned self] move, t, got in moved(move, t, got) }
         p.released = { [unowned self] id, t in released(id, t) }
         p.passed = { [unowned self] t, n in passed(t, n) }
-        p.log = { [unowned self] line in log.note(.passes, line) }
         return p
     }()
     // platform is what the engine reads and drives on Windows.
     private(set) lazy var platform = Platform(
         windows: windows, screens: WinScreens(minAspect: minAspect), overlay: footprint,
-        notifier: WinNotifier { [unowned self] in self.notify($0, $1) }, clock: WinClock(), scheduler: scheduler,
-        store: store, warpCursor: { [unowned self] p in pointer.warp(p) }
+        notifier: WinNotifier { [unowned self] in self.notify($0, $1) }, clock: WinClock(), store: store,
+        pointer: pointer, keys: keys, apps: apps, log: log, timers: timers, events: WinEvents(), grid: WinNoGrid(),
+        badge: WinNoBadge()
     )
     // hooksMouse is false only in the drag probe's negative control, which runs without the hook.
     var hooksMouse = true
@@ -237,6 +231,37 @@ final class App {
 final class WinClock: Clock {
     // now is the tick count in seconds.
     var now: Double { App.now }
+}
+
+// WinNoGrid is the grid view of a platform with no grid action yet: it never shows and takes no clicks.
+final class WinNoGrid: GridView {
+    // onMouse is never told anything.
+    var onMouse: ((GridMouse, Point) -> Void)?
+    // shown is always nil.
+    var shown: GridMark? { nil }
+
+    // show paints nothing.
+    func show(_ grid: OverlayGrid, in area: Frame, gap: Double, style: FootprintStyle, palette: Palette) {}
+
+    // hide does nothing.
+    func hide() {}
+
+    // contains is always false.
+    func contains(_ p: Point) -> Bool {
+        false
+    }
+}
+
+// WinNoBadge is the badge view of a platform with no stack badge yet: it never shows.
+final class WinNoBadge: BadgeView {
+    // shown is always nil.
+    var shown: BadgeMark? { nil }
+
+    // show paints nothing.
+    func show(_ count: Int, at front: Frame, palette: Palette) {}
+
+    // hide does nothing.
+    func hide() {}
 }
 
 // WinScheduler is the Windows Scheduler: one thread timer, its work run from the message loop's

@@ -149,33 +149,6 @@ final class Hotkeys {
         return grabRefs.count
     }
 
-    // gridKeys lists the keys a hold of trigger grabs: arrows move the span and Shift-arrows grow it,
-    // under the trigger's own modifier, plus Return, Enter and Escape. Fn has no Carbon modifier, so
-    // for Fn the bare keys are grabbed, with Home, End, Page Up and Page Down standing in for the
-    // arrows Fn turns into them.
-    static func gridKeys(_ trigger: OverlayTrigger) -> [GrabKey] {
-        let mods: Modifiers =
-            switch trigger {
-            case .rightOption: .option
-            case .rightCommand: .command
-            case .rightControl: .control
-            case .fn, .none: []
-            }
-        var arrows = [("left", "left"), ("right", "right"), ("up", "up"), ("down", "down")]
-        if trigger == .fn {
-            arrows += [("home", "left"), ("end", "right"), ("pageup", "up"), ("pagedown", "down")]
-        }
-        var out: [GrabKey] = []
-        for (key, dir) in arrows {
-            out.append(GrabKey(key: key, modifiers: mods, tag: "move-\(dir)"))
-            out.append(GrabKey(key: key, modifiers: mods.union(.shift), tag: "grow-\(dir)"))
-        }
-        for (key, tag) in [("return", "return"), ("enter", "return"), ("escape", "escape")] {
-            out.append(GrabKey(key: key, modifiers: mods, tag: tag))
-        }
-        return out
-    }
-
     // ungrab removes every grabbed key.
     func ungrab() {
         for ref in grabRefs {

@@ -24,19 +24,14 @@ public struct ExtraActions {
 public final class ActionRunner {
     // extra runs the actions the engine routes to the platform.
     public var extra = ExtraActions.none
-    // read returns the window with an id, or the focused window when nil, read alone when the platform
-    // can do that cheaply, nil to fall back to a scan.
-    public var read: (WindowID?, Screens) -> WindowInfo? = { _, _ in nil }
     // landed is told each window an action moved and the frame it read back at.
     public var landed: (WindowID, Frame) -> Void = { _, _ in }
     // wake marks windows as changing, so passes run until they settle.
     public var wake: () -> Void = {}
     // moor runs a pass now.
     public var moor: () -> Void = {}
-    // log writes why an action did nothing.
-    public var log: (String) -> Void = { _ in }
 
-    // platform reads and moves the windows.
+    // platform reads and moves the windows, moves the pointer and logs.
     private let platform: Platform
     // anchors is the layout the actions read.
     private let anchors: Anchors
@@ -132,17 +127,18 @@ public final class ActionRunner {
         }
         guard apply(name, to: w, screens: screens) else { return false }
         if anchors.choices.behavior.moveCursor, let f = platform.windows.frame(w.id) {
-            platform.warpCursor(Point(x: f.x + f.w / 2, y: f.y + f.h / 2))
+            platform.pointer.warp(Point(x: f.x + f.w / 2, y: f.y + f.h / 2))
         }
         return true
     }
 
-    // subject returns the window with id window, or the focused window when nil, read alone when the
-    // platform can and it belongs to no anchored app, and scanned otherwise.
+    // log writes why an action did nothing.
+    private func log(_ line: String) {
+        platform.log.note(.actions, line)
+    }
+
+    // subject returns the window with id window, or the focused window when nil, from a scan.
     private func subject(_ window: WindowID?, screens: Screens) -> WindowInfo? {
-        if let alone = read(window, screens), !anchors.pins().contains(where: { $0.bundle == alone.bundle }) {
-            return alone
-        }
         let scan = platform.windows.scan(screens, full: false)
         return window.flatMap { id in scan.windows.first { $0.id == id } } ?? scan.focused
     }
