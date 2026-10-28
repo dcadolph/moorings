@@ -746,8 +746,8 @@ jobs:
           $out = @(& $exe --probe contracts)
           $code = $LASTEXITCODE
           $out | ForEach-Object { Write-Host "  $_" }
-          if ($code -ne 0 -or -not ($out -match '^contracts: 10 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
-          Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Notifier, Scheduler, Pointer, Keys, Log, Timers, EventSource and Apps rule"
+          if ($code -ne 0 -or -not ($out -match '^contracts: 13 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
+          Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Notifier, Scheduler, Pointer, Keys, Log, Timers, EventSource, Apps, ScreenSource, ChoicesStore and Clock rule"
 
       - name: Package
         id: package
