@@ -107,10 +107,11 @@ final class WinWindows: WindowStore {
         move(id, to: frame)
     }
 
-    // raise brings the window to the foreground.
+    // raise brings the window to the foreground, joining the foreground thread's input when Windows
+    // refuses the plain call.
     func raise(_ id: WindowID) {
         guard let hwnd = Self.hwnd(id) else { return }
-        _ = SetForegroundWindow(hwnd)
+        bringForward(hwnd)
     }
 
     // minimize sends the window to the taskbar.

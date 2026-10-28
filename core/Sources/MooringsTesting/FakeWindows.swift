@@ -70,6 +70,8 @@ public final class FakeWindows: WindowStore {
     public private(set) var refused: Set<WindowID> = []
     // ready reports whether the store may act; tests turn it off to model a missing grant.
     public var ready = true
+    // ignoresMinimum makes moves skip the minimum size, only for the contract's negative control.
+    public var ignoresMinimum = false
     // nextID is the id the next added window gets.
     private var nextID: WindowID = 1
 
@@ -129,8 +131,10 @@ public final class FakeWindows: WindowStore {
             return
         }
         var f = frame
-        f.w = max(f.w, windows[i].minW)
-        f.h = max(f.h, windows[i].minH)
+        if !ignoresMinimum {
+            f.w = max(f.w, windows[i].minW)
+            f.h = max(f.h, windows[i].minH)
+        }
         windows[i].frame = windows[i].insets.grow(f)
     }
 

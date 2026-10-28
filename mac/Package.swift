@@ -16,6 +16,14 @@ targets.append(
         exclude: ["Info.plist"]
     )
 )
+// MooringsMacTests runs the engine's contract suites on the Mac adapters. It skips without
+// Accessibility access, which CI never has.
+targets.append(
+    .testTarget(
+        name: "MooringsMacTests",
+        dependencies: ["Moorings", .product(name: "MooringsTesting", package: "core")]
+    )
+)
 #endif
 
 let package = Package(

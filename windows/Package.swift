@@ -12,6 +12,7 @@ targets.append(
         dependencies: [
             .product(name: "MooringsCore", package: "core"),
             .product(name: "MooringsEngine", package: "core"),
+            .product(name: "MooringsTesting", package: "core"),
         ],
         resources: [.embedInCode("moorings.ico")]
     )

@@ -667,6 +667,16 @@ jobs:
           Write-Host "  check: a fake 1024x768 screen has no ultrawide and the pin is refused"
           if ($switch) { Expect (Probe @('--probe', 'modes', '--reset')) '^reset: done$' 'the display mode restored' }
 
+      - name: Contracts
+        timeout-minutes: 5
+        run: |
+          $exe = Join-Path (swift build --show-bin-path) 'MooringsWin.exe'
+          $out = @(& $exe --probe contracts)
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host "  $_" }
+          if ($code -ne 0 -or -not ($out -match '^contracts: 4 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
+          Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Notifier and Scheduler rule"
+
       - name: Package
         id: package
         run: |

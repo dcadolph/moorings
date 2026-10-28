@@ -3,6 +3,7 @@ import WinSDK
 
 import MooringsCore
 import MooringsEngine
+import MooringsTesting
 
 // version is the build's version, shown by the version probe and, later, the tray's About item.
 let version = "dev"
@@ -173,6 +174,7 @@ let probes: [String: Probe] = [
     "drag": probeDrag,
     "footprint": probeFootprint,
     "stand": probeStand,
+    "contracts": probeContracts,
 ]
 
 // probeVersion prints the version and the DPI awareness the thread runs with.
@@ -976,5 +978,107 @@ extension Frame {
     init(_ r: RECT) {
         self.init(x: Double(r.left), y: Double(r.top), w: Double(r.right - r.left),
                   h: Double(r.bottom - r.top))
+    }
+}
+
+// probeContracts runs the engine's contract suites on the Win32 adapters, against stand-in windows
+// this exe opens with the stand probe, and prints each rule broken and the count.
+func probeContracts(_ opts: ProbeOptions) -> Int32 {
+    let host = WinHost(minAspect: opts.minAspect)
+    let windows = WinWindows()
+    let scheduler = WinScheduler()
+    host.timers = { scheduler.fire($0) }
+    let banner = BannerWindow(minAspect: opts.minAspect)
+    var failures = WindowStoreContract.run(windows, host: host)
+    failures += OverlayContract.run(WinFootprint(), store: windows, host: host)
+    failures += NotifierContract.run(WinNotifier { banner.show($0, $1) }, store: windows, host: host)
+    failures += SchedulerContract.run(scheduler, clock: WinClock(), host: host)
+    for f in failures {
+        print("contract failed: \(f)")
+    }
+    print("contracts: 4 suites, \(failures.count) failures")
+    return failures.isEmpty ? 0 : 1
+}
+
+// WinHost is the Windows ContractHost: each window is a stand-in from this exe's stand probe in a
+// process of its own, found by its process id, and waiting pumps this thread's messages.
+final class WinHost: ContractHost {
+    // timers runs a thread timer's work and reports whether the timer was its.
+    var timers: (UINT_PTR) -> Bool = { _ in false }
+    // minAspect is the ratio a monitor needs to count as ultrawide.
+    private let minAspect: Double
+    // stands lists the stand-in processes the host started.
+    private var stands: [Process] = []
+
+    // init builds a host whose screens count a monitor at least minAspect wide as ultrawide.
+    init(minAspect: Double) {
+        self.minAspect = minAspect
+    }
+
+    // minimum is the smallest window Windows lets a person size, which the stand-in keeps.
+    var minimum: (w: Double, h: Double)? {
+        (Double(GetSystemMetrics(SM_CXMINTRACK)), Double(GetSystemMetrics(SM_CYMINTRACK)))
+    }
+
+    // now is the tick count in seconds.
+    var now: Double { App.now }
+
+    // screens reads the monitors.
+    func screens() -> Screens {
+        Screens.current(minAspect: minAspect)
+    }
+
+    // open starts a stand-in process and returns its window once it shows.
+    func open() -> WindowID? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: Tray.executable)
+        p.arguments = ["--probe", "stand", "--seconds", "120"]
+        do {
+            try p.run()
+        } catch {
+            print("contracts: stand-in did not start: \(error)")
+            return nil
+        }
+        stands.append(p)
+        let pid = DWORD(p.processIdentifier)
+        var found: HWND?
+        _ = wait(until: now + 5) {
+            found = WinWindows.topLevel().first {
+                WinWindows.processID($0) == pid && WinWindows.className($0) == standClass && IsWindowVisible($0)
+            }
+            return found != nil
+        }
+        return found.map(WinWindows.id)
+    }
+
+    // openRefusing is nil: a window that refuses every move needs an elevated process.
+    func openRefusing() -> WindowID? {
+        nil
+    }
+
+    // wait pumps this thread's messages, handing its thread timers to timers, until done or the
+    // deadline.
+    func wait(until deadline: Double, _ done: () -> Bool) -> Bool {
+        var msg = MSG()
+        while !done() {
+            guard now < deadline else { return false }
+            while PeekMessageW(&msg, nil, 0, 0, UINT(PM_REMOVE)) {
+                if msg.message == UINT(WM_TIMER), msg.hwnd == nil, timers(msg.wParam) {
+                    continue
+                }
+                _ = TranslateMessage(&msg)
+                _ = DispatchMessageW(&msg)
+            }
+            Sleep(5)
+        }
+        return true
+    }
+
+    // finish ends every stand-in process.
+    func finish() {
+        for p in stands where p.isRunning {
+            p.terminate()
+        }
+        stands = []
     }
 }
