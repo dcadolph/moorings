@@ -88,6 +88,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var organizer = Organizer(app: self)
     // snap follows drags and snaps the dragged window to the zone under the cursor.
     lazy var snap = MacDrag(app: self)
+    // passes run the window passes on the engine's pass loop.
+    lazy var passes: PassLoop = {
+        let p = PassLoop(platform: platform, anchors: anchors)
+        p.context = { [unowned self] in PassContext(waiting: watcher.waiting || organizer.waiting, launching: launching) }
+        p.mouseHeld = { [unowned self] in NSEvent.pressedMouseButtons & 1 != 0 || hover.active }
+        p.deadlines = { [unowned self] in organizer.deadlines() }
+        p.ticked = { [unowned self] in ticked() }
+        p.prepare = { [unowned self] in
+            if !tap.running {
+                tap.start()
+            }
+        }
+        p.refreshed = { [unowned self] alive in
+            watcher.watch(Self.regularApps())
+            actions.prune(alive: alive)
+            stasher.prune(alive: alive)
+        }
+        p.after = { [unowned self] scan, screens, held in passed(scan, screens, held) }
+        p.firstPass = { [unowned self] in
+            for bundle in anchors.opening() {
+                open(bundle, background: true)
+            }
+        }
+        p.paced = { [unowned self] in paced() }
+        p.exitFullScreen = { [unowned self] id in windows.exitFullScreen(id) }
+        p.appName = { [unowned self] bundle in appName(bundle) }
+        p.greenButton = true
+        p.log = { [unowned self] line in logger.notice("\(line, privacy: .public)") }
+        return p
+    }()
     // platform is what the engine reads and drives on the Mac.
     lazy var platform = Platform(
         windows: windows, screens: MacScreens(), overlay: Footprint(), notifier: MacNotifier { [unowned self] in self.notify($0, $1) },
@@ -112,35 +142,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var hover = HoverMover(app: self)
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    // timer runs the next pass, nil when none is due until an event.
-    private var timer: Timer?
-    // due is when timer fires, nil when no timer is set.
-    private var due: Double?
-    // woke is when the last window event came.
-    private var woke = 0.0
-    // fullWoke is when the last wake came that named no app, so every app is read again.
-    private var fullWoke = 0.0
-    // appWoke holds when each app last sent a window event or had a window moved by an action.
-    private var appWoke: [pid_t: Double] = [:]
-    // echoes holds the frame an action read back after moving each window, with when it did, so the
-    // window's own move events and the pass after read nothing the action already read.
-    private var echoes: [WindowID: (frame: Frame, at: Double)] = [:]
-    // lastFull is when the last pass that read every app ran.
-    private var lastFull = -Double.infinity
-    // lastApps is when a full pass last asked every running app for its kind, nil before the first.
-    private var lastApps: Double?
-    // lastRead holds each window id the last pass read, front-most first.
-    private var lastRead: [WindowID] = []
-    // lastFrames holds the frames that match lastRead.
-    private var lastFrames: [Frame] = []
-    // still reports whether the last pass read what the pass before it read and moved nothing.
-    private var still = false
     // launching is when passes stop looking for the first window of an app that just launched.
     private var launching = 0.0
     // badgeTimer reads the pointer for the stack badge while the badge is on.
     private var badgeTimer: Timer?
-    // started reports whether the first pass ran, which opens the anchored apps.
-    private var started = false
     // quitting reports whether Quit Moorings was chosen, so the icon stays blank while the boat sinks.
     private var quitting = false
     // sinking plays the quit animation.
@@ -379,9 +384,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let id = Pace.geometryEvents.contains(note) ? Windows.id(el) : nil
         guard Pace.wakes(note, kept: windows.keeps(id), eligible: Windows.eligible(el)) else { return }
         if note == kAXWindowMovedNotification || note == kAXWindowResizedNotification, let id,
-           let echo = echoes[id], Self.now - echo.at < Pace.settleSeconds
+           let echo = windows.echoes[id], Self.now - echo.at < Pace.settleSeconds
         {
-            poll()
+            passes.wake()
             return
         }
         if let pid = Windows.pid(el) {
@@ -394,66 +399,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle, and
     // read every app.
     func wake() {
-        fullWoke = Self.now
-        poll()
+        windows.fullWoke = Self.now
+        passes.wake()
     }
 
     // wake marks the windows of the app with pid as changing, so passes run every Pace.pollSeconds
     // until they settle, and read that app.
     func wake(_ pid: pid_t) {
-        appWoke[pid] = Self.now
-        poll()
+        windows.appWoke[pid] = Self.now
+        passes.wake()
     }
 
     // echo records frame as where an action just read back the window with id after moving it, and
     // runs passes until windows settle. The window's own move events then only poll, and the pass
     // after reads its app only when the window server lists it somewhere else.
     func echo(_ id: WindowID, at frame: Frame) {
-        echoes[id] = (frame, Self.now)
-        poll()
+        windows.echoes[id] = (frame, Self.now)
+        passes.wake()
     }
 
     // landed records frame as the last frame read for the window with id, which an action just read
     // back after moving it, so the pass after reads it at rest and ends the polling.
     func landed(_ id: WindowID, at frame: Frame) {
-        if let i = lastRead.firstIndex(of: id) {
-            lastFrames[i] = frame
-        }
+        passes.landed(id, at: frame)
     }
 
-    // poll runs passes every Pace.pollSeconds from now until windows settle.
-    private func poll() {
-        let t = Self.now
-        woke = t
-        if let due, due <= t + Pace.pollSeconds {
-            return
-        }
-        schedule(t + Pace.pollSeconds)
+    // moor runs one pass now.
+    func moor() {
+        passes.moor()
     }
 
-    // schedule sets the timer for the next pass at time at, or clears it when at is nil.
-    private func schedule(_ at: Double?) {
-        timer?.invalidate()
-        timer = nil
-        due = at
-        guard let at else { return }
-        timer = Timer.scheduledTimer(withTimeInterval: max(0.001, at - Self.now), repeats: false) { _ in
-            MainActor.assumeIsolated {
-                self.timer = nil
-                self.due = nil
-                self.tick()
-            }
-        }
-    }
-
-    // pace sets the timer for the pass after the one that just ran: soon while windows change,
-    // every Pace.busySeconds while something pending sends no event, at the next deadline, or not
-    // at all. It also starts or stops the stack badge's pointer reads.
-    private func pace() {
-        let t = Self.now
-        let busy = !windows.trusted || watcher.waiting || organizer.waiting || t < launching
-        schedule(Pace.next(now: t, woke: woke, busy: busy, deadlines: anchors.deadlines() + organizer.deadlines(),
-                           still: still))
+    // paced starts or stops the stack badge's pointer reads after each pass.
+    private func paced() {
         if anchors.choices.stacking.badge, badgeTimer == nil {
             badgeTimer = Timer.scheduledTimer(withTimeInterval: Pace.pollSeconds, repeats: true) { _ in
                 MainActor.assumeIsolated { self.updateBadge() }
@@ -471,10 +448,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                           gap: anchors.choices.gapPx)
     }
 
-    // tick catches an Accessibility grant or loss, then runs the pass that was due. A loss tears
-    // down the tap and every observer and a grant builds them again, since what was made under the
-    // old grant may never deliver another event.
-    private func tick() {
+    // ticked catches an Accessibility grant or loss before a timed pass. A loss tears down the tap and
+    // every observer and a grant builds them again, since what was made under the old grant may never
+    // deliver another event.
+    private func ticked() {
         if windows.trusted != wasTrusted {
             wasTrusted = windows.trusted
             showTrust()
@@ -489,108 +466,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 watcher.reset()
             }
         }
-        moor()
     }
 
-    // moor runs one pass and applies its moves. The first pass after launch opens the anchored apps
-    // that have no window, in the background.
-    func moor() {
-        still = false
-        defer { pace() }
-        guard windows.trusted else { return }
-        if !tap.running {
-            tap.start()
-        }
-        let screens = Screens.current()
-        let t = Self.now
-        appWoke = appWoke.filter { t - $0.value < Pace.settleSeconds }
-        echoes = echoes.filter { t - $0.value.at < Pace.settleSeconds }
-        let echoed = echoes.mapValues(\.frame)
-        let forced = !started || watcher.waiting || organizer.waiting || t < launching
-        let (list, focused) = windows.scan(screens) { [self] listed, previous, slow, front in
-            PassPlan.plan(now: t, forced: forced, lastFull: lastFull, fullWoke: fullWoke, woke: appWoke,
-                          listed: listed, previous: previous, slow: slow, front: front, echoes: echoed)
-        }
-        logger.debug("pass \(self.windows.lastPlan == .full ? "full" : "apps", privacy: .public) read \(self.windows.scanned.count)")
-        if windows.lastPlan == .full {
-            lastFull = t
-            if PassPlan.refreshesApps(now: t, last: lastApps, waiting: watcher.waiting) {
-                lastApps = t
-                watcher.watch(Self.regularApps())
-                let alive = Windows.alive()
-                anchors.prune(alive: alive)
-                actions.prune(alive: alive)
-                stasher.prune(alive: alive)
-            }
-        }
+    // passed runs the Mac's part of each pass: it watches the windows for closing, lets the organizer
+    // and the tiler see the windows, and hints how to anchor an app on a first ultrawide.
+    private func passed(_ scan: Scan, _ screens: Screens, _ mouseHeld: Bool) {
         watcher.watchClosing(windows.elements)
-        if anchors.hasCastOff || !anchors.stashed.isEmpty {
-            anchors.prune(alive: Windows.alive())
-        }
-        let scene = Scene(screen: screens.wide, windows: list, focused: focused?.id,
-                          mouseHeld: NSEvent.pressedMouseButtons & 1 != 0 || hover.active, now: Self.now)
-        let moves = anchors.moor(scene)
-        for move in moves {
-            apply(move, bundle: list.first { $0.id == move.id }?.bundle ?? "?")
-        }
-        let read = list.map(\.id)
-        let frames = list.map(\.frame)
-        still = moves.isEmpty && !scene.mouseHeld && read == lastRead && frames == lastFrames
-        lastRead = read
-        lastFrames = frames
-        organizer.seen(list, screens: screens)
-        tiler.pass(list, screens: screens, mouseHeld: scene.mouseHeld)
-        for id in anchors.justReleased {
-            let w = list.first { $0.id == id }
-            let now = w.map { "\($0.frame)" } ?? "?"
-            let back = anchors.readBack(id).map { "\($0)" } ?? "?"
-            let asked = anchors.target(id).map { "\($0)" } ?? "?"
-            logger.notice("""
-                window \(id) was moved by hand: released at \(now, privacy: .public), \
-                read back \(back, privacy: .public), asked \(asked, privacy: .public)
-                """)
-            let name = w.map { appName($0.bundle) } ?? "The window"
-            let how = Bindings(anchors.choices).map["restore"].map { ",\nor press \($0.spelled)" } ?? ""
-            notify("\(name) released", "Click its green button to put it back\(how).")
-        }
+        organizer.seen(scan.windows, screens: screens)
+        tiler.pass(scan.windows, screens: screens, mouseHeld: mouseHeld)
         hintAnchor(screens)
-        if !started {
-            started = true
-            for bundle in anchors.opening() {
-                open(bundle, background: true)
-            }
-        }
-    }
-
-    // apply carries out one move: it takes a window out of native fullscreen, or moves it, reads
-    // where it landed, and moves it once more when it kept a larger size than it was given. It logs
-    // a move whose window could not be read back or landed away from the target.
-    private func apply(_ move: Move, bundle: String) {
-        if move.exitFullScreen {
-            windows.exitFullScreen(move.id)
-            return
-        }
-        windows.move(move.id, to: move.frame)
-        let asked = "\(move.frame)"
-        guard let got = windows.frame(move.id) else {
-            logger.notice("""
-                window \(move.id) \(bundle, privacy: .public): move to \(asked, privacy: .public) unreadable
-                """)
-            anchors.unread(move)
-            return
-        }
-        guard let again = anchors.landed(move, got: got) else {
-            if !Actions.near(got, move.frame, tolerance: Anchors.tolerance) {
-                let landed = "\(got)"
-                logger.notice("""
-                    window \(move.id) \(bundle, privacy: .public): move to \(asked, privacy: .public) refused, \
-                    landed at \(landed, privacy: .public)
-                    """)
-            }
-            return
-        }
-        logger.notice("window \(move.id) read back at \(Int(got.w))x\(Int(got.h)) after a move: holding that size for now")
-        windows.move(again.id, to: again.frame)
     }
 
     // mouseButton runs the action bound to an extra mouse button when it goes down, and reports

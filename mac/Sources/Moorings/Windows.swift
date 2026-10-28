@@ -65,6 +65,15 @@ final class Windows {
     var lastFront: pid_t?
     // refusedIDs holds the windows whose position or size Accessibility reported it cannot set.
     private(set) var refusedIDs: Set<WindowID> = []
+    // fullWoke is when the last wake came that named no app, so every app is read again.
+    var fullWoke = 0.0
+    // appWoke holds when each app last sent a window event or had a window moved by an action.
+    var appWoke: [pid_t: Double] = [:]
+    // echoes holds the frame an action read back after moving each window, with when it did, so the
+    // window's own move events and the pass after read nothing the action already read.
+    var echoes: [WindowID: (frame: Frame, at: Double)] = [:]
+    // lastFull is when the last scan that read every app ran.
+    private(set) var lastFull = -Double.infinity
 
     // front returns the front app, or the one before moorings when a link brought moorings forward.
     private var front: pid_t? {
@@ -634,19 +643,32 @@ final class Windows {
 
 // Windows is the Mac WindowStore. Its witnesses run on the main actor, where the engine lives.
 extension Windows: @preconcurrency WindowStore {
-    // scan reads every app when full, otherwise only the apps whose window server frames changed and
-    // the front app.
+    // scan reads every app when full, otherwise the apps PassPlan picks: those that woke or changed
+    // since the last scan, the front app, and every app when a full read is due.
     func scan(_ screens: Screens, full: Bool) -> Scan {
-        let read = full ? scan(screens) : scan(screens) { listed, previous, slow, front in
-            .apps(PassPlan.changed(listed: listed, previous: previous, slow: slow).union(front.map { [$0] } ?? []))
+        let t = ProcessInfo.processInfo.systemUptime
+        appWoke = appWoke.filter { t - $0.value < Pace.settleSeconds }
+        echoes = echoes.filter { t - $0.value.at < Pace.settleSeconds }
+        let echoed = echoes.mapValues(\.frame)
+        let read = scan(screens) { [self] listed, previous, slow, front in
+            PassPlan.plan(now: t, forced: full, lastFull: lastFull, fullWoke: fullWoke, woke: appWoke,
+                          listed: listed, previous: previous, slow: slow, front: front, echoes: echoed)
+        }
+        if lastPlan == .full {
+            lastFull = t
         }
         return Scan(windows: read.windows, focused: read.focused)
     }
 
-    // move places the window with the app's Enhanced UI handled as behavior says, sliding it there
-    // from its last read frame when behavior animates and that frame is known.
+    // move places the window. A move with no last frame is a hold or a step back and goes plain, as
+    // the passes always moved; a placement from its last frame handles the app's Enhanced UI as
+    // behavior says, and slides there when behavior animates.
     func move(_ id: WindowID, to frame: Frame, from: Frame?, behavior: Behaviors) {
-        if behavior.animate, let from {
+        guard let from else {
+            move(id, to: frame)
+            return
+        }
+        if behavior.animate {
             slide(id, from: from, to: frame, enhancedUI: behavior.enhancedUI)
         } else {
             move(id, to: frame, enhancedUI: behavior.enhancedUI, from: from)
