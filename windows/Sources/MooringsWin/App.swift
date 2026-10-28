@@ -26,6 +26,11 @@ final class App {
     // notify shows a banner with a title and a body. It does nothing until the app wires the
     // banner, so probes print none.
     var notify: (String, String) -> Void = { _, _ in }
+    // reloaded is told after the choices were re-read from the file, so the app can rebind the
+    // shortcuts.
+    var reloaded: () -> Void = {}
+    // reloads counts the times the choices were re-read because the file changed or was asked for.
+    private(set) var reloads = 0
     // actions runs the window actions the shortcuts name.
     private(set) lazy var actions: ActionRunner = {
         let r = ActionRunner(platform: platform, anchors: anchors)
@@ -65,6 +70,11 @@ final class App {
     // passes run the window passes on the engine's pass loop.
     private(set) lazy var passes: PassLoop = {
         let p = PassLoop(platform: platform, anchors: anchors)
+        p.prepare = { [unowned self] in
+            if store.changed() {
+                reload()
+            }
+        }
         p.mouseHeld = { [unowned self] in dragging || GetAsyncKeyState(VK_LBUTTON) < 0 }
         p.refreshed = { [unowned self] alive in actions.prune(alive: alive) }
         p.after = { [unowned self] _, screens, _ in self.screens = screens }
@@ -109,6 +119,13 @@ final class App {
         } catch {
             FileHandle.standardError.write(Data("choices not saved: \(error)\n".utf8))
         }
+    }
+
+    // reload re-reads the choices from the file and tells reloaded.
+    func reload() {
+        anchors.choices = store.load()
+        reloads += 1
+        reloaded()
     }
 
     // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle.
