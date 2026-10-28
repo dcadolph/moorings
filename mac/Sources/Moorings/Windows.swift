@@ -26,8 +26,11 @@ final class Windows {
     // timeout caps how long one Accessibility call to a busy app may block the main thread.
     static let timeout: Float = 0.25
 
-    // elements maps each window seen in the last scan to its element.
+    // elements maps each window a scan or read has seen to its element, kept until the window is gone
+    // or its app quits, so a minimized window or one on another Space can still be acted on.
     private(set) var elements: [WindowID: AXUIElement] = [:]
+    // kept lists the windows the last scan kept, plus any read alone since.
+    private var kept: Set<WindowID> = []
     // zooms caches each window's green button rect with the frame it was read at, so it is asked
     // for again only when the window moves.
     private var zooms: [WindowID: (frame: Frame, rect: Frame?)] = [:]
@@ -166,7 +169,8 @@ final class Windows {
         }
         found = WindowInfo.promotingLone(found)
         last = byPid
-        elements = seen
+        elements.merge(seen) { _, new in new }
+        kept = Set(seen.keys)
         zooms = zooms.filter { seen[$0.key] != nil }
         found.sort { rank[$0.id, default: .max] < rank[$1.id, default: .max] }
         if let focusedID, let i = found.firstIndex(where: { $0.id == focusedID }) {
@@ -185,8 +189,8 @@ final class Windows {
         return read(el, id: id, pid: pid, screens: screens)
     }
 
-    // window reads the window with id alone, without a scan, when the last scan kept it, and returns
-    // nil otherwise or when it cannot be read.
+    // window reads the window with id alone, without a scan, when the store holds its element, and
+    // returns nil otherwise or when it cannot be read.
     func window(_ id: WindowID, screens: Screens) -> WindowInfo? {
         guard let el = elements[id], let pid = Self.pid(el) else { return nil }
         return read(el, id: id, pid: pid, screens: screens)
@@ -203,6 +207,7 @@ final class Windows {
         let main = Self.element(appElement(pid), kAXMainWindowAttribute).flatMap { Self.id($0) }
         guard let info = info(el, id: id, bundle: bundle, isMain: id == main, screens: screens) else { return nil }
         elements[id] = el
+        kept.insert(id)
         return info
     }
 
@@ -465,15 +470,16 @@ final class Windows {
         return Set((list ?? []).compactMap { $0[kCGWindowNumber as String] as? WindowID })
     }
 
-    // forget drops the cached element, windows and frames of a process that quit.
+    // forget drops the cached elements, windows and frames of a process that quit.
     func forget(_ pid: pid_t) {
+        elements = elements.filter { Self.pid($0.value).map { $0 != pid } ?? false }
         apps[pid] = nil
         last[pid] = nil
         listed[pid] = nil
         slow.remove(pid)
     }
 
-    // pid returns the process that owns the window with id, nil when the last scan did not keep it.
+    // pid returns the process that owns the window with id, nil when the store holds no element for it.
     func pid(_ id: WindowID) -> pid_t? {
         var pid: pid_t = 0
         guard let el = elements[id], AXUIElementGetPid(el, &pid) == .success else { return nil }
@@ -522,7 +528,7 @@ final class Windows {
 
     // keeps reports whether the last scan kept the window with id.
     func keeps(_ id: WindowID?) -> Bool {
-        id.map { elements[$0] != nil } ?? false
+        id.map { kept.contains($0) } ?? false
     }
 
     // eligible reports whether a scan would keep el by its kind: a document window or a file panel.
@@ -696,9 +702,12 @@ extension Windows: @preconcurrency WindowStore {
     // refused lists the windows Accessibility would not move or size.
     var refused: Set<WindowID> { refusedIDs }
 
-    // alive lists the ids of every window on any space.
+    // alive lists the ids of every window on any space, and drops the elements of windows that are
+    // gone.
     func alive() -> Set<WindowID> {
-        Self.alive()
+        let ids = Self.alive()
+        elements = elements.filter { ids.contains($0.key) }
+        return ids
     }
 
     // ready reports whether moorings has Accessibility access.
