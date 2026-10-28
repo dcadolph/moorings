@@ -76,6 +76,8 @@ public final class FakeWindows: WindowStore {
     public var ready = true
     // ignoresMinimum makes moves skip the minimum size, only for the contract's negative control.
     public var ignoresMinimum = false
+    // forgetsMinimized makes close do nothing to a minimized window, only for the contract's negative control.
+    public var forgetsMinimized = false
     // onEvent is told each change to a window as it happens, for FakeEvents.
     public var onEvent: ((WindowEvent) -> Void)?
     // nextID is the id the next added window gets.
@@ -197,7 +199,7 @@ public final class FakeWindows: WindowStore {
     // close removes the window.
     public func close(_ id: WindowID) {
         calls.append(.close(id))
-        guard index(id) != nil else { return }
+        guard let i = index(id), !(forgetsMinimized && windows[i].minimized) else { return }
         windows.removeAll { $0.id == id }
         if focusedID == id {
             focusedID = nil

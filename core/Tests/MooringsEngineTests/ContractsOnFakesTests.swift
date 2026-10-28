@@ -199,3 +199,61 @@ final class DroppingEvents: EventSource {
     let failures = EventSourceContract.run(DroppingEvents(FakeEvents(windows: windows)), store: windows, host: host)
     #expect(failures.map(\.rule) == ["a host close delivers destroyed within 1 s"])
 }
+
+// The fake screens keep every ScreenSource rule.
+@Test func testScreenSourceContractOnFake() {
+    let (_, _, host) = fakeHost()
+    let failures = ScreenSourceContract.run(FakeScreens.ultrawide(), host: host)
+    #expect(failures.isEmpty, "\(failures)")
+}
+
+// The fake store keeps every ChoicesStore rule.
+@Test func testChoicesStoreContractOnFake() {
+    let (_, _, host) = fakeHost()
+    let failures = ChoicesStoreContract.run(FakeStore(), host: host)
+    #expect(failures.isEmpty, "\(failures)")
+}
+
+// The fake clock keeps every Clock rule.
+@Test func testClockContractOnFake() {
+    let (_, clock, host) = fakeHost()
+    let failures = ClockContract.run(clock, host: host)
+    #expect(failures.isEmpty, "\(failures)")
+}
+
+// BackwardClock is a Clock whose first three reads run backward across the contract's 50 ms waits and
+// whose later reads follow the host, for the clock contract's negative control.
+final class BackwardClock: Clock {
+    // host is the host whose time the clock follows.
+    private let host: ContractHost
+    // lags is how far each of the first reads sits from the host's time.
+    private let lags = [-0.02, 0.031, 0.082]
+    // reads counts the reads so far.
+    private var reads = 0
+
+    // init builds a clock that follows host.
+    init(host: ContractHost) {
+        self.host = host
+    }
+
+    // now is the host's time less the lag of this read, none after the first three.
+    var now: Double {
+        defer { reads += 1 }
+        return host.now - (reads < lags.count ? lags[reads] : 0)
+    }
+}
+
+// A clock that steps backward breaks the monotonic rule, by name.
+@Test func testClockContractCatchesBackward() {
+    let (_, _, host) = fakeHost()
+    let failures = ClockContract.run(BackwardClock(host: host), host: host)
+    #expect(failures.map(\.rule) == ["the clock is monotonic"])
+}
+
+// A store that keeps a minimized window out of reach of close breaks that rule, by name.
+@Test func testWindowStoreContractCatchesForgottenMinimized() {
+    let (windows, _, host) = fakeHost()
+    windows.forgetsMinimized = true
+    let failures = WindowStoreContract.run(windows, host: host)
+    #expect(failures.map(\.rule) == ["a listed window stays actionable until it is gone"])
+}

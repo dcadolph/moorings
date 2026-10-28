@@ -1241,12 +1241,18 @@ func probeContracts(_ opts: ProbeOptions) -> Int32 {
     failures += LogContract.run(WinLog(), host: host)
     failures += TimersContract.run(timers, clock: WinClock(), host: host)
     failures += EventSourceContract.run(WinEvents(), store: windows, host: host)
+    failures += ScreenSourceContract.run(WinScreens(), host: host)
+    let file = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(
+        "moorings-contract-\(UUID().uuidString).json")
+    failures += ChoicesStoreContract.run(Store(url: file), host: host)
+    try? FileManager.default.removeItem(at: file)
+    failures += ClockContract.run(WinClock(), host: host)
     failures += AppsContract.run(WinApps(), store: windows, host: host)
     failures += modifiersTable()
     for f in failures {
         print("contract failed: \(f)")
     }
-    print("contracts: 10 suites, \(failures.count) failures")
+    print("contracts: 13 suites, \(failures.count) failures")
     return failures.isEmpty ? 0 : 1
 }
 

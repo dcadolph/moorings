@@ -124,8 +124,13 @@ final class MacHost: @preconcurrency ContractHost {
     failures += LogContract.run(MacLog(), host: host)
     failures += TimersContract.run(MacTimers(), clock: MacClock(), host: host)
     failures += EventSourceContract.run(MacEvents(store: store), store: store, host: host)
+    failures += ScreenSourceContract.run(MacScreens(), host: host)
+    let key = "moorings.contract.\(UUID().uuidString)"
+    failures += ChoicesStoreContract.run(DefaultsStore(key: key), host: host)
+    UserDefaults.standard.removeObject(forKey: key)
+    failures += ClockContract.run(MacClock(), host: host)
     failures += AppsContract.run(MacApps(), store: store, host: host)
-    print("Mac contracts: 12 suites, \(failures.count) failures")
+    print("Mac contracts: 15 suites, \(failures.count) failures")
     #expect(failures.isEmpty, "\(failures)")
 }
 

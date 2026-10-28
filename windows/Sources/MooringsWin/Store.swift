@@ -12,11 +12,17 @@ final class Store: ChoicesStore {
     private(set) var stamp: UInt64?
 
     // init uses %APPDATA%\Moorings\choices.json.
-    init() {
+    convenience init() {
         let base = ProcessInfo.processInfo.environment["APPDATA"] ?? NSTemporaryDirectory()
-        url = URL(fileURLWithPath: base, isDirectory: true)
-            .appendingPathComponent("Moorings", isDirectory: true)
-            .appendingPathComponent("choices.json")
+        self.init(
+            url: URL(fileURLWithPath: base, isDirectory: true)
+                .appendingPathComponent("Moorings", isDirectory: true)
+                .appendingPathComponent("choices.json"))
+    }
+
+    // init keeps the choices in the file at url.
+    init(url: URL) {
+        self.url = url
     }
 
     // load returns the saved choices, or the defaults when there is no readable file.
