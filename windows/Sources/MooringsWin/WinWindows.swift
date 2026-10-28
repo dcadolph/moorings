@@ -138,6 +138,26 @@ final class WinWindows: WindowStore {
     // ready is always true: Windows asks for no grant to move another app's window.
     var ready: Bool { true }
 
+    // hit returns the top-level window under p, nil when the desktop or nothing is there.
+    func hit(_ p: Point) -> WindowID? {
+        guard let child = WindowFromPoint(POINT(x: LONG(p.x.rounded()), y: LONG(p.y.rounded()))),
+            let top = GetAncestor(child, WinWatcher.root), top != GetDesktopWindow(), top != GetShellWindow()
+        else { return nil }
+        return Self.id(top)
+    }
+
+    // title returns the window's caption, nil when the window is gone or has none.
+    func title(_ id: WindowID) -> String? {
+        guard let hwnd = Self.hwnd(id), IsWindow(hwnd) else { return nil }
+        var buffer = [WCHAR](repeating: 0, count: 512)
+        let n = GetWindowTextW(hwnd, &buffer, Int32(buffer.count))
+        guard n > 0 else { return nil }
+        return String(decoding: buffer[0..<Int(n)], as: UTF16.self)
+    }
+
+    // exitFullScreen does nothing: Windows has no full screen mode a window can be asked to leave.
+    func exitFullScreen(_ id: WindowID) {}
+
     // hwnd returns the handle behind id.
     static func hwnd(_ id: WindowID) -> HWND? {
         HWND(bitPattern: UInt(id))

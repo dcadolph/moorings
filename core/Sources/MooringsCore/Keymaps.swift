@@ -84,6 +84,24 @@ public struct Shortcut: Equatable, Sendable {
     }
 }
 
+// GrabKey is one key a hold takes: the key name, the modifiers held with it, and the tag its press
+// delivers.
+public struct GrabKey: Equatable, Sendable {
+    // key is the key name, such as left or u.
+    public var key: String
+    // modifiers are the keys held with it.
+    public var modifiers: Modifiers
+    // tag is what a press delivers to the grab's handler.
+    public var tag: String
+
+    // init builds a grab key.
+    public init(key: String, modifiers: Modifiers, tag: String) {
+        self.key = key
+        self.modifiers = modifiers
+        self.tag = tag
+    }
+}
+
 // ShortcutInput is a shortcut as written in the config: modifier names that may be unknown, and a
 // key. A nil field is a missing one.
 public struct ShortcutInput: Equatable, Sendable {

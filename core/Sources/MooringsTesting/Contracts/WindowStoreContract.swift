@@ -49,6 +49,35 @@ public enum WindowStoreContract {
             subject.move(a, to: target, from: got, behavior: Behaviors())
             _ = host.wait(until: host.now + 0.25) { Contract.near(subject.frame(a), target) }
         }
+        subject.raise(a)
+        let held = subject.frame(a) ?? target
+        let middle = Point(x: held.x + held.w / 2, y: held.y + held.h / 2)
+        if !host.wait(until: host.now + 0.25, { subject.hit(middle) == a }) {
+            fail(
+                "hit at the middle of a raised window returns it within 250 ms",
+                "got \(subject.hit(middle).map { "\($0)" } ?? "none")")
+        }
+        let off = "hit at a point off every window returns nil"
+        if let p = clear(area, of: subject.scan(screens, full: true).windows.map(\.frame)) {
+            if let got = subject.hit(p) {
+                fail(off, "at \(p.x), \(p.y) got \(got)")
+            }
+        } else {
+            Contract.skip(off, "no point in the usable area is 10 px clear of every window")
+        }
+        if (subject.title(a) ?? "").isEmpty {
+            fail("title of the host's window is not empty", "got \(subject.title(a).map { "\"\($0)\"" } ?? "nil")")
+        }
+        let gone = (subject.alive().max() ?? 0) + 1_000_000
+        if let t = subject.title(gone) {
+            fail("title of a window that is gone is nil", "got \"\(t)\"")
+        }
+        subject.exitFullScreen(a)
+        if host.wait(until: host.now + 0.25, { !Contract.near(subject.frame(a), held) }) {
+            fail(
+                "exitFullScreen leaves a window that is not full screen within 1 px",
+                "before \(held) after \(Contract.show(subject.frame(a)))")
+        }
         guard let b = host.open() else {
             fail("the host opens a second window", "none opened")
             return out
@@ -82,5 +111,22 @@ public enum WindowStoreContract {
             fail("close removes the window from alive within 1 s", "still alive")
         }
         return out
+    }
+
+    // clear returns a point in area at least 10 points from every frame, nil when there is none. It
+    // tries a coarse grid from the area's top-left corner.
+    static func clear(_ area: Frame, of frames: [Frame]) -> Point? {
+        let margin = 10.0
+        for y in stride(from: area.y + margin, to: area.y + area.h - margin, by: 40) {
+            for x in stride(from: area.x + margin, to: area.x + area.w - margin, by: 40) {
+                let free = frames.allSatisfy { f in
+                    x < f.x - margin || x > f.x + f.w + margin || y < f.y - margin || y > f.y + f.h + margin
+                }
+                if free {
+                    return Point(x: x, y: y)
+                }
+            }
+        }
+        return nil
     }
 }

@@ -114,3 +114,88 @@ final class StuckGrid: GridView {
     let failures = SchedulerContract.run(FakeScheduler(clock: clock), clock: clock, host: host)
     #expect(failures.isEmpty, "\(failures)")
 }
+
+// The fake pointer keeps every Pointer rule.
+@Test func testPointerContractOnFake() {
+    let (_, _, host) = fakeHost()
+    let failures = PointerContract.run(FakePointer(), host: host)
+    #expect(failures.isEmpty, "\(failures)")
+}
+
+// The fake keys keep every Keys rule, with the host pressing through them.
+@Test func testKeysContractOnFake() {
+    let (_, _, host) = fakeHost()
+    let keys = FakeKeys()
+    host.keys = keys
+    let failures = KeysContract.run(keys, host: host)
+    #expect(failures.isEmpty, "\(failures)")
+}
+
+// The fake apps keep every Apps rule.
+@Test func testAppsContractOnFake() {
+    let (windows, _, host) = fakeHost()
+    let failures = AppsContract.run(FakeApps(windows: windows), store: windows, host: host)
+    #expect(failures.isEmpty, "\(failures)")
+    #expect(windows.windows.isEmpty, "the suite closes the window it opened")
+}
+
+// The fake log keeps every Log rule.
+@Test func testLogContractOnFake() {
+    let (_, _, host) = fakeHost()
+    let failures = LogContract.run(FakeLog(), host: host)
+    #expect(failures.isEmpty, "\(failures)")
+}
+
+// The fake timers keep every Timers rule and every Scheduler rule on what they hand out.
+@Test func testTimersContractOnFake() {
+    let (_, clock, host) = fakeHost()
+    let failures = TimersContract.run(FakeTimers(clock: clock), clock: clock, host: host)
+    #expect(failures.isEmpty, "\(failures)")
+}
+
+// The fake events keep every EventSource rule.
+@Test func testEventSourceContractOnFake() {
+    let (windows, _, host) = fakeHost()
+    let failures = EventSourceContract.run(FakeEvents(windows: windows), store: windows, host: host)
+    #expect(failures.isEmpty, "\(failures)")
+}
+
+// DroppingEvents is an EventSource that loses every destroyed event, for the events contract's
+// negative control.
+final class DroppingEvents: EventSource {
+    // inner is the source whose events pass through.
+    private let inner: FakeEvents
+
+    // init wraps inner.
+    init(_ inner: FakeEvents) {
+        self.inner = inner
+    }
+
+    // waiting is the inner source's.
+    var waiting: Bool { inner.waiting }
+
+    // start passes on every event but destroyed.
+    func start(_ deliver: @escaping (WindowEvent) -> Void) {
+        inner.start { event in
+            if case .destroyed = event { return }
+            deliver(event)
+        }
+    }
+
+    // stop stops the inner source.
+    func stop() {
+        inner.stop()
+    }
+
+    // watch passes the scan on.
+    func watch(_ scan: Scan) {
+        inner.watch(scan)
+    }
+}
+
+// A source that drops destroyed breaks that rule, by name.
+@Test func testEventSourceContractCatchesDroppedDestroyed() {
+    let (windows, _, host) = fakeHost()
+    let failures = EventSourceContract.run(DroppingEvents(FakeEvents(windows: windows)), store: windows, host: host)
+    #expect(failures.map(\.rule) == ["a host close delivers destroyed within 1 s"])
+}
