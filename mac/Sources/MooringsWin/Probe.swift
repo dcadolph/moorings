@@ -44,8 +44,15 @@ struct ProbeOptions {
     var noApps = false
     // pid names the process whose window the nudge probe moves.
     var pid: DWORD?
-    // frame is where the nudge probe moves the window.
+    // frame is where the nudge probe moves the window, or where the place probe places it.
     var frame: Frame?
+    // screen replaces the monitor walk with one monitor of this size, so the runner acts as an
+    // ultrawide.
+    var screen: Size?
+    // mode is the display mode the modes probe switches to.
+    var mode: Size?
+    // reset makes the modes probe restore the display mode kept in the registry.
+    var reset = false
 
     // init parses args, the command line without the program name.
     init(_ args: [String]) throws {
@@ -67,6 +74,16 @@ struct ProbeOptions {
                 noFilter = true
             case "--no-apps":
                 noApps = true
+            case "--reset":
+                reset = true
+            case "--screen", "--mode":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard let size = Size(value) else { throw ProbeError.badValue(flag, value) }
+                if flag == "--screen" {
+                    screen = size
+                } else {
+                    mode = size
+                }
             case "--seconds":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }
@@ -87,6 +104,30 @@ struct ProbeOptions {
     }
 }
 
+// Size is a width and height in whole pixels, written WxH on the command line.
+struct Size: Equatable {
+    // w is the width.
+    var w: Int
+    // h is the height.
+    var h: Int
+
+    // init parses WxH, nil unless both are positive whole numbers.
+    init?(_ text: String) {
+        let parts = text.split(separator: "x")
+        guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]), w > 0, h > 0 else {
+            return nil
+        }
+        self.w = w
+        self.h = h
+    }
+
+    // init builds a size from a width and height.
+    init(w: Int, h: Int) {
+        self.w = w
+        self.h = h
+    }
+}
+
 // Probe runs one mechanism, prints lines the Windows workflow checks, and returns the exit code.
 typealias Probe = @Sendable (ProbeOptions) -> Int32
 
@@ -94,6 +135,7 @@ typealias Probe = @Sendable (ProbeOptions) -> Int32
 let probes: [String: Probe] = [
     "version": probeVersion,
     "monitors": probeMonitors,
+    "modes": probeModes,
     "list": probeList,
     "place": probePlace,
     "moor": probeMoor,
@@ -130,6 +172,49 @@ func probeMonitors(_ opts: ProbeOptions) -> Int32 {
     return monitors.isEmpty ? 1 : 0
 }
 
+// probeModes prints every display mode of the primary adapter, the current one, the largest one at
+// least minAspect wide, and the largest window size Windows allows. With --mode it switches to a
+// mode until the next switch, and with --reset it restores the mode kept in the registry.
+func probeModes(_ opts: ProbeOptions) -> Int32 {
+    if opts.reset {
+        let r = ChangeDisplaySettingsExW(nil, nil, nil, 0, nil)
+        print("reset: \(r == 0 ? "done" : "failed \(r)")")
+        return r == 0 ? 0 : 1
+    }
+    if let mode = opts.mode {
+        var dm = DEVMODEW()
+        dm.dmSize = WORD(MemoryLayout<DEVMODEW>.size)
+        dm.dmPelsWidth = DWORD(mode.w)
+        dm.dmPelsHeight = DWORD(mode.h)
+        dm.dmFields = DWORD(DM_PELSWIDTH | DM_PELSHEIGHT)
+        let r = ChangeDisplaySettingsExW(nil, &dm, nil, 0, nil)
+        print("switched to \(mode.w)x\(mode.h): \(r == 0 ? "done" : "failed \(r)")")
+        return r == 0 ? 0 : 1
+    }
+    var dm = DEVMODEW()
+    dm.dmSize = WORD(MemoryLayout<DEVMODEW>.size)
+    var sizes: [Size] = []
+    var i: DWORD = 0
+    while EnumDisplaySettingsW(nil, i, &dm) {
+        let size = Size(w: Int(dm.dmPelsWidth), h: Int(dm.dmPelsHeight))
+        if !sizes.contains(size) {
+            sizes.append(size)
+        }
+        i += 1
+    }
+    sizes.sort { ($0.w, $0.h) < ($1.w, $1.h) }
+    for s in sizes {
+        print("mode \(s.w)x\(s.h) aspect \(String(format: "%.2f", Double(s.w) / Double(s.h)))")
+    }
+    if EnumDisplaySettingsW(nil, DWORD.max, &dm) {
+        print("current: \(dm.dmPelsWidth)x\(dm.dmPelsHeight)")
+    }
+    let wide = sizes.filter { Double($0.w) / Double($0.h) >= opts.minAspect }.max { $0.w * $0.h < $1.w * $1.h }
+    print("ultrawide mode: \(wide.map { "\($0.w)x\($0.h)" } ?? "none")")
+    print("max track: \(GetSystemMetrics(SM_CXMAXTRACK)) \(GetSystemMetrics(SM_CYMAXTRACK))")
+    return sizes.isEmpty ? 1 : 0
+}
+
 // probeList prints one line per movable window, front-most first, and which one has focus.
 func probeList(_ opts: ProbeOptions) -> Int32 {
     let (windows, focused) = WinWindows.scan(screens: .current(minAspect: opts.minAspect))
@@ -150,7 +235,9 @@ func probePlace(_ opts: ProbeOptions) -> Int32 {
     }
     let placer = WinWindows()
     placer.corrects = !opts.noDelta
-    for target in [Frame(x: 100, y: 100, w: 800, h: 600), Frame(x: 300, y: 200, w: 640, h: 480)] {
+    let targets = opts.frame.map { [$0] }
+        ?? [Frame(x: 100, y: 100, w: 800, h: 600), Frame(x: 300, y: 200, w: 640, h: 480)]
+    for target in targets {
         placer.move(pad.id, to: target)
         print("asked: \(pixels(target)) placed: \(placer.frame(pad.id).map(pixels) ?? "gone")")
     }
@@ -611,6 +698,12 @@ func pixels(_ f: Frame) -> String {
 
 // Monitor is one display as Windows reports it, in top-left physical pixels.
 struct Monitor {
+    // taskbar is the height a sized monitor keeps for the taskbar, the Windows 11 default at 100
+    // percent.
+    static let taskbar = 48.0
+    // fake stands in for every attached monitor when set, as --screen sets it.
+    nonisolated(unsafe) static var fake: Monitor?
+
     // full is rcMonitor, the whole display.
     var full: Frame
     // usable is rcWork, the display without the taskbar.
@@ -618,8 +711,18 @@ struct Monitor {
     // primary is true for the display that holds the origin.
     var primary: Bool
 
-    // all returns every monitor in EnumDisplayMonitors order.
+    // sized returns one primary monitor at the origin of size, with the taskbar along its bottom.
+    static func sized(_ size: Size) -> Monitor {
+        let full = Frame(x: 0, y: 0, w: Double(size.w), h: Double(size.h))
+        let usable = Frame(x: 0, y: 0, w: full.w, h: max(1, full.h - taskbar))
+        return Monitor(full: full, usable: usable, primary: true)
+    }
+
+    // all returns every monitor in EnumDisplayMonitors order, or the fake one alone when set.
     static func all() -> [Monitor] {
+        if let fake {
+            return [fake]
+        }
         let found = MonitorList()
         let context = LPARAM(Int(bitPattern: Unmanaged.passUnretained(found).toOpaque()))
         _ = EnumDisplayMonitors(nil, nil, { handle, _, _, context in

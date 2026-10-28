@@ -131,61 +131,65 @@ jobs:
             ,$lines
           }
 
-          Write-Host "probe moor"
-          $a = Start-Process notepad -PassThru
-          Start-Sleep -Seconds 3
-          $script:nudges = @()
-          $m = Moor (Join-Path $env:RUNNER_TEMP 'moor.txt') @('--probe', 'moor', '--seconds', '14', '--min-aspect', '1.0') {
-            Start-Sleep -Seconds 5
-            $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($a.Id)", '--frame', '420,260,300,200')
-            Start-Sleep -Seconds 2
-            $script:b = Start-Process notepad -PassThru
-            Start-Sleep -Seconds 2
-            $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
+          function MoorCheck([string[]] $geo) {
+            Write-Host "probe moor $geo"
+            $a = Start-Process notepad -PassThru
+            Start-Sleep -Seconds 3
+            $script:nudges = @()
+            $m = Moor (Join-Path $env:RUNNER_TEMP 'moor.txt') (@('--probe', 'moor', '--seconds', '14') + $geo) {
+              Start-Sleep -Seconds 5
+              $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($a.Id)", '--frame', '420,260,300,200')
+              Start-Sleep -Seconds 2
+              $script:b = Start-Process notepad -PassThru
+              Start-Sleep -Seconds 2
+              $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
+            }
+            $start = $m -match '^start at '
+            if ($start.Count -ne 1 -or -not ($start[0] -match 'paused false')) { throw "want one unpaused start line" }
+            $t0 = At $start[0]
+            $padA = [regex]::Match($start[0], 'pinned (0x[0-9a-f]+)').Groups[1].Value
+            $strip = Rect ($m -match '^strip: ')[0] 'strip: '
+            $channel = Rect ($m -match '^channel: ')[0] 'channel: '
+            $nudgeA = $script:nudges[0]; $nudgeB = $script:nudges[1]
+            $padB = [regex]::Match($nudgeB, 'nudged (0x[0-9a-f]+)').Groups[1].Value
+            if (-not $padA -or -not $padB) { throw "no window id for the pin or the second Notepad" }
+            if ([regex]::Match($nudgeA, 'nudged (0x[0-9a-f]+)').Groups[1].Value -ne $padA) { throw "nudge moved another window than the pin" }
+
+            $placed = @($m -match "^move $padA at " | Where-Object { (At $_) -le (At $nudgeA) })
+            if ($placed.Count -eq 0) { throw "the pin was never placed" }
+            if ((At $placed[0]) - $t0 -gt 2) { throw "first pin move came after 2 s" }
+            $off = Off (Rect $placed[-1] 'got ') $strip
+            if ($off -gt 1) { throw "pin read back off the left strip by $off px" }
+            Write-Host "  check: pin placed at the left strip within $([Math]::Round((At $placed[0]) - $t0, 3)) s"
+
+            $rel = @($m -match "^released $padA at ")
+            if ($rel.Count -ne 1) { throw "want the pin released once after the hand move, got $($rel.Count)" }
+            $lag = (At $rel[0]) - (At $nudgeA)
+            if ($lag -lt 0 -or $lag -gt 1) { throw "release came $lag s after the nudge" }
+            $finalA = Rect ($m -match "^final $padA ")[0] 'frame '
+            if ((Off $finalA @(420, 260, 300, 200)) -gt 1) { throw "released pin did not stay where it was put" }
+            Write-Host "  check: pin released $([Math]::Round($lag, 3)) s after the hand move and left there"
+
+            $pushed = @($m -match "^move $padB at " | Where-Object { (At $_) -ge (At $nudgeB) })
+            if ($pushed.Count -eq 0) { throw "the second Notepad was not moved after the nudge" }
+            $lag = (At $pushed[0]) - (At $nudgeB)
+            if ($lag -gt 1) { throw "push back came $lag s after the nudge" }
+            $finalB = Rect ($m -match "^final $padB ")[0] 'frame '
+            if ($finalB[0] -lt $channel[0] - 1 -or $finalB[0] + $finalB[2] -gt $channel[0] + $channel[2] + 1) { throw "second Notepad is not inside the channel" }
+            Write-Host "  check: second Notepad pushed into the channel $([Math]::Round($lag, 3)) s after landing on the strip"
+
+            Write-Host "probe moor --paused $geo"
+            $null = Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
+            $m = Moor (Join-Path $env:RUNNER_TEMP 'paused.txt') (@('--probe', 'moor', '--seconds', '4', '--paused') + $geo) {}
+            Expect $m 'paused true' 'paused start line'
+            if ($m -match '^move ') { throw "a paused loop moved a window" }
+            $finalB = Rect ($m -match "^final $padB ")[0] 'frame '
+            if ((Off $finalB @(10, 10, 300, 300)) -gt 1) { throw "second Notepad moved while paused" }
+            Write-Host "  check: paused loop moved nothing in 4 s"
+            Stop-Process -Id $a.Id, $script:b.Id
+            $script:strip = $strip
           }
-          $start = $m -match '^start at '
-          if ($start.Count -ne 1 -or -not ($start[0] -match 'paused false')) { throw "want one unpaused start line" }
-          $t0 = At $start[0]
-          $padA = [regex]::Match($start[0], 'pinned (0x[0-9a-f]+)').Groups[1].Value
-          $strip = Rect ($m -match '^strip: ')[0] 'strip: '
-          $channel = Rect ($m -match '^channel: ')[0] 'channel: '
-          $nudgeA = $script:nudges[0]; $nudgeB = $script:nudges[1]
-          $padB = [regex]::Match($nudgeB, 'nudged (0x[0-9a-f]+)').Groups[1].Value
-          if (-not $padA -or -not $padB) { throw "no window id for the pin or the second Notepad" }
-          if ([regex]::Match($nudgeA, 'nudged (0x[0-9a-f]+)').Groups[1].Value -ne $padA) { throw "nudge moved another window than the pin" }
-
-          $placed = @($m -match "^move $padA at " | Where-Object { (At $_) -le (At $nudgeA) })
-          if ($placed.Count -eq 0) { throw "the pin was never placed" }
-          if ((At $placed[0]) - $t0 -gt 2) { throw "first pin move came after 2 s" }
-          $off = Off (Rect $placed[-1] 'got ') $strip
-          if ($off -gt 1) { throw "pin read back off the left strip by $off px" }
-          Write-Host "  check: pin placed at the left strip within $([Math]::Round((At $placed[0]) - $t0, 3)) s"
-
-          $rel = @($m -match "^released $padA at ")
-          if ($rel.Count -ne 1) { throw "want the pin released once after the hand move, got $($rel.Count)" }
-          $lag = (At $rel[0]) - (At $nudgeA)
-          if ($lag -lt 0 -or $lag -gt 1) { throw "release came $lag s after the nudge" }
-          $finalA = Rect ($m -match "^final $padA ")[0] 'frame '
-          if ((Off $finalA @(420, 260, 300, 200)) -gt 1) { throw "released pin did not stay where it was put" }
-          Write-Host "  check: pin released $([Math]::Round($lag, 3)) s after the hand move and left there"
-
-          $pushed = @($m -match "^move $padB at " | Where-Object { (At $_) -ge (At $nudgeB) })
-          if ($pushed.Count -eq 0) { throw "the second Notepad was not moved after the nudge" }
-          $lag = (At $pushed[0]) - (At $nudgeB)
-          if ($lag -gt 1) { throw "push back came $lag s after the nudge" }
-          $finalB = Rect ($m -match "^final $padB ")[0] 'frame '
-          if ($finalB[0] -lt $channel[0] - 1 -or $finalB[0] + $finalB[2] -gt $channel[0] + $channel[2] + 1) { throw "second Notepad is not inside the channel" }
-          Write-Host "  check: second Notepad pushed into the channel $([Math]::Round($lag, 3)) s after landing on the strip"
-
-          Write-Host "probe moor --paused"
-          $null = Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
-          $m = Moor (Join-Path $env:RUNNER_TEMP 'paused.txt') @('--probe', 'moor', '--seconds', '4', '--min-aspect', '1.0', '--paused') {}
-          Expect $m 'paused true' 'paused start line'
-          if ($m -match '^move ') { throw "a paused loop moved a window" }
-          $finalB = Rect ($m -match "^final $padB ")[0] 'frame '
-          if ((Off $finalB @(10, 10, 300, 300)) -gt 1) { throw "second Notepad moved while paused" }
-          Write-Host "  check: paused loop moved nothing in 4 s"
-          Stop-Process -Id $a.Id, $script:b.Id
+          MoorCheck @('--min-aspect', '1.0')
 
           function Events([string] $name, [string[]] $extra, [string] $frame) {
             $script:nudge = $null
@@ -283,42 +287,47 @@ jobs:
           Write-Host "  check: icon added, slot and Pause commands saved"
           Stop-Process -Id $pad.Id
 
-          function Hotkeys {
+          function Hotkeys([string[]] $geo) {
             $null = Probe @('--probe', 'nudge', '--pid', "$($pad.Id)", '--frame', '200,150,500,350')
-            Probe @('--probe', 'hotkeys', '--seconds', '2', '--min-aspect', '1.0')
+            Probe (@('--probe', 'hotkeys', '--seconds', '2') + $geo)
           }
 
-          Write-Host "probe hotkeys"
-          $pad = Start-Process notepad -PassThru
-          Start-Sleep -Seconds 3
-          $h = Hotkeys
-          $n = [regex]::Match(($h -match '^table: ')[0], '^table: (\d+) registered: (\d+) skipped: (\d+)$')
-          if (-not $n.Success) { throw "no table line" }
-          $table = [int]$n.Groups[1].Value; $reg = [int]$n.Groups[2].Value; $skip = [int]$n.Groups[3].Value
-          if ($reg -eq 0 -or $reg + $skip -ne $table) { throw "registered $reg plus skipped $skip is not the table's $table" }
-          if (@($h -match '^skipped ').Count -ne $skip) { throw "skipped lines do not match the skipped count" }
-          Expect $h '^hotkeys received: left-half$' 'the injected Ctrl+Alt+Left reached WM_HOTKEY as left-half'
-          $channel = Rect ($h -match '^channel: ')[0] 'channel: '
-          $half = @($channel[0], $channel[1], [Math]::Floor($channel[2] / 2), $channel[3])
-          $off = Off (Rect ($h -match '^after: ')[0] 'after: ') $half
-          if ($off -gt 1) { throw "after the chord Notepad is off the channel's left half by $off px" }
-          Write-Host "  check: $reg registered and $skip skipped of $table, Ctrl+Alt+Left put Notepad on the channel's left half"
+          function HotkeyCheck([string[]] $geo) {
+            Write-Host "probe hotkeys $geo"
+            $pad = Start-Process notepad -PassThru
+            Start-Sleep -Seconds 3
+            $h = Hotkeys $geo
+            $n = [regex]::Match(($h -match '^table: ')[0], '^table: (\d+) registered: (\d+) skipped: (\d+)$')
+            if (-not $n.Success) { throw "no table line" }
+            $table = [int]$n.Groups[1].Value; $reg = [int]$n.Groups[2].Value; $skip = [int]$n.Groups[3].Value
+            if ($reg -eq 0 -or $reg + $skip -ne $table) { throw "registered $reg plus skipped $skip is not the table's $table" }
+            if (@($h -match '^skipped ').Count -ne $skip) { throw "skipped lines do not match the skipped count" }
+            Expect $h '^hotkeys received: left-half$' 'the injected Ctrl+Alt+Left reached WM_HOTKEY as left-half'
+            $channel = Rect ($h -match '^channel: ')[0] 'channel: '
+            $half = @($channel[0], $channel[1], [Math]::Floor($channel[2] / 2), $channel[3])
+            $off = Off (Rect ($h -match '^after: ')[0] 'after: ') $half
+            if ($off -gt 1) { throw "after the chord Notepad is off the channel's left half by $off px" }
+            Write-Host "  check: $reg registered and $skip skipped of $table, Ctrl+Alt+Left put Notepad on the channel's left half"
 
-          Write-Host "probe hotkeys while another process holds Ctrl+Alt+Left"
-          $holdLog = Join-Path $env:RUNNER_TEMP 'hold.txt'
-          $holder = Start-Process $exe -ArgumentList @('--probe', 'hold', '--seconds', '8') -RedirectStandardOutput $holdLog -NoNewWindow -PassThru
-          $null = $holder.Handle
-          Start-Sleep -Seconds 2
-          $h = Hotkeys
-          $holder.WaitForExit()
-          $held = @(Get-Content $holdLog)
-          $held | ForEach-Object { Write-Host "  $_" }
-          Expect $held '^held: true$' 'the hold probe took Ctrl+Alt+Left'
-          Expect $h '^skipped left-half: another program holds it$' 'left-half skipped while held'
-          Expect $h '^hotkeys received: none$' 'no press reached a skipped chord'
-          if ((Off (Rect ($h -match '^after: ')[0] 'after: ') @(200, 150, 500, 350)) -gt 1) { throw "a skipped chord moved Notepad" }
-          Expect $held '^hotkeys received: 1$' 'the injected chord reached the holder'
-          Write-Host "  check: held chord skipped, Notepad unchanged, the holder got the press"
+            Write-Host "probe hotkeys $geo while another process holds Ctrl+Alt+Left"
+            $holdLog = Join-Path $env:RUNNER_TEMP 'hold.txt'
+            $holder = Start-Process $exe -ArgumentList @('--probe', 'hold', '--seconds', '8') -RedirectStandardOutput $holdLog -NoNewWindow -PassThru
+            $null = $holder.Handle
+            Start-Sleep -Seconds 2
+            $h = Hotkeys $geo
+            $holder.WaitForExit()
+            $held = @(Get-Content $holdLog)
+            $held | ForEach-Object { Write-Host "  $_" }
+            Expect $held '^held: true$' 'the hold probe took Ctrl+Alt+Left'
+            Expect $h '^skipped left-half: another program holds it$' 'left-half skipped while held'
+            Expect $h '^hotkeys received: none$' 'no press reached a skipped chord'
+            if ((Off (Rect ($h -match '^after: ')[0] 'after: ') @(200, 150, 500, 350)) -gt 1) { throw "a skipped chord moved Notepad" }
+            Expect $held '^hotkeys received: 1$' 'the injected chord reached the holder'
+            Write-Host "  check: held chord skipped, Notepad unchanged, the holder got the press"
+            Stop-Process -Id $pad.Id
+            $script:channel = $channel
+          }
+          HotkeyCheck @('--min-aspect', '1.0')
 
           Write-Host "probe banner"
           $b = Probe @('--probe', 'banner', '--min-aspect', '1.0')
@@ -336,26 +345,7 @@ jobs:
           Expect $b '^open at 1 s: true$' 'the banner still open at 1 s'
           Expect $b '^closed: true$' 'the banner closed itself after the fade'
           Write-Host "  check: banner at the top center, not the foreground, closed after the fade"
-          Stop-Process -Id $pad.Id
 
-          Write-Host "probe skip with Task Manager and a packaged app on the left strip"
-          $lua = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System').EnableLUA
-          $me = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
-          $admin = $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-          Write-Host "  uac: $lua workflow elevated: $admin"
-          $tm = Start-Process taskmgr -PassThru
-          Start-Sleep -Seconds 3
-          $calc = @(Get-AppxPackage -Name Microsoft.WindowsCalculator -ErrorAction SilentlyContinue)
-          $launch = if ($calc.Count -gt 0) { 'calculator:' } else { 'ms-settings:' }
-          Start-Process $launch
-          Start-Sleep -Seconds 5
-          $l = Probe @('--probe', 'list')
-          $tmWindow = @($l -match '^window 0x[0-9a-f]+: .*\\taskmgr\.exe frame ')
-          if ($tmWindow.Count -ne 1) { throw "want one Task Manager window, got $($tmWindow.Count)" }
-          $frameHost = @(Get-Process ApplicationFrameHost -ErrorAction SilentlyContinue)
-          if ($frameHost.Count -eq 0) { throw "no ApplicationFrameHost after starting $launch" }
-          $null = Probe @('--probe', 'nudge', '--pid', "$($tm.Id)", '--frame', '0,0,380,500')
-          $null = Probe @('--probe', 'nudge', '--pid', "$($frameHost[0].Id)", '--frame', '0,200,380,400')
           Add-Type -TypeDefinition @'
           using System;
           using System.ComponentModel;
@@ -414,14 +404,14 @@ jobs:
               }
           }
           '@
-          function Skip([string] $name, [bool] $medium) {
+          function Skip([string] $name, [bool] $medium, [string] $geo) {
             $log = Join-Path $env:RUNNER_TEMP "$name.txt"
             $cmd = Join-Path $env:RUNNER_TEMP "$name.cmd"
             Set-Content $cmd -Encoding ascii -Value @(
               '@echo off',
               'start "" notepad',
               'ping -n 4 127.0.0.1 > nul',
-              "`"$exe`" --probe skip --seconds 8 --min-aspect 1.0 > `"$log`" 2>&1"
+              "`"$exe`" --probe skip --seconds 8 $geo > `"$log`" 2>&1"
             )
             if ($medium) {
               $code = [Medium]::Run("cmd.exe /c `"$cmd`"", 45000)
@@ -450,52 +440,76 @@ jobs:
             }
           }
 
-          Write-Host "  skip at the runner's own integrity"
-          $s = Skip 'skip' $false
-          $tmw = Listed $s '.*\\taskmgr\.exe' 'Task Manager'
-          if ($s -match "^skipped $($tmw.Id): ") { throw "Task Manager skipped though it does not outrank the probe" }
-          if (-not (Inside $s $tmw.Id)) { throw "Task Manager at the probe's level was not pushed into the channel" }
-          Write-Host "  check: Task Manager at the probe's level ($($tmw.Level)) pushed into the channel"
-          $pk = Listed $s '[^\\\s]+![^\s]+' 'packaged'
-          $aumid = [regex]::Match($pk.Line, '^window 0x[0-9a-f]+: (\S+) frame ').Groups[1].Value
-          if (-not ($s -match "^move $($pk.Id) at ")) { throw "the packaged app was not moved" }
-          if (-not (Inside $s $pk.Id)) { throw "the packaged app is not inside the channel" }
-          Write-Host "  check: $aumid from $launch listed by its user model id and pushed into the channel"
+          function SkipCheck([string] $geo) {
+            Write-Host "probe skip $geo with Task Manager and a packaged app on the left strip"
+            $lua = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System').EnableLUA
+            $me = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+            $admin = $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+            Write-Host "  uac: $lua workflow elevated: $admin"
+            $tm = Start-Process taskmgr -PassThru
+            Start-Sleep -Seconds 3
+            $calc = @(Get-AppxPackage -Name Microsoft.WindowsCalculator -ErrorAction SilentlyContinue)
+            $launch = if ($calc.Count -gt 0) { 'calculator:' } else { 'ms-settings:' }
+            Start-Process $launch
+            Start-Sleep -Seconds 5
+            $l = Probe @('--probe', 'list')
+            $tmWindow = @($l -match '^window 0x[0-9a-f]+: .*\\taskmgr\.exe frame ')
+            if ($tmWindow.Count -ne 1) { throw "want one Task Manager window, got $($tmWindow.Count)" }
+            $frameHost = @(Get-Process ApplicationFrameHost -ErrorAction SilentlyContinue)
+            if ($frameHost.Count -eq 0) { throw "no ApplicationFrameHost after starting $launch" }
+            $null = Probe @('--probe', 'nudge', '--pid', "$($tm.Id)", '--frame', '0,0,380,500')
+            $null = Probe @('--probe', 'nudge', '--pid', "$($frameHost[0].Id)", '--frame', '0,200,380,400')
+            Write-Host "  skip at the runner's own integrity"
+            $s = Skip "skip$($geo -replace '\W', '')" $false $geo
+            $tmw = Listed $s '.*\\taskmgr\.exe' 'Task Manager'
+            if ($s -match "^skipped $($tmw.Id): ") { throw "Task Manager skipped though it does not outrank the probe" }
+            if (-not (Inside $s $tmw.Id)) { throw "Task Manager at the probe's level was not pushed into the channel" }
+            Write-Host "  check: Task Manager at the probe's level ($($tmw.Level)) pushed into the channel"
+            $pk = Listed $s '[^\\\s]+![^\s]+' 'packaged'
+            $aumid = [regex]::Match($pk.Line, '^window 0x[0-9a-f]+: (\S+) frame ').Groups[1].Value
+            if (-not ($s -match "^move $($pk.Id) at ")) { throw "the packaged app was not moved" }
+            if (-not (Inside $s $pk.Id)) { throw "the packaged app is not inside the channel" }
+            Write-Host "  check: $aumid from $launch listed by its user model id and pushed into the channel"
 
-          Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process
-          $null = Probe @('--probe', 'nudge', '--pid', "$($tm.Id)", '--frame', '0,0,380,500')
-          Write-Host "  skip at medium integrity, below Task Manager"
-          $s = Skip 'skip-medium' $true
-          Expect $s '^probe integrity: medium$' 'the probe at medium integrity'
-          $tmw = Listed $s '.*\\taskmgr\.exe' 'Task Manager'
-          if ($tmw.Level -eq 'medium') { throw "Task Manager runs at the probe's level, so nothing outranks it" }
-          Expect $s "^skipped $($tmw.Id): elevated$" 'Task Manager skipped as elevated'
-          $tries = @($s -match "^move $($tmw.Id) at ")
-          if ($tries.Count -ne 1) { throw "want one try at Task Manager, got $($tries.Count)" }
-          $quiet = (At ($s -match '^end at ')[0]) - (At $tries[0])
-          if ($quiet -lt 5) { throw "only $quiet s ran after the refused try" }
-          Expect $s '^notice: .+ runs as administrator: ' 'the elevated banner'
-          if ((Off (Rect ($s -match "^final $($tmw.Id) ")[0] 'frame ') (Rect $tmw.Line 'frame ')) -gt 1) { throw "Task Manager moved" }
-          Write-Host "  check: Task Manager ($($tmw.Level)) skipped as elevated after one try, none in the next $([Math]::Round($quiet, 1)) s, banner shown"
-          Stop-Process -Id $tm.Id -ErrorAction SilentlyContinue
-          Get-Process notepad, SystemSettings, CalculatorApp -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+            Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process
+            $null = Probe @('--probe', 'nudge', '--pid', "$($tm.Id)", '--frame', '0,0,380,500')
+            Write-Host "  skip at medium integrity, below Task Manager"
+            $s = Skip "skip-medium$($geo -replace '\W', '')" $true $geo
+            Expect $s '^probe integrity: medium$' 'the probe at medium integrity'
+            $tmw = Listed $s '.*\\taskmgr\.exe' 'Task Manager'
+            if ($tmw.Level -eq 'medium') { throw "Task Manager runs at the probe's level, so nothing outranks it" }
+            Expect $s "^skipped $($tmw.Id): elevated$" 'Task Manager skipped as elevated'
+            $tries = @($s -match "^move $($tmw.Id) at ")
+            if ($tries.Count -ne 1) { throw "want one try at Task Manager, got $($tries.Count)" }
+            $quiet = (At ($s -match '^end at ')[0]) - (At $tries[0])
+            if ($quiet -lt 5) { throw "only $quiet s ran after the refused try" }
+            Expect $s '^notice: .+ runs as administrator: ' 'the elevated banner'
+            if ((Off (Rect ($s -match "^final $($tmw.Id) ")[0] 'frame ') (Rect $tmw.Line 'frame ')) -gt 1) { throw "Task Manager moved" }
+            Write-Host "  check: Task Manager ($($tmw.Level)) skipped as elevated after one try, none in the next $([Math]::Round($quiet, 1)) s, banner shown"
+            Stop-Process -Id $tm.Id -ErrorAction SilentlyContinue
+            Get-Process notepad, SystemSettings, CalculatorApp -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+          }
+          SkipCheck '--min-aspect 1.0'
 
-          Write-Host "probe lift"
-          $pad = Start-Process notepad -PassThru
-          Start-Sleep -Seconds 3
-          $f = Probe @('--probe', 'lift', '--min-aspect', '1.0')
-          $strip = Rect ($f -match '^strip: ')[0] 'strip: '
-          $over = Rect ($f -match '^over: ')[0] 'over: '
-          if ($over[2] -le $strip[2]) { throw "the lifted frame is no wider than the strip, so the check proves nothing" }
-          if ((Off (Rect ($f -match '^placed: ')[0] 'placed: ') $strip) -gt 1) { throw "the pin was not placed in the strip" }
-          Expect $f '^lift ran: true lifted true$' 'Maximize lifted the pin'
-          $off = Off (Rect ($f -match '^lifted: ')[0] 'lifted: ') $over
-          if ($off -gt 1) { throw "the lifted pin is off the strip and channel by $off px" }
-          Expect $f '^lower ran: true lifted false$' 'Maximize again lowered the pin'
-          $off = Off (Rect ($f -match '^lowered: ')[0] 'lowered: ') $strip
-          if ($off -gt 1) { throw "the lowered pin is off the strip by $off px" }
-          Write-Host "  check: Maximize lifted the pin over the strip and channel, and again lowered it into the strip"
-          Stop-Process -Id $pad.Id
+          function LiftCheck([string[]] $geo) {
+            Write-Host "probe lift $geo"
+            $pad = Start-Process notepad -PassThru
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'lift') + $geo)
+            $strip = Rect ($f -match '^strip: ')[0] 'strip: '
+            $over = Rect ($f -match '^over: ')[0] 'over: '
+            if ($over[2] -le $strip[2]) { throw "the lifted frame is no wider than the strip, so the check proves nothing" }
+            if ((Off (Rect ($f -match '^placed: ')[0] 'placed: ') $strip) -gt 1) { throw "the pin was not placed in the strip" }
+            Expect $f '^lift ran: true lifted true$' 'Maximize lifted the pin'
+            $off = Off (Rect ($f -match '^lifted: ')[0] 'lifted: ') $over
+            if ($off -gt 1) { throw "the lifted pin is off the strip and channel by $off px" }
+            Expect $f '^lower ran: true lifted false$' 'Maximize again lowered the pin'
+            $off = Off (Rect ($f -match '^lowered: ')[0] 'lowered: ') $strip
+            if ($off -gt 1) { throw "the lowered pin is off the strip by $off px" }
+            Write-Host "  check: Maximize lifted the pin over the strip and channel, and again lowered it into the strip"
+            Stop-Process -Id $pad.Id
+          }
+          LiftCheck @('--min-aspect', '1.0')
 
           Write-Host "probe login"
           $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
@@ -521,6 +535,59 @@ jobs:
           if ($after -gt 1) { throw "the loop ran $after s after Quit" }
           Expect $q '^icon gone: true$' 'the icon removed on quit'
           Write-Host "  check: the loop ran its 2 s without Quit, ended $after s after Quit, icon removed"
+
+          Write-Host "SIM: the runner as a 3440x1440 ultrawide"
+          $modes = Probe @('--probe', 'modes')
+          $big = @($modes -match '^mode \d+x\d+ ' | ForEach-Object {
+            $n = [regex]::Match($_, '^mode (\d+)x(\d+) ')
+            [pscustomobject]@{ W = [int]$n.Groups[1].Value; H = [int]$n.Groups[2].Value }
+          } | Where-Object { $_.W -ge 3440 -and $_.H -ge 1440 } | Sort-Object { $_.W * $_.H })
+          $wideMode = [regex]::Match(($modes -match '^ultrawide mode: ')[0], '^ultrawide mode: (\S+)$').Groups[1].Value
+          $switch = if ($big.Count -gt 0) { "$($big[0].W)x$($big[0].H)" } elseif ($wideMode -ne 'none') { $wideMode } else { $null }
+          if ($switch) {
+            Expect (Probe @('--probe', 'modes', '--mode', $switch)) '^switched to .*: done$' "the switch to $switch"
+            $null = Probe @('--probe', 'modes')
+          } else {
+            Write-Host "  no display mode 21:9 or wider and none at 3440x1440 or larger: windows sit past the desktop"
+          }
+          $sim = @('--screen', '3440x1440')
+
+          $m = Probe (@('--probe', 'monitors') + $sim)
+          Expect $m '^monitor 0: full 0 0 3440 1440 usable 0 0 3440 1392 primary true$' 'one fake 3440x1440 monitor with a 48 px taskbar'
+          Expect $m '^ultrawide: 0$' 'the fake monitor counts as the ultrawide at the default min aspect'
+
+          Write-Host "SIM probe place past the desktop"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          foreach ($frame in '0,0,1376,1392', '2064,0,1376,1392', '1376,100,1032,600') {
+            $p = Probe (@('--probe', 'place', '--frame', $frame) + $sim)
+            $off = (Placed $p)[0]
+            Write-Host "  read-back off by $off px at $frame"
+          }
+          Stop-Process -Id $pad.Id
+
+          MoorCheck $sim
+          if ((Off $script:strip @(0, 0, 1376, 1392)) -gt 1) { throw "SIM strip is $($script:strip -join ' '), not the left 40 percent of 3440x1392" }
+          Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392"
+          HotkeyCheck $sim
+          if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }
+          Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
+          LiftCheck $sim
+          SkipCheck ($sim -join ' ')
+
+          Write-Host "SIM negative control: --screen 1024x768 at the default min aspect"
+          $small = @('--screen', '1024x768')
+          Expect (Probe (@('--probe', 'monitors') + $small)) '^ultrawide: none$' 'no ultrawide on a fake 4:3 screen'
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $out = @(& $exe --probe moor --seconds 2 @small)
+          $code = $LASTEXITCODE
+          $global:LASTEXITCODE = 0
+          $out | ForEach-Object { Write-Host "  $_" }
+          if ($code -eq 0 -or -not ($out -match '^moor: no ultrawide$')) { throw "the pin was not refused on a 4:3 screen ($code)" }
+          Stop-Process -Id $pad.Id
+          Write-Host "  check: a fake 1024x768 screen has no ultrawide and the pin is refused"
+          if ($switch) { Expect (Probe @('--probe', 'modes', '--reset')) '^reset: done$' 'the display mode restored' }
 
       - name: Package
         id: package

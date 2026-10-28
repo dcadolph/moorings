@@ -13,6 +13,7 @@ do {
     FileHandle.standardError.write(Data("MooringsWin: \(error)\n".utf8))
     exit(2)
 }
+Monitor.fake = options.screen.map(Monitor.sized)
 
 guard let name = options.probe else {
     let app = App(store: Store())
