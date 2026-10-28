@@ -1229,7 +1229,8 @@ func probeContracts(_ opts: ProbeOptions) -> Int32 {
     let timers = WinTimers()
     let scheduler = timers.make()
     host.timers = { timers.fire($0) }
-    let hotkeys = WinHotkeys { _ in }
+    var delivered: [String] = []
+    let hotkeys = WinHotkeys { delivered.append($0) }
     host.hotkey = { hotkeys.fire($0) }
     let banner = BannerWindow(minAspect: opts.minAspect)
     var failures = WindowStoreContract.run(windows, host: host)
@@ -1237,13 +1238,14 @@ func probeContracts(_ opts: ProbeOptions) -> Int32 {
     failures += NotifierContract.run(WinNotifier { banner.show($0, $1) }, store: windows, host: host)
     failures += SchedulerContract.run(scheduler, clock: WinClock(), host: host)
     failures += PointerContract.run(WinPointer(), host: host)
-    failures += KeysContract.run(WinKeys(hotkeys), host: host)
+    failures += KeysContract.run(WinKeys(hotkeys), host: host, actions: { delivered })
     failures += LogContract.run(WinLog(), host: host)
     failures += TimersContract.run(timers, clock: WinClock(), host: host)
     failures += EventSourceContract.run(WinEvents(), store: windows, host: host)
     failures += ScreenSourceContract.run(WinScreens(), host: host)
     let file = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(
         "moorings-contract-\(UUID().uuidString).json")
+    host.choices = file
     failures += ChoicesStoreContract.run(Store(url: file), host: host)
     try? FileManager.default.removeItem(at: file)
     failures += ClockContract.run(WinClock(), host: host)
@@ -1294,6 +1296,8 @@ final class WinHost: ContractHost {
     var timers: (UINT_PTR) -> Bool = { _ in false }
     // hotkey is handed each WM_HOTKEY this thread receives while waiting.
     var hotkey: (WPARAM) -> Void = { _ in }
+    // choices is the choices file touchChoices rewrites, nil when the host has none.
+    var choices: URL?
     // modifierKeys pairs each modifier with the virtual key press holds for it, Command as the left
     // Windows key.
     private static let modifierKeys: [(Modifiers, WORD)] = [
@@ -1379,6 +1383,15 @@ final class WinHost: ContractHost {
         guard GetWindowRect(hwnd, &r) else { return false }
         let flags = UINT(SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE)
         return SetWindowPos(hwnd, nil, r.left + 8, r.top + 8, 0, 0, flags)
+    }
+
+    // touchChoices moves the choices file's last write time a second later, as another program
+    // writing it would, and reports whether it took.
+    func touchChoices() -> Bool {
+        guard let choices else { return false }
+        let file = Store(url: choices)
+        guard let time = file.writeTime() else { return false }
+        return file.setWriteTime(time + 10_000_000)
     }
 
     // wait pumps this thread's messages, handing its thread timers to timers, until done or the

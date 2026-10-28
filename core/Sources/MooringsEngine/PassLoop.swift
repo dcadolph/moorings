@@ -22,7 +22,8 @@ public struct PassContext: Sendable {
 public final class PassLoop {
     // context returns the platform's part of the next pass.
     public var context: () -> PassContext = { PassContext() }
-    // mouseHeld reports whether the owner holds the mouse button, which leaves dragged pins alone.
+    // mouseHeld reports whether the owner holds the mouse button, which leaves dragged pins alone. It
+    // starts as the pointer's primary button.
     public var mouseHeld: () -> Bool = { false }
     // deadlines lists the times the platform needs a pass at beyond the anchors' own.
     public var deadlines: () -> [Double] = { [] }
@@ -34,16 +35,8 @@ public final class PassLoop {
     public var refreshed: (Set<WindowID>) -> Void = { _ in }
     // after is told each pass's scan, screens and whether the mouse was held.
     public var after: (Scan, Screens, Bool) -> Void = { _, _, _ in }
-    // firstPass runs once, after the first pass.
-    public var firstPass: () -> Void = {}
     // paced runs after each pass set the next one.
     public var paced: () -> Void = {}
-    // exitFullScreen takes a window out of native fullscreen where the platform has one.
-    public var exitFullScreen: (WindowID) -> Void = { _ in }
-    // appName returns the name to show for a bundle.
-    public var appName: (String) -> String = { $0 }
-    // spell writes a shortcut the way the platform's keyboard does.
-    public var spell: (Shortcut) -> String = { $0.spelled }
     // greenButton reports whether a released pin goes back with a click on its green button.
     public var greenButton = false
     // tellsRefused reports whether a refused window gets a banner: on Windows a refusal means the
@@ -55,8 +48,6 @@ public final class PassLoop {
     public var released: (WindowID, Double) -> Void = { _, _ in }
     // passed is told the time of each pass and how many moves it made.
     public var passed: (Double, Int) -> Void = { _, _ in }
-    // log writes what a pass could not do.
-    public var log: (String) -> Void = { _ in }
 
     // lastRead lists the ids the last pass read, front to back.
     public private(set) var lastRead: [WindowID] = []
@@ -67,6 +58,8 @@ public final class PassLoop {
 
     // platform reads and moves the windows and keeps the time.
     private let platform: Platform
+    // scheduler sets the next pass, a scheduler of the passes' own.
+    private let scheduler: any Scheduler
     // anchors decides where each window belongs.
     private let anchors: Anchors
     // lastFrames lists the frames the last pass read, in the order of lastRead.
@@ -84,6 +77,9 @@ public final class PassLoop {
     public init(platform: Platform, anchors: Anchors) {
         self.platform = platform
         self.anchors = anchors
+        scheduler = platform.timers.scheduler()
+        let pointer = platform.pointer
+        mouseHeld = { pointer.primaryDown }
     }
 
     // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle.
@@ -150,8 +146,21 @@ public final class PassLoop {
         passed(t, moves.count)
         if !started {
             started = true
-            firstPass()
+            openAnchored()
         }
+    }
+
+    // openAnchored opens every anchored app that is not running, in the background, after the first
+    // pass, and logs an app the platform could not start.
+    private func openAnchored() {
+        for bundle in anchors.opening() where !platform.apps.open(bundle, background: true, target: nil) {
+            log("could not open anchored app \(bundle)")
+        }
+    }
+
+    // log writes what a pass could not do.
+    private func log(_ line: String) {
+        platform.log.note(.passes, line)
     }
 
     // apply carries out one move: it takes a window out of native fullscreen, or moves it, reads
@@ -159,7 +168,7 @@ public final class PassLoop {
     // that refused the move is not tried again.
     private func apply(_ move: Move, bundle: String) {
         if move.exitFullScreen {
-            exitFullScreen(move.id)
+            platform.windows.exitFullScreen(move.id)
             return
         }
         let w = platform.windows
@@ -194,11 +203,11 @@ public final class PassLoop {
         let asked = anchors.target(id).map { "\($0)" } ?? "?"
         log("window \(id) was moved by hand: released at \(now), read back \(back), asked \(asked)")
         released(id, platform.clock.now)
-        let name = w.map { appName($0.bundle) } ?? "The window"
+        let name = w.map { platform.apps.name($0.bundle) } ?? "The window"
         platform.notifier.notify(
             "\(name) released",
             Self.releasedBody(
-                key: Bindings(anchors.choices).map["restore"].map(spell), greenButton: greenButton))
+                key: Bindings(anchors.choices).map["restore"].map(platform.keys.spell), greenButton: greenButton))
     }
 
     // releasedBody is the banner body for a released pin: the green button where there is one, and
@@ -217,7 +226,7 @@ public final class PassLoop {
         guard tellsRefused, !toldRefused, let w = all.first(where: { refused.contains($0.id) }) else { return }
         toldRefused = true
         platform.notifier.notify(
-            "\(appName(w.bundle)) runs as administrator",
+            "\(platform.apps.name(w.bundle)) runs as administrator",
             "Moorings cannot move it. Run Moorings as administrator to hold it too.")
     }
 
@@ -235,10 +244,10 @@ public final class PassLoop {
     private func schedule(_ at: Double?) {
         due = at
         guard let at else {
-            platform.scheduler.cancel()
+            scheduler.cancel()
             return
         }
-        platform.scheduler.schedule(at: at) { [weak self] in
+        scheduler.schedule(at: at) { [weak self] in
             guard let self else { return }
             due = nil
             ticked()

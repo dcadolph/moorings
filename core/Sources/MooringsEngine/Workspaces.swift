@@ -11,16 +11,8 @@ public final class WorkspaceKeeper {
     // app that moves its own window once it shows.
     public static let recheckSeconds = 1.0
 
-    // title returns a window's title, the first key a recall matches saved windows by.
-    public var title: (WindowID) -> String = { _ in "" }
-    // openApp opens an app in the background, with the document or folder target when one is given.
-    public var openApp: (_ bundle: String, _ target: String?) -> Void = { _, _ in }
-    // after runs work once seconds have passed, on the engine's thread.
-    public var after: (_ seconds: Double, _ work: @escaping () -> Void) -> Void = { _, _ in }
     // changed saves the choices after the keeper changed them, and lets the platform follow.
     public var changed: () -> Void = {}
-    // log writes what a workspace, rule or profile could not do.
-    public var log: (String) -> Void = { _ in }
 
     // Awaited is a window a recall is waiting for: the app it opened, the saved title and where it goes.
     struct Awaited {
@@ -34,8 +26,10 @@ public final class WorkspaceKeeper {
         let until: Double
     }
 
-    // platform reads and moves the windows and the displays.
+    // platform reads and moves the windows and the displays, opens apps and logs.
     private let platform: Platform
+    // settle waits for the displays to stay unchanged before a recall, a scheduler of its own.
+    private let settle: any Scheduler
     // anchors is the layout the keeper reads and changes.
     private let anchors: Anchors
     // organizer gives the area organize actions and workspaces work in on each screen.
@@ -45,8 +39,6 @@ public final class WorkspaceKeeper {
     // setup is the key of the displays last seen, so a display change recalls its workspace once. The
     // displays attached at launch count as handled.
     private var setup: String
-    // changes counts display changes, so only the last of a burst recalls once the displays settle.
-    private var changes = 0
     // awaited lists the windows recalls are waiting for.
     private var awaited: [Awaited] = []
     // present lists the apps with a window on screen at the last look, nil before the first look.
@@ -60,6 +52,7 @@ public final class WorkspaceKeeper {
         self.anchors = anchors
         self.organizer = organizer
         self.actions = actions
+        settle = platform.timers.scheduler()
         setup = platform.screens.displaySetKey(platform.screens.current())
     }
 
@@ -72,6 +65,17 @@ public final class WorkspaceKeeper {
     // areas returns each display's full frame with the area organize actions work in on it.
     private func areas(_ screens: Screens) -> [ScreenAreas] {
         screens.full.indices.map { ScreenAreas(full: screens.full[$0], area: organizer.area(screens, $0)) }
+    }
+
+    // title returns a window's title, the first key a recall matches saved windows by, empty when it
+    // has none.
+    private func title(_ id: WindowID) -> String {
+        platform.windows.title(id) ?? ""
+    }
+
+    // log writes what a workspace, rule or profile could not do.
+    private func log(_ line: String) {
+        platform.log.note(.organize, line)
     }
 
     // move places a window plainly, as a hold does.
@@ -141,8 +145,10 @@ public final class WorkspaceKeeper {
             if matched[i] == nil, let b = saved.launchBundle, !b.isEmpty,
                 let target = Workspaces.fit(saved.frame, areas)
             {
-                if opened.insert(b + "\u{0}" + (saved.openTarget ?? "")).inserted {
-                    openApp(b, saved.openTarget)
+                if opened.insert(b + "\u{0}" + (saved.openTarget ?? "")).inserted,
+                    !platform.apps.open(b, background: true, target: saved.openTarget)
+                {
+                    log("workspace \(name): could not open \(b)")
                 }
                 awaited.append(
                     Awaited(
@@ -196,14 +202,10 @@ public final class WorkspaceKeeper {
     }
 
     // screensChanged recalls workspaces once the displays have stayed unchanged for settleSeconds, so
-    // a wake or a flapping dock that sends a burst of changes recalls once.
+    // a wake or a flapping dock that sends a burst of changes recalls once: each change replaces the
+    // wait the one before set.
     public func screensChanged() {
-        changes += 1
-        let change = changes
-        after(Self.settleSeconds) { [weak self] in
-            guard let self, change == changes else { return }
-            recallForScreens()
-        }
+        settle.schedule(at: now + Self.settleSeconds) { [weak self] in self?.recallForScreens() }
     }
 
     // recallForScreens recalls the workspace tied to the display set now plugged in, then each

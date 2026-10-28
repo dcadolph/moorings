@@ -115,11 +115,25 @@ final class StuckGrid: GridView {
     #expect(failures.isEmpty, "\(failures)")
 }
 
-// The fake pointer keeps every Pointer rule.
+// The fake pointer keeps every Pointer rule and stops tracking when told.
 @Test func testPointerContractOnFake() {
     let (_, _, host) = fakeHost()
-    let failures = PointerContract.run(FakePointer(), host: host)
+    let pointer = FakePointer()
+    let failures = PointerContract.run(pointer, host: host)
     #expect(failures.isEmpty, "\(failures)")
+    #expect(pointer.tracker == nil && pointer.tracks == [true, false])
+}
+
+// A pointer that reports the primary button with no button held breaks both primary rules, by name.
+@Test func testPointerContractCatchesPrimaryWithoutButton() {
+    let (_, _, host) = fakeHost()
+    let pointer = FakePointer()
+    pointer.primaryDown = true
+    let failures = PointerContract.run(pointer, host: host)
+    #expect(
+        failures.map(\.rule) == [
+            "primaryDown is false while the host holds nothing", "primaryDown is never true while buttonDown is false",
+        ])
 }
 
 // The fake keys keep every Keys rule, with the host pressing through them.
@@ -127,8 +141,49 @@ final class StuckGrid: GridView {
     let (_, _, host) = fakeHost()
     let keys = FakeKeys()
     host.keys = keys
-    let failures = KeysContract.run(keys, host: host)
+    let failures = KeysContract.run(keys, host: host, actions: { keys.actions })
     #expect(failures.isEmpty, "\(failures)")
+    #expect(keys.actions == ["contract-bound"] && keys.bound.isEmpty)
+}
+
+// StickyKeys is a Keys that ignores a bind of an empty map, for the keys contract's negative control.
+final class StickyKeys: Keys {
+    // inner is the fake that holds the bindings.
+    let inner = FakeKeys()
+
+    // shortcutsOn is the inner keys'.
+    var shortcutsOn: Bool { inner.shortcutsOn }
+
+    // bind passes on every map but an empty one.
+    func bind(_ map: [String: Shortcut]) {
+        if !map.isEmpty {
+            inner.bind(map)
+        }
+    }
+
+    // grab grabs on the inner keys.
+    func grab(_ keys: [GrabKey], _ handler: @escaping (String) -> Void) -> Int {
+        inner.grab(keys, handler)
+    }
+
+    // ungrab lets the inner keys go.
+    func ungrab() {
+        inner.ungrab()
+    }
+
+    // spell spells through the inner keys.
+    func spell(_ s: Shortcut) -> String {
+        inner.spell(s)
+    }
+}
+
+// Keys that keep a shortcut after an empty bind break that rule, by name.
+@Test func testKeysContractCatchesStickyBind() {
+    let (_, _, host) = fakeHost()
+    let keys = StickyKeys()
+    host.keys = keys.inner
+    let failures = KeysContract.run(keys, host: host, actions: { keys.inner.actions })
+    #expect(failures.map(\.rule) == ["bind of an empty map after a bind leaves no shortcut delivering"])
 }
 
 // The fake apps keep every Apps rule.
@@ -207,11 +262,43 @@ final class DroppingEvents: EventSource {
     #expect(failures.isEmpty, "\(failures)")
 }
 
-// The fake store keeps every ChoicesStore rule.
+// The fake store keeps every ChoicesStore rule, with the host rewriting it from outside.
 @Test func testChoicesStoreContractOnFake() {
     let (_, _, host) = fakeHost()
-    let failures = ChoicesStoreContract.run(FakeStore(), host: host)
+    let store = FakeStore()
+    host.store = store
+    let failures = ChoicesStoreContract.run(store, host: host)
     #expect(failures.isEmpty, "\(failures)")
+}
+
+// DeafStore is a ChoicesStore that never reports a change, for the store contract's negative control.
+final class DeafStore: ChoicesStore {
+    // inner is the fake that holds the choices.
+    let inner = FakeStore()
+
+    // load loads from the inner store.
+    func load() -> Choices {
+        inner.load()
+    }
+
+    // save saves to the inner store.
+    func save(_ choices: Choices) throws {
+        try inner.save(choices)
+    }
+
+    // changed is always false.
+    func changed() -> Bool {
+        false
+    }
+}
+
+// A store that misses a rewrite from outside breaks that rule, by name.
+@Test func testChoicesStoreContractCatchesMissedRewrite() {
+    let (_, _, host) = fakeHost()
+    let store = DeafStore()
+    host.store = store.inner
+    let failures = ChoicesStoreContract.run(store, host: host)
+    #expect(failures.map(\.rule) == ["changed is true after the host rewrites the choices"])
 }
 
 // The fake clock keeps every Clock rule.

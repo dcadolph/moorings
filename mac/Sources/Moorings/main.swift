@@ -38,12 +38,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let r = ActionRunner(platform: platform, anchors: anchors)
         r.extra = ExtraActions(
             handles: { _ in true }, run: { [unowned self] name, window in runExtra(name, window: window) })
-        r.read = { [unowned self] id, screens in
-            if let id {
-                return windows.window(id, screens: screens)
-            }
-            return windows.focused(screens)
-        }
         r.landed = { [unowned self] id, frame in
             landed(id, at: frame)
             if windows.pid(id) != nil {
@@ -54,7 +48,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         r.wake = { [unowned self] in wake() }
         r.moor = { [unowned self] in moor() }
-        r.log = { [unowned self] line in log.note(.actions, line) }
         return r
     }()
     // accessibilityPane is the Privacy and Security pane that grants Accessibility.
@@ -80,8 +73,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let installer = Installer()
     // banner shows what moorings did.
     let banner = BannerPanel()
+    // badge is the stack badge's panel.
+    let badge = BadgePanel()
     // stackBadge counts the stacked windows under the pointer when the choice is on.
-    let stackBadge = StackBadge(view: BadgePanel())
+    lazy var stackBadge = StackBadge(view: badge)
     // update is a newer release found by the update check, nil when none.
     var update: ReleaseInfo?
     // launched is when moorings started.
@@ -106,12 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // workspaces saves and recalls workspaces, applies app rules and switches profiles.
     lazy var workspaces: WorkspaceKeeper = {
         let k = WorkspaceKeeper(platform: platform, anchors: anchors, organizer: organizer, actions: actions)
-        let settle = timers.scheduler()
-        k.title = { [unowned self] id in windows.title(id) ?? "" }
-        k.openApp = { [unowned self] bundle, target in open(bundle, background: true, target: target) }
-        k.after = { seconds, work in settle.schedule(at: Self.now + seconds, work) }
         k.changed = { [unowned self] in save() }
-        k.log = { [unowned self] line in log.note(.organize, line) }
         return k
     }()
     // snap follows drags and snaps the dragged window to the zone under the cursor.
@@ -122,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         p.context = { [unowned self] in
             PassContext(waiting: watcher.waiting || workspaces.waiting, launching: launching)
         }
-        p.mouseHeld = { [unowned self] in NSEvent.pressedMouseButtons & 1 != 0 || hover.active }
+        p.mouseHeld = { [unowned self] in pointer.primaryDown || hover.active }
         p.deadlines = { [unowned self] in workspaces.deadlines() }
         p.ticked = { [unowned self] in ticked() }
         p.prepare = { [unowned self] in
@@ -136,61 +126,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             stasher.prune(alive: alive)
         }
         p.after = { [unowned self] scan, screens, held in passed(scan, screens, held) }
-        p.firstPass = { [unowned self] in
-            for bundle in anchors.opening() {
-                open(bundle, background: true)
-            }
-        }
         p.paced = { [unowned self] in paced() }
-        p.exitFullScreen = { [unowned self] id in windows.exitFullScreen(id) }
-        p.appName = { [unowned self] bundle in apps.name(bundle) }
         p.greenButton = true
-        p.log = { [unowned self] line in log.note(.passes, line) }
         return p
     }()
     // platform is what the engine reads and drives on the Mac.
     lazy var platform = Platform(
         windows: windows, screens: MacScreens(), overlay: Footprint(),
         notifier: MacNotifier { [unowned self] in self.notify($0, $1) },
-        clock: MacClock(), scheduler: timers.scheduler(), store: DefaultsStore(key: Self.choicesKey),
-        warpCursor: { [unowned self] p in pointer.warp(p) }
+        clock: MacClock(), store: DefaultsStore(key: Self.choicesKey), pointer: pointer, keys: keys, apps: apps,
+        log: log, timers: timers, events: MacEvents(store: windows), grid: GridPanel(), badge: badge
     )
     // hotkeys runs a window action when its shortcut is pressed.
     lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
     // overlay throws a window while the overlay's trigger key is held.
     lazy var overlay: TriggerOverlay = {
-        let o = TriggerOverlay(
+        TriggerOverlay(
             platform: platform, anchors: anchors, actions: actions, footprint: Footprint(),
             gridView: GridPanel(), picker: gridPicker, ticker: timers.scheduler())
-        o.pointer = { [unowned self] in (pointer.position, pointer.buttonDown) }
-        o.hit = { [unowned self] p in windows.hit(p) }
-        o.shortcutsOn = { [unowned self] in keys.shortcutsOn }
-        o.grab = { [unowned self, unowned o] trigger in keys.grab(Hotkeys.gridKeys(trigger)) { o.key($0) } }
-        o.ungrab = { [unowned self] in keys.ungrab() }
-        o.log = { [unowned self] line in log.note(.overlay, line) }
-        return o
     }()
     // stasher parks windows at a screen edge, reading the pointer from mouse events while one is.
     lazy var stasher: Stasher = {
         let s = Stasher(platform: platform, anchors: anchors, rest: timers.scheduler())
-        let log = Logger(subsystem: MacLog.subsystem, category: "stash")
-        s.pointer = { [unowned self] in (pointer.position, pointer.buttonDown) }
-        s.watching = { [unowned self] on in watchStash(on) }
         s.wake = { [unowned self] in wake() }
-        s.log = { line in log.notice("\(line, privacy: .public)") }
         return s
     }()
-    // stashMonitors watch the pointer move while a window is stashed, over other apps and Moorings.
-    private var stashMonitors: [Any] = []
     // gridPicker pops a grid of cells for the grid actions.
-    lazy var gridPicker: GridPicker = {
-        let g = GridPicker(platform: platform, anchors: anchors, actions: actions, view: GridPanel())
-        g.pointer = { [unowned self] in pointer.position }
-        g.grab = { [unowned self, unowned g] trigger in keys.grab(Hotkeys.gridKeys(trigger)) { g.key($0) } }
-        g.ungrab = { [unowned self] in keys.ungrab() }
-        g.log = { [unowned self] line in log.note(.overlay, line) }
-        return g
-    }()
+    lazy var gridPicker = GridPicker(platform: platform, anchors: anchors, actions: actions)
     // strips edits the strip widths and row heights on screen.
     lazy var strips = StripEditor(app: self)
     // tiler keeps free windows in the tiling mode's layout.
@@ -199,7 +161,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         t.changed = { [unowned self] in save() }
         t.wake = { [unowned self] in wake() }
         t.moor = { [unowned self] in moor() }
-        t.log = { [unowned self] line in log.note(.tiling, line) }
         return t
     }()
     // edges moves the edge two windows share for both while the edge resize keys are held.
@@ -207,11 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // hover moves or resizes the window under the pointer while the hover modifiers are held.
     lazy var hover: HoverMover = {
         let h = HoverMover(platform: platform, anchors: anchors, ticker: timers.scheduler())
-        h.pointer = { [unowned self] in (pointer.position, pointer.buttonDown) }
-        h.hit = { [unowned self] p in windows.hit(p) }
-        h.shortcutsOn = { [unowned self] in keys.shortcutsOn }
         h.wake = { [unowned self] in wake() }
-        h.log = { [unowned self] line in log.note(.overlay, line) }
         return h
     }()
     // item is the menu bar status item.
@@ -484,36 +441,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func wake() {
         windows.fullWoke = Self.now
         passes.wake()
-    }
-
-    // stashWatched lists the events that make the pointer worth reading while a window is stashed: a
-    // move, and a button let go, since a held button stops a window sliding out.
-    private static let stashWatched: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseUp, .rightMouseUp, .otherMouseUp]
-
-    // watchStash starts the stasher's pointer monitors when on and removes them when not.
-    private func watchStash(_ on: Bool) {
-        for m in stashMonitors {
-            NSEvent.removeMonitor(m)
-        }
-        stashMonitors = []
-        guard on else { return }
-        if let m = NSEvent.addGlobalMonitorForEvents(
-            matching: Self.stashWatched,
-            handler: { [unowned self] _ in
-                MainActor.assumeIsolated { stasher.moved() }
-            })
-        {
-            stashMonitors.append(m)
-        }
-        if let m = NSEvent.addLocalMonitorForEvents(
-            matching: Self.stashWatched,
-            handler: { [unowned self] event in
-                MainActor.assumeIsolated { stasher.moved() }
-                return event
-            })
-        {
-            stashMonitors.append(m)
-        }
     }
 
     // wake marks the windows of the app with pid as changing, so passes run every Pace.pollSeconds
@@ -791,7 +718,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         for p in bindings.problems {
             logger.notice("\(p, privacy: .public)")
         }
-        hotkeys.bind(bindings.map)
+        keys.bind(bindings.map)
     }
 
     // refreshShortcuts turns the shortcuts off while an app in the ignore list is in front.
@@ -963,6 +890,12 @@ final class DefaultsStore: ChoicesStore {
     // save encodes choices under the key.
     func save(_ choices: Choices) throws {
         UserDefaults.standard.set(try Choices.encode(choices), forKey: key)
+    }
+
+    // changed is false: Moorings is the only writer of its defaults, and a choice changed under it is
+    // read at the next launch.
+    func changed() -> Bool {
+        false
     }
 }
 

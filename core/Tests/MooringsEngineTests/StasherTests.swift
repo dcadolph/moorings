@@ -10,20 +10,16 @@ final class StashRig {
     let windows = FakeWindows()
     // screens is the fake ultrawide.
     let screens = FakeScreens.ultrawide()
-    // clock is the fake clock both schedulers run on.
+    // clock is the fake clock the rest check runs on.
     let clock = FakeClock()
-    // passes is the platform's scheduler, the one the pass loop owns.
-    let passes: FakeScheduler
+    // pointer is the fake pointer, which tells the stasher of each move while it tracks.
+    let pointer = FakePointer(Point(x: 1700, y: 700))
+    // restTicks runs the stasher's rest check.
+    let restTicks: FakeScheduler
     // anchors holds the choices.
     let anchors: Anchors
     // stasher is the stasher under test.
     let stasher: Stasher
-    // p is where the fake pointer is.
-    var p = Point(x: 1700, y: 700)
-    // held reports whether the fake mouse button is down.
-    var held = false
-    // watched records each watching call.
-    var watched: [Bool] = []
     // wakes counts the wake calls.
     var wakes = 0
     // id is the focused window.
@@ -34,14 +30,10 @@ final class StashRig {
     // init builds the rig with choices and a window that refuses moves when refuses is set.
     init(_ choices: Choices = Choices(), refuses: Bool = false) {
         anchors = Anchors(choices: choices)
-        passes = FakeScheduler(clock: clock)
-        let platform = Platform(
-            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: FakeNotifier(),
-            clock: clock, scheduler: passes, store: FakeStore(), warpCursor: { _ in })
+        restTicks = FakeScheduler(clock: clock)
+        let platform = newTestPlatform(windows: windows, screens: screens, clock: clock, pointer: pointer)
         id = windows.add(bundle: "com.example.pad", frame: start, refuses: refuses, focus: true)
-        stasher = Stasher(platform: platform, anchors: anchors, rest: FakeScheduler(clock: clock))
-        stasher.pointer = { [unowned self] in (p, held) }
-        stasher.watching = { [unowned self] on in watched.append(on) }
+        stasher = Stasher(platform: platform, anchors: anchors, rest: restTicks)
         stasher.wake = { [unowned self] in wakes += 1 }
     }
 
@@ -50,10 +42,18 @@ final class StashRig {
     // shown is where start slides out to at the left edge.
     var shown: Frame { Frame(x: 0, y: start.y, w: start.w, h: start.h) }
 
-    // point moves the fake pointer to p and tells the stasher, as a pointer event would.
+    // held reports whether the fake mouse button is down.
+    var held: Bool {
+        get { pointer.buttonDown }
+        set { pointer.buttonDown = newValue }
+    }
+
+    // watched records whether each track call started or stopped the pointer watch.
+    var watched: [Bool] { pointer.tracks }
+
+    // point moves the fake pointer to p as a person would, which tells the stasher while it tracks.
     func point(_ p: Point) {
-        self.p = p
-        stasher.moved()
+        pointer.move(to: p)
     }
 
     // rest parks the window, takes the pointer off the sliver once, then rests it on the sliver past
@@ -84,15 +84,14 @@ final class StashRig {
     #expect(rig.wakes == 1)
 }
 
-// A pointer that rests on the sliver slides the window out and raises it, on the rest scheduler, and
-// leaves the passes' scheduler alone.
+// A pointer that rests on the sliver slides the window out and raises it, on the rest scheduler.
 @Test @MainActor func testStashRestSlidesOut() {
     let rig = StashRig()
     rig.rest()
     #expect(rig.windows.frame(rig.id) == rig.shown)
     #expect(rig.windows.calls.last == .raise(rig.id))
     #expect(rig.stasher.entries.first?.s.out == true)
-    #expect(rig.passes.pendingAt == nil)
+    #expect(rig.restTicks.runs == 1)
 }
 
 // A pointer that leaves a slid-out window by more than the slack slides it back.

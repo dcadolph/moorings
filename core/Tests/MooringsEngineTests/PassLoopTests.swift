@@ -13,8 +13,18 @@ final class PassRig {
     let screens = FakeScreens.ultrawide()
     // clock is the fake clock.
     let clock = FakeClock(100)
-    // scheduler runs the next pass as the clock advances.
+    // timers hands the pass loop its scheduler.
+    let timers: FakeTimers
+    // scheduler runs the next pass as the clock advances, the one the pass loop took.
     let scheduler: FakeScheduler
+    // pointer is the fake pointer, whose primary button holds the pins.
+    let pointer = FakePointer()
+    // keys spells the restore shortcut.
+    let keys = SpellingKeys()
+    // apps opens the anchored apps.
+    let apps: FakeApps
+    // log keeps the passes' lines.
+    let log = FakeLog()
     // notifier records the banners.
     let notifier = FakeNotifier()
     // anchors decides where windows belong.
@@ -30,11 +40,13 @@ final class PassRig {
     init(_ key: SlotKey = .leftTop) {
         self.key = key
         anchors = Anchors(choices: Choices(slots: [key: PassRig.slackID]))
-        scheduler = FakeScheduler(clock: clock)
-        let platform = Platform(
-            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier, clock: clock,
-            scheduler: scheduler, store: FakeStore(), warpCursor: { _ in })
+        timers = FakeTimers(clock: clock)
+        apps = FakeApps(windows: windows, names: [:])
+        let platform = newTestPlatform(
+            windows: windows, screens: screens, clock: clock, notifier: notifier, pointer: pointer, keys: keys,
+            apps: apps, log: log, timers: timers)
         passes = PassLoop(platform: platform, anchors: anchors)
+        scheduler = timers.made[0]
         passes.moved = { [unowned self] m, _, got in moves.append((m, got)) }
     }
 
@@ -100,7 +112,6 @@ final class PassRig {
     let rig = PassRig()
     var released: [WindowID] = []
     rig.passes.released = { id, _ in released.append(id) }
-    rig.passes.spell = { "<\($0.key)>" }
     let id = rig.windows.add(bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 800, h: 600), focus: true)
     rig.passes.moor()
     rig.clock.advance(by: 3)
@@ -149,4 +160,58 @@ final class PassRig {
     #expect(PassLoop.releasedBody(key: nil, greenButton: true) == "Click its green button to put it back.")
     #expect(PassLoop.releasedBody(key: "K", greenButton: false) == "Press K on it to put it back.")
     #expect(PassLoop.releasedBody(key: nil, greenButton: false) == "Moorings leaves it where you put it.")
+}
+
+// SpellingKeys is a Keys that spells a shortcut as its key in angle brackets, so a test sees the
+// platform's spelling reach a banner.
+final class SpellingKeys: Keys {
+    // shortcutsOn is true.
+    var shortcutsOn: Bool { true }
+
+    // bind binds nothing.
+    func bind(_ map: [String: Shortcut]) {}
+
+    // grab takes nothing.
+    func grab(_ keys: [GrabKey], _ handler: @escaping (String) -> Void) -> Int {
+        0
+    }
+
+    // ungrab does nothing.
+    func ungrab() {}
+
+    // spell writes the key in angle brackets.
+    func spell(_ s: Shortcut) -> String {
+        "<\(s.key)>"
+    }
+}
+
+// Only the primary button holds the pins: a pin out of place moves while another button is held,
+// and waits while the primary one is.
+@Test func testPassMouseHeldIsPrimaryOnly() {
+    let other = PassRig()
+    other.pointer.buttonDown = true
+    let a = other.windows.add(bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 800, h: 600), focus: true)
+    other.passes.moor()
+    #expect(other.movesOf(a) == 1, "a held right button leaves the pass free to move pins")
+    let primary = PassRig()
+    primary.pointer.buttonDown = true
+    primary.pointer.primaryDown = true
+    let b = primary.windows.add(bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 800, h: 600), focus: true)
+    primary.passes.moor()
+    #expect(primary.movesOf(b) == 0)
+}
+
+// After the first pass every anchored app still opening is opened in the background through the
+// platform's apps, and one the platform cannot start is logged; later passes open nothing.
+@Test func testPassOpensAnchoredApps() {
+    let rig = PassRig()
+    rig.apps.names = ["com.tinyspeck.slackmacgap": "Slack"]
+    rig.anchors.choices.slots[.rightTop] = "com.example.gone"
+    rig.anchors.launch(now: rig.clock.now)
+    rig.passes.moor()
+    #expect(rig.apps.opened == [PassRig.slackID])
+    #expect(rig.log.lines.contains(FakeLog.Line(.passes, "could not open anchored app com.example.gone")))
+    rig.clock.advance(by: 1)
+    rig.passes.moor()
+    #expect(rig.apps.opened == [PassRig.slackID])
 }

@@ -2,19 +2,11 @@ import MooringsCore
 
 // GridPicker pops a grid of cells over a window's area for a grid action. Dragging across cells picks
 // a span and letting go fills it, and a click picks one cell. Arrow keys move the span, Shift-arrows
-// grow it and Return applies it. Escape, or a click off the grid, puts it away. While it shows, the
-// platform grabs the arrow, Return and Escape keys and reports them by the tags TriggerOverlay names.
+// grow it and Return applies it. Escape, or a click off the grid, puts it away. While it shows, it
+// grabs the arrow, Return and Escape keys, which arrive by the tags TriggerOverlay names. The grid is
+// the platform's grid view, the one that takes the mouse.
 public final class GridPicker {
-    // pointer returns where the pointer is in top-left coordinates.
-    public var pointer: () -> Point = { Point(x: 0, y: 0) }
-    // grab takes the grid keys, the ones a hold of no trigger uses.
-    public var grab: (OverlayTrigger) -> Void = { _ in }
-    // ungrab lets the grid keys go.
-    public var ungrab: () -> Void = {}
-    // log is told why a grid did not open.
-    public var log: (String) -> Void = { _ in }
-
-    // platform reads the windows and the screens.
+    // platform reads the windows, the screens and the pointer, grabs the keys and draws the grid.
     private let platform: Platform
     // anchors holds the choices and the pins.
     private let anchors: Anchors
@@ -32,12 +24,12 @@ public final class GridPicker {
     private var press: Point?
 
     // init builds a grid picker on platform and anchors that applies spans through actions and draws
-    // on view, which it gives its mouse handler.
-    public init(platform: Platform, anchors: Anchors, actions: ActionRunner, view: any GridView) {
+    // on the platform's grid, which it gives its mouse handler.
+    public init(platform: Platform, anchors: Anchors, actions: ActionRunner) {
         self.platform = platform
         self.anchors = anchors
         self.actions = actions
-        self.view = view
+        view = platform.grid
         view.onMouse = { [weak self] phase, p in self?.mouse(phase, p) }
     }
 
@@ -53,18 +45,18 @@ public final class GridPicker {
         guard let w = window.flatMap({ id in scan.windows.first { $0.id == id } }) ?? scan.focused,
             !anchors.pinned(w), !w.isFullScreen
         else {
-            log("grid: no free window in front")
+            platform.log.note(.overlay, "grid: no free window in front")
             return false
         }
         let a = actions.area(for: w, screens: screens)
-        var start = pointer()
+        var start = platform.pointer.position
         if start.x < a.x || start.x >= a.x + a.w || start.y < a.y || start.y >= a.y + a.h {
             start = Point(x: w.frame.x + w.frame.w / 2, y: w.frame.y + w.frame.h / 2)
         }
         target = w.id
         area = a
         grid = OverlayGrid(cols: cols, rows: rows, at: start, in: a)
-        grab(.none)
+        _ = platform.keys.grab(TriggerOverlay.gridKeys(.none)) { [weak self] in self?.key($0) }
         draw()
         return true
     }
@@ -80,7 +72,7 @@ public final class GridPicker {
         target = nil
         grid = nil
         press = nil
-        ungrab()
+        platform.keys.ungrab()
         view.hide()
     }
 

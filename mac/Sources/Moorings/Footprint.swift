@@ -118,7 +118,6 @@ final class MacDrag {
             })
         follower.placed = { [unowned app] id in app.actions.placed(id) }
         follower.unsnap = { [unowned app] w, f, grab in app.actions.unsnap(w, at: f, grab: grab) }
-        follower.appName = { [unowned app] bundle in app.appName(bundle) }
         follower.changed = { [unowned app] in app.save() }
         follower.stash = StashHook(
             edge: { [unowned app] p, held in

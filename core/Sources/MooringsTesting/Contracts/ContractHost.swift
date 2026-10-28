@@ -43,6 +43,9 @@ public protocol ContractHost: AnyObject {
     // nudge moves the window a little from outside the store, the way a person would, and reports
     // whether the host could.
     func nudge(_ id: WindowID) -> Bool
+    // touchChoices rewrites the saved choices from outside the store, as another program would, and
+    // reports whether the host could.
+    func touchChoices() -> Bool
 }
 
 extension ContractHost {
@@ -56,6 +59,11 @@ extension ContractHost {
 
     // nudge reports that the host cannot move a window from outside the store.
     public func nudge(_ id: WindowID) -> Bool {
+        false
+    }
+
+    // touchChoices reports that the host cannot rewrite the saved choices.
+    public func touchChoices() -> Bool {
         false
     }
 }
@@ -110,6 +118,8 @@ public final class FakeHost: ContractHost {
     private let source: FakeScreens
     // keys receives the presses the host makes, nil when the host makes none.
     public var keys: FakeKeys?
+    // store is the store the host rewrites from outside, nil when it rewrites none.
+    public var store: FakeStore?
     // opened lists the windows the host opened.
     private var opened: [WindowID] = []
 
@@ -179,6 +189,15 @@ public final class FakeHost: ContractHost {
         guard var f = windows.frame(id) else { return false }
         f.x += 10
         windows.nudge(id, to: f)
+        return true
+    }
+
+    // touchChoices rewrites store with a gap of 3, when the host has one.
+    public func touchChoices() -> Bool {
+        guard let store else { return false }
+        var c = Choices()
+        c.gapPx = 3
+        store.rewrite(c)
         return true
     }
 }

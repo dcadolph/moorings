@@ -51,7 +51,6 @@ import Testing
 @Test func testHoverResizeMinimum() {
     let rig = HoldRig()
     let small = rig.windows.add(bundle: "com.example.small", frame: Frame(x: 500, y: 300, w: 600, h: 500), minW: 550)
-    rig.under = small
     rig.at = Point(x: 510, y: 310)
     rig.hover.flagsChanged(HoldRig.ctrlCmd, at: rig.at)
     rig.clock.advance(by: 0)
@@ -80,14 +79,14 @@ import Testing
     pinned.moor()
     #expect(pinned.anchors.pinned(pinned.windows.scan(pinned.screens.current(), full: true).windows[0]))
     let empty = HoldRig()
-    empty.under = nil
-    for rig in [stashed, pinned, empty] {
+    let off = Point(x: 500, y: 1200)
+    for (rig, start) in [(stashed, center(stashed.frame)), (pinned, center(pinned.frame)), (empty, off)] {
         let before = rig.frame
         let moves = rig.moves
-        rig.at = Point(x: 1500, y: 400)
+        rig.at = start
         rig.hover.flagsChanged(HoldRig.ctrlAlt, at: rig.at)
         rig.clock.advance(by: 0)
-        rig.at = Point(x: 1600, y: 400)
+        rig.at = Point(x: start.x + 100, y: start.y)
         rig.clock.advance(by: HoverMover.tickSeconds)
         #expect(!rig.hover.active)
         #expect(rig.frame == before)

@@ -1,7 +1,8 @@
 import MooringsCore
 import MooringsEngine
 
-// WinKeys is the Windows Keys: the RegisterHotKey shortcuts, which also take the keys a hold grabs.
+// WinKeys is the Windows Keys: the RegisterHotKey shortcuts, which bind the shortcuts and also take
+// the keys a hold grabs.
 final class WinKeys: Keys {
     // hotkeys registers the shortcuts and the grabbed keys.
     private let hotkeys: WinHotkeys
@@ -13,6 +14,12 @@ final class WinKeys: Keys {
 
     // shortcutsOn is true: Windows has no switch that turns the shortcuts off.
     var shortcutsOn: Bool { true }
+
+    // bind registers the shortcuts in map; the engine passes only the actions Windows runs, so every
+    // name counts as runnable here.
+    func bind(_ map: [String: Shortcut]) {
+        hotkeys.bind(map, runnable: { _ in true })
+    }
 
     // grab registers keys until ungrab and delivers each press to handler by tag.
     @discardableResult

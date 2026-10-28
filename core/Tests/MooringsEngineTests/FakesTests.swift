@@ -135,6 +135,52 @@ func near(_ a: Frame?, _ b: Frame?) -> Bool {
     #expect(store.saves == 1)
 }
 
+// The store reports a rewrite from outside until the next load, and never after its own save.
+@Test func testFakeStoreChanged() throws {
+    let store = FakeStore()
+    #expect(!store.changed())
+    var c = Choices()
+    c.gapPx = 9
+    store.rewrite(c)
+    #expect(store.changed())
+    #expect(store.load() == c)
+    #expect(!store.changed())
+    store.rewrite(Choices())
+    try store.save(c)
+    #expect(!store.changed())
+}
+
+// The pointer tells its tracker of each move a test makes, never of a warp, and nothing once untracked.
+@Test func testFakePointerTrack() {
+    let pointer = FakePointer()
+    var moves = 0
+    pointer.track { moves += 1 }
+    pointer.move(to: Point(x: 5, y: 5))
+    pointer.warp(Point(x: 9, y: 9))
+    #expect(moves == 1)
+    pointer.track(nil)
+    pointer.move(to: Point(x: 6, y: 6))
+    #expect(moves == 1)
+    #expect(pointer.tracks == [true, false])
+}
+
+// A press of a bound shortcut delivers its action unless a grab holds the same key.
+@Test func testFakeKeysBound() {
+    let keys = FakeKeys()
+    keys.bind(["left-half": Shortcut(mods: [.ctrl, .alt], key: "left")])
+    let press = GrabKey(key: "left", modifiers: [.control, .option], tag: "move-left")
+    keys.press(press)
+    #expect(keys.actions == ["left-half"])
+    var tags: [String] = []
+    _ = keys.grab([press]) { tags.append($0) }
+    keys.press(press)
+    #expect(tags == ["move-left"] && keys.actions == ["left-half"])
+    keys.ungrab()
+    keys.bind([:])
+    keys.press(press)
+    #expect(keys.actions == ["left-half"])
+}
+
 // The overlay shows, moves and hides.
 @Test func testFakeOverlay() {
     let o = FakeOverlay()

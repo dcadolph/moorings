@@ -29,10 +29,7 @@ final class OrganizerRig {
         edit(&c)
         anchors = Anchors(choices: c)
         let clock = FakeClock()
-        let platform = Platform(
-            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier,
-            clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
-            warpCursor: { _ in })
+        let platform = newTestPlatform(windows: windows, screens: screens, clock: clock, notifier: notifier)
         organizer = Organizer(platform: platform, anchors: anchors)
         for k in 0..<count {
             let d = Double(k)

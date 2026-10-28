@@ -14,6 +14,8 @@ public final class FakeStore: ChoicesStore {
     public var failing = false
     // initial is what load returns before the first save.
     private let initial: Choices
+    // moved reports whether the choices were rewritten from outside since the last load or save.
+    private var moved = false
 
     // init builds a store that loads initial until something is saved.
     public init(_ initial: Choices = Choices()) {
@@ -22,7 +24,8 @@ public final class FakeStore: ChoicesStore {
 
     // load returns the last saved choices, or the initial ones.
     public func load() -> Choices {
-        saved ?? initial
+        moved = false
+        return saved ?? initial
     }
 
     // save keeps choices, or throws when failing is set.
@@ -32,5 +35,17 @@ public final class FakeStore: ChoicesStore {
         }
         saved = choices
         saves += 1
+        moved = false
+    }
+
+    // changed reports whether rewrite ran since the last load or save.
+    public func changed() -> Bool {
+        moved
+    }
+
+    // rewrite puts choices in the store as another program writing the file would.
+    public func rewrite(_ choices: Choices) {
+        saved = choices
+        moved = true
     }
 }

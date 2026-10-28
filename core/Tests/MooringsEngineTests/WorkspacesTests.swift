@@ -19,12 +19,8 @@ final class KeeperRig {
     let keeper: WorkspaceKeeper
     // pads lists the free windows, back to front.
     var pads: [WindowID] = []
-    // titles maps a window to its title.
-    var titles: [WindowID: String] = [:]
-    // opened lists the apps the keeper opened, with their targets.
-    var opened: [String] = []
-    // later holds the work the keeper deferred, with its delay.
-    var later: [(Double, () -> Void)] = []
+    // apps opens the apps a recall asks for, each showing one window.
+    let apps: FakeApps
     // saves counts the times the keeper reported a change.
     var saves = 0
 
@@ -33,21 +29,18 @@ final class KeeperRig {
         var c = Choices()
         edit(&c)
         anchors = Anchors(choices: c)
-        let platform = Platform(
-            windows: windows, screens: screens, overlay: FakeOverlay(), notifier: notifier,
-            clock: clock, scheduler: FakeScheduler(clock: clock), store: FakeStore(),
-            warpCursor: { _ in })
+        apps = FakeApps(windows: windows, names: ["com.example.mail": "Mail"])
+        let platform = newTestPlatform(windows: windows, screens: screens, clock: clock, notifier: notifier, apps: apps)
         let organizer = Organizer(platform: platform, anchors: anchors)
         keeper = WorkspaceKeeper(
             platform: platform, anchors: anchors, organizer: organizer,
             actions: ActionRunner(platform: platform, anchors: anchors))
-        pads.append(windows.add(bundle: "com.example.pad", frame: Frame(x: 900, y: 200, w: 700, h: 500)))
-        pads.append(windows.add(bundle: "com.example.pad", frame: Frame(x: 1700, y: 300, w: 600, h: 400), focus: true))
-        titles = [pads[0]: "one", pads[1]: "two"]
+        pads.append(
+            windows.add(bundle: "com.example.pad", frame: Frame(x: 900, y: 200, w: 700, h: 500), title: "one"))
+        pads.append(
+            windows.add(
+                bundle: "com.example.pad", frame: Frame(x: 1700, y: 300, w: 600, h: 400), focus: true, title: "two"))
         let rig = self
-        keeper.title = { rig.titles[$0] ?? "" }
-        keeper.openApp = { bundle, target in rig.opened.append(bundle + (target.map { " " + $0 } ?? "")) }
-        keeper.after = { seconds, work in rig.later.append((seconds, work)) }
         keeper.changed = { rig.saves += 1 }
     }
 
@@ -94,7 +87,7 @@ final class KeeperRig {
 
 // Test 3: A saved window whose app is not running opens the app, and its first window goes where
 // the workspace saved it, then is checked once more a moment later.
-@Test func testKeeperOpensMissingApp() {
+@Test func testKeeperOpensMissingApp() throws {
     let rig = KeeperRig()
     let saved = Frame(x: 1000, y: 400, w: 800, h: 600)
     rig.anchors.choices.workspaces["mail"] = Workspace(
@@ -105,10 +98,10 @@ final class KeeperRig {
         setup: nil)
     rig.look()
     #expect(rig.keeper.recall("mail"))
-    #expect(rig.opened == ["com.example.mail"])
+    #expect(rig.apps.opened == ["com.example.mail"])
     #expect(rig.keeper.waiting)
     #expect(rig.notifier.notes.last?.body == "Recalled. Opening 1 app.")
-    let mail = rig.windows.add(bundle: "com.example.mail", frame: Frame(x: 50, y: 50, w: 500, h: 400))
+    let mail = try #require(rig.windows.windows.first { $0.bundle == "com.example.mail" }?.id)
     rig.look()
     #expect(rig.frame(mail) == saved)
     #expect(!rig.keeper.waiting)
@@ -130,12 +123,14 @@ final class KeeperRig {
     #expect(!rig.keeper.tied("desk"))
     rig.screens.screens = office
     rig.keeper.screensChanged()
+    rig.clock.advance(by: WorkspaceKeeper.settleSeconds - 0.5)
     rig.keeper.screensChanged()
-    #expect(rig.later.count == 2 && rig.later.allSatisfy { $0.0 == WorkspaceKeeper.settleSeconds })
-    rig.later[0].1()
+    rig.clock.advance(by: WorkspaceKeeper.settleSeconds - 0.5)
     #expect(rig.notifier.notes.isEmpty, "a change superseded by a later one recalls nothing")
-    rig.later[1].1()
+    rig.clock.advance(by: 0.5)
     #expect(rig.notifier.notes.map(\.title) == ["Workspace desk"])
+    rig.clock.advance(by: WorkspaceKeeper.settleSeconds * 2)
+    #expect(rig.notifier.notes.count == 1, "a burst recalls once")
 }
 
 // Test 5: Plugging in the tied display set after another one recalls its workspace.
@@ -149,11 +144,11 @@ final class KeeperRig {
         full: [Frame(x: 0, y: 0, w: 1920, h: 1080)], usable: [Frame(x: 0, y: 25, w: 1920, h: 1055)],
         ultrawide: nil)
     rig.keeper.screensChanged()
-    rig.later.removeLast().1()
+    rig.clock.advance(by: WorkspaceKeeper.settleSeconds)
     rig.windows.nudge(rig.pads[0], to: Frame(x: 100, y: 100, w: 400, h: 300))
     rig.screens.screens = home
     rig.keeper.screensChanged()
-    rig.later.removeLast().1()
+    rig.clock.advance(by: WorkspaceKeeper.settleSeconds)
     #expect(rig.notifier.notes.map(\.title) == ["Workspace desk"])
     #expect(rig.frame(rig.pads[0]) == before[0])
 }
