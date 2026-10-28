@@ -524,6 +524,29 @@ jobs:
           }
           LiftCheck @('--min-aspect', '1.0')
 
+          function ChainCheck([string[]] $geo) {
+            Write-Host "probe chain $geo"
+            $pad = Pad
+            Start-Sleep -Seconds 3
+            $c = Probe (@('--probe', 'chain') + $geo)
+            Expect $c '^bound chain:Halves: true$' 'the Halves chain bound to its chord'
+            Expect $c '^bound chain:Once: true$' 'the Once chain bound to its chord'
+            $half = Rect ($c -match '^left-half: ')[0] 'left-half: '
+            $third = Rect ($c -match '^left-third: ')[0] 'left-third: '
+            if ((Off $half $third) -le 1) { throw "left-half and left-third are the same frame $half, so the check proves nothing" }
+            foreach ($name in 'Halves', 'Once') {
+              $p = @(1..3 | ForEach-Object { Rect ($c -match "^$name press ${_}: ")[0] "$name press ${_}: " })
+              $want = if ($name -eq 'Halves') { @($half, $third, $half) } else { @($half, $third, $third) }
+              foreach ($k in 0..2) {
+                $off = Off $p[$k] $want[$k]
+                if ($off -gt 1) { throw "$name press $($k + 1) is $($p[$k] -join ' '), $off px off $($want[$k] -join ' ')" }
+              }
+            }
+            Write-Host "  check: Halves stepped left half, left third, left half again and Once stayed on the left third after its last step"
+            Stop-Process -Id $pad.Id
+          }
+          ChainCheck @('--min-aspect', '1.0')
+
           Write-Host "probe login"
           $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
           Remove-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue
@@ -621,6 +644,7 @@ jobs:
           if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
           LiftCheck $simApp
+          ChainCheck $simApp
 
           Write-Host "SIM probe drag"
           $pad = Pad
