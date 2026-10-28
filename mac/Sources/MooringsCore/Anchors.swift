@@ -100,6 +100,9 @@ public struct Choices: Equatable, Sendable, Codable {
     public var profiles: [Profile] = []
     // activeProfile names the profile last applied, nil when none is.
     public var activeProfile: String?
+    // slotStacks reports whether a slot holds every window of its app on the ultrawide, stacked,
+    // instead of the main window alone.
+    public var slotStacks: Bool = true
 
     // init builds a set of choices.
     public init(slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
@@ -116,7 +119,7 @@ public struct Choices: Equatable, Sendable, Codable {
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, widthPresets, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts, sizes, gapPx
         case ignores, snap, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
-        case chains, menu, appRules, buttonClicks, profiles, activeProfile, overlay, tiling
+        case chains, menu, appRules, buttonClicks, profiles, activeProfile, overlay, tiling, slotStacks
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -150,6 +153,7 @@ public struct Choices: Equatable, Sendable, Codable {
         appRules = (try? c.decodeIfPresent([AppRule].self, forKey: .appRules)) ?? []
         profiles = (try? c.decodeIfPresent([Profile].self, forKey: .profiles)) ?? []
         activeProfile = try? c.decodeIfPresent(String.self, forKey: .activeProfile)
+        slotStacks = (try? c.decodeIfPresent(Bool.self, forKey: .slotStacks)) ?? true
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -182,6 +186,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(appRules, forKey: .appRules)
         try c.encode(profiles, forKey: .profiles)
         try c.encodeIfPresent(activeProfile, forKey: .activeProfile)
+        try c.encode(slotStacks, forKey: .slotStacks)
     }
 
     // restoringDefaults returns the default choices with the owner's own data kept: anchored apps, strip
@@ -402,8 +407,10 @@ public final class Anchors {
     public var stashed: Set<WindowID> = []
     // bursts counts recent moves per window.
     var bursts: [WindowID: Burst] = [:]
-    // holders maps each pinned bundle to the window its pin holds.
+    // holders maps each pinned bundle to its pin's holder, the window the menu and remoor name.
     var holders: [String: WindowID] = [:]
+    // held maps each window a pin held in the last pass to the pin's bundle.
+    var held: [WindowID: String] = [:]
     // openedAt maps an app moorings opened to when, so it keeps its strip while it opens.
     var openedAt: [String: Double] = [:]
     // present holds the bundles whose pinned window showed in the last pass, nil before one.
@@ -604,18 +611,26 @@ public final class Anchors {
         return out
     }
 
-    // pinsWindow reports whether pin holds w. A pin holds one window: the one it already holds, or
-    // else the app's main window, which it then keeps. An open or save panel is never held, and the
-    // app's other windows are kept in the channel like any free window.
+    // pinsWindow reports whether pin holds w. The pin's holder is the window it already holds, or
+    // else the app's main window, which it then keeps. With slotStacks on, the pin also holds every
+    // other window of the app on the ultrawide, stacked in the slot; with it off they are kept in the
+    // channel like any free window. An open or save panel is never held.
     func pinsWindow(_ pin: Pin, _ w: WindowInfo) -> Bool {
         if let held = holders[pin.bundle] {
-            return held == w.id
-        }
-        if w.isMain && !w.isFilePanel {
+            if held == w.id {
+                return true
+            }
+        } else if w.isMain && !w.isFilePanel {
             holders[pin.bundle] = w.id
             return true
         }
-        return false
+        return choices.slotStacks && w.onUltrawide && !w.isFilePanel
+    }
+
+    // slotWindows returns the windows the pin in slot key held in the last pass, in id order.
+    public func slotWindows(_ key: SlotKey) -> [WindowID] {
+        guard let bundle = choices.slots[key] else { return [] }
+        return held.filter { $0.value == bundle }.keys.sorted()
     }
 
     // pin returns the pin for bundle, or nil when the app is not anchored.
@@ -782,6 +797,7 @@ public final class Anchors {
         justReleased = []
         if choices.paused {
             placed = [:]
+            held = [:]
             return []
         }
         if scene.mouseHeld {
@@ -793,9 +809,11 @@ public final class Anchors {
         now = scene.now
         let pins = pins()
         var shown: Set<String> = []
+        held = [:]
         for w in scene.windows {
             if let pin = pin(w.bundle, in: pins), pinsWindow(pin, w) {
                 shown.insert(pin.bundle)
+                held[w.id] = pin.bundle
             }
         }
         present = shown

@@ -221,11 +221,12 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     #expect(world.info(free).isFullScreen == false)
 }
 
-// Test: A pinned app's other window in native fullscreen follows the free window rule, so it is
-// turned into a channel fill only when fullscreenFills is on.
+// Test: With slotStacks off, a pinned app's other window in native fullscreen follows the free
+// window rule, so it is turned into a channel fill only when fullscreenFills is on.
 @Test func testLiftSecondWindowFullscreen() {
     for fills in [true, false] {
         var choices = Choices(slots: [.leftTop: slack, .rightTop: iterm])
+        choices.slotStacks = false
         choices.fullscreenFills = fills
         let anchors = liftAnchors(choices)
         var world = LiftWorld()
@@ -236,6 +237,24 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
         world.pass(anchors)
         #expect((world.exits[huddle] != nil) == fills)
     }
+}
+
+// Test: With slotStacks on, a pinned app's other window in native fullscreen follows the pin rule:
+// it is asked to leave fullscreen and then returns to the slot.
+@Test func testLiftSecondWindowFullscreenStacks() {
+    var choices = Choices(slots: [.leftTop: slack, .rightTop: iterm])
+    choices.fullscreenFills = false
+    let anchors = liftAnchors(choices)
+    var world = LiftWorld()
+    let main = world.add(slack, Frame(x: 1000, y: 100, w: 900, h: 700))
+    let huddle = world.add(slack, Frame(x: 1200, y: 200, w: 400, h: 300), main: false)
+    world.pass(anchors)
+    world.full(huddle, true)
+    world.pass(anchors)
+    #expect(world.exits[huddle] != nil)
+    #expect(world.info(huddle).isFullScreen == false)
+    world.pass(anchors)
+    #expect(world.frame(huddle) == world.frame(main))
 }
 
 // Lua case 132: A pinned window still animating out of fullscreen is told to leave once.

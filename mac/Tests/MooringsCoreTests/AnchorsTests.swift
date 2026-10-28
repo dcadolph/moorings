@@ -173,21 +173,26 @@ func testSlotFrames(test: SlotCase) {
     #expect(world.frame(w) == test.wantFrame)
 }
 
-// Test 5: A pin holds the app's main window and keeps its other windows in the channel.
+// Test 5: A pin holds the app's main window. With slotStacks on its other window stacks in the
+// slot; with it off the other window is kept in the channel.
 @Test func testPinHoldsMainWindow() {
-    let anchors = anchored()
-    var world = TestWorld()
-    let other = world.add(slack, Frame(x: 0, y: 200, w: 800, h: 600), main: false)
-    let main = world.add(slack, Frame(x: 1500, y: 200, w: 800, h: 600))
-    world.pass(anchors)
-    world.set(main, leftFull)
-    world.windows[0].isMain = true
-    world.windows[1].isMain = false
-    world.pass(anchors)
-    #expect(world.frame(main) == leftFull)
-    #expect(world.frame(other) == Frame(x: 512, y: 200, w: 800, h: 600))
-    #expect(anchors.pinned(world.info(main)))
-    #expect(!anchors.pinned(world.info(other)))
+    for stacks in [true, false] {
+        let anchors = anchored()
+        anchors.choices.slotStacks = stacks
+        var world = TestWorld()
+        let other = world.add(slack, Frame(x: 0, y: 200, w: 800, h: 600), main: false)
+        let main = world.add(slack, Frame(x: 1500, y: 200, w: 800, h: 600))
+        world.pass(anchors)
+        world.set(main, leftFull)
+        world.windows[0].isMain = true
+        world.windows[1].isMain = false
+        world.pass(anchors)
+        #expect(world.frame(main) == leftFull, "stacks \(stacks)")
+        #expect(world.frame(other) == (stacks ? leftFull : Frame(x: 512, y: 200, w: 800, h: 600)), "stacks \(stacks)")
+        #expect(anchors.pinned(world.info(main)), "stacks \(stacks)")
+        #expect(anchors.pinned(world.info(other)) == stacks, "stacks \(stacks)")
+        #expect(anchors.slotWindows(.leftTop) == (stacks ? [other, main] : [main]), "stacks \(stacks)")
+    }
 }
 
 // Test 6: An open or save panel is never pinned and is left where it is, unlike the app's other
@@ -551,12 +556,16 @@ func testCastReason(test: CastReasonCase) {
     #expect(WindowInfo.carrying([], frames: [1: Frame(x: 0, y: 0, w: 1, h: 1)]).isEmpty)
     #expect(WindowInfo.carrying(last, frames: [:]).isEmpty)
 }
-// Swift only: a pin holds an app whose only on-screen window is not its main window.
+// Swift only: a pin holds an app whose only on-screen window is not its main window, by promoting
+// it with slotStacks off and as a stacked window with it on.
 @Test func testPinHoldsLoneWindow() {
-    let anchors = anchored()
-    let w = WindowInfo(id: 9, bundle: iterm, frame: Frame(x: 1000, y: 200, w: 800, h: 600), onUltrawide: true, isMain: false)
-    #expect(!anchors.pinned(w))
-    #expect(anchors.pinned(WindowInfo.promotingLone([w])[0]))
+    for stacks in [true, false] {
+        let anchors = anchored()
+        anchors.choices.slotStacks = stacks
+        let w = WindowInfo(id: 9, bundle: iterm, frame: Frame(x: 1000, y: 200, w: 800, h: 600), onUltrawide: true, isMain: false)
+        #expect(anchors.pinned(w) == stacks, "stacks \(stacks)")
+        #expect(anchors.pinned(WindowInfo.promotingLone([w])[0]), "stacks \(stacks)")
+    }
 }
 
 // testSplitSides checks that only a side with two anchored apps showing splits into rows.
@@ -664,6 +673,7 @@ func testCastReason(test: CastReasonCase) {
     ]
     for test in tests {
         let anchors = anchored()
+        anchors.choices.slotStacks = false
         var world = TestWorld()
         world.add(slack, leftFull)
         let other = world.add(slack, Frame(x: 1000, y: 200, w: 800, h: 600), main: false,
@@ -677,6 +687,24 @@ func testCastReason(test: CastReasonCase) {
         world.pass(anchors)
         #expect(world.frame(other) == test.want, "\(test.name)")
     }
+}
+
+// testSlotStacksHoldsAll checks that with slotStacks on a slot holds all three of its app's windows
+// on the ultrawide, each at the slot frame, and leaves the one on another display alone.
+@Test func testSlotStacksHoldsAll() {
+    let anchors = anchored()
+    var world = TestWorld()
+    let main = world.add(slack, Frame(x: 1500, y: 200, w: 800, h: 600))
+    let second = world.add(slack, Frame(x: 2000, y: 300, w: 700, h: 500), main: false)
+    let third = world.add(slack, Frame(x: 2500, y: 400, w: 600, h: 400), main: false)
+    let away = world.add(slack, Frame(x: -1000, y: 200, w: 800, h: 600), main: false, onUltrawide: false)
+    world.pass(anchors)
+    for id in [main, second, third] {
+        #expect(world.frame(id) == leftFull, "window \(id)")
+    }
+    #expect(world.frame(away) == Frame(x: -1000, y: 200, w: 800, h: 600))
+    #expect(anchors.slotWindows(.leftTop) == [main, second, third])
+    #expect(anchors.slotWindows(.rightTop).isEmpty)
 }
 
 // testWideWindowIDKept checks that a window id wider than 32 bits, as a Windows HWND can be,

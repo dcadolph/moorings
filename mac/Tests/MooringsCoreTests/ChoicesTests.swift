@@ -121,6 +121,14 @@ import Testing
     #expect(s == SnapChoices())
 }
 
+// Swift only: choices saved without slotStacks load with it on, and it round trips.
+@Test func testChoicesSlotStacks() throws {
+    #expect(Choices.decode(Data(#"{"paused":false}"#.utf8)).slotStacks)
+    var c = Choices()
+    c.slotStacks = false
+    #expect(Choices.decode(try Choices.encode(c)).slotStacks == false)
+}
+
 // Swift only: choices with no stacking key load with default stack choices, and an empty object decodes to them.
 @Test func testChoicesDecodeWithoutStacking() throws {
     let c = Choices.decode(Data(#"{"snap":true}"#.utf8))
