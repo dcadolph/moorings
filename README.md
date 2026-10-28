@@ -145,6 +145,7 @@ lists every action with its shortcut, so it doubles as a cheat sheet. The defaul
 | Larger, smaller           | ⌃⌥= ⌃⌥-         | Control + Option + Equals or Minus               |
 | Restore                   | ⌃⌥⌫             | Control + Option + Delete                        |
 | Previous, next display    | ⌃⌥⌘← ⌃⌥⌘→       | Control + Option + Command + Left or Right Arrow |
+| Cycle slot windows        | ⌃⌥⌘↓ ⌃⌥⌘↑       | Control + Option + Command + Down or Up Arrow    |
 
 Window > Keymap switches to another preset, or to None to start from a blank slate. Fourths, sixths, eighths, ninths, twelfths,
 sixteenths, vertical thirds, sixths and eighths, corner thirds, almost maximize, center
