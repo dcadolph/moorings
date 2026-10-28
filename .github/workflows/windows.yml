@@ -337,3 +337,84 @@ jobs:
           Expect $b '^closed: true$' 'the banner closed itself after the fade'
           Write-Host "  check: banner at the top center, not the foreground, closed after the fade"
           Stop-Process -Id $pad.Id
+
+      - name: Package
+        id: package
+        run: |
+          swift build -c release
+          if ($LASTEXITCODE -ne 0) { throw "release build failed" }
+          $bin = swift build -c release --show-bin-path
+          $runtime = Split-Path (where.exe swiftCore.dll | Select-Object -First 1)
+          $short = '${{ github.event.pull_request.head.sha || github.sha }}'.Substring(0, 7)
+          $name = "moorings-windows-$short"
+          $dir = Join-Path $env:RUNNER_TEMP $name
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          Copy-Item (Join-Path $bin 'MooringsWin.exe') $dir
+          Copy-Item (Join-Path $runtime '*.dll') $dir
+          foreach ($dll in 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll') {
+            $path = Join-Path $env:SystemRoot "System32\$dll"
+            if (Test-Path $path) { Copy-Item $path $dir }
+          }
+          Set-Content -Path (Join-Path $dir 'README-windows.txt') -Encoding utf8 -Value @'
+          Moorings for Windows, early build
+
+          Moorings holds apps in the side strips of an ultrawide monitor, 21:9 or wider, and keeps
+          every other window in the channel between them.
+
+          Run it
+
+          1. Unzip this folder anywhere, for example Documents\Moorings. Keep the files together:
+             MooringsWin.exe runs on the DLLs beside it.
+          2. Double-click MooringsWin.exe. This build is not signed yet, so Windows SmartScreen may
+             say it protected your PC. Click More info, then Run anyway. It asks once.
+          3. Moorings has no window. Its icon sits in the notification area at the right end of the
+             taskbar. Click the up arrow there if it is hidden, then click the icon for the menu.
+
+          What it does
+
+          - Slots: in the tray menu, choose an app for Left top, Left bottom, Right top or Right
+            bottom. Moorings holds its window in that strip.
+          - Any other window that lands on a strip is pushed back into the channel.
+          - Moving a held window by hand releases it. Ctrl+Alt+Backspace on it puts it back.
+          - Window shortcuts from Rectangle: Ctrl+Alt+Left and Right for halves, Ctrl+Alt+U, I, J
+            and K for quarters, Ctrl+Alt+D, F and G for thirds, Ctrl+Alt+Enter to maximize and
+            Ctrl+Alt+C to center, all inside the channel. On a held window Ctrl+Alt+Enter lifts it
+            over the channel, and pressing it again lowers it.
+          - Widths: pick the strip widths from the tray menu.
+          - Pause stops everything until you choose it again. Launch at login starts Moorings when
+            you sign in.
+
+          Settings live in %APPDATA%\Moorings\choices.json. To quit, choose Quit Moorings from the
+          tray menu.
+          '@
+          "name=$name" >> $env:GITHUB_OUTPUT
+          "dir=$dir" >> $env:GITHUB_OUTPUT
+
+      - name: Package check
+        timeout-minutes: 5
+        run: |
+          $dir = '${{ steps.package.outputs.dir }}'
+          Get-ChildItem $dir | ForEach-Object { Write-Host "  $($_.Name)" }
+          function Ran([string] $exe, [string] $log) {
+            $p = Start-Process $exe -ArgumentList @('--probe', 'version') -RedirectStandardOutput $log -NoNewWindow -PassThru
+            $null = $p.Handle
+            if (-not $p.WaitForExit(30000)) { Stop-Process -Id $p.Id -Force; return 'hung' }
+            "$($p.ExitCode)"
+          }
+          $env:Path = "$env:SystemRoot\System32;$env:SystemRoot"
+          if (Get-Command swift -ErrorAction SilentlyContinue) { throw "the toolchain is still on PATH" }
+          $log = Join-Path $env:RUNNER_TEMP 'packaged.txt'
+          $code = Ran (Join-Path $dir 'MooringsWin.exe') $log
+          Get-Content $log | ForEach-Object { Write-Host "  $_" }
+          if ($code -ne '0' -or -not (@(Get-Content $log) -match '^dpi: per-monitor-v2$')) { throw "the packaged exe did not run without the toolchain: $code" }
+          $bare = Join-Path $env:RUNNER_TEMP 'bare'
+          New-Item -ItemType Directory -Path $bare | Out-Null
+          Copy-Item (Join-Path $dir 'MooringsWin.exe') $bare
+          $code = Ran (Join-Path $bare 'MooringsWin.exe') (Join-Path $env:RUNNER_TEMP 'bare.txt')
+          if ($code -eq '0') { throw "the exe ran with no runtime beside it, so the check proves nothing" }
+          Write-Host "  check: packaged exe ran with the toolchain off PATH; the exe alone did not ($code)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: ${{ steps.package.outputs.dir }}
