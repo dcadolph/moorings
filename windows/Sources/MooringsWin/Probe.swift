@@ -618,7 +618,7 @@ func probeReload(_ opts: ProbeOptions) -> Int32 {
     app.run(until: App.now + 1.5)
     print("control: \(frame()) reloads \(app.reloads)")
     do {
-        try store.save(narrow)
+        try Choices.encode(narrow).write(to: store.url)
     } catch {
         print("reload: \(error)")
         return 1
