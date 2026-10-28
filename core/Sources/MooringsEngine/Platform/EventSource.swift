@@ -7,7 +7,8 @@ public protocol EventSource: AnyObject {
     func stop()
     // waiting reports whether the source still waits on an app it was asked to watch.
     var waiting: Bool { get }
-    // watch narrows the source to the apps in scan where the platform needs that (the Mac's per-app
-    // AXObserver); Windows ignores it.
+    // watch runs after every pass with the windows it kept: the source watches their apps and their
+    // closing where the platform needs that (the Mac's per-app AXObserver) and knows them as listed,
+    // so an event for a window no pass listed can be filtered.
     func watch(_ scan: Scan)
 }

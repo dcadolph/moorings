@@ -107,6 +107,8 @@ public final class Engine {
     public var observers = Observers()
     // throwViews are the footprint and click-through grid the throw overlay draws on.
     public let throwViews: ThrowViews
+    // wasReady is whether the window store could act at the last look, to catch a grant or a loss.
+    private var wasReady: Bool
 
     // actions applies window actions to the focused window.
     public private(set) lazy var actions = ActionRunner(engine: self, platform: platform, anchors: anchors)
@@ -149,6 +151,7 @@ public final class Engine {
         self.platformActions = platformActions
         self.throwViews = throwViews ?? ThrowViews(footprint: platform.overlay, grid: platform.grid)
         anchors = Anchors(choices: platform.store.load())
+        wasReady = platform.windows.ready
         _ = actions
         _ = organizer
         _ = workspaces
@@ -162,10 +165,15 @@ public final class Engine {
         _ = badge
     }
 
-    // start marks the launch, binds the shortcuts, starts the badge when it is on, and runs the first
-    // pass. The roots call it once; the probes do not.
+    // start marks the launch, starts the events when the window store can act, binds the shortcuts,
+    // starts the badge when it is on, and runs the first pass. The roots call it once; the probes do
+    // not.
     public func start() {
         anchors.launch(now: platform.clock.now)
+        wasReady = platform.windows.ready
+        if wasReady {
+            listen()
+        }
         bind()
         badge.sync()
         passes.wake()
@@ -209,8 +217,14 @@ public final class Engine {
 
     // reload re-reads the choices from the store and binds the shortcuts again.
     public func reload() {
-        anchors.choices = platform.store.load()
+        load()
         settle()
+    }
+
+    // load re-reads the choices from the store and logs that it did.
+    private func load() {
+        anchors.choices = platform.store.load()
+        platform.log.note(.choices, "choices reloaded")
     }
 
     // settle follows a change of the choices: the shortcuts, the badge and a pass.
@@ -219,6 +233,57 @@ public final class Engine {
         badge.sync()
         passes.wake()
         passes.moor()
+    }
+
+    // beforePass runs before each pass: it starts or stops the events when Accessibility changed and
+    // reloads the choices when the store says they moved. The pass about to run shows the reload.
+    public func beforePass() {
+        let ready = platform.windows.ready
+        if ready != wasReady {
+            wasReady = ready
+            if ready {
+                platform.log.note(.passes, "the window store can act: starting the events")
+                listen()
+                platform.notifier.notify(
+                    "Moorings is ready", "Accessibility is on. Anchored apps take their slots now.")
+            } else {
+                platform.log.note(.passes, "the window store cannot act: stopping the events")
+                platform.events.stop()
+            }
+        }
+        if platform.store.changed() {
+            load()
+            bind()
+            badge.sync()
+            passes.wake()
+        }
+    }
+
+    // listen starts the platform's events, each handled on the engine's thread. start calls it; a
+    // probe that runs passes without start calls it to hear the events.
+    public func listen() {
+        platform.events.start { [unowned self] in handle($0) }
+    }
+
+    // handle wakes the passes for one window event and keeps what the event changes: the displays,
+    // and the launch window that reads every app while a new app shows its first window. An event
+    // that names its window wakes narrow, since the source marked that window's app.
+    public func handle(_ event: WindowEvent) {
+        let t = platform.clock.now
+        observers.noticed(event, t)
+        switch event {
+        case .moved, .shown, .destroyed, .focused:
+            passes.wake(full: false)
+        case .appLaunched:
+            passes.launching = t + Pace.launchSeconds
+            passes.wake()
+        case .screensChanged:
+            anchors.screensChanged()
+            workspaces.screensChanged()
+            passes.wake()
+        case .appQuit, .wake:
+            passes.wake()
+        }
     }
 
     // bind registers every shortcut in effect that this platform supports and logs the problems

@@ -336,20 +336,35 @@ func probeEvents(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let app = App(store: store, minAspect: opts.minAspect)
-    app.watcher.filters = !opts.noFilter
+    app.events.filters = !opts.noFilter
     var kept = 0, passes = 0
     print("start at \(stamp(App.now))")
-    app.noticed = { kind, id, t in
+    app.engine.observers.noticed = { event, t in
         kept += 1
-        print("event \(kind) \(hex(id)) at \(stamp(t))")
+        print("event \(eventName(event)) at \(stamp(t))")
     }
     app.engine.observers.passed = { t, moves in
         passes += 1
         print("pass at \(stamp(t)) moves \(moves)")
     }
     app.run(until: App.now + opts.seconds)
-    print("raw events: \(app.watcher.raw) passed: \(app.watcher.passed) kept: \(kept) passes: \(passes)")
+    print("raw events: \(app.events.raw) passed: \(app.events.passed) kept: \(kept) passes: \(passes)")
     return 0
+}
+
+// eventName names a window event the way the events probe prints it: its kind, then the window in
+// hex or the app.
+func eventName(_ event: WindowEvent) -> String {
+    switch event {
+    case let .moved(id): "moved \(hex(id))"
+    case let .shown(id): "shown \(hex(id))"
+    case let .destroyed(id): "destroyed \(hex(id))"
+    case let .focused(id): "focused \(hex(id))"
+    case let .appLaunched(app): "appLaunched \(app)"
+    case let .appQuit(app): "appQuit \(app)"
+    case .screensChanged: "screensChanged"
+    case .wake: "wake"
+    }
 }
 
 // probeMenu prints the tray menu the saved choices and the running windows build, one entry per
@@ -673,6 +688,12 @@ func probeReload(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let app = App(store: store, minAspect: opts.minAspect)
+    var reloads = 0
+    app.log.heard = { category, line in
+        if category == .choices && line == "choices reloaded" {
+            reloads += 1
+        }
+    }
     let frame = { app.windows.frame(pad.id).map(pixels) ?? "gone" }
     app.run(until: App.now + 1.5)
     print("before: \(frame())")
@@ -692,7 +713,7 @@ func probeReload(_ opts: ProbeOptions) -> Int32 {
     }
     app.engine.wake()
     app.run(until: App.now + 1.5)
-    print("control: \(frame()) reloads \(app.reloads)")
+    print("control: \(frame()) reloads \(reloads)")
     do {
         try Choices.encode(narrow).write(to: store.url)
     } catch {
@@ -701,7 +722,7 @@ func probeReload(_ opts: ProbeOptions) -> Int32 {
     }
     app.engine.wake()
     app.run(until: App.now + 1.5)
-    print("after: \(frame()) reloads \(app.reloads)")
+    print("after: \(frame()) reloads \(reloads)")
     let use = app.engine.anchors.inUse(wide)
     print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
     return 0

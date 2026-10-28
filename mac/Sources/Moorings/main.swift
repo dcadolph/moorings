@@ -11,9 +11,6 @@ import MooringsEngine
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // choicesKey is the defaults key the saved choices live under.
     static let choicesKey = "choices"
-    // launchSeconds is how long after an app launches passes keep looking for its first window,
-    // in case it shows one before it takes an observer.
-    static let launchSeconds = 30.0
 
     // logger writes to the unified log under the com.dcadolph.moorings subsystem.
     let logger = Logger(subsystem: "com.dcadolph.moorings", category: "anchors")
@@ -29,8 +26,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let timers = MacTimers()
     // keys reads whether the shortcuts are on and grabs the keys a hold takes.
     lazy var keys = MacKeys(hotkeys)
-    // watcher wakes the passes on window events.
-    private lazy var watcher = Watcher { [weak self] el, note in self?.windowEvent(el, note) }
+    // events wakes the passes on window, app and screen events and keeps the tap running.
+    lazy var events = MacEvents(store: windows, tap: tap)
     // accessibilityPane is the Privacy and Security pane that grants Accessibility.
     static let accessibilityPane = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
@@ -60,8 +57,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var update: ReleaseInfo?
     // launched is when moorings started.
     private let launched = Date()
-    // wasTrusted is the Accessibility state at the last tick, to catch the grant.
-    private var wasTrusted = true
     // updateTimer runs the update check.
     private var updateTimer: Timer?
     // tap watches the primary mouse button for green button clicks and drags.
@@ -83,27 +78,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             refreshShortcuts()
             hintAnchor(Screens.current())
         },
-        pointer: pointer, keys: keys, apps: apps, log: log, timers: timers, events: MacEvents(store: windows),
+        pointer: pointer, keys: keys, apps: apps, log: log, timers: timers, events: events,
         grid: GridPanel(), badge: badge
     )
     // engine builds and runs every engine object on the Mac's platform, with every routed action and
-    // the menu and strip editor. Until the event source goes live, the delegate's watcher feeds the
-    // passes: prepare watches the regular apps and the closing of the windows the last scan read.
+    // the menu and strip editor.
     lazy var engine: Engine = {
         let e = Engine(
             platform: platform, features: .all, platformActions: MacActions(app: self),
             throwViews: ThrowViews(footprint: Footprint(), grid: GridPanel()))
-        let p = e.passes
-        p.context = { [unowned self] in PassContext(waiting: watcher.waiting, launching: launching) }
-        p.ticked = { [unowned self] in ticked() }
-        p.prepare = { [unowned self] in
-            if !tap.running {
-                tap.start()
-            }
-            watcher.watch(Self.regularApps())
-            watcher.watchClosing(windows.elements)
-        }
-        p.greenButton = true
+        e.passes.greenButton = true
         return e
     }()
     // hotkeys runs a window action when its shortcut is pressed.
@@ -114,8 +98,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var edges = EdgeResizer(app: self)
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    // launching is when passes stop looking for the first window of an app that just launched.
-    private var launching = 0.0
     // quitting reports whether Quit Moorings was chosen, so the icon stays blank while the boat sinks.
     private var quitting = false
     // sinking plays the quit animation.
@@ -136,24 +118,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu
-        let center = NSWorkspace.shared.notificationCenter
-        for name in [
-            NSWorkspace.didActivateApplicationNotification, NSWorkspace.didLaunchApplicationNotification,
-            NSWorkspace.activeSpaceDidChangeNotification, NSWorkspace.didUnhideApplicationNotification,
-            NSWorkspace.didHideApplicationNotification, NSWorkspace.didWakeNotification,
-            NSWorkspace.screensDidWakeNotification,
-        ] {
-            center.addObserver(self, selector: #selector(workspaceChanged(_:)), name: name, object: nil)
-        }
-        center.addObserver(
-            self, selector: #selector(appQuit(_:)), name: NSWorkspace.didTerminateApplicationNotification,
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self, selector: #selector(frontChanged(_:)), name: NSWorkspace.didActivateApplicationNotification,
             object: nil)
         NotificationCenter.default.addObserver(
-            self, selector: #selector(workspaceChanged(_:)),
+            self, selector: #selector(screensChanged(_:)),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        wasTrusted = windows.trusted
+        events.turned = { [weak self] in self?.showTrust() }
         showTrust()
-        if !wasTrusted {
+        if !windows.trusted {
             logger.notice("Accessibility is not granted: windows will not move")
             notify(
                 "Moorings needs Accessibility",
@@ -207,7 +180,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.engine.overlay.flagsChanged(m, at: Point(x: p.x, y: p.y))
             self?.engine.hover.flagsChanged(m, at: Point(x: p.x, y: p.y))
         }
-        tap.start()
         engine.start()
         refreshShortcuts()
         hintAnchor(Screens.current())
@@ -316,53 +288,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(entry)
         }
         menu.popUp(positioning: nil, at: NSEvent.mouseLocation, in: nil)
-    }
-
-    // windowEvent wakes the passes for a window event a pass acts on, and drops the moves, resizes
-    // and births of windows no scan keeps. A kept window's event wakes without asking its kind, any
-    // other event wakes without reading the window at all, and an event names its app so the passes
-    // read only that app.
-    private func windowEvent(_ el: AXUIElement, _ note: String) {
-        let id = Pace.geometryEvents.contains(note) ? Windows.id(el) : nil
-        guard Pace.wakes(note, kept: windows.keeps(id), eligible: Windows.eligible(el)) else { return }
-        if note == kAXWindowMovedNotification || note == kAXWindowResizedNotification, let id,
-            let echo = windows.echoes[id], Self.now - echo.at < Pace.settleSeconds
-        {
-            engine.passes.wake(full: false)
-            return
-        }
-        if let pid = Windows.pid(el) {
-            wake(pid)
-        } else {
-            engine.wake()
-        }
-    }
-
-    // wake marks the windows of the app with pid as changing, so passes run every Pace.pollSeconds
-    // until they settle, and read that app.
-    private func wake(_ pid: pid_t) {
-        windows.appWoke[pid] = Self.now
-        engine.passes.wake(full: false)
-    }
-
-    // ticked catches an Accessibility grant or loss before a timed pass. A loss tears down the tap and
-    // every observer and a grant builds them again, since what was made under the old grant may never
-    // deliver another event.
-    private func ticked() {
-        if windows.trusted != wasTrusted {
-            wasTrusted = windows.trusted
-            showTrust()
-            if wasTrusted {
-                logger.notice("Accessibility is on: starting the tap and watching every app again")
-                tap.start()
-                watcher.watch(Self.regularApps())
-                notify("Moorings is ready", "Accessibility is on. Anchored apps take their slots now.")
-            } else {
-                logger.notice("Accessibility is off: stopping the tap and every observer")
-                tap.stop()
-                watcher.reset()
-            }
-        }
     }
 
     // mouseButton runs the action bound to an extra mouse button when it goes down, and reports
@@ -592,7 +517,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let screens = Screens.current()
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         logger.notice(
-            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) observed=\(self.watcher.count) hotkeys=\(self.hotkeys.enabled)"
+            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) observed=\(self.events.observed) hotkeys=\(self.hotkeys.enabled)"
         )
         for (key, bundle) in engine.anchors.assignments().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let held = engine.anchors.slotWindows(key).map(String.init).joined(separator: ",")
@@ -609,54 +534,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // workspaceChanged wakes the passes when an app or screen changes, watches an app that just
-    // launched, and turns the shortcuts off or on when the front app changes.
-    @objc private func workspaceChanged(_ note: Notification) {
-        if note.name == NSWorkspace.didLaunchApplicationNotification,
-            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-            app.activationPolicy == .regular
+    // frontChanged notes the app that came to the front, drops its enhanced interface when the
+    // choices ask, and turns the shortcuts off or on for it.
+    @objc private func frontChanged(_ note: Notification) {
+        if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+            app.processIdentifier != ProcessInfo.processInfo.processIdentifier
         {
-            launching = Self.now + Self.launchSeconds
-            watcher.watch([app.processIdentifier])
-        }
-        if note.name == NSWorkspace.didActivateApplicationNotification {
-            if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-                app.processIdentifier != ProcessInfo.processInfo.processIdentifier
+            windows.lastFront = app.processIdentifier
+            if windows.trusted,
+                Behavior.disablesEnhancedUIOnActivation(
+                    engine.anchors.choices.behavior.enhancedUI, bundle: app.bundleIdentifier,
+                    assistive: NSWorkspace.shared.isVoiceOverEnabled)
             {
-                windows.lastFront = app.processIdentifier
-                if windows.trusted,
-                    Behavior.disablesEnhancedUIOnActivation(
-                        engine.anchors.choices.behavior.enhancedUI, bundle: app.bundleIdentifier,
-                        assistive: NSWorkspace.shared.isVoiceOverEnabled)
-                {
-                    Windows.dropEnhancedUI(app.processIdentifier)
-                }
+                Windows.dropEnhancedUI(app.processIdentifier)
             }
-            refreshShortcuts()
         }
-        if note.name == NSApplication.didChangeScreenParametersNotification {
-            engine.anchors.screensChanged()
-            engine.workspaces.screensChanged()
-            hintAnchor(Screens.current())
-        }
-        engine.wake()
+        refreshShortcuts()
     }
 
-    // regularApps returns the processes of the apps that can show windows, other than moorings.
-    private static func regularApps() -> Set<pid_t> {
-        let me = ProcessInfo.processInfo.processIdentifier
-        return Set(
-            NSWorkspace.shared.runningApplications.lazy
-                .filter { $0.activationPolicy == .regular && $0.processIdentifier != me }.map(\.processIdentifier))
-    }
-
-    // appQuit forgets a quit app's elements and observer and wakes the passes.
-    @objc private func appQuit(_ note: Notification) {
-        if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication {
-            windows.forget(app.processIdentifier)
-            watcher.forget(app.processIdentifier)
-        }
-        engine.wake()
+    // screensChanged says how to anchor an app when the displays change and an ultrawide arrived.
+    @objc private func screensChanged(_ note: Notification) {
+        hintAnchor(Screens.current())
     }
 }
 
