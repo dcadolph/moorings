@@ -691,9 +691,9 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
     }
     _ = bringForward(hwnd)
     print("before: \(pixels(pad.frame))")
-    var full: BOOL = false
+    var full: WindowsBool = false
     _ = SystemParametersInfoW(UINT(SPI_GETDRAGFULLWINDOWS), 0, &full, 0)
-    print("drag full windows: \(full)")
+    print("drag full windows: \(full.boolValue)")
     let from = (x: Int32((pad.frame.x + pad.frame.w / 2).rounded()), y: Int32(pad.frame.y + 15))
     let alt = opts.alt
     Thread {
