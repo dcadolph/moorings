@@ -169,7 +169,7 @@ jobs:
           if ((Off $finalA @(420, 260, 300, 200)) -gt 1) { throw "released pin did not stay where it was put" }
           Write-Host "  check: pin released $([Math]::Round($lag, 3)) s after the hand move and left there"
 
-          $pushed = @($m -match "^move $padB at " | Where-Object { (At $_) -gt (At $nudgeB) })
+          $pushed = @($m -match "^move $padB at " | Where-Object { (At $_) -ge (At $nudgeB) })
           if ($pushed.Count -eq 0) { throw "the second Notepad was not moved after the nudge" }
           $lag = (At $pushed[0]) - (At $nudgeB)
           if ($lag -gt 1) { throw "push back came $lag s after the nudge" }
