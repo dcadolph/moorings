@@ -29,7 +29,7 @@ private func has(_ problems: [String], _ text: String) -> Bool {
 // Lua case 2: The keymap alone binds every Rectangle default with no problems.
 @Test func testRectangleDefaults() {
     let r = Keymaps.shortcuts()
-    #expect(r.map.count == 22)
+    #expect(r.map.count == 24)
     #expect(r.problems.isEmpty)
     #expect(r.map["left-half"]?.text == "⌃⌥←")
     #expect(r.map["maximize-height"]?.text == "⌃⌥⇧↑")
@@ -269,3 +269,14 @@ private func has(_ problems: [String], _ text: String) -> Bool {
     #expect(Keymaps.known("profile:Work"))
     #expect(!Keymaps.known("profile:"))
 }
+
+// No Lua case: The rectangle and windows keymaps cycle a slot's windows on Control-Option-Command Down
+// and Up.
+@Test func testSlotCycleDefaults() {
+    for keymap in [Keymap.rectangle, Keymap.windows] {
+        let t = keymap.table
+        #expect(t["cycle-slot-windows"] == Shortcut(mods: [.ctrl, .alt, .cmd], key: "down"))
+        #expect(t["cycle-slot-windows-backward"] == Shortcut(mods: [.ctrl, .alt, .cmd], key: "up"))
+    }
+}
+

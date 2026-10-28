@@ -259,6 +259,8 @@ public enum Keymap: String, CaseIterable, Sendable {
         "restore": sc([.ctrl, .alt], "delete"),
         "previous-display": sc([.ctrl, .alt, .cmd], "left"),
         "next-display": sc([.ctrl, .alt, .cmd], "right"),
+        "cycle-slot-windows": sc([.ctrl, .alt, .cmd], "down"),
+        "cycle-slot-windows-backward": sc([.ctrl, .alt, .cmd], "up"),
     ]
 
     // magnetTable is Magnet's default set: the Control-Option keys Rectangle's alternate set ships for

@@ -444,7 +444,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                           mouseHeld: NSEvent.pressedMouseButtons & 1 != 0 || hover.active, now: Self.now)
         let moves = anchors.moor(scene)
         for move in moves {
-            apply(move)
+            apply(move, bundle: list.first { $0.id == move.id }?.bundle ?? "?")
         }
         let read = list.map(\.id)
         let frames = list.map(\.frame)
@@ -476,18 +476,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // apply carries out one move: it takes a window out of native fullscreen, or moves it, reads
-    // where it landed, and moves it once more when it kept a larger size than it was given.
-    private func apply(_ move: Move) {
+    // where it landed, and moves it once more when it kept a larger size than it was given. It logs
+    // a move whose window could not be read back or landed away from the target.
+    private func apply(_ move: Move, bundle: String) {
         if move.exitFullScreen {
             windows.exitFullScreen(move.id)
             return
         }
         windows.move(move.id, to: move.frame)
+        let asked = "\(move.frame)"
         guard let got = windows.frame(move.id) else {
+            logger.notice("""
+                window \(move.id) \(bundle, privacy: .public): move to \(asked, privacy: .public) unreadable
+                """)
             anchors.unread(move)
             return
         }
-        guard let again = anchors.landed(move, got: got) else { return }
+        guard let again = anchors.landed(move, got: got) else {
+            if !Actions.near(got, move.frame, tolerance: Anchors.tolerance) {
+                let landed = "\(got)"
+                logger.notice("""
+                    window \(move.id) \(bundle, privacy: .public): move to \(asked, privacy: .public) refused, \
+                    landed at \(landed, privacy: .public)
+                    """)
+            }
+            return
+        }
         logger.notice("window \(move.id) read back at \(Int(got.w))x\(Int(got.h)) after a move: holding that size for now")
         windows.move(again.id, to: again.frame)
     }

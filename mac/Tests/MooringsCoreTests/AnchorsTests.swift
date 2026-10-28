@@ -825,3 +825,65 @@ func testCastReason(test: CastReasonCase) {
     #expect(anchors.nextSlotWindow(after: free) == nil)
     #expect(anchors.nextSlotWindow(after: term) == nil)
 }
+
+// finder is the bundle the slot holder scenarios anchor.
+let finder = "com.apple.finder"
+
+// testClaimSlotWindow checks that a pin with no holder takes the app's window in its strip over a
+// window in the channel listed first, main or not, so the window the owner sees anchored keeps the
+// pin, and the channel window stays free.
+@Test func testClaimSlotWindow() {
+    for slotMain in [false, true] {
+        let anchors = Anchors(choices: Choices(slots: [.leftBottom: finder]))
+        anchors.choices.slotStacks = false
+        var world = TestWorld()
+        let free = world.add(finder, Frame(x: 1500, y: 200, w: 800, h: 600), main: !slotMain)
+        let slot = world.add(finder, anchors.slotFrame(wide, .leftBottom), main: slotMain)
+        world.pass(anchors)
+        #expect(anchors.pinned(world.info(slot)), "slot main \(slotMain)")
+        #expect(!anchors.pinned(world.info(free)), "slot main \(slotMain)")
+        #expect(world.frame(slot) == leftFull, "slot main \(slotMain)")
+        #expect(world.frame(free) == Frame(x: 1500, y: 200, w: 800, h: 600), "slot main \(slotMain)")
+    }
+}
+
+// testClaimAfterTopEmptied checks the owner's sequence: Slack on the left top, Finder on the left
+// bottom, Slack closes and the top is set to Empty, and Finder's window takes the whole left side
+// while the Finder window in the channel stays free.
+@Test func testClaimAfterTopEmptied() {
+    let anchors = Anchors(choices: Choices(slots: [.leftTop: slack, .leftBottom: finder]))
+    anchors.choices.slotStacks = false
+    var world = TestWorld()
+    let chat = world.add(slack, Frame(x: 1500, y: 200, w: 800, h: 600))
+    let bottom = world.add(finder, Frame(x: 2000, y: 300, w: 800, h: 600))
+    world.pass(anchors)
+    #expect(world.frame(bottom) == anchors.slotFrame(wide, .leftBottom))
+    let other = world.add(finder, Frame(x: 1500, y: 200, w: 800, h: 600))
+    world.windows.removeAll { $0.id == chat }
+    anchors.choices.slots[.leftTop] = nil
+    world.windows[0].isMain = false
+    world.windows.swapAt(0, 1)
+    world.clock += 1
+    world.pass(anchors)
+    #expect(world.frame(bottom) == leftFull)
+    #expect(anchors.pinned(world.info(bottom)))
+    #expect(!anchors.pinned(world.info(other)))
+    #expect(world.frame(other) == Frame(x: 1500, y: 200, w: 800, h: 600))
+}
+
+// testExtraWindowInStripSettles checks that with slotStacks off a second window of a pinned app
+// that opens inside the strip is moved into the channel on the pass that first sees it.
+@Test func testExtraWindowInStripSettles() {
+    let anchors = Anchors(choices: Choices(slots: [.leftBottom: finder]))
+    anchors.choices.slotStacks = false
+    var world = TestWorld()
+    let holder = world.add(finder, Frame(x: 1500, y: 200, w: 800, h: 600))
+    world.pass(anchors)
+    #expect(world.frame(holder) == leftFull)
+    let extra = world.add(finder, Frame(x: 0, y: 735, w: 400, h: 705), main: false)
+    world.clock += 1
+    world.pass(anchors)
+    #expect(world.frame(holder) == leftFull)
+    #expect(!anchors.pinned(world.info(extra)))
+    #expect(inChannel(anchors, world.frame(extra)))
+}
