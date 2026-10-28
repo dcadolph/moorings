@@ -11,6 +11,14 @@ final class App {
     let anchors: Anchors
     // windows reads and moves the windows.
     let windows = WinWindows()
+    // pointer reads and warps the mouse pointer.
+    let pointer = WinPointer()
+    // apps names and opens programs.
+    let apps = WinApps()
+    // log writes the engine's lines to stderr.
+    let log = WinLog()
+    // timers hands each engine object its own thread timer, which the message loop fires.
+    let timers = WinTimers()
     // store holds the choices file.
     let store: Store
     // minAspect is the ratio a monitor needs to count as ultrawide. Only probes change it.
@@ -40,11 +48,13 @@ final class App {
         }
         r.wake = { [unowned self] in wake() }
         r.moor = { [unowned self] in moor() }
-        r.log = { line in FileHandle.standardError.write(Data("actions: \(line)\n".utf8)) }
+        r.log = { [unowned self] line in log.note(.actions, line) }
         return r
     }()
     // hotkeys delivers the shortcuts bound for the actions.
     private(set) lazy var hotkeys = WinHotkeys { [unowned self] name in self.actions.run(name) }
+    // keys spells the shortcuts and grabs the keys a hold takes.
+    private(set) lazy var keys = WinKeys(hotkeys)
     // mouse delivers the pointer for drag snapping.
     private(set) lazy var mouse = WinMouseHook()
     // drag feeds a window moved by its frame to the follower.
@@ -59,7 +69,7 @@ final class App {
             apply: { [unowned self] name, w, screens, _ in
                 actions.apply(name, to: w, screens: screens)
             })
-        f.appName = { Tray.appName($0) }
+        f.appName = { [unowned self] in apps.name($0) }
         f.changed = { [unowned self] in
             save()
             wake()
@@ -69,7 +79,7 @@ final class App {
     // footprint shows where a dragged window will land.
     let footprint = WinFootprint()
     // scheduler runs the engine's deferred work from the message loop's timer branch.
-    let scheduler = WinScheduler()
+    private(set) lazy var scheduler = timers.make()
     // passes run the window passes on the engine's pass loop.
     private(set) lazy var passes: PassLoop = {
         let p = PassLoop(platform: platform, anchors: anchors)
@@ -81,20 +91,20 @@ final class App {
         p.mouseHeld = { [unowned self] in dragging || GetAsyncKeyState(VK_LBUTTON) < 0 }
         p.refreshed = { [unowned self] alive in actions.prune(alive: alive) }
         p.after = { [unowned self] _, screens, _ in self.screens = screens }
-        p.appName = { Tray.appName($0) }
-        p.spell = { WinHotkeys.spelled($0) }
+        p.appName = { [unowned self] in apps.name($0) }
+        p.spell = { [unowned self] in keys.spell($0) }
         p.tellsRefused = true
         p.moved = { [unowned self] move, t, got in moved(move, t, got) }
         p.released = { [unowned self] id, t in released(id, t) }
         p.passed = { [unowned self] t, n in passed(t, n) }
-        p.log = { line in FileHandle.standardError.write(Data("passes: \(line)\n".utf8)) }
+        p.log = { [unowned self] line in log.note(.passes, line) }
         return p
     }()
     // platform is what the engine reads and drives on Windows.
     private(set) lazy var platform = Platform(
         windows: windows, screens: WinScreens(minAspect: minAspect), overlay: footprint,
         notifier: WinNotifier { [unowned self] in self.notify($0, $1) }, clock: WinClock(), scheduler: scheduler,
-        store: store, warpCursor: { p in _ = SetCursorPos(Int32(p.x.rounded()), Int32(p.y.rounded())) }
+        store: store, warpCursor: { [unowned self] p in pointer.warp(p) }
     )
     // hooksMouse is false only in the drag probe's negative control, which runs without the hook.
     var hooksMouse = true
@@ -195,7 +205,7 @@ final class App {
                 case stop where stop != 0:
                     return
                 default:
-                    if !scheduler.fire(msg.wParam) {
+                    if !timers.fire(msg.wParam) {
                         _ = mouse.tick(msg.wParam)
                     }
                 }
