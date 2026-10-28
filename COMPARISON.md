@@ -227,6 +227,9 @@ None of the products above hold apps at the edges of an ultrawide with a channel
 | ------------------------------------------- | ---------- | -------- | --------------------------------------------------------------------- |
 | Anchored apps in edge slots on an ultrawide | Moorings   | yes      | selftest "anchored window lands in its slot"                          |
 | Channel with push back for free windows     | Moorings   | yes      | testPushAndShrink                                                     |
+| A slot holds all of an app's windows        | Moorings   | yes      | testSlotStacksHoldsAll, testLiftSecondWindowFullscreenStacks          |
+| Halves and thirds inside a slot             | Moorings   | yes      | testSlotPartHeld, testSlotPartPruned                                  |
+| Cycle the windows of a slot                 | Moorings   | yes      | testNextSlotWindowWraps                                               |
 | Anchored app's extra windows off the strips | Moorings   | yes      | testAnchoredAppOtherWindows, testPinHoldsMainWindow                   |
 | Lift an anchored window over the channel    | Moorings   | yes      | testLiftLiftsAndLowers                                                |
 | Cast off a window over the strips           | Moorings   | yes      | testCastOffStaysPut                                                   |

@@ -87,7 +87,7 @@ each part.
 ## Organize
 
 - Tile columns, tile rows, tile all or one app, cascade all or one app, cycle stacked windows,
-  and reverse.
+  cycle slot windows, and reverse.
 - An optional badge counts the windows stacked at a corner when the pointer rests there, and
   cycle stacked windows walks the same windows.
 - Tidy channel lines up the two or three front windows, and Undo tidy puts everything back.
@@ -130,8 +130,12 @@ each part.
   again to lower it.
 - Drag an anchored window away and Moorings lets it go, with a message that says how to bring it
   back.
-- An anchored app's other windows, such as a second Finder or terminal window, are kept in the
-  channel so they never cover a strip. Open and save panels and sheets stay where they open.
+- A slot holds every window of its app on the ultrawide, such as a second Finder or terminal
+  window, stacked with the newest in front. Its row in Anchored apps says how many windows it
+  holds. A half or a third on a slot window places it inside the slot, Restore gives it the whole
+  slot back, and cycle slot windows brings the next one forward. Turn off "A slot holds all of an
+  app's windows" in Settings, Behavior, to keep an anchored app's other windows in the channel
+  instead. Open and save panels and sheets stay where they open.
 - An app with a minimum width keeps it, and its strip grows to fit.
 - Anchored apps that are not running open in the background at launch.
 - A side with nothing anchored gives its space to the channel.
