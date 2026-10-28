@@ -37,4 +37,5 @@ let probes: [String: Probe] = [
     "footprint": probeFootprint,
     "stand": probeStand,
     "contracts": probeContracts,
+    "scenarios": probeScenarios,
 ]
