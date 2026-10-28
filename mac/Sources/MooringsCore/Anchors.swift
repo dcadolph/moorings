@@ -28,6 +28,25 @@ public enum SlotKey: String, CaseIterable, Codable, Sendable {
     }
 }
 
+// SlotPart is the share of a slot an action gave one of the slot's windows.
+public struct SlotPart: Equatable, Sendable {
+    // name is the action that chose the part.
+    public var name: String
+    // unit is the part in fractions of the slot: x and y from the slot's origin, w and h of its size.
+    public var unit: Frame
+
+    // init builds a part.
+    public init(name: String, unit: Frame) {
+        self.name = name
+        self.unit = unit
+    }
+
+    // frame returns the part's frame inside area.
+    public func frame(in area: Frame) -> Frame {
+        Frame(x: area.x + unit.x * area.w, y: area.y + unit.y * area.h, w: unit.w * area.w, h: unit.h * area.h)
+    }
+}
+
 // Pin is one anchored app and the slot it was chosen for.
 public struct Pin: Equatable, Sendable {
     // bundle is the app's bundle ID.
@@ -411,6 +430,10 @@ public final class Anchors {
     var holders: [String: WindowID] = [:]
     // held maps each window a pin held in the last pass to the pin's bundle.
     var held: [WindowID: String] = [:]
+    // holdAreas maps each window a pin held in the last pass to the frame the pin keeps it in.
+    var holdAreas: [WindowID: Frame] = [:]
+    // parts maps each held window an action placed inside its slot to that part of the slot.
+    var parts: [WindowID: SlotPart] = [:]
     // openedAt maps an app moorings opened to when, so it keeps its strip while it opens.
     var openedAt: [String: Double] = [:]
     // present holds the bundles whose pinned window showed in the last pass, nil before one.
@@ -633,6 +656,47 @@ public final class Anchors {
         return held.filter { $0.value == bundle }.keys.sorted()
     }
 
+    // actionArea returns the area a position action on the window with id works in: the frame its
+    // pin held it in during the last pass, else area.
+    public func actionArea(_ id: WindowID, else area: Frame) -> Frame {
+        holdAreas[id] ?? area
+    }
+
+    // holdPart keeps the held window with id at frame, the part of its slot an action named name
+    // chose, until the window closes or the part is cleared. It reports whether the window is held.
+    @discardableResult
+    public func holdPart(_ id: WindowID, _ name: String, _ frame: Frame) -> Bool {
+        guard let area = holdAreas[id], area.w > 0, area.h > 0 else { return false }
+        let unit = Frame(x: (frame.x - area.x) / area.w, y: (frame.y - area.y) / area.h,
+                         w: frame.w / area.w, h: frame.h / area.h)
+        parts[id] = SlotPart(name: name, unit: unit)
+        placed[id] = nil
+        return true
+    }
+
+    // clearPart gives the window with id its whole slot again on the next pass, and reports whether
+    // it had a part.
+    @discardableResult
+    public func clearPart(_ id: WindowID) -> Bool {
+        guard parts.removeValue(forKey: id) != nil else { return false }
+        placed[id] = nil
+        return true
+    }
+
+    // part returns the part of its slot the window with id is held at, nil for the whole slot.
+    public func part(_ id: WindowID) -> SlotPart? {
+        parts[id]
+    }
+
+    // nextSlotWindow returns the window after id, or before it when backward, among the windows its
+    // slot held in the last pass, wrapping at the ends. It is nil when id is not held or is alone.
+    public func nextSlotWindow(after id: WindowID, backward: Bool = false) -> WindowID? {
+        guard let bundle = held[id], let key = pin(bundle)?.slot else { return nil }
+        let list = slotWindows(key)
+        guard list.count > 1, let i = list.firstIndex(of: id) else { return nil }
+        return list[(i + (backward ? list.count - 1 : 1)) % list.count]
+    }
+
     // pin returns the pin for bundle, or nil when the app is not anchored.
     func pin(_ bundle: String) -> Pin? {
         pins().first { $0.bundle == bundle }
@@ -683,6 +747,7 @@ public final class Anchors {
         castOff.formIntersection(alive)
         stashed.formIntersection(alive)
         saved = saved.filter { alive.contains($0.key) }
+        parts = parts.filter { alive.contains($0.key) }
     }
 
     // place returns a move of w to frame unless it is already there. A window that keeps moving
@@ -798,6 +863,7 @@ public final class Anchors {
         if choices.paused {
             placed = [:]
             held = [:]
+            holdAreas = [:]
             return []
         }
         if scene.mouseHeld {
@@ -810,6 +876,7 @@ public final class Anchors {
         let pins = pins()
         var shown: Set<String> = []
         held = [:]
+        holdAreas = [:]
         for w in scene.windows {
             if let pin = pin(w.bundle, in: pins), pinsWindow(pin, w) {
                 shown.insert(pin.bundle)
@@ -847,8 +914,10 @@ public final class Anchors {
                 let side = pin.slot.side
                 let row = rows[pin.bundle] ?? nil
                 let pct = side == .left ? use.left : use.right
+                let area = Geometry.slot(screen, side, row, pct, topPct: h[side])
+                holdAreas[w.id] = area
                 let target = lifted.contains(w.id) ? Geometry.lift(screen, side, use.left, use.right)
-                    : Geometry.slot(screen, side, row, pct, topPct: h[side])
+                    : parts[w.id].map { $0.frame(in: area) } ?? area
                 if let move = moorPin(w, target, Edges(right: side == .right, bottom: row == .bottom)) {
                     moves.append(move)
                 }

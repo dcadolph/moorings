@@ -718,3 +718,77 @@ func testCastReason(test: CastReasonCase) {
     #expect(moves.count == 1)
     #expect(moves.first?.id == id)
 }
+
+// testSlotPartHeld checks that a left half action on a slot window works in the slot, that later
+// passes hold the window at that half, and that clearing the part gives it the whole slot again.
+@Test func testSlotPartHeld() {
+    let anchors = anchored()
+    var world = TestWorld()
+    let main = world.add(slack, Frame(x: 1500, y: 200, w: 800, h: 600))
+    let second = world.add(slack, Frame(x: 2000, y: 300, w: 700, h: 500), main: false)
+    world.pass(anchors)
+    let area = anchors.actionArea(second, else: anchors.channel(wide))
+    #expect(area == leftFull)
+    let target = ActionTarget(screens: [wide], areas: [area], index: 0)
+    let half = Actions.frame("left-half", cur: world.frame(second), target: target).0
+    #expect(half == Frame(x: 0, y: 25, w: 256, h: 1415))
+    guard let half else { return }
+    #expect(anchors.holdPart(second, "left-half", half))
+    #expect(anchors.part(second)?.name == "left-half")
+    for _ in 0..<2 {
+        world.clock += 1
+        world.pass(anchors)
+        #expect(world.frame(second) == half)
+        #expect(world.frame(main) == leftFull)
+    }
+    #expect(anchors.clearPart(second))
+    #expect(!anchors.clearPart(second))
+    world.clock += 1
+    world.pass(anchors)
+    #expect(world.frame(second) == leftFull)
+    #expect(anchors.part(second) == nil)
+}
+
+// testSlotPartFreeWindow checks that a window no pin holds gets the area it was given and no part.
+@Test func testSlotPartFreeWindow() {
+    let anchors = anchored()
+    var world = TestWorld()
+    let free = world.add("com.apple.TextEdit", Frame(x: 1500, y: 200, w: 800, h: 600))
+    world.pass(anchors)
+    let channel = anchors.channel(wide)
+    #expect(anchors.actionArea(free, else: channel) == channel)
+    #expect(!anchors.holdPart(free, "left-half", Frame(x: 512, y: 25, w: 1152, h: 1415)))
+    #expect(anchors.part(free) == nil)
+}
+
+// testSlotPartPruned checks that a closed window's part is forgotten.
+@Test func testSlotPartPruned() {
+    let anchors = anchored()
+    var world = TestWorld()
+    world.add(slack, Frame(x: 1500, y: 200, w: 800, h: 600))
+    let second = world.add(slack, Frame(x: 2000, y: 300, w: 700, h: 500), main: false)
+    world.pass(anchors)
+    #expect(anchors.holdPart(second, "left-half", Frame(x: 0, y: 25, w: 256, h: 1415)))
+    anchors.prune(alive: [1])
+    #expect(anchors.part(second) == nil)
+}
+
+// testNextSlotWindowWraps checks that cycling a slot's windows steps in id order and wraps at both
+// ends, and that a free window or a lone holder has no next window.
+@Test func testNextSlotWindowWraps() {
+    let anchors = anchored()
+    var world = TestWorld()
+    let main = world.add(slack, Frame(x: 1500, y: 200, w: 800, h: 600))
+    let second = world.add(slack, Frame(x: 2000, y: 300, w: 700, h: 500), main: false)
+    let third = world.add(slack, Frame(x: 2500, y: 400, w: 600, h: 400), main: false)
+    let free = world.add("com.apple.TextEdit", Frame(x: 1500, y: 200, w: 800, h: 600))
+    let term = world.add(iterm, Frame(x: 3000, y: 200, w: 800, h: 600))
+    world.pass(anchors)
+    #expect(anchors.nextSlotWindow(after: main) == second)
+    #expect(anchors.nextSlotWindow(after: second) == third)
+    #expect(anchors.nextSlotWindow(after: third) == main)
+    #expect(anchors.nextSlotWindow(after: main, backward: true) == third)
+    #expect(anchors.nextSlotWindow(after: second, backward: true) == main)
+    #expect(anchors.nextSlotWindow(after: free) == nil)
+    #expect(anchors.nextSlotWindow(after: term) == nil)
+}
