@@ -356,60 +356,127 @@ jobs:
           if ($frameHost.Count -eq 0) { throw "no ApplicationFrameHost after starting $launch" }
           $null = Probe @('--probe', 'nudge', '--pid', "$($tm.Id)", '--frame', '0,0,380,500')
           $null = Probe @('--probe', 'nudge', '--pid', "$($frameHost[0].Id)", '--frame', '0,200,380,400')
-          $log = Join-Path $env:RUNNER_TEMP 'skip.txt'
-          $done = Join-Path $env:RUNNER_TEMP 'skip.done'
-          $cmd = Join-Path $env:RUNNER_TEMP 'skip.cmd'
-          Set-Content $cmd -Encoding ascii -Value @(
-            '@echo off',
-            'start "" notepad',
-            'ping -n 4 127.0.0.1 > nul',
-            "`"$exe`" --probe skip --seconds 8 --min-aspect 1.0 > `"$log`" 2>&1",
-            "echo %ERRORLEVEL% > `"$done`""
-          )
-          if ($admin -and $lua -ne 0) {
-            Write-Host "  running the probe as a standard user with runas /trustlevel:0x20000"
-            & runas.exe '/trustlevel:0x20000' "cmd.exe /c `"$cmd`"" | ForEach-Object { Write-Host "  runas: $_" }
-          } else {
-            Start-Process cmd.exe -ArgumentList '/c', "`"$cmd`"" -NoNewWindow
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.ComponentModel;
+          using System.Runtime.InteropServices;
+
+          // Medium starts a command with a copy of this process's token lowered to medium integrity,
+          // so windows of the runner's high integrity processes outrank it as an elevated app does.
+          public static class Medium {
+              [StructLayout(LayoutKind.Sequential)]
+              struct SidAndAttributes { public IntPtr Sid; public uint Attributes; }
+              [StructLayout(LayoutKind.Sequential)]
+              struct MandatoryLabel { public SidAndAttributes Label; }
+              [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+              struct StartupInfo {
+                  public int cb; public string reserved, desktop, title;
+                  public int x, y, xSize, ySize, xChars, yChars, fill, flags;
+                  public short show, reserved2; public IntPtr reserved3, stdIn, stdOut, stdErr;
+              }
+              [StructLayout(LayoutKind.Sequential)]
+              struct ProcessInfo { public IntPtr process, thread; public int pid, tid; }
+
+              [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+              [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr h, uint ms);
+              [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr h, out uint code);
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern bool DuplicateTokenEx(IntPtr token, uint access, IntPtr attrs, int level, int type, out IntPtr dup);
+              [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+              static extern bool ConvertStringSidToSid(string sid, out IntPtr psid);
+              [DllImport("advapi32.dll")] static extern int GetLengthSid(IntPtr sid);
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern bool SetTokenInformation(IntPtr token, int cls, ref MandatoryLabel info, int length);
+              [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+              static extern bool CreateProcessAsUser(IntPtr token, string app, string cmd, IntPtr pa, IntPtr ta,
+                  bool inherit, uint flags, IntPtr env, string dir, ref StartupInfo si, out ProcessInfo pi);
+
+              // Run starts cmd at medium integrity, waits up to ms, and returns its exit code.
+              public static uint Run(string cmd, uint ms) {
+                  IntPtr token, dup, sid;
+                  if (!OpenProcessToken(GetCurrentProcess(), 0xF01FF, out token)) throw new Win32Exception();
+                  if (!DuplicateTokenEx(token, 0xF01FF, IntPtr.Zero, 2, 1, out dup)) throw new Win32Exception();
+                  if (!ConvertStringSidToSid("S-1-16-8192", out sid)) throw new Win32Exception();
+                  var label = new MandatoryLabel();
+                  label.Label.Sid = sid;
+                  label.Label.Attributes = 0x20;
+                  if (!SetTokenInformation(dup, 25, ref label, Marshal.SizeOf(label) + GetLengthSid(sid))) throw new Win32Exception();
+                  var si = new StartupInfo();
+                  si.cb = Marshal.SizeOf(si);
+                  ProcessInfo pi;
+                  if (!CreateProcessAsUser(dup, null, cmd, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, null, ref si, out pi)) throw new Win32Exception();
+                  if (WaitForSingleObject(pi.process, ms) != 0) throw new TimeoutException("medium run did not finish");
+                  uint code;
+                  GetExitCodeProcess(pi.process, out code);
+                  return code;
+              }
           }
-          $deadline = (Get-Date).AddSeconds(45)
-          while (-not (Test-Path $done) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
-          if (-not (Test-Path $done)) { throw "the skip probe did not finish in 45 s" }
-          $s = @(Get-Content $log)
-          $s | ForEach-Object { Write-Host "  $_" }
-          if ((Get-Content $done).Trim() -ne '0') { throw "skip exited $((Get-Content $done).Trim())" }
-          $level = [regex]::Match(($s -match '^probe integrity: ')[0], ': (\w+)$').Groups[1].Value
-          $tmLine = @($s -match '^window 0x[0-9a-f]+: .*\\taskmgr\.exe frame ')
-          if ($tmLine.Count -ne 1) { throw "the skip probe did not list Task Manager" }
-          $tmId = [regex]::Match($tmLine[0], '^window (0x[0-9a-f]+)').Groups[1].Value
-          $tmLevel = [regex]::Match($tmLine[0], ' integrity (\w+)$').Groups[1].Value
-          $channel = Rect ($s -match '^channel: ')[0] 'channel: '
-          function Inside([string] $id) {
+          '@
+          function Skip([string] $name, [bool] $medium) {
+            $log = Join-Path $env:RUNNER_TEMP "$name.txt"
+            $cmd = Join-Path $env:RUNNER_TEMP "$name.cmd"
+            Set-Content $cmd -Encoding ascii -Value @(
+              '@echo off',
+              'start "" notepad',
+              'ping -n 4 127.0.0.1 > nul',
+              "`"$exe`" --probe skip --seconds 8 --min-aspect 1.0 > `"$log`" 2>&1"
+            )
+            if ($medium) {
+              $code = [Medium]::Run("cmd.exe /c `"$cmd`"", 45000)
+            } else {
+              $p = Start-Process cmd.exe -ArgumentList '/c', "`"$cmd`"" -NoNewWindow -PassThru
+              if (-not $p.WaitForExit(45000)) { throw "the $name probe did not finish in 45 s" }
+              $code = $p.ExitCode
+            }
+            $s = @(Get-Content $log)
+            $s | ForEach-Object { Write-Host "  $_" }
+            if ($code -ne 0) { throw "the $name probe exited $code" }
+            ,$s
+          }
+          function Inside($s, [string] $id) {
+            $channel = Rect ($s -match '^channel: ')[0] 'channel: '
             $f = Rect ($s -match "^final $id ")[0] 'frame '
             $f[0] -ge $channel[0] - 1 -and $f[0] + $f[2] -le $channel[0] + $channel[2] + 1
           }
-          if ($level -eq 'medium' -and $tmLevel -ne 'medium') {
-            Expect $s "^skipped ${tmId}: elevated$" 'Task Manager skipped as elevated'
-            $tries = @($s -match "^move $tmId at ")
-            if ($tries.Count -ne 1) { throw "want one try at Task Manager, got $($tries.Count)" }
-            $quiet = (At ($s -match '^end at ')[0]) - (At $tries[0])
-            if ($quiet -lt 5) { throw "only $quiet s ran after the refused try" }
-            Expect $s '^notice: .+ runs as administrator: ' 'the elevated banner'
-            if ((Off (Rect ($s -match "^final $tmId ")[0] 'frame ') (Rect $tmLine[0] 'frame ')) -gt 1) { throw "Task Manager moved" }
-            Write-Host "  check: Task Manager ($tmLevel) skipped as elevated after one try, none in the next $([Math]::Round($quiet, 1)) s, banner shown"
-          } else {
-            Write-Host "  inconclusive: the probe runs $level and Task Manager $tmLevel, so nothing outranks the probe"
-            if ($s -match "^skipped ${tmId}: ") { throw "Task Manager skipped though it does not outrank the probe" }
-            if (-not (Inside $tmId)) { throw "Task Manager at the probe's level was not pushed into the channel" }
-            Write-Host "  check: Task Manager at the probe's level pushed into the channel"
+          function Listed($s, [string] $pattern, [string] $what) {
+            $line = @($s -match "^window 0x[0-9a-f]+: $pattern frame ")
+            if ($line.Count -ne 1) { throw "the skip probe listed $($line.Count) $what windows" }
+            [pscustomobject]@{
+              Line = $line[0]
+              Id = [regex]::Match($line[0], '^window (0x[0-9a-f]+)').Groups[1].Value
+              Level = [regex]::Match($line[0], ' integrity (\w+)$').Groups[1].Value
+            }
           }
-          $pkLine = @($s -match '^window 0x[0-9a-f]+: [^\\\s]+![^\s]+ frame ')
-          if ($pkLine.Count -eq 0) { throw "no packaged app listed by its user model id after starting $launch" }
-          $pkId = [regex]::Match($pkLine[0], '^window (0x[0-9a-f]+)').Groups[1].Value
-          $aumid = [regex]::Match($pkLine[0], '^window 0x[0-9a-f]+: (\S+) frame ').Groups[1].Value
-          if (-not ($s -match "^move $pkId at ")) { throw "the packaged app was not moved" }
-          if (-not (Inside $pkId)) { throw "the packaged app is not inside the channel" }
+
+          Write-Host "  skip at the runner's own integrity"
+          $s = Skip 'skip' $false
+          $tmw = Listed $s '.*\\taskmgr\.exe' 'Task Manager'
+          if ($s -match "^skipped $($tmw.Id): ") { throw "Task Manager skipped though it does not outrank the probe" }
+          if (-not (Inside $s $tmw.Id)) { throw "Task Manager at the probe's level was not pushed into the channel" }
+          Write-Host "  check: Task Manager at the probe's level ($($tmw.Level)) pushed into the channel"
+          $pk = Listed $s '[^\\\s]+![^\s]+' 'packaged'
+          $aumid = [regex]::Match($pk.Line, '^window 0x[0-9a-f]+: (\S+) frame ').Groups[1].Value
+          if (-not ($s -match "^move $($pk.Id) at ")) { throw "the packaged app was not moved" }
+          if (-not (Inside $s $pk.Id)) { throw "the packaged app is not inside the channel" }
           Write-Host "  check: $aumid from $launch listed by its user model id and pushed into the channel"
+
+          Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process
+          $null = Probe @('--probe', 'nudge', '--pid', "$($tm.Id)", '--frame', '0,0,380,500')
+          Write-Host "  skip at medium integrity, below Task Manager"
+          $s = Skip 'skip-medium' $true
+          Expect $s '^probe integrity: medium$' 'the probe at medium integrity'
+          $tmw = Listed $s '.*\\taskmgr\.exe' 'Task Manager'
+          if ($tmw.Level -eq 'medium') { throw "Task Manager runs at the probe's level, so nothing outranks it" }
+          Expect $s "^skipped $($tmw.Id): elevated$" 'Task Manager skipped as elevated'
+          $tries = @($s -match "^move $($tmw.Id) at ")
+          if ($tries.Count -ne 1) { throw "want one try at Task Manager, got $($tries.Count)" }
+          $quiet = (At ($s -match '^end at ')[0]) - (At $tries[0])
+          if ($quiet -lt 5) { throw "only $quiet s ran after the refused try" }
+          Expect $s '^notice: .+ runs as administrator: ' 'the elevated banner'
+          if ((Off (Rect ($s -match "^final $($tmw.Id) ")[0] 'frame ') (Rect $tmw.Line 'frame ')) -gt 1) { throw "Task Manager moved" }
+          Write-Host "  check: Task Manager ($($tmw.Level)) skipped as elevated after one try, none in the next $([Math]::Round($quiet, 1)) s, banner shown"
           Stop-Process -Id $tm.Id -ErrorAction SilentlyContinue
           Get-Process notepad, SystemSettings, CalculatorApp -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
 
