@@ -116,7 +116,7 @@ final class MacDrag {
         follower.appName = { [unowned app] bundle in app.appName(bundle) }
         follower.changed = { [unowned app] in app.save() }
         follower.stash = StashHook(edge: { [unowned app] p, held in
-            app.stasher.dropEdge(CGPoint(x: p.x, y: p.y), flags: held.contains("command") ? .maskCommand : [])
+            app.stasher.dropEdge(p, held: held)
         }, stash: { [unowned app] w, edge, original in
             _ = app.stasher.stash(w, edge: edge, original: original)
         })

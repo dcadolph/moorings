@@ -146,8 +146,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
     // overlay throws a window while the overlay's trigger key is held.
     lazy var overlay = TriggerOverlay(app: self)
-    // stasher parks windows at a screen edge.
-    lazy var stasher = Stasher(app: self)
+    // stasher parks windows at a screen edge, reading the pointer from mouse events while one is.
+    lazy var stasher: Stasher = {
+        let s = Stasher(platform: platform, anchors: anchors, rest: MacScheduler())
+        let log = Logger(subsystem: "com.dcadolph.moorings", category: "stash")
+        s.pointer = {
+            let primary = NSScreen.screens.first?.frame.height ?? 0
+            let loc = NSEvent.mouseLocation
+            return (Point(x: loc.x, y: primary - loc.y), NSEvent.pressedMouseButtons != 0)
+        }
+        s.watching = { [unowned self] on in watchStash(on) }
+        s.wake = { [unowned self] in wake() }
+        s.log = { line in log.notice("\(line, privacy: .public)") }
+        return s
+    }()
+    // stashMonitors watch the pointer move while a window is stashed, over other apps and Moorings.
+    private var stashMonitors: [Any] = []
     // gridPicker pops a grid of cells for the grid actions.
     lazy var gridPicker = GridPicker(app: self)
     // strips edits the strip widths and row heights on screen.
@@ -218,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
                 self.gridPicker.cancel()
             }
-            self.stasher.clicked(p)
+            self.stasher.clicked(Point(x: p.x, y: p.y))
             if self.edges.pressed(p, flags: flags) {
                 return true
             }
@@ -419,6 +433,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func wake() {
         windows.fullWoke = Self.now
         passes.wake()
+    }
+
+    // stashWatched lists the events that make the pointer worth reading while a window is stashed: a
+    // move, and a button let go, since a held button stops a window sliding out.
+    private static let stashWatched: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseUp, .rightMouseUp, .otherMouseUp]
+
+    // watchStash starts the stasher's pointer monitors when on and removes them when not.
+    private func watchStash(_ on: Bool) {
+        for m in stashMonitors {
+            NSEvent.removeMonitor(m)
+        }
+        stashMonitors = []
+        guard on else { return }
+        if let m = NSEvent.addGlobalMonitorForEvents(matching: Self.stashWatched, handler: { [unowned self] _ in
+            MainActor.assumeIsolated { stasher.moved() }
+        }) {
+            stashMonitors.append(m)
+        }
+        if let m = NSEvent.addLocalMonitorForEvents(matching: Self.stashWatched, handler: { [unowned self] event in
+            MainActor.assumeIsolated { stasher.moved() }
+            return event
+        }) {
+            stashMonitors.append(m)
+        }
     }
 
     // wake marks the windows of the app with pid as changing, so passes run every Pace.pollSeconds
