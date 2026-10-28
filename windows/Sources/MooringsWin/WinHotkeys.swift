@@ -56,6 +56,12 @@ final class WinHotkeys {
     private(set) var skipped: [(name: String, reason: String)] = []
     // pressed lists the action names of the presses received, in order.
     private(set) var pressed: [String] = []
+    // grabBase is the first hotkey id of the grabbed keys, clear of the shortcut ids.
+    static let grabBase: Int32 = 0x8000
+    // grabTags maps each grabbed key's id to its tag.
+    private var grabTags: [Int32: String] = [:]
+    // grabHandler is called with the tag of a pressed grabbed key, nil while nothing is grabbed.
+    private var grabHandler: ((String) -> Void)?
 
     // init builds hotkeys that call run with the action name of each press.
     init(run: @escaping (String) -> Void) {
@@ -115,9 +121,41 @@ final class WinHotkeys {
         skipped = []
     }
 
-    // fire runs the action of the hotkey a WM_HOTKEY message names.
+    // grab registers each key until ungrab, so its presses go to handler by tag instead of the front
+    // program. It returns how many keys registered; a key another program holds is skipped. A second
+    // grab replaces the first.
+    @discardableResult
+    func grab(_ keys: [GrabKey], _ handler: @escaping (String) -> Void) -> Int {
+        ungrab()
+        grabHandler = handler
+        for (i, k) in keys.enumerated() {
+            guard let vk = Self.keyCodes[k.key] else { continue }
+            let id = Self.grabBase + Int32(i)
+            let mods = k.modifiers.shortcut.reduce(Self.noRepeat) { $0 | (Self.modifierFlags[$1] ?? 0) }
+            guard RegisterHotKey(nil, id, mods, vk) else { continue }
+            grabTags[id] = k.tag
+        }
+        return grabTags.count
+    }
+
+    // ungrab removes every grabbed key.
+    func ungrab() {
+        for id in grabTags.keys {
+            _ = UnregisterHotKey(nil, id)
+        }
+        grabTags = [:]
+        grabHandler = nil
+    }
+
+    // fire runs the action of the hotkey a WM_HOTKEY message names, or hands a grabbed key's tag to
+    // the grab's handler.
     func fire(_ wParam: WPARAM) {
-        guard let name = names[Int32(truncatingIfNeeded: wParam)] else { return }
+        let id = Int32(truncatingIfNeeded: wParam)
+        if let tag = grabTags[id] {
+            grabHandler?(tag)
+            return
+        }
+        guard let name = names[id] else { return }
         pressed.append(name)
         run(name)
     }
