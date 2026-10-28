@@ -4,7 +4,7 @@ import MooringsTesting
 import Testing
 
 // Holding the move modifiers moves the window under the pointer by the pointer's travel, through
-// position alone, and letting go wakes the passes once.
+// position alone, and letting go wakes the passes.
 @Test func testHoverMove() {
     let rig = HoldRig()
     rig.at = Point(x: 1500, y: 400)
@@ -16,9 +16,10 @@ import Testing
     #expect(rig.frame == Frame(x: 1450, y: 330, w: 900, h: 700))
     #expect(rig.windows.calls.contains(.position(rig.pad, x: 1450, y: 330)))
     #expect(!rig.windows.calls.contains { if case .move = $0 { true } else { false } })
+    rig.engine.passes.stop()
     rig.release()
     #expect(!rig.hover.active)
-    #expect(rig.wakes == 1)
+    #expect(rig.engine.passes.due != nil)
     #expect(rig.hoverTicks.pendingAt == nil)
 }
 
@@ -118,8 +119,9 @@ import Testing
     rig.at = Point(x: 2210, y: 900)
     rig.clock.advance(by: HoverMover.tickSeconds)
     #expect(rig.frame == Frame(x: 1410, y: 300, w: 900, h: 700))
+    rig.engine.passes.stop()
     rig.hover.flagsChanged(HoldRig.ctrlCmd, at: rig.at)
-    #expect(rig.wakes == 1)
+    #expect(rig.engine.passes.due != nil)
     rig.clock.advance(by: 0)
     rig.at = Point(x: 2240, y: 900)
     rig.clock.advance(by: HoverMover.tickSeconds)

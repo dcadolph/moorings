@@ -46,7 +46,7 @@ struct MenuBuilder {
     let app: AppDelegate
 
     // anchors is the layout the menu shows and changes.
-    private var anchors: Anchors { app.anchors }
+    private var anchors: Anchors { app.engine.anchors }
 
     // items returns the top-level entries.
     func items() -> [NSMenuItem] {
@@ -78,7 +78,7 @@ struct MenuBuilder {
                     : "Stop holding windows so you can arrange them freely."
             ) {
                 anchors.choices.paused.toggle()
-                app.save()
+                app.engine.save()
             })
         out.append(
             ActionItem(
@@ -87,8 +87,8 @@ struct MenuBuilder {
                     + "in the channel, including windows left alone for fighting their place.", enabled: !paused
             ) {
                 anchors.remoorNow()
-                app.wake()
-                app.moor()
+                app.engine.wake()
+                app.engine.moor()
             })
         let screens = Screens.current()
         let scan = app.windows.scan(screens)
@@ -106,8 +106,8 @@ struct MenuBuilder {
                         + "let go when you moved it by hand.", enabled: !paused
                 ) {
                     anchors.remoor(w.id)
-                    app.wake()
-                    app.moor()
+                    app.engine.wake()
+                    app.engine.moor()
                 })
         }
         out.append(.separator())
@@ -142,7 +142,7 @@ struct MenuBuilder {
                 checked: anchors.choices.checkUpdates
             ) {
                 anchors.choices.checkUpdates.toggle()
-                app.save()
+                app.engine.save()
             })
         out.append(.separator())
         if let tip = AppDelegate.supportURL {
@@ -206,7 +206,7 @@ struct MenuBuilder {
                 for key in held {
                     anchors.assign(key, "")
                 }
-                app.save()
+                app.engine.save()
             }
         }
         let targets = SlotKey.allCases.map { key in
@@ -217,7 +217,7 @@ struct MenuBuilder {
                 : "Anchor \(name) here in place of \(appName(current))."
             return ActionItem(key.title, tip: tip) {
                 anchors.assign(key, bundle)
-                app.save()
+                app.engine.save()
             } as NSMenuItem
         }
         return folder("Anchor \(name)", targets)
@@ -230,8 +230,8 @@ struct MenuBuilder {
         let why = on ? nil : anchors.castReason(focused, ultrawide: wide)
         return ActionItem("Cast off this window", tip: why ?? Self.castTip, checked: on, enabled: why == nil) {
             anchors.toggleCastOff(focused, ultrawide: wide)
-            app.wake()
-            app.moor()
+            app.engine.wake()
+            app.engine.moor()
         }
     }
 
@@ -262,7 +262,7 @@ struct MenuBuilder {
             var choices: [NSMenuItem] = [
                 ActionItem("Empty", tip: "Leave this slot free and open nothing.", checked: current.isEmpty) {
                     anchors.assign(key, "")
-                    app.save()
+                    app.engine.save()
                 }
             ]
             if !current.isEmpty && !running.contains(current) {
@@ -301,7 +301,7 @@ struct MenuBuilder {
                     + "instead.", enabled: picks.values.contains { !$0.isEmpty }
             ) {
                 anchors.clearSlots()
-                app.save()
+                app.engine.save()
             })
         return out
     }
@@ -309,7 +309,7 @@ struct MenuBuilder {
     // lock puts bundle in the slot key and opens it like a Dock click.
     private func lock(_ key: SlotKey, _ bundle: String) {
         anchors.lock(key, bundle, now: AppDelegate.now)
-        app.save()
+        app.engine.save()
         app.open(bundle, background: false)
     }
 
@@ -340,7 +340,7 @@ struct MenuBuilder {
                     + "window sits under a name."
             ) {
                 if let name = NamePrompt.ask() {
-                    app.workspaces.saveWorkspace(name)
+                    app.engine.workspaces.saveWorkspace(name)
                 }
             }
         ]
@@ -349,24 +349,24 @@ struct MenuBuilder {
             out.append(.separator())
         }
         for name in names {
-            let tied = app.workspaces.tied(name)
+            let tied = app.engine.workspaces.tied(name)
             out.append(
                 folder(
                     name,
                     [
                         ActionItem("Recall", tip: "Put this workspace's layout back.", enabled: !anchors.choices.paused)
                         {
-                            app.workspaces.recall(name)
+                            app.engine.workspaces.recall(name)
                         },
                         ActionItem(
                             "Recall with these displays",
                             tip: "Recall this workspace whenever the displays attached now "
                                 + "are plugged in.", checked: tied
                         ) {
-                            app.workspaces.tie(name)
+                            app.engine.workspaces.tie(name)
                         },
                         ActionItem("Delete", tip: "Forget this workspace.") {
-                            app.workspaces.delete(name)
+                            app.engine.workspaces.delete(name)
                         },
                     ]))
         }
@@ -387,7 +387,7 @@ struct MenuBuilder {
                     "Name these settings. Switching to the profile later "
                         + "brings them back, and anchored apps stay where they are.")
                 {
-                    app.workspaces.saveProfile(name)
+                    app.engine.workspaces.saveProfile(name)
                 }
             }
         ]
@@ -401,7 +401,7 @@ struct MenuBuilder {
                     p.name, tip: "Switch to this profile.", checked: anchors.choices.activeProfile == p.name,
                     enabled: !anchors.choices.paused
                 ) {
-                    app.workspaces.applyProfile(p.name)
+                    app.engine.workspaces.applyProfile(p.name)
                 })
         }
         return out
@@ -421,8 +421,8 @@ struct MenuBuilder {
                 if anchors.isLifted(w.id) {
                     app.windows.raise(w.id)
                 }
-                app.wake()
-                app.moor()
+                app.engine.wake()
+                app.engine.moor()
             }
         }
         if out.isEmpty {
@@ -436,7 +436,7 @@ struct MenuBuilder {
                     + "channel fill, so the strips stay in view.", checked: anchors.choices.fullscreenFills
             ) {
                 anchors.choices.fullscreenFills.toggle()
-                app.save()
+                app.engine.save()
             })
         out.append(
             ActionItem(
@@ -445,7 +445,7 @@ struct MenuBuilder {
                     + "native fullscreen back to its slot.", checked: anchors.choices.pinFullscreenFills
             ) {
                 anchors.choices.pinFullscreenFills.toggle()
-                app.save()
+                app.engine.save()
             })
         return out
     }
@@ -472,14 +472,14 @@ struct MenuBuilder {
                 title += "  " + sc.text
             }
             return ActionItem(title, tip: hint ?? ActionRunner.hints[name] ?? "", enabled: !paused) {
-                app.actions.run(name)
+                app.engine.actions.run(name)
             }
         }
         let entries = { (names: [String], hint: String?) -> [NSMenuItem] in
             menu.visible(names).map { entry($0, hint) }
         }
         var out: [NSMenuItem] = []
-        let pinned = menu.pinned(app.actions.runnable)
+        let pinned = menu.pinned(app.engine.actions.runnable)
         if !pinned.isEmpty {
             out += pinned.map { entry($0, $0.hasPrefix(Chain.prefix) ? Self.chainTip : nil) }
             out.append(.separator())
@@ -519,7 +519,7 @@ struct MenuBuilder {
                     tip: "Line up the \(n) front-most free windows "
                         + "side by side in the channel, keeping their order.", enabled: !paused
                 ) {
-                    app.organizer.tidy(n)
+                    app.engine.organizer.tidy(n)
                 })
         }
         organize.append(
@@ -528,7 +528,7 @@ struct MenuBuilder {
                 tip: "Put back every window a fill, tidy or window action moved, where it "
                     + "was before the first move.", enabled: !paused && anchors.canUndo
             ) {
-                app.organizer.undo()
+                app.engine.organizer.undo()
             })
         out.append(folder("Organize", organize))
         var tiling = entries(
@@ -553,7 +553,7 @@ struct MenuBuilder {
                 checked: anchors.choices.snap
             ) {
                 anchors.choices.snap.toggle()
-                app.save()
+                app.engine.save()
             })
         out.append(
             folder(
@@ -566,7 +566,7 @@ struct MenuBuilder {
                     ) {
                         anchors.choices.keymap = km.rawValue
                         anchors.choices.shortcuts = [:]
-                        app.save()
+                        app.engine.save()
                     } as NSMenuItem
                 }))
         out.append(
@@ -579,7 +579,7 @@ struct MenuBuilder {
                         checked: anchors.choices.gapPx == px
                     ) {
                         anchors.choices.gapPx = px
-                        app.save()
+                        app.engine.save()
                     } as NSMenuItem
                 }))
         if let front = NSWorkspace.shared.frontmostApplication, let bundle = front.bundleIdentifier,
@@ -598,7 +598,7 @@ struct MenuBuilder {
                     } else {
                         anchors.choices.ignores.append(bundle)
                     }
-                    app.save()
+                    app.engine.save()
                 })
         }
         return out
@@ -643,7 +643,7 @@ struct MenuBuilder {
                 checked: preset == w, enabled: !held(.left, preset.left) && !held(.right, preset.right)
             ) {
                 anchors.setWidths(preset)
-                app.save()
+                app.engine.save()
             }
         }
         var presets = Layout.presets.map { presetItem($0, "Set both strips to these shares of the display.") }
@@ -660,7 +660,7 @@ struct MenuBuilder {
                 enabled: !Layout.presets.contains(w) && !owned.contains(w)
             ) {
                 anchors.choices.widthPresets.append(w)
-                app.save()
+                app.engine.save()
             })
         presets.append(
             ActionItem(
@@ -668,7 +668,7 @@ struct MenuBuilder {
                 enabled: owned.contains(w)
             ) {
                 anchors.choices.widthPresets.removeAll { $0 == w }
-                app.save()
+                app.engine.save()
             })
         out.append(folder("Presets", presets))
         return out
@@ -711,7 +711,7 @@ struct MenuBuilder {
                             + "percent.", Layout.heightStep), enabled: ok
                 ) {
                     anchors.setTop(side, pct)
-                    app.save()
+                    app.engine.save()
                 })
         }
         for (name, side) in [("Left", Side.left), ("Right", .right)] {
@@ -721,7 +721,7 @@ struct MenuBuilder {
                     tip: "Split this strip's height between its rows at these shares.", checked: pct == h[side]
                 ) {
                     anchors.setTop(side, pct)
-                    app.save()
+                    app.engine.save()
                 } as NSMenuItem
             }
             out.append(folder("\(name) side", presets))

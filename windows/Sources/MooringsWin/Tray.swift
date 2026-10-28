@@ -220,7 +220,7 @@ final class Tray {
     // when the owner clicks elsewhere.
     private func open(_ hwnd: HWND) {
         let running = WinWindows.scan(screens: .current(minAspect: app.minAspect)).windows.map(\.bundle)
-        let items = Tray.menu(choices: app.anchors.choices, running: running, atLogin: LoginItem.enabled)
+        let items = Tray.menu(choices: app.engine.anchors.choices, running: running, atLogin: LoginItem.enabled)
         commands = []
         guard let menu = build(items) else { return }
         defer { _ = DestroyMenu(menu) }
@@ -263,7 +263,7 @@ final class Tray {
 
     // perform carries out a chosen command, saves the choices, and runs a pass.
     func perform(_ command: Command) {
-        let anchors = app.anchors
+        let anchors = app.engine.anchors
         switch command {
         case .slot(let key, let bundle):
             anchors.lock(key, bundle, now: App.now)
@@ -275,8 +275,7 @@ final class Tray {
             openSettings()
             return
         case .reloadSettings:
-            app.reload()
-            app.wake()
+            app.engine.reload()
             return
         case .atLogin:
             LoginItem.enabled.toggle()
@@ -286,18 +285,18 @@ final class Tray {
             _ = MessageBoxW(window, wide(text), wide("About Moorings"), UINT(MB_OK | MB_ICONINFORMATION))
             return
         case .quit:
+            app.engine.stasher.unstashAll()
             PostQuitMessage(0)
             return
         }
-        app.save()
-        app.wake()
+        app.engine.save()
     }
 
     // openSettings opens the choices file with its default program, writing it first with the
     // current choices when it does not exist.
     private func openSettings() {
         if !FileManager.default.fileExists(atPath: app.store.url.path) {
-            app.save()
+            app.engine.save()
         }
         let result = ShellExecuteW(window, wide("open"), wide(app.store.url.path), nil, nil, SW_SHOWNORMAL)
         let code = Int(bitPattern: result)

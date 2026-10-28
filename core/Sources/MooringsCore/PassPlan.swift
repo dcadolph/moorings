@@ -21,18 +21,18 @@ public enum PassPlan: Equatable, Sendable {
         return waiting || now - last >= appsSeconds
     }
 
-    // plan returns .full when forced, when a full pass is overdue, or when no app was named by a
-    // recent wake and no action's move is still echoing, and otherwise the apps that woke recently,
+    // plan returns .full when forced, which a recent wake that named no app is, when a full pass is
+    // overdue, or when no app was named by a recent wake and no action's move is still echoing, and otherwise the apps that woke recently,
     // the apps whose listed windows differ from the previous pass, and the front app. A slow app is
     // read only when it woke recently. echoes holds the frames recent actions read back after moving
     // a window. The front app is left out when a listed window of it has an echo and it neither woke
     // nor changed, so the pass after an action reads nothing the action already read.
     public static func plan(
-        now: Double, forced: Bool, lastFull: Double, fullWoke: Double, woke: [Int32: Double],
+        now: Double, forced: Bool, lastFull: Double, woke: [Int32: Double],
         listed: [Int32: [WindowID: Frame]], previous: [Int32: [WindowID: Frame]], slow: Set<Int32>,
         front: Int32? = nil, echoes: [WindowID: Frame] = [:]
     ) -> PassPlan {
-        if forced || now - lastFull >= fullSeconds || now - fullWoke < Pace.settleSeconds {
+        if forced || now - lastFull >= fullSeconds {
             return .full
         }
         let recent = Set(woke.filter { now - $0.value < Pace.settleSeconds }.keys)

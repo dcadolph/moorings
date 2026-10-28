@@ -17,19 +17,19 @@ final class SettingsModel: ObservableObject {
     // init builds a model for app.
     init(app: AppDelegate) {
         self.app = app
-        choices = app.anchors.choices
+        choices = app.engine.anchors.choices
     }
 
     // change applies edit to the choices, saves them, and shows the result.
     func change(_ edit: (inout Choices) -> Void) {
-        edit(&app.anchors.choices)
-        app.save()
-        choices = app.anchors.choices
+        edit(&app.engine.anchors.choices)
+        app.engine.save()
+        choices = app.engine.anchors.choices
     }
 
     // reload picks up changes made from the menu.
     func reload() {
-        choices = app.anchors.choices
+        choices = app.engine.anchors.choices
     }
 
     // bindings returns the shortcuts and sizes in effect.

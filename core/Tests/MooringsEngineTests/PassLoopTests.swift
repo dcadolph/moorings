@@ -13,10 +13,12 @@ final class PassRig {
     let screens = FakeScreens.ultrawide()
     // clock is the fake clock.
     let clock = FakeClock(100)
-    // timers hands the pass loop its scheduler.
+    // timers hands the engine's objects their schedulers, the pass loop's fifth.
     let timers: FakeTimers
     // scheduler runs the next pass as the clock advances, the one the pass loop took.
     let scheduler: FakeScheduler
+    // engine builds the pass loop and what each pass reaches.
+    let engine: Engine
     // pointer is the fake pointer, whose primary button holds the pins.
     let pointer = FakePointer()
     // keys spells the restore shortcut.
@@ -39,15 +41,17 @@ final class PassRig {
     // init builds the rig with Slack anchored in the slot key.
     init(_ key: SlotKey = .leftTop) {
         self.key = key
-        anchors = Anchors(choices: Choices(slots: [key: PassRig.slackID]))
         timers = FakeTimers(clock: clock)
         apps = FakeApps(windows: windows, names: [:])
         let platform = newTestPlatform(
-            windows: windows, screens: screens, clock: clock, notifier: notifier, pointer: pointer, keys: keys,
-            apps: apps, log: log, timers: timers)
-        passes = PassLoop(platform: platform, anchors: anchors)
-        scheduler = timers.made[0]
-        passes.moved = { [unowned self] m, _, got in moves.append((m, got)) }
+            windows: windows, screens: screens, clock: clock, notifier: notifier,
+            store: FakeStore(Choices(slots: [key: PassRig.slackID])), pointer: pointer, keys: keys, apps: apps,
+            log: log, timers: timers)
+        engine = newTestEngine(platform)
+        anchors = engine.anchors
+        passes = engine.passes
+        scheduler = timers.made[4]
+        engine.observers.moved = { [unowned self] m, _, got in moves.append((m, got)) }
     }
 
     // slot returns Slack's slot frame, which takes the whole side while the other slot is empty.
@@ -111,7 +115,7 @@ final class PassRig {
 @Test func testPassReleasedNotifies() {
     let rig = PassRig()
     var released: [WindowID] = []
-    rig.passes.released = { id, _ in released.append(id) }
+    rig.engine.observers.released = { id, _ in released.append(id) }
     let id = rig.windows.add(bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 800, h: 600), focus: true)
     rig.passes.moor()
     rig.clock.advance(by: 3)

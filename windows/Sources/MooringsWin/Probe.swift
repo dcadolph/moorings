@@ -305,18 +305,18 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let app = App(store: store, minAspect: opts.minAspect)
-    print("start at \(stamp(App.now)) pinned \(hex(pad.id)) paused \(app.anchors.choices.paused)")
-    app.moved = { move, t, got in
+    print("start at \(stamp(App.now)) pinned \(hex(pad.id)) paused \(app.engine.anchors.choices.paused)")
+    app.engine.observers.moved = { move, t, got in
         print(
             "move \(hex(move.id)) at \(stamp(t)) to \(pixels(move.frame))",
             "got \(got.map(pixels) ?? "gone")")
     }
-    app.released = { id, t in print("released \(hex(id)) at \(stamp(t))") }
+    app.engine.observers.released = { id, t in print("released \(hex(id)) at \(stamp(t))") }
     app.notify = { title, body in print("notice: \(title): \(body)") }
     app.run(until: App.now + opts.seconds)
-    let use = app.anchors.inUse(wide)
+    let use = app.engine.anchors.inUse(wide)
     print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
-    print("channel: \(pixels(app.anchors.channel(wide)))")
+    print("channel: \(pixels(app.engine.anchors.channel(wide)))")
     for w in WinWindows.scan(screens: screens).windows {
         print(
             "final \(hex(w.id)) pid \(WinWindows.hwnd(w.id).map(WinWindows.processID) ?? 0)",
@@ -343,7 +343,7 @@ func probeEvents(_ opts: ProbeOptions) -> Int32 {
         kept += 1
         print("event \(kind) \(hex(id)) at \(stamp(t))")
     }
-    app.passed = { t, moves in
+    app.engine.observers.passed = { t, moves in
         passes += 1
         print("pass at \(stamp(t)) moves \(moves)")
     }
@@ -428,8 +428,8 @@ func probeHotkeys(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let app = App(store: store, minAspect: opts.minAspect)
-    let map = Bindings(app.anchors.choices).map
-    app.hotkeys.bind(map, runnable: app.actions.supports)
+    let map = Bindings(app.engine.anchors.choices).map
+    app.hotkeys.bind(map, runnable: app.engine.actions.supports)
     defer { app.hotkeys.unbind() }
     print("table: \(map.count) registered: \(app.hotkeys.names.count) skipped: \(app.hotkeys.skipped.count)")
     for s in app.hotkeys.skipped {
@@ -444,7 +444,7 @@ func probeHotkeys(_ opts: ProbeOptions) -> Int32 {
     let pressed = app.hotkeys.pressed
     print("hotkeys received: \(pressed.isEmpty ? "none" : pressed.joined(separator: ","))")
     print("after: \(app.windows.frame(pad.id).map(pixels) ?? "gone")")
-    print("channel: \(pixels(app.anchors.channel(wide)))")
+    print("channel: \(pixels(app.engine.anchors.channel(wide)))")
     return 0
 }
 
@@ -530,7 +530,7 @@ func probeSkip(_ opts: ProbeOptions) -> Int32 {
     }
     let app = App(store: store, minAspect: opts.minAspect)
     print("start at \(stamp(App.now)) pinned \(hex(pad.id))")
-    app.moved = { move, t, got in
+    app.engine.observers.moved = { move, t, got in
         print(
             "move \(hex(move.id)) at \(stamp(t)) to \(pixels(move.frame))",
             "got \(got.map(pixels) ?? "gone")")
@@ -541,7 +541,7 @@ func probeSkip(_ opts: ProbeOptions) -> Int32 {
     for id in app.windows.elevated.sorted() {
         print("skipped \(hex(id)): elevated")
     }
-    print("channel: \(pixels(app.anchors.channel(wide)))")
+    print("channel: \(pixels(app.engine.anchors.channel(wide)))")
     for w in WinWindows.scan(screens: screens).windows {
         print("final \(hex(w.id)) frame \(pixels(w.frame))")
     }
@@ -576,13 +576,13 @@ func probeLift(_ opts: ProbeOptions) -> Int32 {
     print("placed: \(frame())")
     _ = bringForward(hwnd)
     print("foreground: \(foreground()) notepad \(hex(pad.id))")
-    print("lift ran: \(app.actions.run("maximize")) lifted \(app.anchors.isLifted(pad.id))")
+    print("lift ran: \(app.engine.actions.run("maximize")) lifted \(app.engine.anchors.isLifted(pad.id))")
     app.run(until: App.now + 1.5)
     print("lifted: \(frame())")
-    print("lower ran: \(app.actions.run("maximize")) lifted \(app.anchors.isLifted(pad.id))")
+    print("lower ran: \(app.engine.actions.run("maximize")) lifted \(app.engine.anchors.isLifted(pad.id))")
     app.run(until: App.now + 1.5)
     print("lowered: \(frame())")
-    let use = app.anchors.inUse(wide)
+    let use = app.engine.anchors.inUse(wide)
     print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
     print("over: \(pixels(Geometry.lift(wide, .left, use.left, use.right)))")
     return 0
@@ -618,7 +618,7 @@ func probeChain(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let app = App(store: store, minAspect: opts.minAspect)
-    app.hotkeys.bind(Bindings(app.anchors.choices).map, runnable: app.actions.supports)
+    app.hotkeys.bind(Bindings(app.engine.anchors.choices).map, runnable: app.engine.actions.supports)
     defer { app.hotkeys.unbind() }
     let bound = Set(app.hotkeys.names.values)
     var ran = true
@@ -632,7 +632,7 @@ func probeChain(_ opts: ProbeOptions) -> Int32 {
     if let w = WinWindows.scan(screens: screens).windows.first(where: { $0.id == pad.id }) {
         for name in steps {
             let label = name == "first-third" ? "left-third" : name
-            print("\(label): \(app.actions.preview(name, for: w, screens: screens).map(pixels) ?? "none")")
+            print("\(label): \(app.engine.actions.preview(name, for: w, screens: screens).map(pixels) ?? "none")")
         }
     }
     for (chain, key) in [(halves, WORD(0x31)), (once, WORD(0x32))] {
@@ -690,7 +690,7 @@ func probeReload(_ opts: ProbeOptions) -> Int32 {
         print("reload: write time not restored")
         return 1
     }
-    app.wake()
+    app.engine.wake()
     app.run(until: App.now + 1.5)
     print("control: \(frame()) reloads \(app.reloads)")
     do {
@@ -699,10 +699,10 @@ func probeReload(_ opts: ProbeOptions) -> Int32 {
         print("reload: \(error)")
         return 1
     }
-    app.wake()
+    app.engine.wake()
     app.run(until: App.now + 1.5)
     print("after: \(frame()) reloads \(app.reloads)")
-    let use = app.anchors.inUse(wide)
+    let use = app.engine.anchors.inUse(wide)
     print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
     return 0
 }
@@ -729,12 +729,12 @@ func probeActions(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let app = App(store: store, minAspect: opts.minAspect)
-    let map = Bindings(app.anchors.choices).map
-    app.hotkeys.bind(map, runnable: app.actions.supports)
+    let map = Bindings(app.engine.anchors.choices).map
+    app.hotkeys.bind(map, runnable: app.engine.actions.supports)
     defer { app.hotkeys.unbind() }
     print("table: \(map.count) registered: \(app.hotkeys.names.count) skipped: \(app.hotkeys.skipped.count)")
     for s in app.hotkeys.skipped {
-        print("skipped \(s.name): \(s.reason) routed \(app.actions.routed(s.name))")
+        print("skipped \(s.name): \(s.reason) routed \(app.engine.actions.routed(s.name))")
     }
     let last = ["minimize-others", "close-others", "minimize-window", "close-window"]
     let window = ActionRunner.families.flatMap { $0.names + $0.groups.flatMap(\.names) }
@@ -751,7 +751,7 @@ func probeActions(_ opts: ProbeOptions) -> Int32 {
     var compared = 0, bare = 0
     var worst = 0
     for name in ordered {
-        if app.actions.routed(name) {
+        if app.engine.actions.routed(name) {
             print("action \(name): routed, later unit")
             continue
         }
@@ -763,9 +763,9 @@ func probeActions(_ opts: ProbeOptions) -> Int32 {
         app.run(until: App.now + 0.2)
         let scan = app.windows.scan(screens, full: true).windows
         let want = scan.first(where: { $0.id == pad.id }).flatMap {
-            app.actions.preview(name, for: $0, screens: screens)
+            app.engine.actions.preview(name, for: $0, screens: screens)
         }
-        let ran = app.actions.run(name, window: pad.id)
+        let ran = app.engine.actions.run(name, window: pad.id)
         app.run(until: App.now + 0.3)
         let got = app.windows.frame(pad.id)
         if let want, let got {
@@ -922,7 +922,7 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
     }
     let app = App(store: store, minAspect: opts.minAspect)
     app.hooksMouse = !opts.noHook
-    app.drag.dropped = { id, drop in
+    app.engine.observers.dropped = { id, drop in
         let on =
             switch drop {
             case let .zone(name): "zone \(name)"
@@ -949,8 +949,8 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
         "footprint: \(app.footprint.last.map(pixels) ?? "never") shows \(app.footprint.shows)",
         "hidden \(app.footprint.shown == nil)")
     print("after: \(app.windows.frame(pad.id).map(pixels) ?? "gone")")
-    print("channel: \(pixels(app.anchors.channel(wide)))")
-    print("left top: \(app.anchors.choices.slots[.leftTop] ?? "")")
+    print("channel: \(pixels(app.engine.anchors.channel(wide)))")
+    print("left top: \(app.engine.anchors.choices.slots[.leftTop] ?? "")")
     return 0
 }
 

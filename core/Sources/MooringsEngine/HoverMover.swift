@@ -7,9 +7,8 @@ public final class HoverMover {
     // tickSeconds is how often the pointer is read while the modifiers are held.
     public static let tickSeconds = 1.0 / 60
 
-    // wake runs after a hover that held a window ends, so the passes look at where it landed.
-    public var wake: () -> Void = {}
-
+    // engine is the orchestration this object calls: wake, moor, save, landed.
+    unowned let engine: Engine
     // platform reads and moves the windows, reads the pointer and the clock, and logs.
     private let platform: Platform
     // anchors holds the choices, the pins and the stashed windows.
@@ -29,8 +28,10 @@ public final class HoverMover {
     // last is the pointer offset last applied, so a still pointer writes nothing.
     private var last: Point?
 
-    // init builds a hover mover on platform and anchors that reads the pointer through ticker.
-    public init(platform: Platform, anchors: Anchors, ticker: any Scheduler) {
+    // init builds a hover mover on engine's platform and anchors that reads the pointer through
+    // ticker.
+    public init(engine: Engine, platform: Platform, anchors: Anchors, ticker: any Scheduler) {
+        self.engine = engine
         self.platform = platform
         self.anchors = anchors
         self.ticker = ticker
@@ -93,7 +94,7 @@ public final class HoverMover {
         mode = nil
         target = nil
         if moved {
-            wake()
+            engine.wake()
         }
     }
 

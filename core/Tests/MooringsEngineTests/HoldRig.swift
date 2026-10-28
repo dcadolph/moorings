@@ -17,6 +17,39 @@ func newTestPlatform(
         timers: timers ?? FakeTimers(clock: clock), events: FakeEvents(windows: windows), grid: grid, badge: badge)
 }
 
+// newTestEngine builds an Engine on platform with the routed actions in features, every one unless a
+// test names fewer.
+func newTestEngine(
+    _ platform: Platform, features: Engine.Features = .all,
+    platformActions: any PlatformActions = NoPlatformActions(), throwViews: ThrowViews? = nil
+) -> Engine {
+    Engine(platform: platform, features: features, platformActions: platformActions, throwViews: throwViews)
+}
+
+// TestPlatformActions is a PlatformActions that handles the names it is given and records each run.
+final class TestPlatformActions: PlatformActions {
+    // names lists the actions it handles.
+    let names: Set<String>
+    // ran lists the actions run, in order.
+    private(set) var ran: [String] = []
+
+    // init handles names.
+    init(_ names: Set<String>) {
+        self.names = names
+    }
+
+    // handles reports whether name is one of names.
+    func handles(_ name: String) -> Bool {
+        names.contains(name)
+    }
+
+    // run records name and reports whether it is one of names.
+    func run(_ name: String, window: WindowID?) -> Bool {
+        ran.append(name)
+        return names.contains(name)
+    }
+}
+
 // center returns the middle of f.
 func center(_ f: Frame) -> Point {
     Point(x: f.x + f.w / 2, y: f.y + f.h / 2)
@@ -51,10 +84,11 @@ final class HoldRig {
     let throwGrid = FakeGrid()
     // pickerGrid draws the grid action's grid, the platform's grid.
     let pickerGrid = FakeGrid()
-    // throwTicks is the throw's scheduler.
-    let throwTicks: FakeScheduler
-    // hoverTicks is the hover's scheduler.
-    let hoverTicks: FakeScheduler
+    // timers hands out the engine's schedulers, in the order Engine builds its objects: workspaces,
+    // stasher, overlay, hover, passes, badge.
+    let timers: FakeTimers
+    // engine builds the objects under test on the fakes.
+    let engine: Engine
     // anchors holds the choices.
     let anchors: Anchors
     // actions is the action runner the throw and the grid apply through.
@@ -67,8 +101,6 @@ final class HoldRig {
     let hover: HoverMover
     // pad is the free window, focused.
     let pad: WindowID
-    // wakes counts the hover's wakes.
-    var wakes = 0
 
     // init builds the rig with choices changed by edit.
     init(_ edit: (inout Choices) -> Void = { _ in }) {
@@ -77,22 +109,24 @@ final class HoldRig {
         c.overlay.hoverMove = [.ctrl, .alt]
         c.overlay.hoverResize = [.ctrl, .cmd]
         edit(&c)
-        anchors = Anchors(choices: c)
-        throwTicks = FakeScheduler(clock: clock)
-        hoverTicks = FakeScheduler(clock: clock)
+        timers = FakeTimers(clock: clock)
         let platform = newTestPlatform(
-            windows: windows, screens: screens, clock: clock, pointer: pointer, keys: keys, log: log,
-            grid: pickerGrid)
-        actions = ActionRunner(platform: platform, anchors: anchors)
-        picker = GridPicker(platform: platform, anchors: anchors, actions: actions)
-        overlay = TriggerOverlay(
-            platform: platform, anchors: anchors, actions: actions, footprint: footprint,
-            gridView: throwGrid, picker: picker, ticker: throwTicks)
-        hover = HoverMover(platform: platform, anchors: anchors, ticker: hoverTicks)
+            windows: windows, screens: screens, clock: clock, store: FakeStore(c), pointer: pointer, keys: keys,
+            log: log, timers: timers, grid: pickerGrid)
+        engine = newTestEngine(platform, throwViews: ThrowViews(footprint: footprint, grid: throwGrid))
+        anchors = engine.anchors
+        actions = engine.actions
+        picker = engine.gridPicker
+        overlay = engine.overlay
+        hover = engine.hover
         pad = windows.add(bundle: "com.example.pad", frame: Frame(x: 1400, y: 300, w: 900, h: 700), focus: true)
-        let rig = self
-        hover.wake = { rig.wakes += 1 }
     }
+
+    // throwTicks is the throw overlay's scheduler.
+    var throwTicks: FakeScheduler { timers.made[2] }
+
+    // hoverTicks is the hover mover's scheduler.
+    var hoverTicks: FakeScheduler { timers.made[3] }
 
     // at is where the pointer is.
     var at: Point {

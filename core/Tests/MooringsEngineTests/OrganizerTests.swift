@@ -12,25 +12,26 @@ final class OrganizerRig {
     let screens = FakeScreens.ultrawide()
     // notifier records the banners.
     let notifier = FakeNotifier()
+    // engine builds the organizer and runs the passes it asks for.
+    let engine: Engine
     // anchors holds the choices.
     let anchors: Anchors
     // organizer is the organizer under test.
     let organizer: Organizer
     // pads lists the free windows, back to front.
     var pads: [WindowID] = []
-    // moors counts the passes the organizer asked for.
+    // moors counts the passes run.
     var moors = 0
-    // wakes counts the times the organizer marked windows as changing.
-    var wakes = 0
 
     // init builds the rig with choices changed by edit and count free windows.
     init(count: Int = 3, _ edit: (inout Choices) -> Void = { _ in }) {
         var c = Choices()
         edit(&c)
-        anchors = Anchors(choices: c)
         let clock = FakeClock()
-        let platform = newTestPlatform(windows: windows, screens: screens, clock: clock, notifier: notifier)
-        organizer = Organizer(platform: platform, anchors: anchors)
+        engine = newTestEngine(
+            newTestPlatform(windows: windows, screens: screens, clock: clock, notifier: notifier, store: FakeStore(c)))
+        anchors = engine.anchors
+        organizer = engine.organizer
         for k in 0..<count {
             let d = Double(k)
             pads.append(
@@ -39,9 +40,11 @@ final class OrganizerRig {
                     focus: k == count - 1))
         }
         let rig = self
-        organizer.moor = { rig.moors += 1 }
-        organizer.wake = { rig.wakes += 1 }
+        engine.observers.passed = { _, _ in rig.moors += 1 }
     }
+
+    // woke reports whether the organizer marked windows as changing, which sets the next pass.
+    var woke: Bool { engine.passes.due != nil }
 
     // channel is the frame organize actions work in on the ultrawide.
     var channel: Frame {
@@ -74,7 +77,7 @@ final class OrganizerRig {
     #expect(abs(f[0].x - c.x) <= 1 && abs(f[2].x + f[2].w - (c.x + c.w)) <= 1, "\(f) in \(c)")
     #expect(f[0].x < f[1].x && f[1].x < f[2].x)
     #expect(f.allSatisfy { abs($0.y - c.y) <= 1 && abs($0.h - c.h) <= 1 })
-    #expect(rig.wakes == 1)
+    #expect(rig.woke)
 }
 
 // Test 1: Tile rows stacks the three windows top to bottom across the channel's full width.

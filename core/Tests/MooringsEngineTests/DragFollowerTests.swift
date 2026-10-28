@@ -16,33 +16,39 @@ final class DragRig {
     let notifier = FakeNotifier()
     // clock is the fake clock.
     let clock = FakeClock()
+    // store keeps the choices the engine saves.
+    let store: FakeStore
+    // engine builds the follower and the action runner its drops apply through.
+    let engine: Engine
     // anchors holds the choices.
     let anchors: Anchors
     // follower is the drag follower under test.
     let follower: DragFollower
-    // applied records each action the follower ran and the screen index it ran on.
-    var applied: [(String, Int?)] = []
-    // changes counts the times the follower asked to save and wake.
-    var changes = 0
+    // applied records each zone action a drop ran, in order.
+    var applied: [String] = []
     // id is the dragged window.
     let id: WindowID
     // start is where the dragged window begins.
     let start = Frame(x: 1200, y: 400, w: 800, h: 600)
 
-    // init builds the rig with choices, a focused window at start, and a preview that names the half.
+    // init builds the rig with choices and a focused window at start.
     init(_ choices: Choices = Choices()) {
-        anchors = Anchors(choices: choices)
-        let platform = newTestPlatform(
-            windows: windows, screens: screens, clock: clock, overlay: overlay, notifier: notifier)
+        store = FakeStore(choices)
+        engine = newTestEngine(
+            newTestPlatform(
+                windows: windows, screens: screens, clock: clock, overlay: overlay, notifier: notifier, store: store))
+        anchors = engine.anchors
         id = windows.add(bundle: "com.example.pad", frame: start, focus: true)
-        follower = DragFollower(
-            platform: platform, anchors: anchors,
-            preview: { name, _, screens, i in
-                DragRig.frames(screens.usable[i])[name]
-            }, apply: { _, _, _, _ in })
-        follower.apply = { [unowned self] name, _, _, i in applied.append((name, i)) }
-        follower.changed = { [unowned self] in changes += 1 }
+        follower = engine.drag
+        engine.observers.dropped = { [unowned self] _, drop in
+            if case let .zone(name) = drop {
+                applied.append(name)
+            }
+        }
     }
+
+    // changes counts the times a drop saved the choices.
+    var changes: Int { store.saves }
 
     // frames lists the frames the fake preview gives on a usable area.
     static func frames(_ u: Frame) -> [String: Frame] {
@@ -115,8 +121,8 @@ final class DragRig {
     #expect(rig.overlay.shown == Frame(x: u.x, y: u.y, w: u.w / 2, h: u.h))
     #expect(rig.follower.drop == .zone("left-half"))
     rig.follower.ended(held: [])
-    #expect(rig.applied.map(\.0) == ["left-half"])
-    #expect(rig.applied.first?.1 == 0)
+    #expect(rig.applied == ["left-half"])
+    #expect(rig.windows.frame(rig.id) == Frame(x: u.x, y: u.y, w: u.w / 2, h: u.h))
     #expect(rig.overlay.shown == nil)
 }
 
@@ -179,13 +185,14 @@ final class DragRig {
 @Test @MainActor func testDragGivenWindowAndAnswer() {
     let rig = DragRig()
     var drops: [SnapDrop?] = []
-    rig.follower.dropped = { _, d in drops.append(d) }
+    rig.engine.observers.dropped = { _, d in drops.append(d) }
     rig.follower.began(window: rig.id, moving: true)
     rig.windows.nudge(rig.id, to: Frame(x: 0, y: 400, w: 800, h: 600))
     rig.follower.moved(Point(x: 2, y: 700), held: [])
     #expect(rig.follower.drop == .zone("left-half"))
     rig.follower.ended(held: [])
-    #expect(rig.applied.map(\.0) == ["left-half"])
+    let u = rig.screens.screens.usable[0]
+    #expect(rig.windows.frame(rig.id) == Frame(x: u.x, y: u.y, w: u.w / 2, h: u.h))
     #expect(drops == [.zone("left-half")])
 }
 

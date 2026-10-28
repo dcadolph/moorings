@@ -20,12 +20,9 @@ guard let name = options.probe else {
     let app = App(store: Store())
     let banner = BannerWindow()
     app.notify = { banner.show($0, $1) }
-    let bind = { app.hotkeys.bind(Bindings(app.anchors.choices).map, runnable: app.actions.supports) }
-    bind()
-    app.reloaded = bind
     let tray = Tray(app: app)
     tray.show()
-    app.anchors.launch(now: App.now)
+    app.engine.start()
     app.run()
     tray.hide()
     app.hotkeys.unbind()

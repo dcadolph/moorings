@@ -477,7 +477,7 @@ final class StripEditor {
             logger.notice("strips: no ultrawide attached")
             return false
         }
-        let anchors = app.anchors
+        let anchors = app.engine.anchors
         start = (anchors.choices.widths, anchors.choices.heights)
         var mins: [Side: Double] = [:]
         var names: [Side: String] = [:]
@@ -533,10 +533,10 @@ final class StripEditor {
         }
         front = nil
         if !keep {
-            app.anchors.choices.widths = start.widths
-            app.anchors.choices.heights = start.heights
+            app.engine.anchors.choices.widths = start.widths
+            app.engine.anchors.choices.heights = start.heights
         }
-        app.save()
+        app.engine.save()
     }
 
     // key hands a grabbed key to the editor while it is open.
@@ -546,8 +546,8 @@ final class StripEditor {
 
     // preview applies w and h without saving them, so the windows follow while the editor is open.
     private func preview(_ w: Widths, _ h: Heights) {
-        app.anchors.setWidths(w)
-        app.anchors.choices.heights = h
-        app.moor()
+        app.engine.anchors.setWidths(w)
+        app.engine.anchors.choices.heights = h
+        app.engine.moor()
     }
 }
