@@ -143,8 +143,9 @@ final class ActionRunner {
 
     // run applies action name to the window with id window, raised first, or to the focused window
     // when nil, and reports whether anything moved. Nothing runs while the anchor is weighed. On a
-    // pin, Maximize lifts or lowers it and Restore re-moors it. A chain runs its next step, and the
-    // menu action opens the menu under the pointer.
+    // pin, Maximize lifts or lowers it, a half or a third places it inside its slot, and Restore gives
+    // it its whole slot back or else re-moors it. A chain runs its next step, and the menu action
+    // opens the menu under the pointer.
     @discardableResult
     func run(_ name: String, window: WindowID? = nil) -> Bool {
         if name == Keymaps.menuName {
@@ -297,11 +298,17 @@ final class ActionRunner {
                 app.moor()
                 return true
             case "restore":
-                anchors.remoor(w.id)
+                if !anchors.clearPart(w.id) {
+                    anchors.remoor(w.id)
+                }
+                last[w.id] = nil
                 app.wake()
                 app.moor()
                 return true
             default:
+                if placeInSlot(name, w) {
+                    return true
+                }
                 logger.notice("the window is pinned: window actions leave pins alone")
                 return false
             }
@@ -349,6 +356,22 @@ final class ActionRunner {
         let (frame, press, result) = frame(name, for: w, screens: screens, index: index)
         guard let frame else { return false }
         return place(w, at: frame, press: press, name: result)
+    }
+
+    // placeInSlot moves the slot window w to the part of its slot position action name gives and
+    // holds it there, and reports whether it did. It needs slotStacks on, a fixed position such as a
+    // half or a third, and w held in the last pass. A repeat press steps the position's cycle.
+    private func placeInSlot(_ name: String, _ w: WindowInfo) -> Bool {
+        guard anchors.choices.slotStacks, Geometry.cells[Geometry.aliases[name] ?? name] != nil,
+              !Actions.maximizers.contains(name) else { return false }
+        let area = anchors.actionArea(w.id, else: w.frame)
+        let press = last[w.id].map { $0.name == name && Actions.near(w.frame, $0.frame) ? $0.press + 1 : 1 } ?? 1
+        guard let f = Geometry.cycle(name, press, area, w.frame, gap: anchors.choices.gapPx),
+              anchors.holdPart(w.id, name, f) else { return false }
+        app.windows.move(w.id, to: f)
+        last[w.id] = LastPress(name: name, press: press, frame: app.windows.frame(w.id) ?? f)
+        app.wake()
+        return true
     }
 
     // applyFrame raises the window with id and moves it to frame as a placement restore can undo, and

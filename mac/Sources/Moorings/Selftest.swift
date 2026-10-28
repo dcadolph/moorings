@@ -213,6 +213,7 @@ final class Selftest {
         anchors.choices.slots = saved.slots
         anchors.choices.paused = saved.paused
         anchors.choices.appRules = saved.appRules
+        anchors.choices.slotStacks = saved.slotStacks
         app.save()
         if !foreign {
             await quitTextEdit()
@@ -258,15 +259,17 @@ final class Selftest {
         try await dismissPanels()
         check("anchored window lands in its slot", await settled { self.landed(a) })
 
+        let stacks = anchors.choices.slotStacks
+        anchors.choices.slotStacks = true
         let b = try await newDocument()
-        let kept = "second window is kept in the channel"
-        if let wide = Screens.current().wide, let opened = app.windows.frame(b) {
-            let x = slot.side == .left ? wide.x : wide.x + wide.w - opened.w
-            app.windows.move(b, to: Frame(x: x, y: opened.y, w: opened.w, h: opened.h))
-            check(kept, await settled { self.inChannel(b) })
-        } else {
-            check(kept, (false, "the window is gone"))
-        }
+        check("second window is held in the slot when the slot holds all windows",
+              await settled { self.landed(b) })
+        anchors.choices.slotStacks = false
+        app.wake()
+        check("second window goes to the channel when the slot holds one window",
+              await settled { self.inChannel(b) })
+        anchors.choices.slotStacks = stacks
+        app.wake()
 
         try await close(a)
         check("next window takes the slot when the anchored one closes", await settled { self.landed(b) })

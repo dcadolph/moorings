@@ -213,7 +213,8 @@ struct MenuBuilder {
     }
 
     // anchoredItems builds the Anchored apps folder: a row per slot that opens Empty, the running
-    // apps and a file browser, then Unanchor all apps. shows holds the apps with a document window.
+    // apps and a file browser, then Unanchor all apps. A row names how many windows its slot holds
+    // when it holds more than one. shows holds the apps with a document window.
     private func anchoredItems(shows: Set<String>) -> [NSMenuItem] {
         let picks = anchors.assignments()
         let apps = runningApps(shows: shows)
@@ -242,7 +243,8 @@ struct MenuBuilder {
                     + "in this slot.") {
                 chooseApp(key)
             })
-            out.append(folder("\(key.title): \(appName(current))", choices))
+            let held = anchors.slotWindows(key).count
+            out.append(folder("\(key.title): \(appName(current))" + (held > 1 ? " (\(held) windows)" : ""), choices))
         }
         out.append(ActionItem("Unanchor all apps", tip: "Empty every slot so no app is held. Weigh anchor pauses "
                 + "instead.", enabled: picks.values.contains { !$0.isEmpty }) {

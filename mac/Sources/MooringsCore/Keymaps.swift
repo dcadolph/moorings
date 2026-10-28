@@ -333,7 +333,8 @@ public enum Keymaps {
     // organizeNames returns the organize actions in menu order.
     public static let organizeNames = [
         "tile-columns", "tile-rows", "tile-all", "tile-active-app", "cascade-all", "cascade-active-app",
-        "cycle-stacked-windows", "cycle-stacked-windows-backward", "reverse-all",
+        "cycle-stacked-windows", "cycle-stacked-windows-backward", "cycle-slot-windows",
+        "cycle-slot-windows-backward", "reverse-all",
     ]
 
     // windowNames lists the actions on the front app's windows that never move a frame, in menu order.

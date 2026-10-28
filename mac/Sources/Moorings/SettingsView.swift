@@ -579,6 +579,9 @@ struct SettingsView: View {
                 behaviorToggle("Animate window moves (experimental)", \.animate)
             }
             Section("Stacked windows") {
+                Toggle("A slot holds all of an app's windows",
+                       isOn: Binding(get: { model.choices.slotStacks },
+                                     set: { v in model.change { $0.slotStacks = v } }))
                 Toggle("Show how many windows are stacked when the pointer rests at a window's corner",
                        isOn: Binding(get: { model.choices.stacking.badge },
                                      set: { v in model.change { $0.stacking.badge = v } }))

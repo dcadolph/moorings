@@ -75,7 +75,7 @@ func covered(_ frames: [Frame]) -> Double {
     for n in Tile.names {
         #expect(Tile.handles(n))
     }
-    #expect(Tile.names.count == 9)
+    #expect(Tile.names.count == 11)
     #expect(!Tile.handles("left-half"))
 }
 

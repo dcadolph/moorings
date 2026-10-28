@@ -119,6 +119,11 @@ final class Organizer {
             let dir = name == "cycle-stacked-windows" ? 1 : -1
             app.windows.raise(stack[((at + dir) % stack.count + stack.count) % stack.count].id)
             return true
+        case "cycle-slot-windows", "cycle-slot-windows-backward":
+            guard let next = anchors.nextSlotWindow(after: win.id, backward: name == "cycle-slot-windows-backward")
+            else { return false }
+            app.windows.raise(next)
+            return true
         case "reverse-all":
             return place(list, list.map { Tile.reverse(a, $0.frame) })
         default:
