@@ -16,7 +16,7 @@ jobs:
     continue-on-error: ${{ startsWith(github.ref, 'refs/heads/spike/') }}
     defaults:
       run:
-        working-directory: mac
+        working-directory: windows
     steps:
       - uses: compnerd/gha-setup-swift@9ff1ee4c44888c5817fc14d1b257ac8cabb4935f # v0.5.1
         with:
