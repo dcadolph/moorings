@@ -117,9 +117,11 @@ final class WinDrag {
     private var id: WindowID?
     // start is the dragged window's frame when the drag began.
     private var start: Frame?
-    // moving is true once the window moved without changing size, false once it changed size, and
-    // nil until the frame first changes. Windows snapping a window at a screen edge resizes it on the
-    // drop, so the drag is judged by its first change, not its last.
+    // moving is true for a drag that moves the window and false for one that sizes it. The window's
+    // hit test at the press decides it: the caption moves, a border sizes. When the hit test gets no
+    // answer, the first frame change decides it, a move when the size held, since Windows snapping a
+    // window at a screen edge resizes it on the drop. Without window contents shown while dragging
+    // the frame holds until the drop, so the hit test comes first.
     private var moving: Bool?
     // drop is the zone or slot under the pointer.
     private(set) var drop: SnapDrop?
@@ -133,8 +135,23 @@ final class WinDrag {
     func began(_ hwnd: HWND) {
         id = WinWindows.id(hwnd)
         start = WinWindows.bounds(hwnd)
-        moving = nil
+        moving = Self.hit(hwnd).map { $0 == Self.caption }
         drop = nil
+    }
+
+    // caption is HTCAPTION.
+    static let caption: DWORD_PTR = 2
+
+    // hit returns hwnd's answer to WM_NCHITTEST at the cursor, nil when the cursor cannot be read or
+    // the window gives no answer inside 100 ms.
+    static func hit(_ hwnd: HWND) -> DWORD_PTR? {
+        var p = POINT()
+        guard GetCursorPos(&p) else { return nil }
+        let x = UInt32(UInt16(truncatingIfNeeded: p.x)), y = UInt32(UInt16(truncatingIfNeeded: p.y))
+        var result: DWORD_PTR = 0
+        guard SendMessageTimeoutW(hwnd, UINT(WM_NCHITTEST), 0, LPARAM(Int32(bitPattern: x | y << 16)),
+                                  UINT(SMTO_ABORTIFHUNG), 100, &result) != 0 else { return nil }
+        return result
     }
 
     // pointer follows the pointer at p while a drag is under way.

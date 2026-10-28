@@ -691,6 +691,9 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
     }
     _ = bringForward(hwnd)
     print("before: \(pixels(pad.frame))")
+    var full: BOOL = false
+    _ = SystemParametersInfoW(UINT(SPI_GETDRAGFULLWINDOWS), 0, &full, 0)
+    print("drag full windows: \(full)")
     let from = (x: Int32((pad.frame.x + pad.frame.w / 2).rounded()), y: Int32(pad.frame.y + 15))
     let alt = opts.alt
     Thread {
@@ -698,6 +701,7 @@ func probeDrag(_ opts: ProbeOptions) -> Int32 {
         dragInput(from: from, to: dragTarget, alt: alt)
     }.start()
     app.run(until: App.now + opts.seconds)
+    print("hook delivered: \(WinMouseHook.delivered)")
     print("hook reinstalled: \(app.mouse.reinstalls)")
     print("after: \(app.windows.frame(pad.id).map(pixels) ?? "gone")")
     print("channel: \(pixels(app.anchors.channel(wide)))")
