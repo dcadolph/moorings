@@ -522,7 +522,25 @@ jobs:
             Write-Host "  check: Maximize lifted the pin over the strip and channel, and again lowered it into the strip"
             Stop-Process -Id $pad.Id
           }
+          function ReloadCheck([string[]] $geo) {
+            Write-Host "probe reload $geo"
+            $pad = Pad
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'reload') + $geo)
+            $before = Rect ($f -match '^before: ')[0] 'before: '
+            $control = Rect ($f -match '^control: ')[0] 'control: '
+            $after = Rect ($f -match '^after: ')[0] 'after: '
+            $strip = Rect ($f -match '^strip: ')[0] 'strip: '
+            Expect $f '^control: .* reloads 0$' 'a write with the old write time was not reloaded'
+            Expect $f '^after: .* reloads 1$' 'the changed file was reloaded once'
+            if ((Off $control $before) -gt 1) { throw "the control moved the pad from $($before -join ' ') to $($control -join ' ')" }
+            if ((Off $after $strip) -gt 1) { throw "after the reload the pad is $($after -join ' '), not the new strip $($strip -join ' ')" }
+            if ([Math]::Abs($after[2] - $before[2]) -le 1) { throw "the width stayed $($before[2]) px, so the reload check proves nothing" }
+            Write-Host "  check: the file with its old write time was ignored, the changed file was reloaded once and the pad took the new strip $($strip -join ' ')"
+            Stop-Process -Id $pad.Id
+          }
           LiftCheck @('--min-aspect', '1.0')
+          ReloadCheck @('--min-aspect', '1.0')
 
           function ChainCheck([string[]] $geo) {
             Write-Host "probe chain $geo"
@@ -645,6 +663,7 @@ jobs:
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
           LiftCheck $simApp
           ChainCheck $simApp
+          ReloadCheck $simApp
 
           Write-Host "SIM probe drag"
           $pad = Pad
