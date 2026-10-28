@@ -170,6 +170,7 @@ let probes: [String: Probe] = [
     "skip": probeSkip,
     "lift": probeLift,
     "organize": probeOrganize,
+    "badge": probeBadge,
     "login": probeLogin,
     "quit": probeQuit,
     "drag": probeDrag,
@@ -583,6 +584,51 @@ func probeOrganize(_ opts: ProbeOptions) -> Int32 {
         let got = app.windows.frame(p.id)
         print("undo: want \(start[p.id].map(pixels) ?? "none") got \(got.map(pixels) ?? "none")")
     }
+    return 0
+}
+
+// probeBadge stacks every window of the app 5 px apart with the last one in front, turns the stack
+// badge on, rests the pointer at the front window's corner for two ticks and prints the badge, then
+// moves the pointer away and prints it again.
+func probeBadge(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    var choices = Choices()
+    choices.stacking.badge = true
+    let store = Store()
+    do {
+        try store.save(choices)
+    } catch {
+        print("badge: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    let pads = app.windows.scan(screens, full: true).windows.filter { $0.bundle.hasSuffix(opts.app) }
+    guard let area = pads.first.flatMap({ screens.index($0.frame) }).map({ screens.usable[$0] }) else {
+        print("badge: no window of \(opts.app)")
+        return 1
+    }
+    var front: Frame?
+    for (k, p) in pads.enumerated() {
+        let f = Frame(x: area.x + 300 + 5 * Double(k), y: area.y + 200 + 5 * Double(k), w: 500, h: 350)
+        app.windows.move(p.id, to: f, from: nil, behavior: Behaviors())
+        if let hwnd = WinWindows.hwnd(p.id) {
+            _ = bringForward(hwnd)
+        }
+        app.run(until: App.now + 0.2)
+        front = app.windows.frame(p.id)
+    }
+    guard let front else { return 1 }
+    print("pads: \(pads.count)")
+    print("front: \(pixels(front))")
+    _ = SetCursorPos(Int32(front.x + 10), Int32(front.y + 10))
+    app.updateBadge()
+    app.updateBadge()
+    print("rest: \(app.badge.shown.map { "\($0.count) at \(pixels($0.front))" } ?? "none")")
+    _ = SetCursorPos(Int32(front.x + 250), Int32(front.y + 200))
+    app.updateBadge()
+    app.updateBadge()
+    print("away: \(app.badge.shown.map { "\($0.count) at \(pixels($0.front))" } ?? "none")")
+    app.badge.hide()
     return 0
 }
 
@@ -1044,12 +1090,13 @@ func probeContracts(_ opts: ProbeOptions) -> Int32 {
     let banner = BannerWindow(minAspect: opts.minAspect)
     var failures = WindowStoreContract.run(windows, host: host)
     failures += OverlayContract.run(WinFootprint(), store: windows, host: host)
+    failures += BadgeContract.run(WinBadge(), store: windows, host: host)
     failures += NotifierContract.run(WinNotifier { banner.show($0, $1) }, store: windows, host: host)
     failures += SchedulerContract.run(scheduler, clock: WinClock(), host: host)
     for f in failures {
         print("contract failed: \(f)")
     }
-    print("contracts: 4 suites, \(failures.count) failures")
+    print("contracts: 5 suites, \(failures.count) failures")
     return failures.isEmpty ? 0 : 1
 }
 

@@ -70,6 +70,12 @@ final class App {
     }()
     // footprint shows where a dragged window will land.
     let footprint = WinFootprint()
+    // badge paints the stack badge.
+    let badge = WinBadge()
+    // stackBadge counts the stacked windows under the resting pointer while the choice is on.
+    private(set) lazy var stackBadge = StackBadge(view: badge)
+    // badgeTimer is the thread timer that reads the pointer for the stack badge, 0 while it is off.
+    private var badgeTimer: UINT_PTR = 0
     // scheduler runs the engine's deferred work from the message loop's timer branch.
     let scheduler = WinScheduler()
     // passes run the window passes on the engine's pass loop.
@@ -77,7 +83,10 @@ final class App {
         let p = PassLoop(platform: platform, anchors: anchors)
         p.mouseHeld = { [unowned self] in dragging || GetAsyncKeyState(VK_LBUTTON) < 0 }
         p.refreshed = { [unowned self] alive in actions.prune(alive: alive) }
-        p.after = { [unowned self] _, screens, _ in self.screens = screens }
+        p.after = { [unowned self] _, screens, _ in
+            self.screens = screens
+            paceBadge()
+        }
         p.appName = { Tray.appName($0) }
         p.spell = { WinHotkeys.spelled($0) }
         p.tellsRefused = true
@@ -163,6 +172,11 @@ final class App {
             mouse.start()
         }
         defer {
+            if badgeTimer != 0 {
+                _ = KillTimer(nil, badgeTimer)
+                badgeTimer = 0
+                stackBadge.hide()
+            }
             mouse.stop()
             watcher.stop()
             if stop != 0 {
@@ -184,6 +198,8 @@ final class App {
                 switch msg.wParam {
                 case stop where stop != 0:
                     return
+                case badgeTimer where badgeTimer != 0:
+                    updateBadge()
                 default:
                     if !scheduler.fire(msg.wParam) {
                         _ = mouse.tick(msg.wParam)
@@ -199,6 +215,28 @@ final class App {
     // millis converts seconds to a timer interval of at least 1 ms.
     private static func millis(_ seconds: Double) -> UINT {
         UINT(max(1, (seconds * 1000).rounded(.up)))
+    }
+
+    // paceBadge starts or stops the stack badge's pointer reads to match the choice.
+    private func paceBadge() {
+        if anchors.choices.stacking.badge, badgeTimer == 0 {
+            badgeTimer = SetTimer(nil, 0, Self.millis(Pace.pollSeconds), nil)
+        } else if !anchors.choices.stacking.badge, badgeTimer != 0 {
+            _ = KillTimer(nil, badgeTimer)
+            badgeTimer = 0
+            stackBadge.hide()
+        }
+    }
+
+    // updateBadge shows or hides the stack badge for the pointer's place, reading the window frames
+    // once per rest.
+    func updateBadge() {
+        var p = POINT()
+        _ = GetCursorPos(&p)
+        let down = GetAsyncKeyState(VK_LBUTTON) < 0 || GetAsyncKeyState(VK_RBUTTON) < 0
+        stackBadge.update(pointer: Point(x: Double(p.x), y: Double(p.y)), buttonDown: down, frames: { [unowned self] in
+            WinWindows.scan(screens: screens ?? Screens.current(minAspect: minAspect)).windows.map(\.frame)
+        }, palette: .harbor, choices: anchors.choices.stacking, gap: anchors.choices.gapPx)
     }
 
     // moor runs one pass now.

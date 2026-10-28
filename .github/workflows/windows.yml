@@ -564,6 +564,24 @@ jobs:
           }
           OrganizeCheck @('--min-aspect', '1.0')
 
+          function BadgeCheck([string[]] $geo) {
+            Write-Host "probe badge $geo"
+            $pads = @(1..3 | ForEach-Object { Pad })
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'badge') + $geo)
+            $n = [int]([regex]::Match(($f -match '^pads: ')[0], '^pads: (\d+)$').Groups[1].Value)
+            if ($n -lt 3) { throw "want three windows of the app, got $n" }
+            $front = Rect ($f -match '^front: ')[0] 'front: '
+            $m = [regex]::Match(($f -match '^rest: ')[0], '^rest: (\d+) at (-?\d+ -?\d+ \d+ \d+)$')
+            if (-not $m.Success) { throw "no badge while the pointer rested at the front corner: $(($f -match '^rest: ')[0])" }
+            if ([int]$m.Groups[1].Value -ne $n) { throw "the badge counts $($m.Groups[1].Value), want $n" }
+            if ((Off $front ($m.Groups[2].Value -split ' ' | ForEach-Object { [int]$_ })) -gt 1) { throw "the badge sits on $($m.Groups[2].Value), not the front window $($front -join ' ')" }
+            Expect $f '^away: none$' 'the badge hid when the pointer moved off the corner'
+            Write-Host "  check: the badge counted $n stacked windows on the front one and hid when the pointer moved away"
+            $pads | ForEach-Object { Stop-Process -Id $_.Id -ErrorAction SilentlyContinue }
+          }
+          BadgeCheck @('--min-aspect', '1.0')
+
           Write-Host "probe login"
           $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
           Remove-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue
@@ -662,6 +680,7 @@ jobs:
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
           LiftCheck $simApp
           OrganizeCheck $simApp
+          BadgeCheck $simApp
 
           Write-Host "SIM probe drag"
           $pad = Pad
@@ -715,7 +734,7 @@ jobs:
           $out = @(& $exe --probe contracts)
           $code = $LASTEXITCODE
           $out | ForEach-Object { Write-Host "  $_" }
-          if ($code -ne 0 -or -not ($out -match '^contracts: 4 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
+          if ($code -ne 0 -or -not ($out -match '^contracts: 5 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
           Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Notifier and Scheduler rule"
 
       - name: Package
