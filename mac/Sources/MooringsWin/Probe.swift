@@ -53,6 +53,10 @@ struct ProbeOptions {
     var mode: Size?
     // reset makes the modes probe restore the display mode kept in the registry.
     var reset = false
+    // noHook runs the drag probe without the mouse hook, its negative control.
+    var noHook = false
+    // alt holds Alt through the drag probe's drop.
+    var alt = false
     // app is the end of the image path of the app whose window the probes act on: Notepad, or the
     // stand probe's window under the fake ultrawide, which Windows would not size past the desktop.
     var app = "\\notepad.exe"
@@ -82,6 +86,10 @@ struct ProbeOptions {
             case "--app":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 app = value.lowercased()
+            case "--no-hook":
+                noHook = true
+            case "--alt":
+                alt = true
             case "--screen", "--mode":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let size = Size(value) else { throw ProbeError.badValue(flag, value) }
@@ -156,6 +164,7 @@ let probes: [String: Probe] = [
     "lift": probeLift,
     "login": probeLogin,
     "quit": probeQuit,
+    "drag": probeDrag,
     "stand": probeStand,
 ]
 
@@ -642,6 +651,104 @@ func probeStand(_ opts: ProbeOptions) -> Int32 {
         _ = DestroyWindow(hwnd)
     }
     return 0
+}
+
+// dragTarget is where the drag probe lets go: the left edge, below the corner zones.
+let dragTarget = (x: Int32(2), y: Int32(400))
+
+// probeDrag runs the pass loop with a fresh choices file while another thread presses on the front
+// Notepad's caption with SendInput, drags it to the left edge in 20 steps and lets go, with Alt held
+// through the drop for --alt. It prints the drop, Notepad's frame, the channel, the left top holder
+// and how often the hook was put back.
+func probeDrag(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    guard let wide = screens.wide else {
+        print("drag: no ultrawide")
+        return 1
+    }
+    let windows = WinWindows.scan(screens: screens).windows
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix(opts.app) }),
+          let hwnd = WinWindows.hwnd(pad.id) else {
+        print("drag: no window of \(opts.app)")
+        return 1
+    }
+    let store = Store()
+    do {
+        try store.save(Choices())
+    } catch {
+        print("drag: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    app.hooksMouse = !opts.noHook
+    app.drag.dropped = { id, drop in
+        let on = switch drop {
+        case let .zone(name): "zone \(name)"
+        case let .park(key): "park \(key)"
+        case .none: "nothing"
+        }
+        print("dropped \(hex(id)) on \(on) at \(stamp(App.now))")
+    }
+    _ = bringForward(hwnd)
+    print("before: \(pixels(pad.frame))")
+    let from = (x: Int32((pad.frame.x + pad.frame.w / 2).rounded()), y: Int32(pad.frame.y + 15))
+    let alt = opts.alt
+    Thread {
+        Sleep(1000)
+        dragInput(from: from, to: dragTarget, alt: alt)
+    }.start()
+    app.run(until: App.now + opts.seconds)
+    print("hook reinstalled: \(app.mouse.reinstalls)")
+    print("after: \(app.windows.frame(pad.id).map(pixels) ?? "gone")")
+    print("channel: \(pixels(app.anchors.channel(wide)))")
+    print("left top: \(app.anchors.choices.slots[.leftTop] ?? "")")
+    return 0
+}
+
+// dragInput presses the left button at from, moves to to in 20 steps 15 ms apart and lets go, the
+// way a hand drags a window by its caption. With alt, Alt goes down before the press and up half a
+// second after the release.
+func dragInput(from: (x: Int32, y: Int32), to: (x: Int32, y: Int32), alt: Bool) {
+    if alt {
+        sendKey(0x12, up: false)
+    }
+    sendMouse(from.x, from.y, 0)
+    Sleep(100)
+    sendMouse(from.x, from.y, 0x0002)
+    Sleep(100)
+    for i in 1...20 {
+        let x = from.x + (to.x - from.x) * Int32(i) / 20, y = from.y + (to.y - from.y) * Int32(i) / 20
+        sendMouse(x, y, 0)
+        Sleep(15)
+    }
+    Sleep(200)
+    sendMouse(to.x, to.y, 0x0004)
+    if alt {
+        Sleep(500)
+        sendKey(0x12, up: true)
+    }
+}
+
+// sendMouse moves the pointer to x, y on the virtual desktop with SendInput, adding the button
+// flags, 0x0002 for down and 0x0004 for up.
+func sendMouse(_ x: Int32, _ y: Int32, _ buttons: DWORD) {
+    let left = GetSystemMetrics(SM_XVIRTUALSCREEN), top = GetSystemMetrics(SM_YVIRTUALSCREEN)
+    let w = max(2, GetSystemMetrics(SM_CXVIRTUALSCREEN)), h = max(2, GetSystemMetrics(SM_CYVIRTUALSCREEN))
+    var input = INPUT()
+    input.type = DWORD(INPUT_MOUSE)
+    input.mi.dx = LONG((Int(x - left) * 65535) / Int(w - 1))
+    input.mi.dy = LONG((Int(y - top) * 65535) / Int(h - 1))
+    input.mi.dwFlags = 0x0001 | 0x8000 | 0x4000 | buttons
+    _ = SendInput(1, &input, Int32(MemoryLayout<INPUT>.size))
+}
+
+// sendKey sends one key down or up with SendInput.
+func sendKey(_ vk: WORD, up: Bool) {
+    var input = INPUT()
+    input.type = DWORD(INPUT_KEYBOARD)
+    input.ki.wVk = vk
+    input.ki.dwFlags = up ? 0x0002 : 0
+    _ = SendInput(1, &input, Int32(MemoryLayout<INPUT>.size))
 }
 
 // integrity names the mandatory integrity level of pid's token: low, medium, high or system, or

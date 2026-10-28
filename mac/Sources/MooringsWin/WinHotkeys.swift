@@ -177,8 +177,10 @@ final class WinActions {
     }
 
     // apply applies action name to window w and reports whether it moved. On a pin, Maximize lifts
-    // or lowers it and Restore re-moors it; every other action leaves a pin alone.
-    private func apply(_ name: String, to w: WindowInfo, screens: Screens) -> Bool {
+    // or lowers it and Restore re-moors it; every other action leaves a pin alone. A drag's drop runs
+    // its zone's action through it too.
+    @discardableResult
+    func apply(_ name: String, to w: WindowInfo, screens: Screens) -> Bool {
         guard !screens.full.isEmpty else { return false }
         if anchors.pinned(w) {
             switch name {

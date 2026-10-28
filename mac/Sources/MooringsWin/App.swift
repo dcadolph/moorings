@@ -29,6 +29,12 @@ final class App {
     private(set) lazy var actions = WinActions(app: self)
     // hotkeys delivers the shortcuts bound for the actions.
     private(set) lazy var hotkeys = WinHotkeys { [unowned self] name in self.actions.run(name) }
+    // mouse delivers the pointer for drag snapping.
+    private(set) lazy var mouse = WinMouseHook()
+    // drag follows a window moved by its frame and runs its drop.
+    private(set) lazy var drag = WinDrag(app: self)
+    // hooksMouse is false only in the drag probe's negative control, which runs without the hook.
+    var hooksMouse = true
     // watcher delivers the window events.
     private(set) lazy var watcher = WinWatcher { [unowned self] kind, hwnd in self.event(kind, hwnd) }
     // dragging reports whether the owner is moving or sizing a window by its frame.
@@ -83,9 +89,14 @@ final class App {
     // counts as the mouse button held until it ends.
     private func event(_ kind: WinEvent, _ hwnd: HWND) {
         switch kind {
-        case .moveSizeStart: dragging = true
-        case .moveSizeEnd: dragging = false
-        default: break
+        case .moveSizeStart:
+            dragging = true
+            drag.began(hwnd)
+        case .moveSizeEnd:
+            dragging = false
+            drag.ended()
+        default:
+            break
         }
         let id = WinWindows.id(hwnd)
         if kind.geometry, !lastRead.contains(id) {
@@ -101,7 +112,16 @@ final class App {
     func run(until: Double? = nil) {
         let stop = until.map { SetTimer(nil, 0, Self.millis($0 - Self.now), nil) } ?? 0
         watcher.start()
+        if hooksMouse {
+            mouse.handler = { [unowned self] message, p in
+                if message == UINT(WM_MOUSEMOVE) {
+                    self.drag.pointer(p)
+                }
+            }
+            mouse.start()
+        }
         defer {
+            mouse.stop()
             watcher.stop()
             for id in [stop, timer] where id != 0 {
                 _ = KillTimer(nil, id)
@@ -111,6 +131,9 @@ final class App {
         wake()
         var msg = MSG()
         while GetMessageW(&msg, nil, 0, 0) {
+            if mouse.deliver(msg) {
+                continue
+            }
             if msg.message == UINT(WM_HOTKEY), msg.hwnd == nil {
                 hotkeys.fire(msg.wParam)
                 continue
@@ -125,7 +148,7 @@ final class App {
                     due = nil
                     moor()
                 default:
-                    break
+                    _ = mouse.tick(msg.wParam)
                 }
                 continue
             }

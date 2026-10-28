@@ -594,6 +594,31 @@ jobs:
           if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
           LiftCheck $simApp
+
+          Write-Host "SIM probe drag"
+          $pad = Pad
+          Start-Sleep -Seconds 3
+          function Drag([string[]] $extra) {
+            $null = Probe @('--probe', 'nudge', '--pid', "$($pad.Id)", '--frame', '200,150,500,350')
+            Probe (@('--probe', 'drag', '--seconds', '4') + $simApp + $extra)
+          }
+          $d = Drag @()
+          Expect $d '^hook reinstalled: 0$' 'the mouse hook was never put back'
+          Expect $d '^dropped 0x[0-9a-f]+ on zone left-half at ' 'the drop at the left edge landed on left-half'
+          $channel = Rect ($d -match '^channel: ')[0] 'channel: '
+          $half = @($channel[0], $channel[1], [Math]::Floor($channel[2] / 2), $channel[3])
+          $off = Off (Rect ($d -match '^after: ')[0] 'after: ') $half
+          if ($off -gt 1) { throw "after the drop the stand-in is off the channel's left half by $off px" }
+          Write-Host "  check: the drag dropped on left-half and the stand-in took the channel's left half $($half -join ' ')"
+          $d = Drag @('--no-hook')
+          if ($d -match '^dropped ') { throw "a drag without the hook ran a drop" }
+          if ((Off (Rect ($d -match '^after: ')[0] 'after: ') $half) -le 1) { throw "the stand-in reached the left half without the hook, so the drop is untested" }
+          Write-Host "  check: without the hook no drop ran and the stand-in is off the left half"
+          $d = Drag @('--alt')
+          Expect $d '^dropped 0x[0-9a-f]+ on park left-top at ' 'Alt held at the drop parked it in left top'
+          Expect $d '^left top: .*\\mooringswin\.exe$' 'the left top slot holds the stand-in app'
+          Write-Host "  check: Alt held at the drop anchored the stand-in app to the left top slot"
+          Stop-Process -Id $pad.Id
           $script:standIn = $false
           SkipCheck ($sim -join ' ')
 
