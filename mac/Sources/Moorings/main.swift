@@ -167,7 +167,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // strips edits the strip widths and row heights on screen.
     lazy var strips = StripEditor(app: self)
     // tiler keeps free windows in the tiling mode's layout.
-    lazy var tiler = Tiler(app: self)
+    lazy var tiler: Tiler = {
+        let t = Tiler(platform: platform, anchors: anchors, organizer: organizer)
+        let log = Logger(subsystem: "com.dcadolph.moorings", category: "tiling")
+        t.changed = { [unowned self] in save() }
+        t.wake = { [unowned self] in wake() }
+        t.moor = { [unowned self] in moor() }
+        t.log = { line in log.notice("\(line, privacy: .public)") }
+        return t
+    }()
     // edges moves the edge two windows share for both while the edge resize keys are held.
     lazy var edges = EdgeResizer(app: self)
     // hover moves or resizes the window under the pointer while the hover modifiers are held.
