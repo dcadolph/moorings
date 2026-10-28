@@ -1031,7 +1031,7 @@ final class WinHost: ContractHost {
     // open starts a stand-in process and returns its window once it shows.
     func open() -> WindowID? {
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: Tray.executable)
+        p.executableURL = URL(fileURLWithPath: LoginItem.executable)
         p.arguments = ["--probe", "stand", "--seconds", "120"]
         do {
             try p.run()
