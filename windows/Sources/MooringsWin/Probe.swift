@@ -1009,15 +1009,20 @@ final class WinHost: ContractHost {
     private let minAspect: Double
     // stands lists the stand-in processes the host started.
     private var stands: [Process] = []
+    // first is the first stand-in window the host opened, whose border the minimum leaves out.
+    private var first: HWND?
 
     // init builds a host whose screens count a monitor at least minAspect wide as ultrawide.
     init(minAspect: Double) {
         self.minAspect = minAspect
     }
 
-    // minimum is the smallest window Windows lets a person size, which the stand-in keeps.
+    // minimum is the smallest visible frame a stand-in keeps: the smallest window Windows lets a
+    // person size, less the invisible border that rect includes and the store's frames leave out.
     var minimum: (w: Double, h: Double)? {
-        (Double(GetSystemMetrics(SM_CXMINTRACK)), Double(GetSystemMetrics(SM_CYMINTRACK)))
+        let track = (w: Double(GetSystemMetrics(SM_CXMINTRACK)), h: Double(GetSystemMetrics(SM_CYMINTRACK)))
+        guard let first, let d = WinWindows.insets(first) else { return track }
+        return (track.w - d.left - d.right, track.h - d.top - d.bottom)
     }
 
     // now is the tick count in seconds.
@@ -1047,6 +1052,9 @@ final class WinHost: ContractHost {
                 WinWindows.processID($0) == pid && WinWindows.className($0) == standClass && IsWindowVisible($0)
             }
             return found != nil
+        }
+        if first == nil {
+            first = found
         }
         return found.map(WinWindows.id)
     }
@@ -1080,5 +1088,6 @@ final class WinHost: ContractHost {
             p.terminate()
         }
         stands = []
+        first = nil
     }
 }
