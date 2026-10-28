@@ -282,3 +282,58 @@ jobs:
           Expect $t '^saved paused: true$' 'the Pause command saved'
           Write-Host "  check: icon added, slot and Pause commands saved"
           Stop-Process -Id $pad.Id
+
+          function Hotkeys {
+            $null = Probe @('--probe', 'nudge', '--pid', "$($pad.Id)", '--frame', '200,150,500,350')
+            Probe @('--probe', 'hotkeys', '--seconds', '2', '--min-aspect', '1.0')
+          }
+
+          Write-Host "probe hotkeys"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $h = Hotkeys
+          $n = [regex]::Match(($h -match '^table: ')[0], '^table: (\d+) registered: (\d+) skipped: (\d+)$')
+          if (-not $n.Success) { throw "no table line" }
+          $table = [int]$n.Groups[1].Value; $reg = [int]$n.Groups[2].Value; $skip = [int]$n.Groups[3].Value
+          if ($reg -eq 0 -or $reg + $skip -ne $table) { throw "registered $reg plus skipped $skip is not the table's $table" }
+          if (@($h -match '^skipped ').Count -ne $skip) { throw "skipped lines do not match the skipped count" }
+          Expect $h '^hotkeys received: left-half$' 'the injected Ctrl+Alt+Left reached WM_HOTKEY as left-half'
+          $channel = Rect ($h -match '^channel: ')[0] 'channel: '
+          $half = @($channel[0], $channel[1], [Math]::Floor($channel[2] / 2), $channel[3])
+          $off = Off (Rect ($h -match '^after: ')[0] 'after: ') $half
+          if ($off -gt 1) { throw "after the chord Notepad is off the channel's left half by $off px" }
+          Write-Host "  check: $reg registered and $skip skipped of $table, Ctrl+Alt+Left put Notepad on the channel's left half"
+
+          Write-Host "probe hotkeys while another process holds Ctrl+Alt+Left"
+          $holdLog = Join-Path $env:RUNNER_TEMP 'hold.txt'
+          $holder = Start-Process $exe -ArgumentList @('--probe', 'hold', '--seconds', '8') -RedirectStandardOutput $holdLog -NoNewWindow -PassThru
+          $null = $holder.Handle
+          Start-Sleep -Seconds 2
+          $h = Hotkeys
+          $holder.WaitForExit()
+          $held = @(Get-Content $holdLog)
+          $held | ForEach-Object { Write-Host "  $_" }
+          Expect $held '^held: true$' 'the hold probe took Ctrl+Alt+Left'
+          Expect $h '^skipped left-half: another program holds it$' 'left-half skipped while held'
+          Expect $h '^hotkeys received: none$' 'no press reached a skipped chord'
+          if ((Off (Rect ($h -match '^after: ')[0] 'after: ') @(200, 150, 500, 350)) -gt 1) { throw "a skipped chord moved Notepad" }
+          Expect $held '^hotkeys received: 1$' 'the injected chord reached the holder'
+          Write-Host "  check: held chord skipped, Notepad unchanged, the holder got the press"
+
+          Write-Host "probe banner"
+          $b = Probe @('--probe', 'banner', '--min-aspect', '1.0')
+          $line = ($b -match '^banner: ')[0]
+          $box = Rect $line 'banner: '
+          $screen = Rect ($b -match '^screen: ')[0] 'screen: '
+          $scale = [double][regex]::Match($line, ' scale ([\d.]+)$').Groups[1].Value
+          if ($scale -le 0) { throw "no scale in: $line" }
+          if ([Math]::Abs($box[2] - [Math]::Round(380 * $scale)) -gt 1) { throw "banner is $($box[2]) px wide, not 380 points" }
+          $mid = $box[0] + $box[2] / 2 - ($screen[0] + $screen[2] / 2)
+          if ([Math]::Abs($mid) -gt 1) { throw "banner is $mid px off the screen's center" }
+          if ([Math]::Abs($box[1] - $screen[1] - [Math]::Round(10 * $scale)) -gt 1) { throw "banner is not at the top of the screen" }
+          Expect $b '^visible: true topmost: true noactivate: true$' 'a visible top-most banner that never activates'
+          Expect $b '^foreground is banner: false ' 'the banner did not take the foreground'
+          Expect $b '^open at 1 s: true$' 'the banner still open at 1 s'
+          Expect $b '^closed: true$' 'the banner closed itself after the fade'
+          Write-Host "  check: banner at the top center, not the foreground, closed after the fade"
+          Stop-Process -Id $pad.Id

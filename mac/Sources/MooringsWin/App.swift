@@ -22,6 +22,13 @@ final class App {
     var noticed: (WinEvent, WindowID, Double) -> Void = { _, _, _ in }
     // passed is told the time of each pass and how many moves it made.
     var passed: (Double, Int) -> Void = { _, _ in }
+    // notify shows a banner with a title and a body. It does nothing until the app wires the
+    // banner, so probes print none.
+    var notify: (String, String) -> Void = { _, _ in }
+    // actions runs the window actions the shortcuts name.
+    private(set) lazy var actions = WinActions(app: self)
+    // hotkeys delivers the shortcuts bound for the actions.
+    private(set) lazy var hotkeys = WinHotkeys { [unowned self] name in self.actions.run(name) }
     // watcher delivers the window events.
     private(set) lazy var watcher = WinWatcher { [unowned self] kind, hwnd in self.event(kind, hwnd) }
     // dragging reports whether the owner is moving or sizing a window by its frame.
@@ -42,6 +49,9 @@ final class App {
     private var lastFrames: [Frame] = []
     // lastApps is when dead windows were last pruned, nil before the first time.
     private var lastApps: Double?
+    // toldElevated reports whether the banner has told of a window running as administrator this
+    // session.
+    private var toldElevated = false
 
     // init loads the choices from store.
     init(store: Store, minAspect: Double = Layout.minAspect) {
@@ -101,6 +111,10 @@ final class App {
         wake()
         var msg = MSG()
         while GetMessageW(&msg, nil, 0, 0) {
+            if msg.message == UINT(WM_HOTKEY), msg.hwnd == nil {
+                hotkeys.fire(msg.wParam)
+                continue
+            }
             if msg.message == UINT(WM_TIMER), msg.hwnd == nil {
                 switch msg.wParam {
                 case stop where stop != 0:
@@ -166,7 +180,9 @@ final class App {
         }
         for id in anchors.justReleased {
             released(id, t)
+            tellReleased(id, list)
         }
+        tellElevated(all)
         passed(t, moves.count)
         let read = list.map(\.id), frames = list.map(\.frame)
         still = moves.isEmpty && !mouseHeld && read == lastRead && frames == lastFrames
@@ -174,6 +190,35 @@ final class App {
         lastFrames = frames
         schedule(Pace.next(now: Self.now, woke: woke, busy: false, deadlines: anchors.deadlines(),
                            still: still))
+    }
+
+    // landed records frame as the last frame read for the window with id, which an action just
+    // read back after moving it, so the pass after reads it at rest and ends the polling.
+    func landed(_ id: WindowID, at frame: Frame) {
+        if let i = lastRead.firstIndex(of: id) {
+            lastFrames[i] = frame
+        }
+    }
+
+    // tellReleased shows the banner for a pin the owner moved by hand, naming the shortcut that
+    // puts it back when one is bound.
+    private func tellReleased(_ id: WindowID, _ list: [WindowInfo]) {
+        let name = list.first { $0.id == id }.map { Tray.appName($0.bundle) } ?? "The window"
+        let how = Bindings(anchors.choices).map["restore"].map {
+            "Press \(WinHotkeys.spelled($0)) on it to put it back."
+        }
+        notify("\(name) released", how ?? "Moorings leaves it where you put it.")
+    }
+
+    // tellElevated shows the banner once a session for the first window that refused a move because
+    // it runs as administrator.
+    private func tellElevated(_ all: [WindowInfo]) {
+        guard !toldElevated, let w = all.first(where: { windows.elevated.contains($0.id) }) else {
+            return
+        }
+        toldElevated = true
+        notify("\(Tray.appName(w.bundle)) runs as administrator",
+               "Moorings cannot move it. Run Moorings as administrator to hold it too.")
     }
 
     // apply carries out one move: it moves the window, reads where it landed, and moves it once

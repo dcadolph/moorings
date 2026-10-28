@@ -101,6 +101,9 @@ let probes: [String: Probe] = [
     "events": probeEvents,
     "menu": probeMenu,
     "tray": probeTray,
+    "hotkeys": probeHotkeys,
+    "hold": probeHold,
+    "banner": probeBanner,
 ]
 
 // probeVersion prints the version and the DPI awareness the thread runs with.
@@ -182,6 +185,7 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
               "got \(got.map(pixels) ?? "gone")")
     }
     app.released = { id, t in print("released \(hex(id)) at \(stamp(t))") }
+    app.notify = { title, body in print("notice: \(title): \(body)") }
     app.run(until: App.now + opts.seconds)
     let use = app.anchors.inUse(wide)
     print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
@@ -266,6 +270,151 @@ func probeTray(_ opts: ProbeOptions) -> Int32 {
     print("saved paused: \(store.load().paused)")
     tray.hide()
     return 0
+}
+
+// heldChord is Ctrl+Alt+Left, Left half in the built-in keymaps: the chord the hotkeys probe injects
+// and the hold probe takes first.
+let heldChord = (mods: UINT(0x0002 | 0x0001), vk: UINT(0x25))
+
+// probeHotkeys binds the shortcuts from a fresh choices file, prints what was registered and
+// skipped, brings the front Notepad forward, injects Ctrl+Alt+Left, runs the loop for the given
+// seconds, and prints the presses received, Notepad's frame and the channel.
+func probeHotkeys(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    guard let wide = screens.wide else {
+        print("hotkeys: no ultrawide")
+        return 1
+    }
+    let windows = WinWindows.scan(screens: screens).windows
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }),
+          let hwnd = WinWindows.hwnd(pad.id) else {
+        print("hotkeys: no notepad window")
+        return 1
+    }
+    let store = Store()
+    do {
+        try store.save(Choices())
+    } catch {
+        print("hotkeys: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    let map = Bindings(app.anchors.choices).map
+    app.hotkeys.bind(map, runnable: app.actions.supports)
+    defer { app.hotkeys.unbind() }
+    print("table: \(map.count) registered: \(app.hotkeys.names.count) skipped: \(app.hotkeys.skipped.count)")
+    for s in app.hotkeys.skipped {
+        print("skipped \(s.name): \(s.reason)")
+    }
+    print("foreground before: \(foreground())")
+    _ = bringForward(hwnd)
+    print("foreground after: \(foreground()) notepad \(hex(pad.id))")
+    print("before: \(pixels(pad.frame))")
+    print("sent: \(press([0x11, 0x12, 0x25]))")
+    app.run(until: App.now + opts.seconds)
+    let pressed = app.hotkeys.pressed
+    print("hotkeys received: \(pressed.isEmpty ? "none" : pressed.joined(separator: ","))")
+    print("after: \(app.windows.frame(pad.id).map(pixels) ?? "gone")")
+    print("channel: \(pixels(app.anchors.channel(wide)))")
+    return 0
+}
+
+// probeHold takes Ctrl+Alt+Left for the given seconds, the way another program would, and prints
+// whether it got the chord and how many presses reached it: the hotkeys probe's negative control.
+func probeHold(_ opts: ProbeOptions) -> Int32 {
+    let held = RegisterHotKey(nil, 1, heldChord.mods | WinHotkeys.noRepeat, heldChord.vk)
+    print("held: \(held)")
+    var got = 0
+    pump(until: App.now + opts.seconds) { msg in
+        if msg.message == UINT(WM_HOTKEY) {
+            got += 1
+        }
+    }
+    if held {
+        _ = UnregisterHotKey(nil, 1)
+    }
+    print("hotkeys received: \(got)")
+    return 0
+}
+
+// probeBanner shows a banner and prints its rect, the scale, the screen it centers on, whether it
+// took the foreground, and whether it closed itself after the fade.
+func probeBanner(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    guard let screen = screens.wide ?? screens.usable.first else {
+        print("banner: no screen")
+        return 1
+    }
+    let before = GetForegroundWindow()
+    let banner = BannerWindow(minAspect: opts.minAspect)
+    banner.show("Moorings", "The banner probe shows this box, which fades after three seconds and never "
+        + "takes the foreground.")
+    guard let hwnd = banner.window else {
+        print("banner: not shown")
+        return 1
+    }
+    var r = RECT()
+    _ = GetWindowRect(hwnd, &r)
+    let exStyle = DWORD(truncatingIfNeeded: GetWindowLongPtrW(hwnd, GWL_EXSTYLE))
+    print("banner: \(pixels(Frame(r))) scale \(banner.scale)")
+    print("screen: \(pixels(screen))")
+    print("visible: \(IsWindowVisible(hwnd)) topmost: \(exStyle & 0x8 != 0)",
+          "noactivate: \(exStyle & 0x0800_0000 != 0)")
+    pump(until: App.now + 1)
+    print("foreground is banner: \(GetForegroundWindow() == hwnd) kept: \(GetForegroundWindow() == before)")
+    print("open at 1 s: \(IsWindow(hwnd))")
+    pump(until: App.now + BannerWindow.seconds + BannerWindow.fadeSeconds + 1)
+    print("closed: \(!IsWindow(hwnd))")
+    return 0
+}
+
+// pump dispatches the thread's messages until until, passing each to each first.
+func pump(until: Double, _ each: (MSG) -> Void = { _ in }) {
+    let stop = SetTimer(nil, 0, UINT(max(1, ((until - App.now) * 1000).rounded(.up))), nil)
+    defer { _ = KillTimer(nil, stop) }
+    var msg = MSG()
+    while GetMessageW(&msg, nil, 0, 0) {
+        if msg.message == UINT(WM_TIMER), msg.hwnd == nil, msg.wParam == stop {
+            return
+        }
+        each(msg)
+        _ = TranslateMessage(&msg)
+        _ = DispatchMessageW(&msg)
+    }
+}
+
+// foreground names the foreground window the way the list probe names windows.
+func foreground() -> String {
+    GetForegroundWindow().map { hex(WinWindows.id($0)) } ?? "none"
+}
+
+// bringForward makes hwnd the foreground window. Windows lets only the foreground process do that,
+// so when the plain call is refused it joins the foreground thread's input and asks again.
+@discardableResult
+func bringForward(_ hwnd: HWND) -> Bool {
+    if SetForegroundWindow(hwnd) {
+        return true
+    }
+    guard let fg = GetForegroundWindow() else { return false }
+    let theirs = GetWindowThreadProcessId(fg, nil), mine = GetCurrentThreadId()
+    _ = AttachThreadInput(mine, theirs, true)
+    defer { _ = AttachThreadInput(mine, theirs, false) }
+    return SetForegroundWindow(hwnd)
+}
+
+// press injects the keys down in order and up in reverse, and returns how many events Windows
+// took. Arrow keys are sent as extended keys, as a keyboard sends them.
+func press(_ keys: [WORD]) -> UINT {
+    let key = { (vk: WORD, up: Bool) -> INPUT in
+        var input = INPUT()
+        input.type = DWORD(INPUT_KEYBOARD)
+        input.ki.wVk = vk
+        let extended: DWORD = (0x21...0x2E).contains(vk) ? 0x0001 : 0
+        input.ki.dwFlags = extended | (up ? 0x0002 : 0)
+        return input
+    }
+    var inputs = keys.map { key($0, false) } + keys.reversed().map { key($0, true) }
+    return SendInput(UINT(inputs.count), &inputs, Int32(MemoryLayout<INPUT>.size))
 }
 
 // probeNudge moves the front window of a process to a frame, the way an owner or an app would.
