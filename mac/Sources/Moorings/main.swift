@@ -69,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // banner shows what moorings did.
     let banner = BannerPanel()
     // stackBadge counts the stacked windows under the pointer when the choice is on.
-    let stackBadge = StackBadge()
+    let stackBadge = StackBadge(view: BadgePanel())
     // update is a newer release found by the update check, nil when none.
     var update: ReleaseInfo?
     // launched is when moorings started.
@@ -84,16 +84,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var selftest = Selftest(app: self)
     // settings is the settings window.
     lazy var settings = SettingsWindow(app: self)
-    // organizer lays out several windows at once and keeps the workspaces.
-    lazy var organizer = Organizer(app: self)
+    // organizer lays out several windows at once.
+    lazy var organizer: Organizer = {
+        let o = Organizer(platform: platform, anchors: anchors)
+        o.wake = { [unowned self] in wake() }
+        o.moor = { [unowned self] in moor() }
+        return o
+    }()
+    // workspaces saves and recalls workspaces, applies app rules and switches profiles.
+    lazy var workspaces = WorkspaceKeeper(app: self)
     // snap follows drags and snaps the dragged window to the zone under the cursor.
     lazy var snap = MacDrag(app: self)
     // passes run the window passes on the engine's pass loop.
     lazy var passes: PassLoop = {
         let p = PassLoop(platform: platform, anchors: anchors)
-        p.context = { [unowned self] in PassContext(waiting: watcher.waiting || organizer.waiting, launching: launching) }
+        p.context = { [unowned self] in PassContext(waiting: watcher.waiting || workspaces.waiting, launching: launching) }
         p.mouseHeld = { [unowned self] in NSEvent.pressedMouseButtons & 1 != 0 || hover.active }
-        p.deadlines = { [unowned self] in organizer.deadlines() }
+        p.deadlines = { [unowned self] in workspaces.deadlines() }
         p.ticked = { [unowned self] in ticked() }
         p.prepare = { [unowned self] in
             if !tap.running {
@@ -191,7 +198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         updateTimer?.tolerance = 10
         anchors.launch(now: Self.now)
-        _ = organizer
+        _ = workspaces
         tap.onDown = { [weak self] p, flags in
             guard let self else { return false }
             if self.gridPicker.showing {
@@ -293,7 +300,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 notify("Moorings", text ?? "")
             case "workspace":
                 let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "name" }?.value
-                organizer.recall(name ?? "")
+                workspaces.recall(name ?? "")
             default: logger.notice("unknown link: \(url.absoluteString, privacy: .public)")
             }
         }
@@ -335,12 +342,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return tiler.run(name)
         }
         if name.hasPrefix(Keymaps.workspacePrefix) {
-            return organizer.recall(String(name.dropFirst(Keymaps.workspacePrefix.count)))
+            return workspaces.recall(String(name.dropFirst(Keymaps.workspacePrefix.count)))
         }
         if name.hasPrefix(Profile.prefix) {
             let title = String(name.dropFirst(Profile.prefix.count))
             guard anchors.choices.profiles.contains(where: { $0.name == title }) else { return false }
-            DispatchQueue.main.async { [self] in organizer.applyProfile(title) }
+            DispatchQueue.main.async { [self] in workspaces.applyProfile(title) }
             return true
         }
         return false
@@ -444,7 +451,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // updateBadge shows or hides the stack badge for the pointer's place.
     private func updateBadge() {
-        stackBadge.update(palette: .harbor, choices: anchors.choices.stacking,
+        let primary = NSScreen.screens.first?.frame.height ?? 0
+        let loc = NSEvent.mouseLocation
+        stackBadge.update(pointer: Point(x: loc.x, y: primary - loc.y), buttonDown: NSEvent.pressedMouseButtons != 0,
+                          frames: BadgePanel.frames, palette: .harbor, choices: anchors.choices.stacking,
                           gap: anchors.choices.gapPx)
     }
 
@@ -468,11 +478,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
-    // passed runs the Mac's part of each pass: it watches the windows for closing, lets the organizer
+    // passed runs the Mac's part of each pass: it watches the windows for closing, lets the workspaces
     // and the tiler see the windows, and hints how to anchor an app on a first ultrawide.
     private func passed(_ scan: Scan, _ screens: Screens, _ mouseHeld: Bool) {
         watcher.watchClosing(windows.elements)
-        organizer.seen(scan.windows, screens: screens)
+        workspaces.seen(scan.windows, screens: screens)
         tiler.pass(scan.windows, screens: screens, mouseHeld: mouseHeld)
         hintAnchor(screens)
     }
@@ -758,7 +768,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         if note.name == NSApplication.didChangeScreenParametersNotification {
             anchors.screensChanged()
-            organizer.screensChanged()
+            workspaces.screensChanged()
         }
         wake()
     }

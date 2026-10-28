@@ -231,61 +231,20 @@ final class MacDragPanel: @preconcurrency DragPanelHook {
     }
 }
 
-// StackBadge is the small count that sits on the top-right corner of a stacked window while the
-// pointer rests at that window's top-left corner.
+// BadgePanel is the Mac BadgeView: the small count that sits on the top-right corner of a stacked
+// window while the pointer rests at that window's top-left corner.
 @MainActor
-final class StackBadge {
-    // restMove is the most in points the pointer may move between two ticks and still count as
-    // resting.
-    static let restMove = 2.0
-
+final class BadgePanel {
     // panel is the badge window, nil until first shown.
     private var panel: NSPanel?
     // label draws the count.
     private let label = NSTextField(labelWithString: "")
-    // pointer is the pointer position at the previous tick.
-    private var pointer: Point?
-    // settled reports whether the badge was already worked out for the current rest.
-    private var settled = false
-
-    // update runs once a tick. Any move of more than restMove hides the badge and restarts the rest.
-    // On the first tick of a rest it shows the count of the stack whose front window has its
-    // top-left corner under the pointer, or hides the badge when there is none. It reads the window
-    // list once per rest, never while the pointer moves or stays still, and hides the badge while a
-    // mouse button is down.
-    func update(palette: Palette, choices: StackChoices, gap: Double) {
-        guard NSEvent.pressedMouseButtons == 0 else {
-            hide()
-            pointer = nil
-            return
-        }
-        let primary = NSScreen.screens.first?.frame.height ?? 0
-        let loc = NSEvent.mouseLocation
-        let p = Point(x: loc.x, y: primary - loc.y)
-        defer { pointer = p }
-        guard let last = pointer, abs(p.x - last.x) <= Self.restMove, abs(p.y - last.y) <= Self.restMove else {
-            hide()
-            settled = false
-            return
-        }
-        guard !settled else { return }
-        settled = true
-        let frames = Self.frames()
-        guard let i = Tile.hovered(at: p, frames: frames, gap: gap) else { return }
-        let n = Tile.stack(anchorOf: i, among: frames, choices: choices).count
-        if n > 1 {
-            show(n, at: frames[i], primary: primary, palette: palette)
-        }
-    }
-
-    // hide removes the badge.
-    func hide() {
-        panel?.orderOut(nil)
-    }
+    // shown is the mark the badge paints, nil when hidden.
+    private(set) var shown: BadgeMark?
 
     // frames lists the frames of the visible normal windows on screen, front to back, leaving out
     // Moorings' own.
-    private static func frames() -> [Frame] {
+    static func frames() -> [Frame] {
         let own = ProcessInfo.processInfo.processIdentifier
         let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]] ?? []
@@ -300,7 +259,8 @@ final class StackBadge {
     }
 
     // show draws count at the top-right corner of front.
-    private func show(_ count: Int, at front: Frame, primary: Double, palette: Palette) {
+    func show(_ count: Int, at front: Frame, palette: Palette) {
+        let primary = NSScreen.screens.first?.frame.height ?? 0
         let size = NSSize(width: 30, height: 22)
         let rect = NSRect(x: front.x + front.w - size.width - 8, y: primary - front.y - size.height - 8,
                           width: size.width, height: size.height)
@@ -311,6 +271,13 @@ final class StackBadge {
         label.stringValue = "\(count)"
         p.setFrame(rect, display: true)
         p.orderFrontRegardless()
+        shown = BadgeMark(count: count, front: front)
+    }
+
+    // hide removes the badge.
+    func hide() {
+        panel?.orderOut(nil)
+        shown = nil
     }
 
     // makePanel builds the badge window at rect.
@@ -335,6 +302,9 @@ final class StackBadge {
         return p
     }
 }
+
+// BadgePanel is the Mac BadgeView.
+extension BadgePanel: @preconcurrency BadgeView {}
 
 // SnapPanelWindow is the row of targets that appears near the cursor when a drag pauses. Each target
 // draws where its action puts a window.

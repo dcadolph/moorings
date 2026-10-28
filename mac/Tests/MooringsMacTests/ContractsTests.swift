@@ -102,8 +102,9 @@ final class MacHost: @preconcurrency ContractHost {
     let banner = BannerPanel()
     var failures = WindowStoreContract.run(store, host: host)
     failures += OverlayContract.run(Footprint(), store: store, host: host)
+    failures += BadgeContract.run(BadgePanel(), store: store, host: host)
     failures += NotifierContract.run(MacNotifier { banner.show($0, $1, palette: .harbor) }, store: store, host: host)
     failures += SchedulerContract.run(MacScheduler(), clock: MacClock(), host: host)
-    print("Mac contracts: 4 suites, \(failures.count) failures")
+    print("Mac contracts: 5 suites, \(failures.count) failures")
     #expect(failures.isEmpty, "\(failures)")
 }

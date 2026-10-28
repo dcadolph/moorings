@@ -105,7 +105,7 @@ struct SettingsView: View {
                     Text("No workspaces yet. Save one from the Workspaces folder in the menu.").font(.callout)
                 }
                 ForEach(names, id: \.self) { name in
-                    WorkspaceRow(name: name, tied: model.app.organizer.tied(name),
+                    WorkspaceRow(name: name, tied: model.app.workspaces.tied(name),
                                  rename: { new in
                                      model.change {
                                          guard let ws = $0.workspaces.removeValue(forKey: name) else { return }
@@ -117,7 +117,7 @@ struct SettingsView: View {
                                          }
                                      }
                                  },
-                                 tie: { model.app.organizer.tie(name); model.reload() },
+                                 tie: { model.app.workspaces.tie(name); model.reload() },
                                  delete: { model.change {
                                      $0.workspaces[name] = nil
                                      for i in $0.profiles.indices { $0.profiles[i].workspaces.removeAll { $0 == name } }
@@ -213,8 +213,8 @@ struct SettingsView: View {
                         }
                     }
                     HStack {
-                        Button("Switch to it") { model.app.organizer.applyProfile(p.name); model.reload() }
-                        Button("Save current settings into it") { model.app.organizer.saveProfile(p.name); model.reload() }
+                        Button("Switch to it") { model.app.workspaces.applyProfile(p.name); model.reload() }
+                        Button("Save current settings into it") { model.app.workspaces.saveProfile(p.name); model.reload() }
                         Button("Delete") { model.change {
                             $0.profiles.remove(at: i)
                             $0.shortcuts[p.actionName] = nil
@@ -225,9 +225,9 @@ struct SettingsView: View {
                 }
             }
             Button("Save current as profile…") {
-                if let name = Organizer.askName("Save profile", "Name these settings. Switching to the profile later "
+                if let name = WorkspaceKeeper.askName("Save profile", "Name these settings. Switching to the profile later "
                     + "brings them back, and anchored apps stay where they are.") {
-                    model.app.organizer.saveProfile(name)
+                    model.app.workspaces.saveProfile(name)
                     model.reload()
                 }
             }
