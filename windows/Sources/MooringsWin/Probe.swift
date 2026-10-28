@@ -606,6 +606,13 @@ func probeActions(_ opts: ProbeOptions) -> Int32 {
     let names = Set(map.keys).union(window).sorted()
     let ordered = names.filter { !last.contains($0) } + last.filter { names.contains($0) }
     let start = Frame(x: 200, y: 150, w: 500, h: 350)
+    app.windows.move(pad.id, to: Frame(x: start.x, y: start.y, w: 1, h: 1))
+    app.run(until: App.now + 0.3)
+    guard let least = app.windows.frame(pad.id) else {
+        print("actions: window gone")
+        return 1
+    }
+    print("minimum: \(Int(least.w)) \(Int(least.h))")
     var compared = 0, bare = 0
     var worst = 0
     for name in ordered {
@@ -627,11 +634,13 @@ func probeActions(_ opts: ProbeOptions) -> Int32 {
         app.run(until: App.now + 0.3)
         let got = app.windows.frame(pad.id)
         if let want, let got {
-            let off = Int(max(abs(want.x - got.x), abs(want.y - got.y), abs(want.w - got.w),
-                              abs(want.h - got.h)).rounded())
+            let (dx, dw) = actionAxis(want.x, want.w, got.x, got.w, least: least.w)
+            let (dy, dh) = actionAxis(want.y, want.h, got.y, got.h, least: least.h)
+            let off = Int(max(dx, dy, dw, dh).rounded())
             worst = max(worst, off)
             compared += 1
-            print("action \(name): want \(pixels(want)) got \(pixels(got)) off \(off)")
+            let kept = want.w < least.w - 1 || want.h < least.h - 1 ? " kept a minimum" : ""
+            print("action \(name): want \(pixels(want)) got \(pixels(got))\(kept) off \(off)")
         } else {
             bare += 1
             let why = want != nil ? "window gone" : got == nil ? "window gone" : "none on this scene"
@@ -640,6 +649,19 @@ func probeActions(_ opts: ProbeOptions) -> Int32 {
     }
     print("actions: \(compared) compared, \(bare) without a frame, worst off \(worst)")
     return 0
+}
+
+// actionAxis returns how far one axis of a landed frame is off the wanted one. When the wanted
+// length is under the app's least length, the window keeps that least length and its near edge
+// may shift back by the difference to stay on the screen, so either edge in that range is on.
+func actionAxis(_ want: Double, _ wantLen: Double, _ got: Double, _ gotLen: Double, least: Double)
+    -> (Double, Double) {
+    guard wantLen < least - 1 else {
+        return (abs(want - got), abs(wantLen - gotLen))
+    }
+    let slack = least - wantLen
+    let edge = got > want ? got - want : got < want - slack ? want - slack - got : 0
+    return (edge, abs(least - gotLen))
 }
 
 // probeLogin chooses Launch at login once through the tray's command and prints whether the Run key
