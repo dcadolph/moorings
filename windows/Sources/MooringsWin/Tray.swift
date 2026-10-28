@@ -8,6 +8,8 @@ enum Command: Equatable {
     case slot(SlotKey, String)
     case widths(Widths)
     case pause
+    case openSettings
+    case reloadSettings
     case atLogin
     case about
     case quit
@@ -95,6 +97,8 @@ final class Tray {
             MenuItem(title: "Widths", submenu: widths),
             .separator,
             MenuItem(title: "Pause", checked: choices.paused, command: .pause),
+            MenuItem(title: "Open settings file", command: .openSettings),
+            MenuItem(title: "Reload settings", command: .reloadSettings),
             MenuItem(title: "Launch at login", checked: atLogin, command: .atLogin),
             .separator,
             MenuItem(title: "About Moorings", command: .about),
@@ -264,6 +268,13 @@ final class Tray {
             anchors.setWidths(w)
         case .pause:
             anchors.choices.paused.toggle()
+        case .openSettings:
+            openSettings()
+            return
+        case .reloadSettings:
+            app.reload()
+            app.wake()
+            return
         case .atLogin:
             LoginItem.enabled.toggle()
             return
@@ -277,6 +288,18 @@ final class Tray {
         }
         app.save()
         app.wake()
+    }
+
+    // openSettings opens the choices file with its default program, writing it first with the
+    // current choices when it does not exist.
+    private func openSettings() {
+        if !FileManager.default.fileExists(atPath: app.store.url.path) {
+            app.save()
+        }
+        let result = ShellExecuteW(window, wide("open"), wide(app.store.url.path), nil, nil, SW_SHOWNORMAL)
+        if Int(bitPattern: result) <= 32 {
+            FileHandle.standardError.write(Data("tray: settings file not opened: \(result)\n".utf8))
+        }
     }
 
     // loadIcon builds the small icon from the embedded .ico, picking the smallest image at least

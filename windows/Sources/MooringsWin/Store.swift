@@ -1,4 +1,5 @@
 import Foundation
+import WinSDK
 
 import MooringsCore
 import MooringsEngine
@@ -7,6 +8,8 @@ import MooringsEngine
 final class Store: ChoicesStore {
     // url is the choices file.
     let url: URL
+    // stamp is the file's last write time as of the last load or save, nil when there was no file.
+    private(set) var stamp: UInt64?
 
     // init uses %APPDATA%\Moorings\choices.json.
     init() {
@@ -18,7 +21,36 @@ final class Store: ChoicesStore {
 
     // load returns the saved choices, or the defaults when there is no readable file.
     func load() -> Choices {
-        Choices.decode((try? Data(contentsOf: url)) ?? Data())
+        stamp = writeTime()
+        return Choices.decode((try? Data(contentsOf: url)) ?? Data())
+    }
+
+    // changed reports whether the file's last write time differs from the one kept.
+    func changed() -> Bool {
+        writeTime() != stamp
+    }
+
+    // writeTime reads the file's last write time as a FILETIME count, nil when it cannot be read.
+    func writeTime() -> UInt64? {
+        var data = WIN32_FILE_ATTRIBUTE_DATA()
+        let ok = withUnsafeMutablePointer(to: &data) {
+            GetFileAttributesExW(wide(url.path), GetFileExInfoStandard, $0)
+        }
+        guard ok == true else { return nil }
+        return UInt64(data.ftLastWriteTime.dwHighDateTime) << 32
+            | UInt64(data.ftLastWriteTime.dwLowDateTime)
+    }
+
+    // setWriteTime sets the file's last write time to time, a FILETIME count, and reports whether
+    // it took. The kept stamp is left alone.
+    func setWriteTime(_ time: UInt64) -> Bool {
+        let share = DWORD(FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE)
+        let handle = CreateFileW(wide(url.path), DWORD(0x100), share, nil, DWORD(OPEN_EXISTING),
+                                 DWORD(FILE_ATTRIBUTE_NORMAL), nil)
+        guard let handle, handle != INVALID_HANDLE_VALUE else { return false }
+        defer { _ = CloseHandle(handle) }
+        var ft = FILETIME(dwLowDateTime: DWORD(time & 0xFFFF_FFFF), dwHighDateTime: DWORD(time >> 32))
+        return SetFileTime(handle, nil, nil, &ft) == true
     }
 
     // save writes choices, creating the folder on first use.
@@ -26,5 +58,6 @@ final class Store: ChoicesStore {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
         try Choices.encode(choices).write(to: url, options: .atomic)
+        stamp = writeTime()
     }
 }
