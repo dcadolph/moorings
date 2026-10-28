@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 
 import MooringsCore
+import MooringsEngine
 
 // axWindowID reads the CGWindowID behind a window element. It is private to the system but has
 // been stable since macOS 10.6, and every window manager relies on it.
@@ -62,6 +63,8 @@ final class Windows {
 
     // lastFront is the last app other than moorings to come to the front.
     var lastFront: pid_t?
+    // refusedIDs holds the windows whose position or size Accessibility reported it cannot set.
+    private(set) var refusedIDs: Set<WindowID> = []
 
     // front returns the front app, or the one before moorings when a link brought moorings forward.
     private var front: pid_t? {
@@ -248,9 +251,12 @@ final class Windows {
             return
         }
         for step in MoveSteps.steps(from: current, to: frame) {
-            switch step {
+            let err = switch step {
             case .size: AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
             case .position: AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, originValue)
+            }
+            if err == .attributeUnsupported {
+                refusedIDs.insert(id)
             }
         }
     }
@@ -623,5 +629,83 @@ final class Windows {
               AXValueGetValue(unsafeDowncast(s, to: AXValue.self), .cgSize, &size)
         else { return nil }
         return Frame(x: origin.x, y: origin.y, w: size.width, h: size.height)
+    }
+}
+
+// Windows is the Mac WindowStore. Its witnesses run on the main actor, where the engine lives.
+extension Windows: @preconcurrency WindowStore {
+    // scan reads every app when full, otherwise only the apps whose window server frames changed and
+    // the front app.
+    func scan(_ screens: Screens, full: Bool) -> Scan {
+        let read = full ? scan(screens) : scan(screens) { listed, previous, slow, front in
+            .apps(PassPlan.changed(listed: listed, previous: previous, slow: slow).union(front.map { [$0] } ?? []))
+        }
+        return Scan(windows: read.windows, focused: read.focused)
+    }
+
+    // move places the window with the app's Enhanced UI handled as behavior says.
+    func move(_ id: WindowID, to frame: Frame, from: Frame?, behavior: Behaviors) {
+        move(id, to: frame, enhancedUI: behavior.enhancedUI, from: from)
+    }
+
+    // refused lists the windows Accessibility would not move or size.
+    var refused: Set<WindowID> { refusedIDs }
+
+    // alive lists the ids of every window on any space.
+    func alive() -> Set<WindowID> {
+        Self.alive()
+    }
+
+    // ready reports whether moorings has Accessibility access.
+    var ready: Bool { trusted }
+}
+
+// MacScreens is the Mac ScreenSource: the attached displays plus the notch and Stage Manager reads.
+@MainActor
+final class MacScreens: @preconcurrency ScreenSource {
+    // current reads the attached screens.
+    func current() -> Screens {
+        Screens.current()
+    }
+
+    // quirks reads the notched screens, the screens showing the Stage Manager strip and its side.
+    func quirks(_ screens: Screens) -> ScreenQuirks {
+        let right = Self.stageOnRight()
+        let notched = Set(NSScreen.screens.indices.filter { NSScreen.screens[$0].safeAreaInsets.top > 0 })
+        return ScreenQuirks(notched: notched, staged: Self.staged(screens.full, right: right), stageOnRight: right)
+    }
+
+    // windowManager reads a Stage Manager setting from the WindowManager defaults.
+    private static func windowManager(_ key: String) -> Bool? {
+        UserDefaults(suiteName: "com.apple.WindowManager")?.object(forKey: key) as? Bool
+    }
+
+    // stageOnRight reports whether the Stage Manager strip sits on the right: with the Dock on the
+    // left, or with the Dock at the bottom in a right-to-left language.
+    private static func stageOnRight() -> Bool {
+        switch UserDefaults(suiteName: "com.apple.dock")?.string(forKey: "orientation") {
+        case "left": true
+        case "right": false
+        default: Locale.current.language.characterDirection == .rightToLeft
+        }
+    }
+
+    // staged lists the screens showing the Stage Manager strip: Stage Manager is on, the strip is not
+    // set to hide, and at least two WindowManager windows sit at the screen's strip edge. One alone
+    // can be the window being dragged.
+    private static func staged(_ full: [Frame], right: Bool) -> Set<Int> {
+        guard windowManager("GloballyEnabled") == true, windowManager("AutoHide") != true else { return [] }
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+        var counts: [Int: Int] = [:]
+        for entry in list where entry[kCGWindowOwnerName as String] as? String == "WindowManager" {
+            guard let b = entry[kCGWindowBounds as String] as? [String: Double],
+                  let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"] else { continue }
+            let rows = full.indices.filter { full[$0].y <= y && y + h <= full[$0].y + full[$0].h }
+            let edge = { (i: Int) in right ? abs(full[i].x + full[i].w - (x + w)) : abs(x - full[i].x) }
+            if let i = rows.min(by: { edge($0) < edge($1) }) {
+                counts[i, default: 0] += 1
+            }
+        }
+        return Set(counts.filter { $0.value >= 2 }.keys)
     }
 }

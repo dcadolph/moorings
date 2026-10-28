@@ -420,11 +420,10 @@ final class ActionRunner {
         let areas = screens.usable.indices.map { i in
             i == screens.ultrawide ? anchors.channel(screens.usable[i]) : screens.usable[i]
         }
-        let right = Self.stageOnRight()
-        let notched = Set(NSScreen.screens.indices.filter { NSScreen.screens[$0].safeAreaInsets.top > 0 })
+        let quirks = app.platform.screens.quirks(screens)
         let index = index.flatMap { screens.full.indices.contains($0) ? $0 : nil } ?? screens.index(w.frame) ?? 0
         return ActionTarget(screens: screens.full, areas: areas, index: index,
-                            notched: notched, staged: Self.staged(screens.full, right: right), stageOnRight: right)
+                            notched: quirks.notched, staged: quirks.staged, stageOnRight: quirks.stageOnRight)
     }
 
     // frame returns the frame action name gives w on the screen at index, its own screen when nil,
@@ -445,40 +444,6 @@ final class ActionRunner {
         return Actions.frame(name, cur: w.frame, target: target, gap: anchors.choices.gapPx,
                              sizes: Bindings(anchors.choices).specs, last: last[w.id],
                              behavior: anchors.choices.behavior)
-    }
-
-    // windowManager reads a Stage Manager setting from the WindowManager defaults.
-    private static func windowManager(_ key: String) -> Bool? {
-        UserDefaults(suiteName: "com.apple.WindowManager")?.object(forKey: key) as? Bool
-    }
-
-    // stageOnRight reports whether the Stage Manager strip sits on the right: with the Dock on the
-    // left, or with the Dock at the bottom in a right-to-left language.
-    private static func stageOnRight() -> Bool {
-        switch UserDefaults(suiteName: "com.apple.dock")?.string(forKey: "orientation") {
-        case "left": true
-        case "right": false
-        default: Locale.current.language.characterDirection == .rightToLeft
-        }
-    }
-
-    // staged lists the screens showing the Stage Manager strip: Stage Manager is on, the strip is not
-    // set to hide, and at least two WindowManager windows sit at the screen's strip edge. One alone
-    // can be the window being dragged.
-    private static func staged(_ full: [Frame], right: Bool) -> Set<Int> {
-        guard windowManager("GloballyEnabled") == true, windowManager("AutoHide") != true else { return [] }
-        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
-        var counts: [Int: Int] = [:]
-        for entry in list where entry[kCGWindowOwnerName as String] as? String == "WindowManager" {
-            guard let b = entry[kCGWindowBounds as String] as? [String: Double],
-                  let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"] else { continue }
-            let rows = full.indices.filter { full[$0].y <= y && y + h <= full[$0].y + full[$0].h }
-            let edge = { (i: Int) in right ? abs(full[i].x + full[i].w - (x + w)) : abs(x - full[i].x) }
-            if let i = rows.min(by: { edge($0) < edge($1) }) {
-                counts[i, default: 0] += 1
-            }
-        }
-        return Set(counts.filter { $0.value >= 2 }.keys)
     }
 
     // placed returns the frame the last action gave the window with id, nil when none has.

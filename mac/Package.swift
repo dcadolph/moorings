@@ -9,7 +9,10 @@ var targets: [Target] = []
 targets.append(
     .executableTarget(
         name: "Moorings",
-        dependencies: [.product(name: "MooringsCore", package: "core")],
+        dependencies: [
+            .product(name: "MooringsCore", package: "core"),
+            .product(name: "MooringsEngine", package: "core"),
+        ],
         exclude: ["Info.plist"]
     )
 )

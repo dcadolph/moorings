@@ -3,6 +3,7 @@ import ServiceManagement
 import os
 
 import MooringsCore
+import MooringsEngine
 
 // AppDelegate starts Moorings and owns its long-lived objects: the layout, the window reader, the
 // pass timer, and the menu bar item.
@@ -64,6 +65,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var organizer = Organizer(app: self)
     // snap follows drags and snaps the dragged window to the zone under the cursor.
     lazy var snap = DragSnap(app: self)
+    // platform is what the engine reads and drives on the Mac.
+    lazy var platform = Platform(
+        windows: windows, screens: MacScreens(), overlay: Footprint(), notifier: MacNotifier(banner),
+        clock: MacClock(), scheduler: MacScheduler(), store: DefaultsStore(key: Self.choicesKey),
+        warpCursor: { p in CGWarpMouseCursorPosition(CGPoint(x: p.x, y: p.y)) }
+    )
     // hotkeys runs a window action when its shortcut is pressed.
     lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
     // overlay throws a window while the overlay's trigger key is held.
@@ -806,6 +813,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             watcher.forget(app.processIdentifier)
         }
         wake()
+    }
+}
+
+// MacClock is the Mac Clock: seconds since boot, the clock the delegate's own timestamps use.
+final class MacClock: Clock {
+    // now is the system uptime in seconds.
+    var now: Double { ProcessInfo.processInfo.systemUptime }
+}
+
+// MacScheduler is the Mac Scheduler: one main run loop timer, replaced on each schedule.
+@MainActor
+final class MacScheduler: @preconcurrency Scheduler {
+    // timer is the pending timer, nil when nothing is pending.
+    private var timer: Timer?
+    // work is the pending work, nil when nothing is pending.
+    private var work: (() -> Void)?
+
+    // schedule runs work at uptime at on the main thread, replacing any pending work.
+    func schedule(at: Double, _ work: @escaping () -> Void) {
+        timer?.invalidate()
+        self.work = work
+        let wait = max(0, at - ProcessInfo.processInfo.systemUptime)
+        timer = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.fire() }
+        }
+    }
+
+    // cancel drops the pending work.
+    func cancel() {
+        timer?.invalidate()
+        timer = nil
+        work = nil
+    }
+
+    // fire runs the pending work once, clearing it first so the work may schedule more.
+    private func fire() {
+        let w = work
+        timer = nil
+        work = nil
+        w?()
+    }
+}
+
+// DefaultsStore is the Mac ChoicesStore: the encoded choices under one user defaults key.
+final class DefaultsStore: ChoicesStore {
+    // key is the defaults key the choices live under.
+    private let key: String
+
+    // init keeps the choices under key.
+    init(key: String) {
+        self.key = key
+    }
+
+    // load decodes the saved choices, or the defaults when none are saved.
+    func load() -> Choices {
+        Choices.decode(UserDefaults.standard.data(forKey: key) ?? Data())
+    }
+
+    // save encodes choices under the key.
+    func save(_ choices: Choices) throws {
+        UserDefaults.standard.set(try Choices.encode(choices), forKey: key)
     }
 }
 

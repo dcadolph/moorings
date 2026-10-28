@@ -1,6 +1,7 @@
 import AppKit
 
 import MooringsCore
+import MooringsEngine
 
 // BannerView is the banner's content. It holds the banner open while the pointer is over it and
 // runs the banner's action on a click.
@@ -133,5 +134,22 @@ final class BannerPanel {
     // color returns rgb as a color with alpha.
     static func color(_ rgb: RGB, alpha: Double = 1) -> NSColor {
         NSColor(srgbRed: rgb.red, green: rgb.green, blue: rgb.blue, alpha: alpha)
+    }
+}
+
+// MacNotifier is the Mac Notifier: the banner in the harbor palette.
+@MainActor
+final class MacNotifier: @preconcurrency Notifier {
+    // banner is the panel the messages show in.
+    private let banner: BannerPanel
+
+    // init shows messages in banner.
+    init(_ banner: BannerPanel) {
+        self.banner = banner
+    }
+
+    // notify shows title and body in the banner.
+    func notify(_ title: String, _ body: String) {
+        banner.show(title, body, palette: .harbor)
     }
 }

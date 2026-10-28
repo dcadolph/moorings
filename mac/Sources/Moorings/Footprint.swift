@@ -1,6 +1,7 @@
 import AppKit
 
 import MooringsCore
+import MooringsEngine
 
 // Footprint is the borderless panel that shows where a dragged window will land.
 @MainActor
@@ -10,6 +11,8 @@ final class Footprint {
 
     // fadeTime is how long the shown footprint takes to fade out.
     private var fadeTime = 0.0
+    // shown is the frame the footprint covers, nil while hidden.
+    private(set) var shown: Frame?
 
     // show draws the footprint at frame, in global top-left coordinates, in style's colors on palette, fading
     // it in when style fades.
@@ -17,6 +20,7 @@ final class Footprint {
         let primary = NSScreen.screens.first?.frame.height ?? 0
         let rect = NSRect(x: frame.x, y: primary - frame.y - frame.h, width: frame.w, height: frame.h)
         fadeTime = style.fadeTime
+        shown = frame
         if let panel {
             Self.paint(panel.contentView, palette: palette, style: style)
             if fadeTime > 0 {
@@ -57,6 +61,7 @@ final class Footprint {
 
     // hide removes the footprint, fading it out when it faded in.
     func hide() {
+        shown = nil
         guard let p = panel else { return }
         panel = nil
         guard fadeTime > 0 else {
@@ -80,6 +85,14 @@ final class Footprint {
     // color returns tint as a color.
     static func color(_ tint: Tint) -> NSColor {
         NSColor(srgbRed: tint.color.red, green: tint.color.green, blue: tint.color.blue, alpha: tint.alpha)
+    }
+}
+
+// Footprint is the Mac OverlayView.
+extension Footprint: @preconcurrency OverlayView {
+    // show draws the footprint at frame in style's colors on palette.
+    func show(_ frame: Frame, style: FootprintStyle, palette: Palette) {
+        show(frame, palette: palette, style: style)
     }
 }
 
