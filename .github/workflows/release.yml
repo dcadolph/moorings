@@ -9,6 +9,10 @@ on:
 
 permissions:
   contents: write
+  # Keyless signing and build provenance: the job's OIDC token mints the short-lived signing
+  # certificate, and the attestation is stored against this repository.
+  id-token: write
+  attestations: write
 
 jobs:
   build:
@@ -161,6 +165,28 @@ jobs:
       - name: Remove signing keychain
         if: always()
         run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" || true
+
+      - uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
+
+      # One keyless signature over SHA256SUMS covers the zip and the disk image through their
+      # checksums. It is verified at once with the identity check a downloader would run.
+      - name: Sign the checksums
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          cosign sign-blob --yes SHA256SUMS --output-signature SHA256SUMS.sig --output-certificate SHA256SUMS.pem
+          cosign verify-blob SHA256SUMS --signature SHA256SUMS.sig --certificate SHA256SUMS.pem \
+            --certificate-identity-regexp '^https://github.com/dcadolph/moorings/\.github/workflows/release\.yml@refs/tags/v' \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com
+          shasum -a 256 -c SHA256SUMS
+
+      # SLSA build provenance for the zip and the disk image, checkable with gh attestation verify.
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: |
+            dist/*.zip
+            dist/*.dmg
 
       - name: Attach to release
         uses: softprops/action-gh-release@v2
