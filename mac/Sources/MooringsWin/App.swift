@@ -222,13 +222,15 @@ final class App {
     }
 
     // apply carries out one move: it moves the window, reads where it landed, and moves it once
-    // more when it kept a larger size than it was given. Windows has no native fullscreen to leave,
-    // so a request to leave it does nothing.
+    // more when it kept a larger size than it was given. A window that refused the move as elevated
+    // is not tried again. Windows has no native fullscreen to leave, so a request to leave it does
+    // nothing.
     private func apply(_ move: Move) {
         guard !move.exitFullScreen else { return }
         windows.move(move.id, to: move.frame)
         let got = windows.frame(move.id)
         moved(move, Self.now, got)
+        guard !windows.elevated.contains(move.id) else { return }
         guard let got else {
             anchors.unread(move)
             return

@@ -104,6 +104,7 @@ let probes: [String: Probe] = [
     "hotkeys": probeHotkeys,
     "hold": probeHold,
     "banner": probeBanner,
+    "skip": probeSkip,
 ]
 
 // probeVersion prints the version and the DPI awareness the thread runs with.
@@ -366,6 +367,80 @@ func probeBanner(_ opts: ProbeOptions) -> Int32 {
     pump(until: App.now + BannerWindow.seconds + BannerWindow.fadeSeconds + 1)
     print("closed: \(!IsWindow(hwnd))")
     return 0
+}
+
+// probeSkip pins the front Notepad to the left top slot, runs the pass loop for the given seconds,
+// and prints the integrity of the probe and of each window's process, each move with its read-back,
+// each notice, the windows refused as elevated, and the final frames. The workflow puts Task Manager
+// and a packaged app on the left strip first.
+func probeSkip(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    guard let wide = screens.wide else {
+        print("skip: no ultrawide")
+        return 1
+    }
+    let windows = WinWindows.scan(screens: screens).windows
+    guard let pad = windows.first(where: { $0.bundle.hasSuffix("\\notepad.exe") }) else {
+        print("skip: no notepad window")
+        return 1
+    }
+    let store = Store()
+    let choices = Choices(slots: [.leftTop: pad.bundle], widths: Widths(left: 40, right: 30))
+    do {
+        try store.save(choices)
+    } catch {
+        print("skip: \(error)")
+        return 1
+    }
+    print("probe integrity: \(integrity(GetCurrentProcessId()))")
+    for w in windows {
+        let pid = WinWindows.hwnd(w.id).map(WinWindows.processID) ?? 0
+        print("window \(hex(w.id)): \(w.bundle) frame \(pixels(w.frame)) integrity \(integrity(pid))")
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    print("start at \(stamp(App.now)) pinned \(hex(pad.id))")
+    app.moved = { move, t, got in
+        print("move \(hex(move.id)) at \(stamp(t)) to \(pixels(move.frame))",
+              "got \(got.map(pixels) ?? "gone")")
+    }
+    app.notify = { title, body in print("notice: \(title): \(body)") }
+    app.run(until: App.now + opts.seconds)
+    print("end at \(stamp(App.now))")
+    for id in app.windows.elevated.sorted() {
+        print("skipped \(hex(id)): elevated")
+    }
+    print("channel: \(pixels(app.anchors.channel(wide)))")
+    for w in WinWindows.scan(screens: screens).windows {
+        print("final \(hex(w.id)) frame \(pixels(w.frame))")
+    }
+    return 0
+}
+
+// integrity names the mandatory integrity level of pid's token: low, medium, high or system, or
+// unknown when the token cannot be read, as a higher level's token cannot from a lower one.
+func integrity(_ pid: DWORD) -> String {
+    guard let process = OpenProcess(DWORD(PROCESS_QUERY_LIMITED_INFORMATION), false, pid) else {
+        return "unknown"
+    }
+    defer { _ = CloseHandle(process) }
+    var token: HANDLE?
+    guard OpenProcessToken(process, DWORD(TOKEN_QUERY), &token), let token else { return "unknown" }
+    defer { _ = CloseHandle(token) }
+    var size: DWORD = 0
+    _ = GetTokenInformation(token, TokenIntegrityLevel, nil, 0, &size)
+    guard size > 0 else { return "unknown" }
+    let buffer = UnsafeMutableRawPointer.allocate(byteCount: Int(size), alignment: 8)
+    defer { buffer.deallocate() }
+    guard GetTokenInformation(token, TokenIntegrityLevel, buffer, size, &size) else { return "unknown" }
+    let label = buffer.load(as: TOKEN_MANDATORY_LABEL.self)
+    guard let sid = label.Label.Sid, let count = GetSidSubAuthorityCount(sid)?.pointee, count > 0,
+          let rid = GetSidSubAuthority(sid, DWORD(count) - 1)?.pointee else { return "unknown" }
+    switch rid {
+    case ..<0x2000: return "low"
+    case ..<0x3000: return "medium"
+    case ..<0x4000: return "high"
+    default: return "system"
+    }
 }
 
 // pump dispatches the thread's messages until until, passing each to each first.

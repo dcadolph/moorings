@@ -338,6 +338,81 @@ jobs:
           Write-Host "  check: banner at the top center, not the foreground, closed after the fade"
           Stop-Process -Id $pad.Id
 
+          Write-Host "probe skip with Task Manager and a packaged app on the left strip"
+          $lua = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System').EnableLUA
+          $me = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+          $admin = $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          Write-Host "  uac: $lua workflow elevated: $admin"
+          $tm = Start-Process taskmgr -PassThru
+          Start-Sleep -Seconds 3
+          $calc = @(Get-AppxPackage -Name Microsoft.WindowsCalculator -ErrorAction SilentlyContinue)
+          $launch = if ($calc.Count -gt 0) { 'calculator:' } else { 'ms-settings:' }
+          Start-Process $launch
+          Start-Sleep -Seconds 5
+          $l = Probe @('--probe', 'list')
+          $tmWindow = @($l -match '^window 0x[0-9a-f]+: .*\\taskmgr\.exe frame ')
+          if ($tmWindow.Count -ne 1) { throw "want one Task Manager window, got $($tmWindow.Count)" }
+          $frameHost = @(Get-Process ApplicationFrameHost -ErrorAction SilentlyContinue)
+          if ($frameHost.Count -eq 0) { throw "no ApplicationFrameHost after starting $launch" }
+          $null = Probe @('--probe', 'nudge', '--pid', "$($tm.Id)", '--frame', '0,0,380,500')
+          $null = Probe @('--probe', 'nudge', '--pid', "$($frameHost[0].Id)", '--frame', '0,200,380,400')
+          $log = Join-Path $env:RUNNER_TEMP 'skip.txt'
+          $done = Join-Path $env:RUNNER_TEMP 'skip.done'
+          $cmd = Join-Path $env:RUNNER_TEMP 'skip.cmd'
+          Set-Content $cmd -Encoding ascii -Value @(
+            '@echo off',
+            'start "" notepad',
+            'ping -n 4 127.0.0.1 > nul',
+            "`"$exe`" --probe skip --seconds 8 --min-aspect 1.0 > `"$log`" 2>&1",
+            "echo %ERRORLEVEL% > `"$done`""
+          )
+          if ($admin -and $lua -ne 0) {
+            Write-Host "  running the probe as a standard user with runas /trustlevel:0x20000"
+            & runas.exe '/trustlevel:0x20000' "cmd.exe /c `"$cmd`"" | ForEach-Object { Write-Host "  runas: $_" }
+          } else {
+            Start-Process cmd.exe -ArgumentList '/c', "`"$cmd`"" -NoNewWindow
+          }
+          $deadline = (Get-Date).AddSeconds(45)
+          while (-not (Test-Path $done) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+          if (-not (Test-Path $done)) { throw "the skip probe did not finish in 45 s" }
+          $s = @(Get-Content $log)
+          $s | ForEach-Object { Write-Host "  $_" }
+          if ((Get-Content $done).Trim() -ne '0') { throw "skip exited $((Get-Content $done).Trim())" }
+          $level = [regex]::Match(($s -match '^probe integrity: ')[0], ': (\w+)$').Groups[1].Value
+          $tmLine = @($s -match '^window 0x[0-9a-f]+: .*\\taskmgr\.exe frame ')
+          if ($tmLine.Count -ne 1) { throw "the skip probe did not list Task Manager" }
+          $tmId = [regex]::Match($tmLine[0], '^window (0x[0-9a-f]+)').Groups[1].Value
+          $tmLevel = [regex]::Match($tmLine[0], ' integrity (\w+)$').Groups[1].Value
+          $channel = Rect ($s -match '^channel: ')[0] 'channel: '
+          function Inside([string] $id) {
+            $f = Rect ($s -match "^final $id ")[0] 'frame '
+            $f[0] -ge $channel[0] - 1 -and $f[0] + $f[2] -le $channel[0] + $channel[2] + 1
+          }
+          if ($level -eq 'medium' -and $tmLevel -ne 'medium') {
+            Expect $s "^skipped ${tmId}: elevated$" 'Task Manager skipped as elevated'
+            $tries = @($s -match "^move $tmId at ")
+            if ($tries.Count -ne 1) { throw "want one try at Task Manager, got $($tries.Count)" }
+            $quiet = (At ($s -match '^end at ')[0]) - (At $tries[0])
+            if ($quiet -lt 5) { throw "only $quiet s ran after the refused try" }
+            Expect $s '^notice: .+ runs as administrator: ' 'the elevated banner'
+            if ((Off (Rect ($s -match "^final $tmId ")[0] 'frame ') (Rect $tmLine[0] 'frame ')) -gt 1) { throw "Task Manager moved" }
+            Write-Host "  check: Task Manager ($tmLevel) skipped as elevated after one try, none in the next $([Math]::Round($quiet, 1)) s, banner shown"
+          } else {
+            Write-Host "  inconclusive: the probe runs $level and Task Manager $tmLevel, so nothing outranks the probe"
+            if ($s -match "^skipped ${tmId}: ") { throw "Task Manager skipped though it does not outrank the probe" }
+            if (-not (Inside $tmId)) { throw "Task Manager at the probe's level was not pushed into the channel" }
+            Write-Host "  check: Task Manager at the probe's level pushed into the channel"
+          }
+          $pkLine = @($s -match '^window 0x[0-9a-f]+: [^\\\s]+![^\s]+ frame ')
+          if ($pkLine.Count -eq 0) { throw "no packaged app listed by its user model id after starting $launch" }
+          $pkId = [regex]::Match($pkLine[0], '^window (0x[0-9a-f]+)').Groups[1].Value
+          $aumid = [regex]::Match($pkLine[0], '^window 0x[0-9a-f]+: (\S+) frame ').Groups[1].Value
+          if (-not ($s -match "^move $pkId at ")) { throw "the packaged app was not moved" }
+          if (-not (Inside $pkId)) { throw "the packaged app is not inside the channel" }
+          Write-Host "  check: $aumid from $launch listed by its user model id and pushed into the channel"
+          Stop-Process -Id $tm.Id -ErrorAction SilentlyContinue
+          Get-Process notepad, SystemSettings, CalculatorApp -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+
       - name: Package
         id: package
         run: |
