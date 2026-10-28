@@ -29,6 +29,9 @@ final class App {
     // actions runs the window actions the shortcuts name.
     private(set) lazy var actions: ActionRunner = {
         let r = ActionRunner(platform: platform, anchors: anchors)
+        r.extra = ExtraActions(handles: { Tile.handles($0) }, run: { [unowned self] name, window in
+            organizer.run(name, window: window)
+        })
         r.landed = { [unowned self] id, frame in
             landed(id, at: frame)
             wake()
@@ -37,6 +40,13 @@ final class App {
         r.moor = { [unowned self] in moor() }
         r.log = { line in FileHandle.standardError.write(Data("actions: \(line)\n".utf8)) }
         return r
+    }()
+    // organizer tiles, cascades, cycles, mirrors and tidies several windows at once.
+    private(set) lazy var organizer: Organizer = {
+        let o = Organizer(platform: platform, anchors: anchors)
+        o.wake = { [unowned self] in wake() }
+        o.moor = { [unowned self] in moor() }
+        return o
     }()
     // hotkeys delivers the shortcuts bound for the actions.
     private(set) lazy var hotkeys = WinHotkeys { [unowned self] name in self.actions.run(name) }

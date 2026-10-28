@@ -2,11 +2,15 @@ import Foundation
 import WinSDK
 
 import MooringsCore
+import MooringsEngine
 
 // Command is what choosing a tray menu item does.
 enum Command: Equatable {
     case slot(SlotKey, String)
     case widths(Widths)
+    case organize(String)
+    case tidy(Int)
+    case undoTidy
     case pause
     case atLogin
     case about
@@ -42,6 +46,9 @@ final class Tray {
     private var icon: HICON?
     // commands maps each open menu's item ids, from 1, to what they do.
     private var commands: [Command] = []
+    // front is the window that was in front when the menu opened, which an organize command acts
+    // from since the menu takes the focus.
+    private var front: WindowID?
 
     // callback is the message the icon sends on a click, WM_APP + 1.
     static let callback = UINT(WM_APP + 1)
@@ -90,9 +97,16 @@ final class Tray {
             widths.append(.separator)
             widths += owned.map(pair)
         }
+        var organize = Tile.names.map { MenuItem(title: Keymaps.label($0), enabled: !choices.paused, command: .organize($0)) }
+        organize.append(.separator)
+        organize += Organizer.tidyCounts.map {
+            MenuItem(title: "Tidy channel: \($0) front windows", enabled: !choices.paused, command: .tidy($0))
+        }
+        organize.append(MenuItem(title: "Undo tidy", enabled: !choices.paused, command: .undoTidy))
         return [
             MenuItem(title: "Slots", submenu: slots),
             MenuItem(title: "Widths", submenu: widths),
+            MenuItem(title: "Organize", submenu: organize),
             .separator,
             MenuItem(title: "Pause", checked: choices.paused, command: .pause),
             MenuItem(title: "Launch at login", checked: atLogin, command: .atLogin),
@@ -215,6 +229,7 @@ final class Tray {
         let running = WinWindows.scan(screens: .current(minAspect: app.minAspect)).windows.map(\.bundle)
         let items = Tray.menu(choices: app.anchors.choices, running: running, atLogin: LoginItem.enabled)
         commands = []
+        front = GetForegroundWindow().map { WinWindows.id($0) }
         guard let menu = build(items) else { return }
         defer { _ = DestroyMenu(menu) }
         var cursor = POINT()
@@ -262,6 +277,15 @@ final class Tray {
             anchors.lock(key, bundle, now: App.now)
         case .widths(let w):
             anchors.setWidths(w)
+        case .organize(let name):
+            app.organizer.run(name, window: front)
+            return
+        case .tidy(let n):
+            app.organizer.tidy(n)
+            return
+        case .undoTidy:
+            app.organizer.undo()
+            return
         case .pause:
             anchors.choices.paused.toggle()
         case .atLogin:

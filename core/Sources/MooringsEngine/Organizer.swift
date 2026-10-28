@@ -50,14 +50,16 @@ public final class Organizer {
         list.sorted { order(TileWindow(id: $0.id, frame: $0.frame), TileWindow(id: $1.id, frame: $1.frame)) }
     }
 
-    // run applies organize action name on the focused window's screen and reports whether anything
-    // changed.
+    // run applies organize action name on the screen of the window with id window, or of the focused
+    // window when window is nil or gone, and reports whether anything changed. A tray menu passes the
+    // window that was in front before the menu took the focus.
     @discardableResult
-    public func run(_ name: String) -> Bool {
+    public func run(_ name: String, window: WindowID? = nil) -> Bool {
         guard !anchors.choices.paused else { return false }
         let screens = platform.screens.current()
         let scan = platform.windows.scan(screens, full: true)
-        guard let win = scan.focused, let i = screens.index(win.frame) else { return false }
+        let chosen = window.flatMap { id in scan.windows.first { $0.id == id } } ?? scan.focused
+        guard let win = chosen, let i = screens.index(win.frame) else { return false }
         let a = area(screens, i)
         let gap = anchors.choices.gapPx
         let list = organizable(scan.windows, screens, i)

@@ -203,3 +203,12 @@ final class OrganizerRig {
     #expect(!rig.organizer.run("tile-columns"))
     #expect(rig.moved.isEmpty)
 }
+
+// Test 13: A named window stands in for the focus, so a tray menu that took the focus still cycles
+// from the window that was in front.
+@Test func testOrganizerNamedWindow() {
+    let rig = OrganizerRig()
+    rig.windows.focusedID = nil
+    #expect(rig.organizer.run("cycle-stacked-windows", window: rig.pads[1]))
+    #expect(rig.windows.calls.last == .raise(rig.pads[2]))
+}

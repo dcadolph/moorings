@@ -169,6 +169,7 @@ let probes: [String: Probe] = [
     "banner": probeBanner,
     "skip": probeSkip,
     "lift": probeLift,
+    "organize": probeOrganize,
     "login": probeLogin,
     "quit": probeQuit,
     "drag": probeDrag,
@@ -529,6 +530,58 @@ func probeSkip(_ opts: ProbeOptions) -> Int32 {
     print("channel: \(pixels(app.anchors.channel(wide)))")
     for w in WinWindows.scan(screens: screens).windows {
         print("final \(hex(w.id)) frame \(pixels(w.frame))")
+    }
+    return 0
+}
+
+// probeOrganize staggers every window of the app, then runs tile-columns, cascade-all and
+// reverse-all through the action runner from the first of them, the way a shortcut does, and prints
+// the channel and the frame of every window the organizer may move after each. Undo then puts the
+// app's windows back, and their frames are printed beside the staggered ones.
+func probeOrganize(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    let store = Store()
+    do {
+        try store.save(Choices())
+    } catch {
+        print("organize: \(error)")
+        return 1
+    }
+    let app = App(store: store, minAspect: opts.minAspect)
+    let pads = app.windows.scan(screens, full: true).windows.filter { $0.bundle.hasSuffix(opts.app) }
+    guard let first = pads.first, let i = screens.index(first.frame) else {
+        print("organize: no window of \(opts.app)")
+        return 1
+    }
+    var start: [WindowID: Frame] = [:]
+    for (k, p) in pads.enumerated() {
+        let f = Frame(x: screens.usable[i].x + 100 + 40 * Double(k), y: screens.usable[i].y + 100 + 40 * Double(k),
+                      w: 500, h: 350)
+        app.windows.move(p.id, to: f, from: nil, behavior: Behaviors())
+        start[p.id] = f
+    }
+    app.run(until: App.now + 0.5)
+    for p in pads {
+        start[p.id] = app.windows.frame(p.id) ?? start[p.id]
+    }
+    print("pads: \(pads.count)")
+    print("channel: \(pixels(app.organizer.area(screens, i)))")
+    for name in ["tile-columns", "cascade-all", "reverse-all"] {
+        let ran = app.actions.run(name, window: first.id)
+        app.run(until: App.now + 0.5)
+        let now = app.windows.scan(screens, full: true).windows.filter {
+            !app.anchors.pinned($0) && !$0.isFullScreen && screens.index($0.frame) == i
+        }
+        print("\(name): ran \(ran) windows \(now.count)")
+        for w in now {
+            print("\(name) \(w.bundle.hasSuffix(opts.app) ? "pad" : "other"): \(pixels(w.frame))")
+        }
+    }
+    app.organizer.undo()
+    app.run(until: App.now + 0.5)
+    for p in pads {
+        let got = app.windows.frame(p.id)
+        print("undo: want \(start[p.id].map(pixels) ?? "none") got \(got.map(pixels) ?? "none")")
     }
     return 0
 }
