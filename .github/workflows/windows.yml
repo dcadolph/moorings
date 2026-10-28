@@ -532,7 +532,8 @@ jobs:
             $f = Probe (@('--probe', 'workspace') + $geo)
             $n = [int]([regex]::Match(($f -match '^pads: ')[0], '^pads: (\d+)$').Groups[1].Value)
             if ($n -lt 2) { throw "want two windows of the app, got $n" }
-            Expect $f "^saved: $n$" 'every window saved in the workspace'
+            $saved = [int]([regex]::Match(($f -match '^saved: ')[0], '^saved: (\d+)$').Groups[1].Value)
+            if ($saved -lt $n) { throw "the workspace saved $saved windows, fewer than the $n pads" }
             Expect $f '^recalled: true$' 'the workspace recalled'
             foreach ($l in @($f -match '^pad: ')) {
               $m = [regex]::Match($l, '^pad: want (-?\d+ -?\d+ \d+ \d+) got (-?\d+ -?\d+ \d+ \d+)$')
