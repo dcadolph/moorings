@@ -2,20 +2,14 @@
 
 import PackageDescription
 
-var targets: [Target] = [
-    .target(name: "MooringsCore"),
-    .testTarget(
-        name: "MooringsCoreTests",
-        dependencies: ["MooringsCore"]
-    ),
-]
+var targets: [Target] = []
 
-// The app layer is AppKit, so other platforms build the core and its tests alone.
+// The app layer is AppKit, so other platforms build nothing here.
 #if os(macOS)
 targets.append(
     .executableTarget(
         name: "Moorings",
-        dependencies: ["MooringsCore"],
+        dependencies: [.product(name: "MooringsCore", package: "core")],
         exclude: ["Info.plist"]
     )
 )
@@ -26,7 +20,7 @@ targets.append(
 targets.append(
     .executableTarget(
         name: "MooringsWin",
-        dependencies: ["MooringsCore"],
+        dependencies: [.product(name: "MooringsCore", package: "core")],
         resources: [.embedInCode("moorings.ico")]
     )
 )
@@ -35,5 +29,6 @@ targets.append(
 let package = Package(
     name: "Moorings",
     platforms: [.macOS(.v14)],
+    dependencies: [.package(path: "../core")],
     targets: targets
 )

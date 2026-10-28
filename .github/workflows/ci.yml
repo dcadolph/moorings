@@ -1,6 +1,6 @@
 name: ci
 
-# Build the native app and run its Swift suite on macOS.
+# Run the core suite, then build the native app on macOS.
 on:
   push:
     branches: [main]
@@ -16,11 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Core tests
+        run: swift test
+        working-directory: core
+
       - name: Build
         run: swift build
-
-      - name: Test
-        run: swift test
 
       - name: Bundle with Shortcuts metadata
         run: make app ARCHS="arm64 x86_64"

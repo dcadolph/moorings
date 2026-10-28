@@ -28,11 +28,12 @@ jobs:
       - name: Toolchain
         run: swift --version
 
+      - name: Core tests
+        run: swift test
+        working-directory: core
+
       - name: Build
         run: swift build
-
-      - name: Test
-        run: swift test
 
       - name: Probe
         run: |

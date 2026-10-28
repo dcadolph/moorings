@@ -33,8 +33,8 @@ build:
 	swift build
 
 test:
+	swift test --package-path ../core
 	swift build
-	swift test
 
 $(ICNS): ../app-icon.png
 	rm -rf $(ICONSET)
