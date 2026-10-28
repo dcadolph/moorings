@@ -2,10 +2,11 @@ import Foundation
 import WinSDK
 
 import MooringsCore
+import MooringsEngine
 
 // WinFootprint is the layered window that shows where a dragged window will land. Clicks pass
 // through it, it never takes the foreground, and it stays out of the taskbar and Alt-Tab.
-final class WinFootprint {
+final class WinFootprint: OverlayView {
     // className is the footprint window's class.
     static let className = "MooringsFootprint"
     // topmost, toolWindow, layered, transparent and noActivate are the WS_EX_ bits of those names.

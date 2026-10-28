@@ -1,6 +1,7 @@
 import WinSDK
 
 import MooringsCore
+import MooringsEngine
 
 extension Screens {
     // current reads the attached monitors. Only probes change minAspect.
@@ -26,7 +27,7 @@ struct Insets: Equatable {
 }
 
 // WinWindows reads and moves other apps' top-level windows through Win32.
-final class WinWindows {
+final class WinWindows: WindowStore {
     // frameHost is the image that hosts every packaged app's frame window.
     static let frameHost = "applicationframehost.exe"
     // coreWindowClass is the class of a packaged app's content window inside its frame.
@@ -92,6 +93,48 @@ final class WinWindows {
         }
         return false
     }
+
+    // scan returns the movable windows on screens front-most first, and the focused one. Win32 reads
+    // every window in one walk, so full changes nothing.
+    func scan(_ screens: Screens, full: Bool) -> Scan {
+        let read = Self.scan(screens: screens)
+        return Scan(windows: read.windows, focused: read.focused)
+    }
+
+    // move places the window's visible frame at frame. Windows has no Enhanced UI or animation to
+    // honor, so behavior and from change nothing.
+    func move(_ id: WindowID, to frame: Frame, from: Frame?, behavior: Behaviors) {
+        move(id, to: frame)
+    }
+
+    // raise brings the window to the foreground.
+    func raise(_ id: WindowID) {
+        guard let hwnd = Self.hwnd(id) else { return }
+        _ = SetForegroundWindow(hwnd)
+    }
+
+    // minimize sends the window to the taskbar.
+    func minimize(_ id: WindowID) {
+        guard let hwnd = Self.hwnd(id) else { return }
+        _ = ShowWindow(hwnd, SW_MINIMIZE)
+    }
+
+    // close asks the window to close as its close button would.
+    func close(_ id: WindowID) {
+        guard let hwnd = Self.hwnd(id) else { return }
+        _ = PostMessageW(hwnd, UINT(WM_CLOSE), 0, 0)
+    }
+
+    // refused lists the windows that refused a move as elevated.
+    var refused: Set<WindowID> { elevated }
+
+    // alive lists the ids of every top-level window.
+    func alive() -> Set<WindowID> {
+        Set(Self.topLevel().map(Self.id))
+    }
+
+    // ready is always true: Windows asks for no grant to move another app's window.
+    var ready: Bool { true }
 
     // hwnd returns the handle behind id.
     static func hwnd(_ id: WindowID) -> HWND? {
@@ -252,4 +295,25 @@ final class WinWindows {
 final class HandleList {
     // handles holds the handles found so far.
     var handles: [HWND] = []
+}
+
+// WinScreens is the Windows ScreenSource. Monitor.fake stands in for the monitors when a probe sets it.
+final class WinScreens: ScreenSource {
+    // minAspect is the ratio a monitor needs to count as ultrawide. Only probes change it.
+    let minAspect: Double
+
+    // init counts a monitor at least minAspect wide as ultrawide.
+    init(minAspect: Double = Layout.minAspect) {
+        self.minAspect = minAspect
+    }
+
+    // current reads the attached monitors.
+    func current() -> Screens {
+        Screens.current(minAspect: minAspect)
+    }
+
+    // quirks is .none: Windows has no notch or Stage Manager.
+    func quirks(_ screens: Screens) -> ScreenQuirks {
+        .none
+    }
 }

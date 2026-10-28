@@ -2,6 +2,7 @@ import Foundation
 import WinSDK
 
 import MooringsCore
+import MooringsEngine
 
 // App runs the passes on the main thread's message loop: each pass reads the windows, asks Anchors
 // where they belong, and moves them, on a one-shot timer Pace sets.
@@ -35,6 +36,14 @@ final class App {
     private(set) lazy var drag = WinDrag(app: self)
     // footprint shows where a dragged window will land.
     let footprint = WinFootprint()
+    // scheduler runs the engine's deferred work from the message loop's timer branch.
+    let scheduler = WinScheduler()
+    // platform is what the engine reads and drives on Windows.
+    private(set) lazy var platform = Platform(
+        windows: windows, screens: WinScreens(minAspect: minAspect), overlay: footprint,
+        notifier: WinNotifier { [unowned self] in self.notify($0, $1) }, clock: WinClock(), scheduler: scheduler,
+        store: store, warpCursor: { p in _ = SetCursorPos(Int32(p.x.rounded()), Int32(p.y.rounded())) }
+    )
     // hooksMouse is false only in the drag probe's negative control, which runs without the hook.
     var hooksMouse = true
     // watcher delivers the window events.
@@ -129,6 +138,7 @@ final class App {
                 _ = KillTimer(nil, id)
             }
             timer = 0
+            scheduler.cancel()
         }
         wake()
         var msg = MSG()
@@ -150,7 +160,9 @@ final class App {
                     due = nil
                     moor()
                 default:
-                    _ = mouse.tick(msg.wParam)
+                    if !scheduler.fire(msg.wParam) {
+                        _ = mouse.tick(msg.wParam)
+                    }
                 }
                 continue
             }
@@ -263,5 +275,46 @@ final class App {
         guard let again = anchors.landed(move, got: got) else { return }
         windows.move(again.id, to: again.frame)
         moved(again, Self.now, windows.frame(again.id))
+    }
+}
+
+// WinClock is the Windows Clock: seconds since the system started, the clock App.now reads.
+final class WinClock: Clock {
+    // now is the tick count in seconds.
+    var now: Double { App.now }
+}
+
+// WinScheduler is the Windows Scheduler: one thread timer, its work run from the message loop's
+// WM_TIMER branch through fire.
+final class WinScheduler: Scheduler {
+    // timer is the pending thread timer's id, 0 when none.
+    private(set) var timer: UINT_PTR = 0
+    // work is the pending work, nil when nothing is pending.
+    private var work: (() -> Void)?
+
+    // schedule runs work at time at, replacing any pending work.
+    func schedule(at: Double, _ work: @escaping () -> Void) {
+        cancel()
+        self.work = work
+        timer = SetTimer(nil, 0, UINT(max(1, ((at - App.now) * 1000).rounded(.up))), nil)
+    }
+
+    // cancel drops the pending work and its timer.
+    func cancel() {
+        if timer != 0 {
+            _ = KillTimer(nil, timer)
+        }
+        timer = 0
+        work = nil
+    }
+
+    // fire runs the pending work when id is its timer, clearing it first so the work may schedule
+    // more, and reports whether id was its timer.
+    func fire(_ id: UINT_PTR) -> Bool {
+        guard id != 0, id == timer else { return false }
+        let w = work
+        cancel()
+        w?()
+        return true
     }
 }

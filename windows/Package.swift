@@ -9,7 +9,10 @@ var targets: [Target] = []
 targets.append(
     .executableTarget(
         name: "MooringsWin",
-        dependencies: [.product(name: "MooringsCore", package: "core")],
+        dependencies: [
+            .product(name: "MooringsCore", package: "core"),
+            .product(name: "MooringsEngine", package: "core"),
+        ],
         resources: [.embedInCode("moorings.ico")]
     )
 )

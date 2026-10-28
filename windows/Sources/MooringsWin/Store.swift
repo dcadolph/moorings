@@ -1,11 +1,12 @@
 import Foundation
 
 import MooringsCore
+import MooringsEngine
 
 // Store keeps the choices in a JSON file, the same shape the Mac app saves.
-struct Store {
+final class Store: ChoicesStore {
     // url is the choices file.
-    var url: URL
+    let url: URL
 
     // init uses %APPDATA%\Moorings\choices.json.
     init() {

@@ -2,6 +2,7 @@ import Foundation
 import WinSDK
 
 import MooringsCore
+import MooringsEngine
 
 // BannerWindow shows what Moorings did in a box at the top center of the ultrawide, in place of a
 // system notification, and fades it away. It never takes the foreground.
@@ -186,5 +187,22 @@ final class BannerWindow {
     static func colorRef(_ c: RGB) -> COLORREF {
         let byte = { (v: Double) in COLORREF((min(max(v, 0), 1) * 255).rounded()) }
         return byte(c.red) | byte(c.green) << 8 | byte(c.blue) << 16
+    }
+}
+
+// WinNotifier is the Windows Notifier. It hands each message to send, which the app wires to the
+// banner, so probes show none.
+final class WinNotifier: Notifier {
+    // send shows a title and a body.
+    private let send: (String, String) -> Void
+
+    // init shows messages through send.
+    init(_ send: @escaping (String, String) -> Void) {
+        self.send = send
+    }
+
+    // notify shows title and body.
+    func notify(_ title: String, _ body: String) {
+        send(title, body)
     }
 }
