@@ -223,6 +223,7 @@ jobs:
 
           Write-Host "probe events --no-filter"
           $raw = Events 'events-raw' @('--no-filter') '250,180,500,350'
-          if ($raw.Passed -le $run.Passed) { throw "unfiltered run passed $($raw.Passed) events, filtered $($run.Passed): the filter is untested" }
+          if ($run.Passed -ge $run.Raw) { throw "filter dropped none of $($run.Raw) events: the filter is untested" }
+          if ($raw.Passed -ne $raw.Raw) { throw "no-filter run dropped events: passed $($raw.Passed) of $($raw.Raw)" }
           Write-Host "  check: filter passed $($run.Passed) of $($run.Raw) events, no filter passed $($raw.Passed) of $($raw.Raw)"
           Stop-Process -Id $pad.Id
