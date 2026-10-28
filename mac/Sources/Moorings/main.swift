@@ -21,6 +21,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let anchors = Anchors(choices: Choices.decode(UserDefaults.standard.data(forKey: AppDelegate.choicesKey) ?? Data()))
     // windows reads and moves windows.
     let windows = Windows()
+    // pointer reads and warps the mouse pointer.
+    let pointer = MacPointer()
+    // apps names and opens apps.
+    let apps = MacApps()
+    // log writes the engine's lines to the unified log.
+    let log = MacLog()
+    // timers hands each engine object its own scheduler.
+    let timers = MacTimers()
+    // keys reads whether the shortcuts are on and grabs the keys a hold takes.
+    lazy var keys = MacKeys(hotkeys)
     // watcher wakes the passes on window events.
     private lazy var watcher = Watcher { [weak self] el, note in self?.windowEvent(el, note) }
     // actions applies window actions to the focused window.
@@ -44,11 +54,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         r.wake = { [unowned self] in wake() }
         r.moor = { [unowned self] in moor() }
-        r.log = { [unowned self] line in actionLogger.notice("\(line, privacy: .public)") }
+        r.log = { [unowned self] line in log.note(.actions, line) }
         return r
     }()
-    // actionLogger writes why an action did nothing.
-    let actionLogger = Logger(subsystem: "com.dcadolph.moorings", category: "actions")
     // accessibilityPane is the Privacy and Security pane that grants Accessibility.
     static let accessibilityPane = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
@@ -98,16 +106,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // workspaces saves and recalls workspaces, applies app rules and switches profiles.
     lazy var workspaces: WorkspaceKeeper = {
         let k = WorkspaceKeeper(platform: platform, anchors: anchors, organizer: organizer, actions: actions)
-        let settle = MacScheduler()
+        let settle = timers.scheduler()
         k.title = { [unowned self] id in windows.title(id) ?? "" }
         k.openApp = { [unowned self] bundle, target in open(bundle, background: true, target: target) }
         k.after = { seconds, work in settle.schedule(at: Self.now + seconds, work) }
         k.changed = { [unowned self] in save() }
-        k.log = { [unowned self] line in organizeLogger.notice("\(line, privacy: .public)") }
+        k.log = { [unowned self] line in log.note(.organize, line) }
         return k
     }()
-    // organizeLogger writes what a workspace, rule or profile could not do.
-    let organizeLogger = Logger(subsystem: "com.dcadolph.moorings", category: "organize")
     // snap follows drags and snaps the dragged window to the zone under the cursor.
     lazy var snap = MacDrag(app: self)
     // passes run the window passes on the engine's pass loop.
@@ -137,17 +143,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         p.paced = { [unowned self] in paced() }
         p.exitFullScreen = { [unowned self] id in windows.exitFullScreen(id) }
-        p.appName = { [unowned self] bundle in appName(bundle) }
+        p.appName = { [unowned self] bundle in apps.name(bundle) }
         p.greenButton = true
-        p.log = { [unowned self] line in logger.notice("\(line, privacy: .public)") }
+        p.log = { [unowned self] line in log.note(.passes, line) }
         return p
     }()
     // platform is what the engine reads and drives on the Mac.
     lazy var platform = Platform(
         windows: windows, screens: MacScreens(), overlay: Footprint(),
         notifier: MacNotifier { [unowned self] in self.notify($0, $1) },
-        clock: MacClock(), scheduler: MacScheduler(), store: DefaultsStore(key: Self.choicesKey),
-        warpCursor: { p in CGWarpMouseCursorPosition(CGPoint(x: p.x, y: p.y)) }
+        clock: MacClock(), scheduler: timers.scheduler(), store: DefaultsStore(key: Self.choicesKey),
+        warpCursor: { [unowned self] p in pointer.warp(p) }
     )
     // hotkeys runs a window action when its shortcut is pressed.
     lazy var hotkeys = Hotkeys { [weak self] name in self?.actions.run(name) }
@@ -155,20 +161,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var overlay: TriggerOverlay = {
         let o = TriggerOverlay(
             platform: platform, anchors: anchors, actions: actions, footprint: Footprint(),
-            gridView: GridPanel(), picker: gridPicker, ticker: MacScheduler())
-        o.pointer = { Self.pointer() }
-        o.hit = { p in Windows.hit(CGPoint(x: p.x, y: p.y))?.id }
-        o.shortcutsOn = { [unowned self] in hotkeys.enabled }
-        o.grab = { [unowned self] trigger in hotkeys.grab(Hotkeys.gridKeys(trigger)) }
-        o.ungrab = { [unowned self] in hotkeys.ungrab() }
-        o.log = { line in Self.overlayLogger.notice("\(line, privacy: .public)") }
+            gridView: GridPanel(), picker: gridPicker, ticker: timers.scheduler())
+        o.pointer = { [unowned self] in (pointer.position, pointer.buttonDown) }
+        o.hit = { [unowned self] p in windows.hit(p) }
+        o.shortcutsOn = { [unowned self] in keys.shortcutsOn }
+        o.grab = { [unowned self, unowned o] trigger in keys.grab(Hotkeys.gridKeys(trigger)) { o.key($0) } }
+        o.ungrab = { [unowned self] in keys.ungrab() }
+        o.log = { [unowned self] line in log.note(.overlay, line) }
         return o
     }()
     // stasher parks windows at a screen edge, reading the pointer from mouse events while one is.
     lazy var stasher: Stasher = {
-        let s = Stasher(platform: platform, anchors: anchors, rest: MacScheduler())
-        let log = Logger(subsystem: "com.dcadolph.moorings", category: "stash")
-        s.pointer = { Self.pointer() }
+        let s = Stasher(platform: platform, anchors: anchors, rest: timers.scheduler())
+        let log = Logger(subsystem: MacLog.subsystem, category: "stash")
+        s.pointer = { [unowned self] in (pointer.position, pointer.buttonDown) }
         s.watching = { [unowned self] on in watchStash(on) }
         s.wake = { [unowned self] in wake() }
         s.log = { line in log.notice("\(line, privacy: .public)") }
@@ -179,10 +185,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // gridPicker pops a grid of cells for the grid actions.
     lazy var gridPicker: GridPicker = {
         let g = GridPicker(platform: platform, anchors: anchors, actions: actions, view: GridPanel())
-        g.pointer = { Self.pointer().0 }
-        g.grab = { [unowned self] trigger in hotkeys.grab(Hotkeys.gridKeys(trigger)) }
-        g.ungrab = { [unowned self] in hotkeys.ungrab() }
-        g.log = { line in Self.overlayLogger.notice("\(line, privacy: .public)") }
+        g.pointer = { [unowned self] in pointer.position }
+        g.grab = { [unowned self, unowned g] trigger in keys.grab(Hotkeys.gridKeys(trigger)) { g.key($0) } }
+        g.ungrab = { [unowned self] in keys.ungrab() }
+        g.log = { [unowned self] line in log.note(.overlay, line) }
         return g
     }()
     // strips edits the strip widths and row heights on screen.
@@ -190,27 +196,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // tiler keeps free windows in the tiling mode's layout.
     lazy var tiler: Tiler = {
         let t = Tiler(platform: platform, anchors: anchors, organizer: organizer)
-        let log = Logger(subsystem: "com.dcadolph.moorings", category: "tiling")
         t.changed = { [unowned self] in save() }
         t.wake = { [unowned self] in wake() }
         t.moor = { [unowned self] in moor() }
-        t.log = { line in log.notice("\(line, privacy: .public)") }
+        t.log = { [unowned self] line in log.note(.tiling, line) }
         return t
     }()
     // edges moves the edge two windows share for both while the edge resize keys are held.
     lazy var edges = EdgeResizer(app: self)
     // hover moves or resizes the window under the pointer while the hover modifiers are held.
     lazy var hover: HoverMover = {
-        let h = HoverMover(platform: platform, anchors: anchors, ticker: MacScheduler())
-        h.pointer = { Self.pointer() }
-        h.hit = { p in Windows.hit(CGPoint(x: p.x, y: p.y))?.id }
-        h.shortcutsOn = { [unowned self] in hotkeys.enabled }
+        let h = HoverMover(platform: platform, anchors: anchors, ticker: timers.scheduler())
+        h.pointer = { [unowned self] in (pointer.position, pointer.buttonDown) }
+        h.hit = { [unowned self] p in windows.hit(p) }
+        h.shortcutsOn = { [unowned self] in keys.shortcutsOn }
         h.wake = { [unowned self] in wake() }
-        h.log = { line in Self.overlayLogger.notice("\(line, privacy: .public)") }
+        h.log = { [unowned self] line in log.note(.overlay, line) }
         return h
     }()
-    // overlayLogger writes why a throw, grid or hover did nothing.
-    static let overlayLogger = Logger(subsystem: "com.dcadolph.moorings", category: "overlay")
     // item is the menu bar status item.
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     // launching is when passes stop looking for the first window of an app that just launched.
@@ -224,13 +227,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // now returns the time in seconds since boot.
     static var now: Double { ProcessInfo.processInfo.systemUptime }
-
-    // pointer returns where the pointer is in top-left coordinates and whether a mouse button is held.
-    static func pointer() -> (Point, Bool) {
-        let primary = NSScreen.screens.first?.frame.height ?? 0
-        let loc = NSEvent.mouseLocation
-        return (Point(x: loc.x, y: primary - loc.y), NSEvent.pressedMouseButtons != 0)
-    }
 
     // applicationDidFinishLaunching builds the menu, subscribes to events, and runs the first pass.
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -315,16 +311,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let m = Modifiers(flags: flags)
             self?.overlay.flagsChanged(m, at: Point(x: p.x, y: p.y))
             self?.hover.flagsChanged(m, at: Point(x: p.x, y: p.y))
-        }
-        hotkeys.onGrab = { [weak self] tag in
-            guard let self else { return }
-            if self.strips.showing {
-                self.strips.key(tag)
-            } else if self.gridPicker.showing {
-                self.gridPicker.key(tag)
-            } else {
-                self.overlay.key(tag)
-            }
         }
         tap.start()
         rebind()
@@ -448,7 +434,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let b = anchors.choices.behavior
         guard b.doubleClickTitleBar, !anchors.choices.paused, windows.trusted else { return }
         guard UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") == "None" else {
-            actionLogger.notice(
+            log.note(
+                .actions,
                 "title bar double-click: macOS handles it; set Double-click a window's title bar to Do Nothing")
             return
         }
@@ -570,10 +557,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // updateBadge shows or hides the stack badge for the pointer's place.
     private func updateBadge() {
-        let primary = NSScreen.screens.first?.frame.height ?? 0
-        let loc = NSEvent.mouseLocation
         stackBadge.update(
-            pointer: Point(x: loc.x, y: primary - loc.y), buttonDown: NSEvent.pressedMouseButtons != 0,
+            pointer: pointer.position, buttonDown: pointer.buttonDown,
             frames: BadgePanel.frames, palette: .harbor, choices: anchors.choices.stacking,
             gap: anchors.choices.gapPx)
     }
@@ -692,9 +677,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // hintKey is the defaults key that records the first anchor hint was shown.
     static let hintKey = "anchorHint"
 
-    // appName returns the display name of the running app with bundle, the bundle when not found.
+    // appName returns the name to show for the app with bundle.
     func appName(_ bundle: String) -> String {
-        NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first?.localizedName ?? bundle
+        apps.name(bundle)
     }
 
     // hintAnchor says once how to anchor an app, while an ultrawide is attached and nothing is
@@ -829,14 +814,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // open opens the app with bundle the way a Dock click does, which launches it or asks a running
     // app with no window for a new one. A background open leaves the front app in front.
     func open(_ bundle: String, background: Bool, target: String? = nil) {
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-        task.arguments = (background ? ["-g"] : []) + ["-b", bundle] + (target.map { [$0] } ?? [])
-        do {
-            try task.run()
-        } catch {
-            logger.error("open \(bundle, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-        }
+        _ = apps.open(bundle, background: background, target: target)
     }
 
     // launchAtLogin reports whether Moorings is registered as a login item.

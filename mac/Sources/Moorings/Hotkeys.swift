@@ -59,8 +59,8 @@ final class Hotkeys {
     private var grabRefs: [EventHotKeyRef] = []
     // grabTags maps each grabbed key's id to its tag.
     private var grabTags: [UInt32: String] = [:]
-    // onGrab is called with the tag of a pressed grabbed key.
-    var onGrab: @MainActor (String) -> Void = { _ in }
+    // grabHandler is called with the tag of a pressed grabbed key, nil while nothing is grabbed.
+    private var grabHandler: ((String) -> Void)?
 
     // init installs the Carbon handler that reports presses to run.
     init(run: @escaping @MainActor (String) -> Void) {
@@ -129,17 +129,19 @@ final class Hotkeys {
         names = [:]
     }
 
-    // grab registers each key, a key name with Carbon modifiers and a tag, until ungrab, so its presses
-    // go to onGrab instead of the front app. It returns how many keys registered; a key another
-    // shortcut holds is skipped.
+    // grab registers each key until ungrab, so its presses go to handler by tag instead of the front
+    // app. It returns how many keys registered; a key another shortcut holds is skipped. A second grab
+    // replaces the first.
     @discardableResult
-    func grab(_ keys: [(key: String, mods: UInt32, tag: String)]) -> Int {
+    func grab(_ keys: [GrabKey], _ handler: @escaping (String) -> Void) -> Int {
         ungrab()
+        grabHandler = handler
         for (i, k) in keys.enumerated() {
             guard let code = Self.keyCodes[k.key] else { continue }
             var ref: EventHotKeyRef?
             let id = EventHotKeyID(signature: Self.signature, id: Self.grabBase + UInt32(i))
-            guard RegisterEventHotKey(UInt32(code), k.mods, id, GetApplicationEventTarget(), 0, &ref) == noErr, let ref
+            let mods = Self.modifiers(k.modifiers.shortcut)
+            guard RegisterEventHotKey(UInt32(code), mods, id, GetApplicationEventTarget(), 0, &ref) == noErr, let ref
             else { continue }
             grabRefs.append(ref)
             grabTags[id.id] = k.tag
@@ -151,24 +153,26 @@ final class Hotkeys {
     // under the trigger's own modifier, plus Return, Enter and Escape. Fn has no Carbon modifier, so
     // for Fn the bare keys are grabbed, with Home, End, Page Up and Page Down standing in for the
     // arrows Fn turns into them.
-    static func gridKeys(_ trigger: OverlayTrigger) -> [(key: String, mods: UInt32, tag: String)] {
-        let mods: UInt32 =
+    static func gridKeys(_ trigger: OverlayTrigger) -> [GrabKey] {
+        let mods: Modifiers =
             switch trigger {
-            case .rightOption: UInt32(optionKey)
-            case .rightCommand: UInt32(cmdKey)
-            case .rightControl: UInt32(controlKey)
-            case .fn, .none: 0
+            case .rightOption: .option
+            case .rightCommand: .command
+            case .rightControl: .control
+            case .fn, .none: []
             }
         var arrows = [("left", "left"), ("right", "right"), ("up", "up"), ("down", "down")]
         if trigger == .fn {
             arrows += [("home", "left"), ("end", "right"), ("pageup", "up"), ("pagedown", "down")]
         }
-        var out: [(key: String, mods: UInt32, tag: String)] = []
+        var out: [GrabKey] = []
         for (key, dir) in arrows {
-            out.append((key, mods, "move-\(dir)"))
-            out.append((key, mods | UInt32(shiftKey), "grow-\(dir)"))
+            out.append(GrabKey(key: key, modifiers: mods, tag: "move-\(dir)"))
+            out.append(GrabKey(key: key, modifiers: mods.union(.shift), tag: "grow-\(dir)"))
         }
-        out += [("return", mods, "return"), ("enter", mods, "return"), ("escape", mods, "escape")]
+        for (key, tag) in [("return", "return"), ("enter", "return"), ("escape", "escape")] {
+            out.append(GrabKey(key: key, modifiers: mods, tag: tag))
+        }
         return out
     }
 
@@ -179,12 +183,13 @@ final class Hotkeys {
         }
         grabRefs = []
         grabTags = [:]
+        grabHandler = nil
     }
 
     // pressed runs the action for the hotkey with id, or reports a grabbed key's tag.
     private func pressed(_ id: UInt32) {
         if let tag = grabTags[id] {
-            onGrab(tag)
+            grabHandler?(tag)
             return
         }
         guard let name = names[id] else { return }
