@@ -285,7 +285,7 @@ final class Tray {
             _ = MessageBoxW(window, wide(text), wide("About Moorings"), UINT(MB_OK | MB_ICONINFORMATION))
             return
         case .quit:
-            app.engine.stasher.unstashAll()
+            app.engine.shutdown()
             PostQuitMessage(0)
             return
         }

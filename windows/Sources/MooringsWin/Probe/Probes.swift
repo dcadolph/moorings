@@ -27,7 +27,6 @@ let probes: [String: Probe] = [
     "hold": probeHold,
     "banner": probeBanner,
     "skip": probeSkip,
-    "lift": probeLift,
     "chain": probeChain,
     "reload": probeReload,
     "actions": probeActions,

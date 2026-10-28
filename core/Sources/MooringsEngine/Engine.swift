@@ -224,6 +224,13 @@ public final class Engine {
         settle()
     }
 
+    // shutdown puts every stashed window back and clears the pending pass. Both roots run it from Quit,
+    // so no window is left parked off screen.
+    public func shutdown() {
+        stasher.unstashAll()
+        passes.stop()
+    }
+
     // reload re-reads the choices from the store and binds the shortcuts again.
     public func reload() {
         load()
