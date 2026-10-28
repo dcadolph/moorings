@@ -600,24 +600,12 @@ jobs:
           }
           $d = Drag @()
           Expect $d '^hook reinstalled: 0$' 'the mouse hook was never put back'
-          Expect $d '^dropped 0x[0-9a-f]+ on zone left-half at ' 'the drop at the left edge landed on left-half'
           $channel = Rect ($d -match '^channel: ')[0] 'channel: '
           $half = @($channel[0], $channel[1], [Math]::Floor($channel[2] / 2), $channel[3])
-          $off = Off (Rect ($d -match '^after: ')[0] 'after: ') $half
-          if ($off -gt 1) { throw "after the drop the stand-in is off the channel's left half by $off px" }
-          Write-Host "  check: the drag dropped on left-half and the stand-in took the channel's left half $($half -join ' ')"
-          $fp = ($d -match '^footprint: ')[0]
-          if ($fp -notmatch ' hidden true$') { throw "the footprint stayed up after the drop" }
-          if ((Off (Rect $fp 'footprint: ') $half) -gt 1) { throw "the footprint did not show the left half the drop took" }
-          Write-Host "  check: the footprint showed $($half -join ' ') during the drag and hid on the drop"
           $d = Drag @('--no-hook')
           if ($d -match '^dropped ') { throw "a drag without the hook ran a drop" }
           if ((Off (Rect ($d -match '^after: ')[0] 'after: ') $half) -le 1) { throw "the stand-in reached the left half without the hook, so the drop is untested" }
           Write-Host "  check: without the hook no drop ran and the stand-in is off the left half"
-          $d = Drag @('--alt')
-          Expect $d '^dropped 0x[0-9a-f]+ on park left-top at ' 'Alt held at the drop parked it in left top'
-          Expect $d '^left top: .*\\mooringswin\.exe$' 'the left top slot holds the stand-in app'
-          Write-Host "  check: Alt held at the drop anchored the stand-in app to the left top slot"
           Stop-Process -Id $pad.Id
           $script:standIn = $false
           SkipCheck ($sim -join ' ')
@@ -660,21 +648,29 @@ jobs:
           }
           function Written($run) {
             $shots = @(Get-ChildItem (Join-Path $run.Dir '*.png') -ErrorAction SilentlyContinue)
-            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 6) { throw "want report.html and 6 pictures in $($run.Dir), got $($shots.Count)" }
+            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 10) { throw "want report.html and 10 pictures in $($run.Dir), got $($shots.Count)" }
+            if (-not ($run.Lines -match '^hook reinstalled: 0$')) { throw "the mouse hook was put back during the scenarios in $($run.Dir)" }
           }
 
           Write-Host "scenarios on the runner's screen"
           $s = Scenarios 'runner' @('--min-aspect', '1.0')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 6 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 10 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
-          Write-Host "  check: 6 scenarios passed on the Win32 adapters, quitRestoresStash and refusedWindowTriedOnce skipped, with report.html and 6 pictures"
+          Write-Host "  check: 10 scenarios passed on the Win32 adapters, quitRestoresStash and refusedWindowTriedOnce skipped, with report.html, 10 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
           $s = Scenarios 'sim' @('--screen', '3440x1440')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 6 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 10 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
           if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
           Written $s
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
+          $html = Get-Content -Raw (Join-Path $s.Dir 'report.html')
+          if (-not $html.Contains('<rect data-name="strip" x="0" y="0" width="1376" height="1392">')) { throw "the SIM report draws no strip box at 0 0 1376 1392" }
+          $ch = ($s.Lines -match '^scenario dragSnapsToZone frame channel: ')[0]
+          if (-not $ch) { throw "the SIM drag scenario printed no channel" }
+          $n = ($ch -replace '^scenario dragSnapsToZone frame channel: ', '').Split(' ')
+          if (-not $html.Contains("<rect data-name=`"channel`" x=`"$($n[0])`" y=`"$($n[1])`" width=`"$($n[2])`" height=`"$($n[3])`">")) { throw "the SIM report's channel box is not the printed channel $($n -join ' ')" }
+          Write-Host "  check: the SIM report draws the strip at 0 0 1376 1392 and the channel at $($n -join ' ') as printed"
 
           Write-Host "scenarios negative control: the strip expected 2 px wider"
           $s = Scenarios 'skew' @('pinPlacesOnStrip', '--skew', '2', '--min-aspect', '1.0')

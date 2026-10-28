@@ -63,6 +63,7 @@ public struct ScenarioReport: Equatable, Sendable, Codable {
             .ok { color: var(--ok); } .bad { color: var(--bad); } .dim { color: var(--dim); font-size: 14px; }
             table { border-collapse: collapse; } td, th { border: 1px solid var(--line); padding: 2px 8px; text-align: right; }
             img { max-width: 100%; border: 1px solid var(--line); }
+            svg rect { vector-effect: non-scaling-stroke; }
             @media print { nav { display: none; } main { margin: 0; } }
             </style></head><body>
             <nav><h2>\(esc(summary))</h2><p class="dim">Host: \(esc(host)).</p><ul>
@@ -99,9 +100,26 @@ public struct ScenarioReport: Equatable, Sendable, Codable {
             \(rules)
             <ul class="dim">\(notes)</ul>
             <table><tr><th>Frame</th><th>x</th><th>y</th><th>w</th><th>h</th></tr>\(rows)</table>
+            \(svg(r))
             \(shot)
             </section>
             """
+    }
+
+    // svg draws the frames r measured as boxes at their own numbers in one picture, so strips, channel
+    // and windows show where they lie against each other. It is empty when r measured none.
+    private func svg(_ r: ScenarioResult) -> String {
+        guard !r.frames.isEmpty else { return "" }
+        let left = r.frames.map(\.x).min() ?? 0, top = r.frames.map(\.y).min() ?? 0
+        let right = r.frames.map { $0.x + $0.w }.max() ?? 0, bottom = r.frames.map { $0.y + $0.h }.max() ?? 0
+        let boxes = r.frames.map { f in
+            "<rect data-name=\"\(esc(f.name))\" x=\"\(Int(f.x))\" y=\"\(Int(f.y))\" width=\"\(Int(f.w))\" "
+                + "height=\"\(Int(f.h))\"><title>\(esc(f.name))</title></rect>"
+        }.joined()
+        return "<svg role=\"img\" aria-label=\"Frames of \(esc(r.name))\" "
+            + "viewBox=\"\(Int(left)) \(Int(top)) \(Int(right - left)) \(Int(bottom - top))\" "
+            + "style=\"width: 100%; max-height: 240px; fill: none; stroke: currentColor; stroke-width: 2\" "
+            + "preserveAspectRatio=\"xMidYMid meet\">\(boxes)</svg>"
     }
 
     // mark is the word a scenario's line starts with.

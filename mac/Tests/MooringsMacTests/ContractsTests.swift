@@ -23,6 +23,8 @@ final class MacHost: @preconcurrency ContractHost {
     private var opened: [WindowID] = []
     // defaults is the store spoilChoices writes under, nil when the host spoils none.
     var defaults: DefaultsStore?
+    // drag is the follower the host's drags feed, nil when the host drags nothing.
+    var drag: DragFollower?
 
     // init builds a host whose windows store reads.
     init(store: Windows) {

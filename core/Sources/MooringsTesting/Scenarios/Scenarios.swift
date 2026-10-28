@@ -110,6 +110,10 @@ public final class Stage {
     var passes: [Double] = []
     // events lists each window event the engine handled, and the time.
     var events: [(event: WindowEvent, t: Double)] = []
+    // shows lists each footprint frame a drag showed, in order.
+    var shows: [Frame] = []
+    // drops lists each drag's drop: the window and what it dropped on.
+    var drops: [(id: WindowID, on: SnapDrop?)] = []
 
     // init builds a stage on engine and host whose expected strip is skew points wider.
     public init(engine: Engine, host: ScenarioHost, skew: Double = 0) {
@@ -237,6 +241,8 @@ public final class Stage {
         engine.observers.released = { [unowned self] id, t in releases.append((id, t)) }
         engine.observers.passed = { [unowned self] t, _ in passes.append(t) }
         engine.observers.noticed = { [unowned self] event, t in events.append((event, t)) }
+        engine.observers.showed = { [unowned self] f, _ in shows.append(f) }
+        engine.observers.dropped = { [unowned self] id, on in drops.append((id, on)) }
         return saved
     }
 
@@ -251,6 +257,40 @@ public final class Stage {
         releases = []
         passes = []
         events = []
+        shows = []
+        drops = []
+    }
+
+    // full returns the full frame of the host's ultrawide, or records that it has none.
+    func full() -> Frame? {
+        let screens = host.screens()
+        guard let i = screens.ultrawide else {
+            fail("the host has an ultrawide", "none at the host's min aspect")
+            return nil
+        }
+        return screens.full[i]
+    }
+
+    // drag drags w by its title bar until the pointer is at p with held down, and waits until the
+    // engine reports the drop. It reports whether the drop came, recording why when it did not.
+    func drag(_ w: WindowInfo, to p: Point, held: Modifiers = [], _ label: String) -> Bool {
+        guard let f = frame(w.id) else {
+            fail("the store reads the \(label) before the drag", "window \(w.id) gone")
+            return false
+        }
+        let grab = Scenarios.grab(f)
+        let before = drops.count
+        guard host.drag(w.id, by: Point(x: p.x - grab.x, y: p.y - grab.y), held: held) else {
+            fail("the host drags the \(label)", "window \(w.id) from \(grab) to \(p) not dragged")
+            return false
+        }
+        let dropped = host.wait(until: host.now + Scenarios.dropSeconds) { drops.count > before }
+        if !dropped {
+            fail(
+                "a drag of the \(label) ends in a drop within \(Int(Scenarios.dropSeconds)) s",
+                "no drop after the drag from \(grab) to \(p)")
+        }
+        return dropped
     }
 }
 
@@ -266,6 +306,20 @@ public enum Scenarios {
     // graceSeconds is how long a scenario waits after a pin lands before moving it by hand, past the
     // core's 2 s release grace.
     static let graceSeconds = 3.0
+    // dropSeconds is how soon a drag's drop must reach the engine once the host let go.
+    static let dropSeconds = 2.0
+
+    // grab is where a drag presses on a window with frame f: half way across, 15 points down, on the
+    // title bar.
+    public static func grab(_ f: Frame) -> Point {
+        Point(x: f.x + f.w / 2, y: f.y + 15)
+    }
+
+    // edge is where a drag lets go at the left edge of the screen with full frame f: 2 points in, 28
+    // percent of the way down, below the corner and short-edge areas and in the top half for a park.
+    static func edge(_ f: Frame) -> Point {
+        Point(x: f.x + 2, y: (f.y + f.h * 0.28).rounded(.down))
+    }
 
     // all lists every scenario by name with the features it needs, in the order run runs them.
     public static let all: [(name: String, needs: Engine.Features, run: @Sendable (Stage) -> Void)] = [
@@ -277,6 +331,10 @@ public enum Scenarios {
         ("maximizeLiftsPin", [], maximizeLiftsPin),
         ("quitRestoresStash", .stash, quitRestoresStash),
         ("refusedWindowTriedOnce", [], refusedWindowTriedOnce),
+        ("dragSnapsToZone", [], dragSnapsToZone),
+        ("footprintFollowsDrag", [], footprintFollowsDrag),
+        ("dropPastDesktop", [], dropPastDesktop),
+        ("altDragParks", [], altDragParks),
     ]
 
     // featureNames names each feature the way a skip line says it.

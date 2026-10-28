@@ -81,6 +81,8 @@ final class WinHost: ContractHost {
     var timers: (UINT_PTR) -> Bool = { _ in false }
     // hotkey is handed each WM_HOTKEY this thread receives while waiting.
     var hotkey: (WPARAM) -> Void = { _ in }
+    // mouse is handed each thread message while waiting and reports whether it was the mouse hook's.
+    var mouse: (MSG) -> Bool = { _ in false }
     // choices is the choices file touchChoices rewrites and spoilChoices writes, nil when the host has
     // none.
     var choices: URL?
@@ -88,7 +90,7 @@ final class WinHost: ContractHost {
     var shots: URL?
     // modifierKeys pairs each modifier with the virtual key press holds for it, Command as the left
     // Windows key.
-    private static let modifierKeys: [(Modifiers, WORD)] = [
+    static let modifierKeys: [(Modifiers, WORD)] = [
         (.shift, 0x10), (.control, 0x11), (.option, 0x12), (.command, 0x5B),
     ]
     // minAspect is the ratio a monitor needs to count as ultrawide.
@@ -200,6 +202,9 @@ final class WinHost: ContractHost {
         while !done() {
             guard now < deadline else { return false }
             while PeekMessageW(&msg, nil, 0, 0, UINT(PM_REMOVE)) {
+                if mouse(msg) {
+                    continue
+                }
                 if msg.message == UINT(WM_TIMER), msg.hwnd == nil, timers(msg.wParam) {
                     continue
                 }

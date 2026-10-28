@@ -16,6 +16,8 @@ public final class FakeHost: ContractHost {
     public var keys: FakeKeys?
     // store is the store the host rewrites from outside, nil when it rewrites none.
     public var store: FakeStore?
+    // drag is the follower the host's drags feed, nil when the host drags nothing.
+    public var drag: DragFollower?
     // opened lists the windows the host opened.
     private var opened: [WindowID] = []
 
@@ -111,6 +113,29 @@ public final class FakeHost: ContractHost {
 }
 
 extension FakeHost: ScenarioHost {
+    // dragSteps is how many pointer moves a fake drag makes.
+    static let dragSteps = 20
+
+    // drag moves the window by offset the way a person drags it by the title bar: the follower hears
+    // the press, then at each step the window and the pointer move together, the clock advances a
+    // thirtieth of a second, and the follower hears the point with held; then it hears the release.
+    public func drag(_ id: WindowID, by offset: Point, held: Modifiers) -> Bool {
+        guard let drag, let start = windows.frame(id) else { return false }
+        let grab = Scenarios.grab(start)
+        drag.began(window: id, moving: true, at: grab)
+        for i in 1...Self.dragSteps {
+            let t = Double(i) / Double(Self.dragSteps)
+            var f = start
+            f.x += offset.x * t
+            f.y += offset.y * t
+            windows.nudge(id, to: f)
+            clock.advance(by: 1.0 / 30)
+            drag.moved(Point(x: grab.x + offset.x * t, y: grab.y + offset.y * t), held: held)
+        }
+        drag.ended(held: held)
+        return true
+    }
+
     // place moves the window to frame outside the store.
     public func place(_ id: WindowID, at frame: Frame) -> Bool {
         guard windows.frame(id) != nil else { return false }
