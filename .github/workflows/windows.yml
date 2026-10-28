@@ -209,11 +209,16 @@ jobs:
           if (-not $padId) { throw "no window id in the nudge line" }
           $moved = @($e -match "^event locationChange $padId at " | Where-Object { (At $_) -ge $tn })
           if ($moved.Count -eq 0) { throw "no location change event for the nudged Notepad" }
+          $events = @($e -match '^event ')
+          function Cause([double] $at) { @($events | Where-Object { (At $_) -le $at }) | Select-Object -Last 1 }
           $passes = @($e -match '^pass at ' | ForEach-Object { At $_ })
-          $forMove = @($passes | Where-Object { $_ -ge $tn -and $_ -le $tn + 3 })
+          $forMove = @($passes | Where-Object { $_ -ge $tn -and (Cause $_) -match " $padId at " })
           if ($forMove.Count -lt 1 -or $forMove.Count -gt 3) { throw "want 1 to 3 passes for one move, got $($forMove.Count)" }
-          $idle = @($passes | Where-Object { ($_ -gt $t0 + 1.5 -and $_ -lt $tn) -or $_ -gt $tn + 3 })
-          if ($idle.Count -ne 0) { throw "$($idle.Count) passes ran with no window change" }
+          $idle = @($passes | Where-Object {
+            $cause = Cause $_
+            if ($null -eq $cause) { $_ -gt $t0 + 1.5 } else { $_ - (At $cause) -gt 1 }
+          })
+          if ($idle.Count -ne 0) { throw "$($idle.Count) passes ran more than 1 s after the last window event" }
           Write-Host "  check: $($moved.Count) location events and $($forMove.Count) passes for one move, none at rest"
 
           Write-Host "probe events --no-filter"
