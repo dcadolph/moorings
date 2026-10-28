@@ -633,6 +633,8 @@ func probeChain(_ opts: ProbeOptions) -> Int32 {
         }
     }
     return ran ? 0 : 1
+}
+
 // probeReload pins the front Notepad in left top, then changes the choices file twice. The control
 // writes a narrower left width with the file's old write time restored, which no pass may notice.
 // The real write gets a new write time, which the next pass reloads. It prints the frame at each
