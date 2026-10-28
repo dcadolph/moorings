@@ -1,6 +1,6 @@
 name: windows
 
-# Build MooringsCore and run its Swift suite on Windows.
+# Build the package, run its Swift suite, and probe the Windows app on Windows.
 on:
   push:
     branches: [main]
@@ -26,7 +26,579 @@ jobs:
         run: swift --version
 
       - name: Build
-        run: swift build --target MooringsCore
+        run: swift build
 
       - name: Test
         run: swift test
+
+      - name: Probe
+        run: |
+          $exe = Join-Path (swift build --show-bin-path) 'MooringsWin.exe'
+          function Probe([string[]] $probeArgs) {
+            $out = @(& $exe @probeArgs)
+            if ($LASTEXITCODE -ne 0) { throw "probe $probeArgs exited $LASTEXITCODE" }
+            $out | ForEach-Object { Write-Host "  $_" }
+            return ,$out
+          }
+          function Expect($lines, [string] $pattern, [string] $why) {
+            if (-not ($lines -match $pattern)) { throw "missing: $why" }
+          }
+
+          Write-Host "probe version"
+          $v = Probe @('--probe', 'version')
+          Expect $v '^dpi: per-monitor-v2$' 'per-monitor-v2 DPI awareness'
+
+          Write-Host "probe monitors --min-aspect 1.0"
+          $m = Probe @('--probe', 'monitors', '--min-aspect', '1.0')
+          $primary = $m -match '^monitor \d+: full .* primary true$'
+          if ($primary.Count -ne 1) { throw "want one primary monitor line, got $($primary.Count)" }
+          $n = [regex]::Match($primary[0], 'full (-?\d+) (-?\d+) (\d+) (\d+) usable (-?\d+) (-?\d+) (\d+) (\d+)')
+          if ([int]$n.Groups[8].Value -ge [int]$n.Groups[4].Value) { throw "usable height is not below full height" }
+          Expect $m '^ultrawide: 0$' 'ultrawide 0 at min aspect 1.0'
+
+          Write-Host "probe monitors"
+          Expect (Probe @('--probe', 'monitors')) '^ultrawide: none$' 'no ultrawide at the default min aspect'
+
+          Write-Host "probe monitors --min-aspect 3.0"
+          Expect (Probe @('--probe', 'monitors', '--min-aspect', '3.0')) '^ultrawide: none$' 'no ultrawide at min aspect 3.0'
+
+          Write-Host "probe list with one Notepad"
+          $first = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $l = Probe @('--probe', 'list')
+          $windows = @($l -match '^window ')
+          $pads = @($windows -match 'notepad\.exe frame')
+          if ($pads.Count -ne 1) { throw "want one notepad line, got $($pads.Count)" }
+          if (-not ($pads[0] -match 'frame -?\d+ -?\d+ [1-9]\d* [1-9]\d* main true')) { throw "notepad frame empty or not main" }
+          if ($windows.Count -gt 6) { throw "want at most 6 windows, got $($windows.Count)" }
+
+          Write-Host "probe list with two Notepads"
+          $second = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $l = Probe @('--probe', 'list')
+          $pads = @($l -match 'notepad\.exe frame')
+          if ($pads.Count -ne 2) { throw "want two notepad lines, got $($pads.Count)" }
+          $mains = @($pads -match 'main true')
+          if ($mains.Count -ne 1) { throw "want one notepad main, got $($mains.Count)" }
+          Stop-Process -Id $first.Id, $second.Id
+
+          function Placed($lines) {
+            @($lines -match '^asked: ' | ForEach-Object {
+              $n = [regex]::Match($_, '^asked: (-?\d+) (-?\d+) (\d+) (\d+) placed: (-?\d+) (-?\d+) (\d+) (\d+)$')
+              if (-not $n.Success) { throw "bad place line: $_" }
+              $off = 0
+              foreach ($i in 1..4) { $off = [Math]::Max($off, [Math]::Abs([int]$n.Groups[$i].Value - [int]$n.Groups[$i + 4].Value)) }
+              $off
+            })
+          }
+
+          Write-Host "probe place"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $p = Probe @('--probe', 'place')
+          $offs = Placed $p
+          if ($offs.Count -ne 2) { throw "want two placements, got $($offs.Count)" }
+          if (($offs | Measure-Object -Maximum).Maximum -gt 1) { throw "placement off by more than 1 px: $offs" }
+          Expect $p '^delta: -?\d+ -?\d+ -?\d+ -?\d+ elevated false$' 'delta line'
+
+          Write-Host "probe place --no-delta"
+          $p = Probe @('--probe', 'place', '--no-delta')
+          $offs = Placed $p
+          $zero = $p -match '^delta: 0 0 0 0 '
+          if ($zero) { Write-Host "  inconclusive: Notepad has no invisible border" }
+          elseif (($offs | Measure-Object -Maximum).Maximum -le 1) { throw "placement without the delta landed, so the correction is untested" }
+          Stop-Process -Id $pad.Id
+
+          function Rect([string] $line, [string] $prefix) {
+            $n = [regex]::Match($line, [regex]::Escape($prefix) + '(-?\d+) (-?\d+) (\d+) (\d+)')
+            if (-not $n.Success) { throw "no rect after '$prefix' in: $line" }
+            ,@(1..4 | ForEach-Object { [int]$n.Groups[$_].Value })
+          }
+          function Off($a, $b) {
+            $off = 0
+            foreach ($i in 0..3) { $off = [Math]::Max($off, [Math]::Abs($a[$i] - $b[$i])) }
+            $off
+          }
+          function At([string] $line) { [double][regex]::Match($line, ' at ([\d.]+)').Groups[1].Value }
+          function Moor([string] $log, [string[]] $moorArgs, [scriptblock] $during) {
+            $p = Start-Process $exe -ArgumentList $moorArgs -RedirectStandardOutput $log -NoNewWindow -PassThru
+            $null = $p.Handle
+            & $during
+            $p.WaitForExit()
+            $lines = @(Get-Content $log)
+            $lines | ForEach-Object { Write-Host "  $_" }
+            if ($p.ExitCode -ne 0) { throw "moor exited $($p.ExitCode)" }
+            ,$lines
+          }
+
+          Write-Host "probe moor"
+          $a = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $script:nudges = @()
+          $m = Moor (Join-Path $env:RUNNER_TEMP 'moor.txt') @('--probe', 'moor', '--seconds', '14', '--min-aspect', '1.0') {
+            Start-Sleep -Seconds 5
+            $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($a.Id)", '--frame', '420,260,300,200')
+            Start-Sleep -Seconds 2
+            $script:b = Start-Process notepad -PassThru
+            Start-Sleep -Seconds 2
+            $script:nudges += Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
+          }
+          $start = $m -match '^start at '
+          if ($start.Count -ne 1 -or -not ($start[0] -match 'paused false')) { throw "want one unpaused start line" }
+          $t0 = At $start[0]
+          $padA = [regex]::Match($start[0], 'pinned (0x[0-9a-f]+)').Groups[1].Value
+          $strip = Rect ($m -match '^strip: ')[0] 'strip: '
+          $channel = Rect ($m -match '^channel: ')[0] 'channel: '
+          $nudgeA = $script:nudges[0]; $nudgeB = $script:nudges[1]
+          $padB = [regex]::Match($nudgeB, 'nudged (0x[0-9a-f]+)').Groups[1].Value
+          if (-not $padA -or -not $padB) { throw "no window id for the pin or the second Notepad" }
+          if ([regex]::Match($nudgeA, 'nudged (0x[0-9a-f]+)').Groups[1].Value -ne $padA) { throw "nudge moved another window than the pin" }
+
+          $placed = @($m -match "^move $padA at " | Where-Object { (At $_) -le (At $nudgeA) })
+          if ($placed.Count -eq 0) { throw "the pin was never placed" }
+          if ((At $placed[0]) - $t0 -gt 2) { throw "first pin move came after 2 s" }
+          $off = Off (Rect $placed[-1] 'got ') $strip
+          if ($off -gt 1) { throw "pin read back off the left strip by $off px" }
+          Write-Host "  check: pin placed at the left strip within $([Math]::Round((At $placed[0]) - $t0, 3)) s"
+
+          $rel = @($m -match "^released $padA at ")
+          if ($rel.Count -ne 1) { throw "want the pin released once after the hand move, got $($rel.Count)" }
+          $lag = (At $rel[0]) - (At $nudgeA)
+          if ($lag -lt 0 -or $lag -gt 1) { throw "release came $lag s after the nudge" }
+          $finalA = Rect ($m -match "^final $padA ")[0] 'frame '
+          if ((Off $finalA @(420, 260, 300, 200)) -gt 1) { throw "released pin did not stay where it was put" }
+          Write-Host "  check: pin released $([Math]::Round($lag, 3)) s after the hand move and left there"
+
+          $pushed = @($m -match "^move $padB at " | Where-Object { (At $_) -ge (At $nudgeB) })
+          if ($pushed.Count -eq 0) { throw "the second Notepad was not moved after the nudge" }
+          $lag = (At $pushed[0]) - (At $nudgeB)
+          if ($lag -gt 1) { throw "push back came $lag s after the nudge" }
+          $finalB = Rect ($m -match "^final $padB ")[0] 'frame '
+          if ($finalB[0] -lt $channel[0] - 1 -or $finalB[0] + $finalB[2] -gt $channel[0] + $channel[2] + 1) { throw "second Notepad is not inside the channel" }
+          Write-Host "  check: second Notepad pushed into the channel $([Math]::Round($lag, 3)) s after landing on the strip"
+
+          Write-Host "probe moor --paused"
+          $null = Probe @('--probe', 'nudge', '--pid', "$($script:b.Id)", '--frame', '10,10,300,300')
+          $m = Moor (Join-Path $env:RUNNER_TEMP 'paused.txt') @('--probe', 'moor', '--seconds', '4', '--min-aspect', '1.0', '--paused') {}
+          Expect $m 'paused true' 'paused start line'
+          if ($m -match '^move ') { throw "a paused loop moved a window" }
+          $finalB = Rect ($m -match "^final $padB ")[0] 'frame '
+          if ((Off $finalB @(10, 10, 300, 300)) -gt 1) { throw "second Notepad moved while paused" }
+          Write-Host "  check: paused loop moved nothing in 4 s"
+          Stop-Process -Id $a.Id, $script:b.Id
+
+          function Events([string] $name, [string[]] $extra, [string] $frame) {
+            $script:nudge = $null
+            $e = Moor (Join-Path $env:RUNNER_TEMP "$name.txt") (@('--probe', 'events', '--seconds', '10') + $extra) {
+              Start-Sleep -Seconds 4
+              $script:nudge = Probe @('--probe', 'nudge', '--pid', "$($pad.Id)", '--frame', $frame)
+            }
+            $n = [regex]::Match(($e -match '^raw events: ')[0], 'raw events: (\d+) passed: (\d+)')
+            if (-not $n.Success) { throw "no event counts" }
+            [pscustomobject]@{ Lines = $e; Nudge = $script:nudge; Raw = [int]$n.Groups[1].Value; Passed = [int]$n.Groups[2].Value }
+          }
+
+          Write-Host "probe events"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $run = Events 'events' @() '200,150,500,350'
+          $e = $run.Lines
+          $t0 = At ($e -match '^start at ')[0]
+          $tn = At $run.Nudge
+          $padId = [regex]::Match($run.Nudge, 'nudged (0x[0-9a-f]+)').Groups[1].Value
+          if (-not $padId) { throw "no window id in the nudge line" }
+          $moved = @($e -match "^event locationChange $padId at " | Where-Object { (At $_) -ge $tn })
+          if ($moved.Count -eq 0) { throw "no location change event for the nudged Notepad" }
+          $events = @($e -match '^event ')
+          function Cause([double] $at) { @($events | Where-Object { (At $_) -le $at }) | Select-Object -Last 1 }
+          $passes = @($e -match '^pass at ' | ForEach-Object { At $_ })
+          $forMove = @($passes | Where-Object { $_ -ge $tn -and (Cause $_) -match " $padId at " })
+          if ($forMove.Count -lt 1 -or $forMove.Count -gt 3) { throw "want 1 to 3 passes for one move, got $($forMove.Count)" }
+          $idle = @($passes | Where-Object {
+            $cause = Cause $_
+            if ($null -eq $cause) { $_ -gt $t0 + 1.5 } else { $_ - (At $cause) -gt 1 }
+          })
+          if ($idle.Count -ne 0) { throw "$($idle.Count) passes ran more than 1 s after the last window event" }
+          Write-Host "  check: $($moved.Count) location events and $($forMove.Count) passes for one move, none at rest"
+
+          Write-Host "probe events --no-filter"
+          $raw = Events 'events-raw' @('--no-filter') '250,180,500,350'
+          if ($run.Passed -ge $run.Raw) { throw "filter dropped none of $($run.Raw) events: the filter is untested" }
+          if ($raw.Passed -ne $raw.Raw) { throw "no-filter run dropped events: passed $($raw.Passed) of $($raw.Raw)" }
+          Write-Host "  check: filter passed $($run.Passed) of $($run.Raw) events, no filter passed $($raw.Passed) of $($raw.Raw)"
+          Stop-Process -Id $pad.Id
+
+          function Slots($lines) {
+            $slots = [ordered]@{}
+            $slot = $null
+            foreach ($line in $lines) {
+              $n = [regex]::Match($line, '^menu   \[.\] ((Left|Right) (top|bottom)): ')
+              if ($n.Success) { $slot = $n.Groups[1].Value; $slots[$slot] = @(); continue }
+              if ($line -match '^menu   \S|^menu \S') { $slot = $null; continue }
+              $n = [regex]::Match($line, '^menu     \[(.)\] (.+)$')
+              if ($slot -and $n.Success) { $slots[$slot] += $n.Groups[2].Value }
+            }
+            $slots
+          }
+
+          Write-Host "probe menu"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $menu = Probe @('--probe', 'menu')
+          $slots = Slots $menu
+          $want = @('Left top', 'Left bottom', 'Right top', 'Right bottom')
+          if ((@($slots.Keys) -join ',') -ne ($want -join ',')) { throw "slot titles are $(@($slots.Keys) -join ', ')" }
+          foreach ($key in $want) {
+            if (-not ($slots[$key] -contains 'notepad.exe')) { throw "no notepad.exe under $key" }
+            if ($slots[$key][0] -ne 'Clear') { throw "$key does not start with Clear" }
+          }
+          Expect $menu '^menu \[ \] Pause$' 'Pause unchecked'
+          if (@($menu -match '^menu   \[ \] Left \d+%, right \d+%$').Count -ne 3) { throw "want the three built-in width pairs unchecked" }
+          Write-Host "  check: four slots each list notepad.exe, Pause unchecked"
+
+          Write-Host "probe menu after writing paused: true and widths 15 and 40"
+          $file = Join-Path $env:APPDATA 'Moorings\choices.json'
+          $c = Get-Content $file -Raw | ConvertFrom-Json
+          $c | Add-Member -NotePropertyName paused -NotePropertyValue $true -Force
+          $c | Add-Member -NotePropertyName widths -NotePropertyValue ([pscustomobject]@{ left = 15; right = 40 }) -Force
+          $c | ConvertTo-Json -Depth 32 | Set-Content $file
+          $menu = Probe @('--probe', 'menu')
+          Expect $menu '^menu \[x\] Pause$' 'Pause checked'
+          Expect $menu '^menu   \[x\] Left 15%, right 40%$' 'the saved width pair checked'
+          Write-Host "  check: Pause checked, saved width pair checked"
+
+          Write-Host "probe menu --no-apps"
+          $slots = Slots (Probe @('--probe', 'menu', '--no-apps'))
+          foreach ($key in $want) {
+            if (($slots[$key] -join ',') -ne 'Clear') { throw "$key holds $($slots[$key] -join ', ') with no running apps" }
+          }
+          Write-Host "  check: with no running apps each slot holds only Clear"
+
+          Write-Host "probe tray"
+          $t = Probe @('--probe', 'tray')
+          Expect $t '^icon: loaded$' 'the embedded icon decoded'
+          Expect $t '^added: true$' 'the notification area took the icon'
+          Expect $t '^saved left top: .*\\notepad\.exe$' 'the slot command saved Notepad'
+          Expect $t '^saved paused: true$' 'the Pause command saved'
+          Write-Host "  check: icon added, slot and Pause commands saved"
+          Stop-Process -Id $pad.Id
+
+          function Hotkeys {
+            $null = Probe @('--probe', 'nudge', '--pid', "$($pad.Id)", '--frame', '200,150,500,350')
+            Probe @('--probe', 'hotkeys', '--seconds', '2', '--min-aspect', '1.0')
+          }
+
+          Write-Host "probe hotkeys"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $h = Hotkeys
+          $n = [regex]::Match(($h -match '^table: ')[0], '^table: (\d+) registered: (\d+) skipped: (\d+)$')
+          if (-not $n.Success) { throw "no table line" }
+          $table = [int]$n.Groups[1].Value; $reg = [int]$n.Groups[2].Value; $skip = [int]$n.Groups[3].Value
+          if ($reg -eq 0 -or $reg + $skip -ne $table) { throw "registered $reg plus skipped $skip is not the table's $table" }
+          if (@($h -match '^skipped ').Count -ne $skip) { throw "skipped lines do not match the skipped count" }
+          Expect $h '^hotkeys received: left-half$' 'the injected Ctrl+Alt+Left reached WM_HOTKEY as left-half'
+          $channel = Rect ($h -match '^channel: ')[0] 'channel: '
+          $half = @($channel[0], $channel[1], [Math]::Floor($channel[2] / 2), $channel[3])
+          $off = Off (Rect ($h -match '^after: ')[0] 'after: ') $half
+          if ($off -gt 1) { throw "after the chord Notepad is off the channel's left half by $off px" }
+          Write-Host "  check: $reg registered and $skip skipped of $table, Ctrl+Alt+Left put Notepad on the channel's left half"
+
+          Write-Host "probe hotkeys while another process holds Ctrl+Alt+Left"
+          $holdLog = Join-Path $env:RUNNER_TEMP 'hold.txt'
+          $holder = Start-Process $exe -ArgumentList @('--probe', 'hold', '--seconds', '8') -RedirectStandardOutput $holdLog -NoNewWindow -PassThru
+          $null = $holder.Handle
+          Start-Sleep -Seconds 2
+          $h = Hotkeys
+          $holder.WaitForExit()
+          $held = @(Get-Content $holdLog)
+          $held | ForEach-Object { Write-Host "  $_" }
+          Expect $held '^held: true$' 'the hold probe took Ctrl+Alt+Left'
+          Expect $h '^skipped left-half: another program holds it$' 'left-half skipped while held'
+          Expect $h '^hotkeys received: none$' 'no press reached a skipped chord'
+          if ((Off (Rect ($h -match '^after: ')[0] 'after: ') @(200, 150, 500, 350)) -gt 1) { throw "a skipped chord moved Notepad" }
+          Expect $held '^hotkeys received: 1$' 'the injected chord reached the holder'
+          Write-Host "  check: held chord skipped, Notepad unchanged, the holder got the press"
+
+          Write-Host "probe banner"
+          $b = Probe @('--probe', 'banner', '--min-aspect', '1.0')
+          $line = ($b -match '^banner: ')[0]
+          $box = Rect $line 'banner: '
+          $screen = Rect ($b -match '^screen: ')[0] 'screen: '
+          $scale = [double][regex]::Match($line, ' scale ([\d.]+)$').Groups[1].Value
+          if ($scale -le 0) { throw "no scale in: $line" }
+          if ([Math]::Abs($box[2] - [Math]::Round(380 * $scale)) -gt 1) { throw "banner is $($box[2]) px wide, not 380 points" }
+          $mid = $box[0] + $box[2] / 2 - ($screen[0] + $screen[2] / 2)
+          if ([Math]::Abs($mid) -gt 1) { throw "banner is $mid px off the screen's center" }
+          if ([Math]::Abs($box[1] - $screen[1] - [Math]::Round(10 * $scale)) -gt 1) { throw "banner is not at the top of the screen" }
+          Expect $b '^visible: true topmost: true noactivate: true$' 'a visible top-most banner that never activates'
+          Expect $b '^foreground is banner: false ' 'the banner did not take the foreground'
+          Expect $b '^open at 1 s: true$' 'the banner still open at 1 s'
+          Expect $b '^closed: true$' 'the banner closed itself after the fade'
+          Write-Host "  check: banner at the top center, not the foreground, closed after the fade"
+          Stop-Process -Id $pad.Id
+
+          Write-Host "probe skip with Task Manager and a packaged app on the left strip"
+          $lua = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System').EnableLUA
+          $me = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+          $admin = $me.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+          Write-Host "  uac: $lua workflow elevated: $admin"
+          $tm = Start-Process taskmgr -PassThru
+          Start-Sleep -Seconds 3
+          $calc = @(Get-AppxPackage -Name Microsoft.WindowsCalculator -ErrorAction SilentlyContinue)
+          $launch = if ($calc.Count -gt 0) { 'calculator:' } else { 'ms-settings:' }
+          Start-Process $launch
+          Start-Sleep -Seconds 5
+          $l = Probe @('--probe', 'list')
+          $tmWindow = @($l -match '^window 0x[0-9a-f]+: .*\\taskmgr\.exe frame ')
+          if ($tmWindow.Count -ne 1) { throw "want one Task Manager window, got $($tmWindow.Count)" }
+          $frameHost = @(Get-Process ApplicationFrameHost -ErrorAction SilentlyContinue)
+          if ($frameHost.Count -eq 0) { throw "no ApplicationFrameHost after starting $launch" }
+          $null = Probe @('--probe', 'nudge', '--pid', "$($tm.Id)", '--frame', '0,0,380,500')
+          $null = Probe @('--probe', 'nudge', '--pid', "$($frameHost[0].Id)", '--frame', '0,200,380,400')
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.ComponentModel;
+          using System.Runtime.InteropServices;
+
+          // Medium starts a command with a copy of this process's token lowered to medium integrity,
+          // so windows of the runner's high integrity processes outrank it as an elevated app does.
+          public static class Medium {
+              [StructLayout(LayoutKind.Sequential)]
+              struct SidAndAttributes { public IntPtr Sid; public uint Attributes; }
+              [StructLayout(LayoutKind.Sequential)]
+              struct MandatoryLabel { public SidAndAttributes Label; }
+              [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+              struct StartupInfo {
+                  public int cb; public string reserved, desktop, title;
+                  public int x, y, xSize, ySize, xChars, yChars, fill, flags;
+                  public short show, reserved2; public IntPtr reserved3, stdIn, stdOut, stdErr;
+              }
+              [StructLayout(LayoutKind.Sequential)]
+              struct ProcessInfo { public IntPtr process, thread; public int pid, tid; }
+
+              [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
+              [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr h, uint ms);
+              [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr h, out uint code);
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern bool DuplicateTokenEx(IntPtr token, uint access, IntPtr attrs, int level, int type, out IntPtr dup);
+              [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+              static extern bool ConvertStringSidToSid(string sid, out IntPtr psid);
+              [DllImport("advapi32.dll")] static extern int GetLengthSid(IntPtr sid);
+              [DllImport("advapi32.dll", SetLastError = true)]
+              static extern bool SetTokenInformation(IntPtr token, int cls, ref MandatoryLabel info, int length);
+              [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+              static extern bool CreateProcessAsUser(IntPtr token, string app, string cmd, IntPtr pa, IntPtr ta,
+                  bool inherit, uint flags, IntPtr env, string dir, ref StartupInfo si, out ProcessInfo pi);
+
+              // Run starts cmd at medium integrity, waits up to ms, and returns its exit code.
+              public static uint Run(string cmd, uint ms) {
+                  IntPtr token, dup, sid;
+                  if (!OpenProcessToken(GetCurrentProcess(), 0xF01FF, out token)) throw new Win32Exception();
+                  if (!DuplicateTokenEx(token, 0xF01FF, IntPtr.Zero, 2, 1, out dup)) throw new Win32Exception();
+                  if (!ConvertStringSidToSid("S-1-16-8192", out sid)) throw new Win32Exception();
+                  var label = new MandatoryLabel();
+                  label.Label.Sid = sid;
+                  label.Label.Attributes = 0x20;
+                  if (!SetTokenInformation(dup, 25, ref label, Marshal.SizeOf(label) + GetLengthSid(sid))) throw new Win32Exception();
+                  var si = new StartupInfo();
+                  si.cb = Marshal.SizeOf(si);
+                  ProcessInfo pi;
+                  if (!CreateProcessAsUser(dup, null, cmd, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, null, ref si, out pi)) throw new Win32Exception();
+                  if (WaitForSingleObject(pi.process, ms) != 0) throw new TimeoutException("medium run did not finish");
+                  uint code;
+                  GetExitCodeProcess(pi.process, out code);
+                  return code;
+              }
+          }
+          '@
+          function Skip([string] $name, [bool] $medium) {
+            $log = Join-Path $env:RUNNER_TEMP "$name.txt"
+            $cmd = Join-Path $env:RUNNER_TEMP "$name.cmd"
+            Set-Content $cmd -Encoding ascii -Value @(
+              '@echo off',
+              'start "" notepad',
+              'ping -n 4 127.0.0.1 > nul',
+              "`"$exe`" --probe skip --seconds 8 --min-aspect 1.0 > `"$log`" 2>&1"
+            )
+            if ($medium) {
+              $code = [Medium]::Run("cmd.exe /c `"$cmd`"", 45000)
+            } else {
+              $p = Start-Process cmd.exe -ArgumentList '/c', "`"$cmd`"" -NoNewWindow -PassThru
+              if (-not $p.WaitForExit(45000)) { throw "the $name probe did not finish in 45 s" }
+              $code = $p.ExitCode
+            }
+            $s = @(Get-Content $log)
+            $s | ForEach-Object { Write-Host "  $_" }
+            if ($code -ne 0) { throw "the $name probe exited $code" }
+            ,$s
+          }
+          function Inside($s, [string] $id) {
+            $channel = Rect ($s -match '^channel: ')[0] 'channel: '
+            $f = Rect ($s -match "^final $id ")[0] 'frame '
+            $f[0] -ge $channel[0] - 1 -and $f[0] + $f[2] -le $channel[0] + $channel[2] + 1
+          }
+          function Listed($s, [string] $pattern, [string] $what) {
+            $line = @($s -match "^window 0x[0-9a-f]+: $pattern frame ")
+            if ($line.Count -ne 1) { throw "the skip probe listed $($line.Count) $what windows" }
+            [pscustomobject]@{
+              Line = $line[0]
+              Id = [regex]::Match($line[0], '^window (0x[0-9a-f]+)').Groups[1].Value
+              Level = [regex]::Match($line[0], ' integrity (\w+)$').Groups[1].Value
+            }
+          }
+
+          Write-Host "  skip at the runner's own integrity"
+          $s = Skip 'skip' $false
+          $tmw = Listed $s '.*\\taskmgr\.exe' 'Task Manager'
+          if ($s -match "^skipped $($tmw.Id): ") { throw "Task Manager skipped though it does not outrank the probe" }
+          if (-not (Inside $s $tmw.Id)) { throw "Task Manager at the probe's level was not pushed into the channel" }
+          Write-Host "  check: Task Manager at the probe's level ($($tmw.Level)) pushed into the channel"
+          $pk = Listed $s '[^\\\s]+![^\s]+' 'packaged'
+          $aumid = [regex]::Match($pk.Line, '^window 0x[0-9a-f]+: (\S+) frame ').Groups[1].Value
+          if (-not ($s -match "^move $($pk.Id) at ")) { throw "the packaged app was not moved" }
+          if (-not (Inside $s $pk.Id)) { throw "the packaged app is not inside the channel" }
+          Write-Host "  check: $aumid from $launch listed by its user model id and pushed into the channel"
+
+          Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process
+          $null = Probe @('--probe', 'nudge', '--pid', "$($tm.Id)", '--frame', '0,0,380,500')
+          Write-Host "  skip at medium integrity, below Task Manager"
+          $s = Skip 'skip-medium' $true
+          Expect $s '^probe integrity: medium$' 'the probe at medium integrity'
+          $tmw = Listed $s '.*\\taskmgr\.exe' 'Task Manager'
+          if ($tmw.Level -eq 'medium') { throw "Task Manager runs at the probe's level, so nothing outranks it" }
+          Expect $s "^skipped $($tmw.Id): elevated$" 'Task Manager skipped as elevated'
+          $tries = @($s -match "^move $($tmw.Id) at ")
+          if ($tries.Count -ne 1) { throw "want one try at Task Manager, got $($tries.Count)" }
+          $quiet = (At ($s -match '^end at ')[0]) - (At $tries[0])
+          if ($quiet -lt 5) { throw "only $quiet s ran after the refused try" }
+          Expect $s '^notice: .+ runs as administrator: ' 'the elevated banner'
+          if ((Off (Rect ($s -match "^final $($tmw.Id) ")[0] 'frame ') (Rect $tmw.Line 'frame ')) -gt 1) { throw "Task Manager moved" }
+          Write-Host "  check: Task Manager ($($tmw.Level)) skipped as elevated after one try, none in the next $([Math]::Round($quiet, 1)) s, banner shown"
+          Stop-Process -Id $tm.Id -ErrorAction SilentlyContinue
+          Get-Process notepad, SystemSettings, CalculatorApp -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+
+          Write-Host "probe lift"
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $f = Probe @('--probe', 'lift', '--min-aspect', '1.0')
+          $strip = Rect ($f -match '^strip: ')[0] 'strip: '
+          $over = Rect ($f -match '^over: ')[0] 'over: '
+          if ($over[2] -le $strip[2]) { throw "the lifted frame is no wider than the strip, so the check proves nothing" }
+          if ((Off (Rect ($f -match '^placed: ')[0] 'placed: ') $strip) -gt 1) { throw "the pin was not placed in the strip" }
+          Expect $f '^lift ran: true lifted true$' 'Maximize lifted the pin'
+          $off = Off (Rect ($f -match '^lifted: ')[0] 'lifted: ') $over
+          if ($off -gt 1) { throw "the lifted pin is off the strip and channel by $off px" }
+          Expect $f '^lower ran: true lifted false$' 'Maximize again lowered the pin'
+          $off = Off (Rect ($f -match '^lowered: ')[0] 'lowered: ') $strip
+          if ($off -gt 1) { throw "the lowered pin is off the strip by $off px" }
+          Write-Host "  check: Maximize lifted the pin over the strip and channel, and again lowered it into the strip"
+          Stop-Process -Id $pad.Id
+
+          Write-Host "probe login"
+          $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+          Remove-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue
+          $g = Probe @('--probe', 'login')
+          Expect $g '^before: false$' 'no Run entry before'
+          Expect $g '^after: true$' 'the command turned launch at login on'
+          $path = [regex]::Match(($g -match '^executable: ')[0], '^executable: (.+)$').Groups[1].Value
+          $value = (Get-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue).Moorings
+          if ($value -ne "`"$path`"") { throw "the Run entry holds '$value', not the quoted '$path'" }
+          $g = Probe @('--probe', 'login')
+          Expect $g '^before: true$' 'the Run entry read back'
+          Expect $g '^after: false$' 'the command turned launch at login off'
+          if ($null -ne (Get-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue)) { throw "the Run entry is still there" }
+          Write-Host "  check: Launch at login wrote the quoted exe path to the Run key and removed it"
+
+          Write-Host "probe quit"
+          $q = Probe @('--probe', 'quit')
+          Expect $q '^added: true$' 'the tray icon added'
+          $without = [double][regex]::Match(($q -match '^ran without quit: ')[0], ': ([\d.]+) s$').Groups[1].Value
+          $after = [double][regex]::Match(($q -match '^ran after quit: ')[0], ': ([\d.]+) s$').Groups[1].Value
+          if ($without -lt 1.9) { throw "the loop ended after $without s without Quit" }
+          if ($after -gt 1) { throw "the loop ran $after s after Quit" }
+          Expect $q '^icon gone: true$' 'the icon removed on quit'
+          Write-Host "  check: the loop ran its 2 s without Quit, ended $after s after Quit, icon removed"
+
+      - name: Package
+        id: package
+        run: |
+          swift build -c release
+          if ($LASTEXITCODE -ne 0) { throw "release build failed" }
+          $bin = swift build -c release --show-bin-path
+          $runtime = Split-Path (where.exe swiftCore.dll | Select-Object -First 1)
+          $short = '${{ github.event.pull_request.head.sha || github.sha }}'.Substring(0, 7)
+          $name = "moorings-windows-$short"
+          $dir = Join-Path $env:RUNNER_TEMP $name
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          Copy-Item (Join-Path $bin 'MooringsWin.exe') $dir
+          Copy-Item (Join-Path $runtime '*.dll') $dir
+          foreach ($dll in 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll') {
+            $path = Join-Path $env:SystemRoot "System32\$dll"
+            if (Test-Path $path) { Copy-Item $path $dir }
+          }
+          Set-Content -Path (Join-Path $dir 'README-windows.txt') -Encoding utf8 -Value @'
+          Moorings for Windows, early build
+
+          Moorings holds apps in the side strips of an ultrawide monitor, 21:9 or wider, and keeps
+          every other window in the channel between them.
+
+          Run it
+
+          1. Unzip this folder anywhere, for example Documents\Moorings. Keep the files together:
+             MooringsWin.exe runs on the DLLs beside it.
+          2. Double-click MooringsWin.exe. This build is not signed yet, so Windows SmartScreen may
+             say it protected your PC. Click More info, then Run anyway. It asks once.
+          3. Moorings has no window. Its icon sits in the notification area at the right end of the
+             taskbar. Click the up arrow there if it is hidden, then click the icon for the menu.
+
+          What it does
+
+          - Slots: in the tray menu, choose an app for Left top, Left bottom, Right top or Right
+            bottom. Moorings holds its window in that strip.
+          - Any other window that lands on a strip is pushed back into the channel.
+          - Moving a held window by hand releases it. Ctrl+Alt+Backspace on it puts it back.
+          - Window shortcuts from Rectangle: Ctrl+Alt+Left and Right for halves, Ctrl+Alt+U, I, J
+            and K for quarters, Ctrl+Alt+D, F and G for thirds, Ctrl+Alt+Enter to maximize and
+            Ctrl+Alt+C to center, all inside the channel. On a held window Ctrl+Alt+Enter lifts it
+            over the channel, and pressing it again lowers it.
+          - Widths: pick the strip widths from the tray menu.
+          - Pause stops everything until you choose it again. Launch at login starts Moorings when
+            you sign in.
+
+          Settings live in %APPDATA%\Moorings\choices.json. To quit, choose Quit Moorings from the
+          tray menu.
+          '@
+          "name=$name" >> $env:GITHUB_OUTPUT
+          "dir=$dir" >> $env:GITHUB_OUTPUT
+
+      - name: Package check
+        timeout-minutes: 5
+        run: |
+          $dir = '${{ steps.package.outputs.dir }}'
+          Get-ChildItem $dir | ForEach-Object { Write-Host "  $($_.Name)" }
+          function Ran([string] $exe, [string] $log) {
+            $p = Start-Process $exe -ArgumentList @('--probe', 'version') -RedirectStandardOutput $log -NoNewWindow -PassThru
+            $null = $p.Handle
+            if (-not $p.WaitForExit(30000)) { Stop-Process -Id $p.Id -Force; return 'hung' }
+            "$($p.ExitCode)"
+          }
+          $env:Path = "$env:SystemRoot\System32;$env:SystemRoot"
+          if (Get-Command swift -ErrorAction SilentlyContinue) { throw "the toolchain is still on PATH" }
+          $log = Join-Path $env:RUNNER_TEMP 'packaged.txt'
+          $code = Ran (Join-Path $dir 'MooringsWin.exe') $log
+          Get-Content $log | ForEach-Object { Write-Host "  $_" }
+          if ($code -ne '0' -or -not (@(Get-Content $log) -match '^dpi: per-monitor-v2$')) { throw "the packaged exe did not run without the toolchain: $code" }
+          $bare = Join-Path $env:RUNNER_TEMP 'bare'
+          New-Item -ItemType Directory -Path $bare | Out-Null
+          Copy-Item (Join-Path $dir 'MooringsWin.exe') $bare
+          $code = Ran (Join-Path $bare 'MooringsWin.exe') (Join-Path $env:RUNNER_TEMP 'bare.txt')
+          if ($code -eq '0') { throw "the exe ran with no runtime beside it, so the check proves nothing" }
+          Write-Host "  check: packaged exe ran with the toolchain off PATH; the exe alone did not ($code)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: ${{ steps.package.outputs.dir }}

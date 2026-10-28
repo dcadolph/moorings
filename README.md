@@ -45,6 +45,7 @@ to my ultrawide way of working.
 - [How moorings started](#how-moorings-started)
 - [Requirements](#requirements)
 - [Install](#install)
+- [Windows](#windows)
 - [Quickstart](#quickstart)
 - [Docs](#docs)
 - [Moving from the Hammerspoon version](#moving-from-the-hammerspoon-version)
@@ -81,6 +82,25 @@ settings page. Nothing needs a restart after the grant.
 
 To update, take the offer at the top of the menu, or run `brew upgrade --cask moorings`. To
 uninstall, quit Moorings and run `brew uninstall --cask moorings`, or drag it to the Trash.
+
+## Windows
+
+An early Windows build holds apps in the side strips of an ultrawide the same way. It runs on
+Windows 11 with a monitor 21:9 or wider and lives in the notification area.
+
+- Anchor an app from the tray menu to Left top, Left bottom, Right top or Right bottom, and its
+  window stays in that strip.
+- Any other window that lands on a strip goes back into the channel. A held window moved by hand
+  is released, and Ctrl+Alt+Backspace puts it back.
+- The Rectangle shortcuts on Ctrl+Alt: Ctrl+Alt+Left gives a window the channel's left half, and
+  Ctrl+Alt+Enter lifts a held window over the channel.
+- Strip widths, Pause and Launch at login are in the tray menu.
+
+Each green run of the
+[windows workflow](https://github.com/dcadolph/moorings/actions/workflows/windows.yml) attaches
+a `moorings-windows-<commit>` zip, which needs a GitHub sign-in to download. Unzip it, keep the
+files together, and run `MooringsWin.exe`. The `README-windows.txt` inside walks through the
+first run.
 
 ## Quickstart
 
