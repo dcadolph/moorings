@@ -13,10 +13,21 @@ final class Footprint {
     private var fadeTime = 0.0
     // shown is the frame the footprint covers, nil while hidden.
     private(set) var shown: Frame?
+    // haptic reports whether a show taps the trackpad when the style asks, as the drag's footprint
+    // does and the throw's does not.
+    private let haptic: Bool
+
+    // init builds a hidden footprint that taps the trackpad on a show when haptic is set.
+    init(haptic: Bool = false) {
+        self.haptic = haptic
+    }
 
     // show draws the footprint at frame, in global top-left coordinates, in style's colors on palette, fading
-    // it in when style fades.
+    // it in when style fades, and taps the trackpad when this footprint and the style both ask.
     func show(_ frame: Frame, palette: Palette, style: FootprintStyle) {
+        if haptic, style.haptic {
+            NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
+        }
         let primary = NSScreen.screens.first?.frame.height ?? 0
         let rect = NSRect(x: frame.x, y: primary - frame.y - frame.h, width: frame.w, height: frame.h)
         fadeTime = style.fadeTime
@@ -99,39 +110,16 @@ extension Footprint: @preconcurrency OverlayView {
 }
 
 // MacDrag feeds the event tap's drag to the engine's DragFollower one main queue turn after each
-// event, so the tap never waits on a window read, and taps the trackpad when the footprint style
-// asks for it.
+// event, so the tap never waits on a window read.
 @MainActor
 final class MacDrag {
     // follower is the engine's drag follower.
     let follower: DragFollower
 
-    // init builds the follower on app's platform with the Mac's actions, stash and snap panel.
+    // init takes the engine's follower from app and gives it the Mac's snap panel.
     init(app: AppDelegate) {
-        follower = DragFollower(
-            platform: app.platform, anchors: app.anchors,
-            preview: { [unowned app] name, w, screens, i in
-                app.actions.frame(name, for: w, screens: screens, index: i).0
-            },
-            apply: { [unowned app] name, w, screens, i in
-                app.actions.apply(name, to: w, screens: screens, index: i)
-            })
-        follower.placed = { [unowned app] id in app.actions.placed(id) }
-        follower.unsnap = { [unowned app] w, f, grab in app.actions.unsnap(w, at: f, grab: grab) }
-        follower.changed = { [unowned app] in app.save() }
-        follower.stash = StashHook(
-            edge: { [unowned app] p, held in
-                app.stasher.dropEdge(p, held: held)
-            },
-            stash: { [unowned app] w, edge, original in
-                _ = app.stasher.stash(w, edge: edge, original: original)
-            })
+        follower = app.engine.drag
         follower.panel = MacDragPanel(app: app)
-        follower.showed = { _, style in
-            if style.haptic {
-                NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now)
-            }
-        }
     }
 
     // pressed starts following a new drag from p.
@@ -176,9 +164,9 @@ final class MacDragPanel: @preconcurrency DragPanelHook {
     // zone highlights the target under p when the panel is on for w with held, waits for a pause to
     // show the panel, and returns the target's action.
     func zone(at p: Point, window w: WindowInfo, held: Modifiers, option: Bool) -> String? {
-        let s = app.anchors.choices.snapping
+        let s = app.engine.anchors.choices.snapping
         let on =
-            s.snapPanel && !option && !app.anchors.pinned(w) && !app.anchors.isCastOff(w.id)
+            s.snapPanel && !option && !app.engine.anchors.pinned(w) && !app.engine.anchors.isCastOff(w.id)
             && Modifiers(names: s.snapModifiers).map(held.isSuperset) == true
         let hit = on ? cells.flatMap { SnapPanel.hit(SnapPoint(p.x, p.y), $0) } : nil
         panel.highlight(hit)
@@ -224,7 +212,7 @@ final class MacDragPanel: @preconcurrency DragPanelHook {
         guard
             let f = screens.full.first(where: { p.x >= $0.x && p.x < $0.x + $0.w && p.y >= $0.y && p.y < $0.y + $0.h })
         else { return }
-        let names = app.anchors.choices.snapping.panelActions
+        let names = app.engine.anchors.choices.snapping.panelActions
         guard !names.isEmpty else { return }
         let layout = SnapPanel.layout(names.count, at: SnapPoint(p.x, p.y), screen: f)
         cells = layout.cells
@@ -242,24 +230,6 @@ final class BadgePanel {
     private let label = NSTextField(labelWithString: "")
     // shown is the mark the badge paints, nil when hidden.
     private(set) var shown: BadgeMark?
-
-    // frames lists the frames of the visible normal windows on screen, front to back, leaving out
-    // Moorings' own.
-    static func frames() -> [Frame] {
-        let own = ProcessInfo.processInfo.processIdentifier
-        let list =
-            CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
-            as? [[String: Any]] ?? []
-        return list.compactMap { info in
-            guard (info[kCGWindowLayer as String] as? Int) == 0,
-                (info[kCGWindowOwnerPID as String] as? pid_t) != own,
-                (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
-                let b = info[kCGWindowBounds as String] as? [String: Double],
-                let x = b["X"], let y = b["Y"], let w = b["Width"], let h = b["Height"]
-            else { return nil }
-            return Frame(x: x, y: y, w: w, h: h)
-        }
-    }
 
     // show draws count at the top-right corner of front.
     func show(_ count: Int, at front: Frame, palette: Palette) {

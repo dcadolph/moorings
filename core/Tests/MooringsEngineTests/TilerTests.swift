@@ -14,23 +14,32 @@ final class TileRig {
     let notifier = FakeNotifier()
     // clock is the fake clock.
     let clock = FakeClock(100)
+    // pointer holds the primary button for the passes the engine runs.
+    let pointer = FakePointer()
+    // store keeps the choices the engine saves.
+    let store: FakeStore
+    // engine builds the tiler and runs the passes it asks for.
+    let engine: Engine
     // anchors holds the choices.
     let anchors: Anchors
     // tiler is the tiler under test.
     let tiler: Tiler
-    // changes counts the times the tiler asked to save.
-    var changes = 0
-    // moors counts the passes the tiler asked for.
+    // moors counts the passes run.
     var moors = 0
 
     // init builds the rig with choices.
     init(_ choices: Choices = Choices()) {
-        anchors = Anchors(choices: choices)
-        let platform = newTestPlatform(windows: windows, screens: screens, clock: clock, notifier: notifier)
-        tiler = Tiler(platform: platform, anchors: anchors, organizer: Organizer(platform: platform, anchors: anchors))
-        tiler.changed = { [unowned self] in changes += 1 }
-        tiler.moor = { [unowned self] in moors += 1 }
+        store = FakeStore(choices)
+        engine = newTestEngine(
+            newTestPlatform(
+                windows: windows, screens: screens, clock: clock, notifier: notifier, store: store, pointer: pointer))
+        anchors = engine.anchors
+        tiler = engine.tiler
+        engine.observers.passed = { [unowned self] _, _ in moors += 1 }
     }
+
+    // changes counts the times the tiler saved the choices.
+    var changes: Int { store.saves }
 
     // add opens a window at a spot of its own and returns its id.
     @discardableResult
@@ -145,14 +154,17 @@ final class TileRig {
     #expect(rig.windows.frame(b) == opened)
 }
 
-// A pass while the mouse button is down, or while paused, moves nothing.
+// A pass while the mouse button is down, or while paused, moves nothing, including the pass the
+// mode's save runs.
 @Test @MainActor func testTilerHeldAndPausedMoveNothing() {
     let rig = TileRig()
     rig.add()
     rig.add()
+    rig.pointer.primaryDown = true
     #expect(rig.tiler.run("tiling-columns"))
     rig.pass(mouseHeld: true)
     #expect(rig.moves == 0)
+    rig.pointer.primaryDown = false
     rig.anchors.choices.paused = true
     rig.pass()
     #expect(rig.moves == 0)
@@ -203,8 +215,9 @@ final class TileRig {
     let left = rig.windows.frame(a)!.x < rig.windows.frame(b)!.x ? a : b
     let right = left == a ? b : a
     rig.windows.focusedID = left
+    let before = rig.moors
     #expect(rig.tiler.run("swap-right"))
-    #expect(rig.moors == 1)
+    #expect(rig.moors == before + 1)
     rig.pass()
     #expect(rig.windows.frame(left) == rig.columns(2)[1])
     #expect(rig.windows.frame(right) == rig.columns(2)[0])

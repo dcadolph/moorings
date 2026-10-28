@@ -1,36 +1,11 @@
 import MooringsCore
 
-// ExtraActions runs the actions the engine does not own yet on one platform: the grid, stash,
-// organize, tiling, workspaces, profiles and the menus.
-public struct ExtraActions {
-    // handles reports whether the platform runs action name.
-    public var handles: (String) -> Bool
-    // run runs action name on a window, the focused one when nil, and reports whether it acted.
-    public var run: (String, WindowID?) -> Bool
-
-    // none is a platform that runs none of them.
-    public static var none: ExtraActions { ExtraActions(handles: { _ in false }, run: { _, _ in false }) }
-
-    // init builds the hook from its two parts.
-    public init(handles: @escaping (String) -> Bool, run: @escaping (String, WindowID?) -> Bool) {
-        self.handles = handles
-        self.run = run
-    }
-}
-
 // ActionRunner applies window actions to the focused window: halves, thirds, sizes, displays and
 // the rest, stepping through a cycle on repeat presses. It runs chains one step per press and the
-// front app's window actions, and hands the actions it does not own to the platform's extra hook.
+// front app's window actions, and hands the actions it does not own to the engine's routing.
 public final class ActionRunner {
-    // extra runs the actions the engine routes to the platform.
-    public var extra = ExtraActions.none
-    // landed is told each window an action moved and the frame it read back at.
-    public var landed: (WindowID, Frame) -> Void = { _, _ in }
-    // wake marks windows as changing, so passes run until they settle.
-    public var wake: () -> Void = {}
-    // moor runs a pass now.
-    public var moor: () -> Void = {}
-
+    // engine is the orchestration this object calls: wake, moor, save, landed.
+    unowned let engine: Engine
     // platform reads and moves the windows, moves the pointer and logs.
     private let platform: Platform
     // anchors is the layout the actions read.
@@ -40,13 +15,14 @@ public final class ActionRunner {
     // chainPress records the last chain run, the window it ran on and its zero-based press count.
     private var chainPress: (name: String, window: WindowID?, press: Int)?
 
-    // init builds a runner on platform and anchors.
-    public init(platform: Platform, anchors: Anchors) {
+    // init builds a runner on engine's platform and anchors.
+    public init(engine: Engine, platform: Platform, anchors: Anchors) {
+        self.engine = engine
         self.platform = platform
         self.anchors = anchors
     }
 
-    // routed reports whether the engine hands action name to the platform's extra hook.
+    // routed reports whether the engine routes action name to the object or platform that owns it.
     public func routed(_ name: String) -> Bool {
         name == Keymaps.menuName || name == Keymaps.stripsName || Overlay.gridSize(name, anchors.choices.overlay) != nil
             || Keymaps.stashNames.contains(name) || Tile.handles(name) || Tiling.handles(name)
@@ -62,9 +38,9 @@ public final class ActionRunner {
     }
 
     // supports reports whether this platform runs action name: runnable, and either the engine's own
-    // or one the extra hook handles.
+    // or a routed one the engine offers here.
     public func supports(_ name: String) -> Bool {
-        runnable(name) && (!routed(name) || extra.handles(name))
+        runnable(name) && (!routed(name) || engine.offers(name))
     }
 
     // prune drops the last action of every window not in alive, the windows that still exist.
@@ -79,7 +55,7 @@ public final class ActionRunner {
     @discardableResult
     public func run(_ name: String, window: WindowID? = nil) -> Bool {
         if name == Keymaps.menuName || name == Keymaps.stripsName {
-            return extra.run(name, window)
+            return engine.route(name, window: window)
         }
         guard !anchors.choices.paused, platform.windows.ready else { return false }
         if let window {
@@ -112,10 +88,10 @@ public final class ActionRunner {
 
     // perform applies action name, which is not a chain, to the window with id window, or to the
     // focused window when nil. Actions on the front app act on the front app, and the routed actions
-    // go to the platform.
+    // go to the engine's routing.
     private func perform(_ name: String, window: WindowID? = nil) -> Bool {
         if routed(name) {
-            return extra.run(name, window)
+            return engine.route(name, window: window)
         }
         if Keymaps.windowNames.contains(name) {
             return frontApp(name)
@@ -197,16 +173,16 @@ public final class ActionRunner {
                 if anchors.isLifted(w.id) {
                     platform.windows.raise(w.id)
                 }
-                wake()
-                moor()
+                engine.wake()
+                engine.moor()
                 return true
             case "restore":
                 if !anchors.clearPart(w.id) {
                     anchors.remoor(w.id)
                 }
                 last[w.id] = nil
-                wake()
-                moor()
+                engine.wake()
+                engine.moor()
                 return true
             default:
                 if placeInSlot(name, w) {
@@ -224,7 +200,7 @@ public final class ActionRunner {
             guard let f = anchors.restore(w.id) else { return false }
             anchors.history.record(w.id, from: w.frame)
             move(w.id, to: f)
-            wake()
+            engine.wake()
             return true
         }
         if name == "undo-move" || name == "redo-move" {
@@ -238,7 +214,7 @@ public final class ActionRunner {
                 return false
             }
             move(w.id, to: f)
-            wake()
+            engine.wake()
             return true
         }
         if Actions.arrowNames.contains(name) {
@@ -279,7 +255,7 @@ public final class ActionRunner {
         else { return false }
         move(w.id, to: f)
         last[w.id] = LastPress(name: name, press: press, frame: platform.windows.frame(w.id) ?? f)
-        wake()
+        engine.wake()
         return true
     }
 
@@ -315,7 +291,7 @@ public final class ActionRunner {
         platform.windows.move(w.id, to: frame, from: w.frame, behavior: anchors.choices.behavior)
         let landed = platform.windows.frame(w.id) ?? frame
         last[w.id] = LastPress(name: name, press: press, frame: landed)
-        self.landed(w.id, landed)
+        engine.landed(w.id, at: landed)
         return true
     }
 

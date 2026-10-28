@@ -80,8 +80,10 @@ final class MacEvents: @preconcurrency EventSource {
         ids = [:]
     }
 
-    // watch observes the apps of the windows in scan and the close of each of those windows.
+    // watch observes the apps of the windows in scan and the close of each of those windows while
+    // started, so a source that delivers nothing takes no observers.
     func watch(_ scan: Scan) {
+        guard deliver != nil else { return }
         var pids: Set<pid_t> = []
         var elements: [WindowID: AXUIElement] = [:]
         for w in scan.windows {

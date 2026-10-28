@@ -68,12 +68,11 @@ final class Windows {
     var lastFront: pid_t?
     // refusedIDs holds the windows whose position or size Accessibility reported it cannot set.
     private(set) var refusedIDs: Set<WindowID> = []
-    // fullWoke is when the last wake came that named no app, so every app is read again.
-    var fullWoke = 0.0
     // appWoke holds when each app last sent a window event or had a window moved by an action.
     var appWoke: [pid_t: Double] = [:]
-    // echoes holds the frame an action read back after moving each window, with when it did, so the
-    // window's own move events and the pass after read nothing the action already read.
+    // echoes holds the frame a placement asked for each window, with when it did, so the window's
+    // own move events and the pass after read nothing the placement already read. move sets it for
+    // a move from a known frame, which only placements make.
     var echoes: [WindowID: (frame: Frame, at: Double)] = [:]
     // lastFull is when the last scan that read every app ran.
     private(set) var lastFull = -Double.infinity
@@ -675,7 +674,7 @@ extension Windows: @preconcurrency WindowStore {
         let echoed = echoes.mapValues(\.frame)
         let read = scan(screens) { [self] listed, previous, slow, front in
             PassPlan.plan(
-                now: t, forced: full, lastFull: lastFull, fullWoke: fullWoke, woke: appWoke,
+                now: t, forced: full, lastFull: lastFull, woke: appWoke,
                 listed: listed, previous: previous, slow: slow, front: front, echoes: echoed)
         }
         if lastPlan == .full {
@@ -692,6 +691,7 @@ extension Windows: @preconcurrency WindowStore {
             move(id, to: frame)
             return
         }
+        echoes[id] = (frame, ProcessInfo.processInfo.systemUptime)
         if behavior.animate {
             slide(id, from: from, to: frame, enhancedUI: behavior.enhancedUI)
         } else {

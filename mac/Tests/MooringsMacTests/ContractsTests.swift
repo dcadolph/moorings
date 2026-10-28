@@ -127,7 +127,7 @@ final class MacHost: @preconcurrency ContractHost {
     failures += EventSourceContract.run(MacEvents(store: store), store: store, host: host)
     failures += ScreenSourceContract.run(MacScreens(), host: host)
     let key = "moorings.contract.\(UUID().uuidString)"
-    failures += ChoicesStoreContract.run(DefaultsStore(key: key), host: host)
+    failures += ChoicesStoreContract.run(DefaultsStore(key: key) { _ in }, host: host)
     UserDefaults.standard.removeObject(forKey: key)
     failures += ClockContract.run(MacClock(), host: host)
     failures += AppsContract.run(MacApps(), store: store, host: host)

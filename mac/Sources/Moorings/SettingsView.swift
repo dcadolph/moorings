@@ -113,7 +113,7 @@ struct SettingsView: View {
                 }
                 ForEach(names, id: \.self) { name in
                     WorkspaceRow(
-                        name: name, tied: model.app.workspaces.tied(name),
+                        name: name, tied: model.app.engine.workspaces.tied(name),
                         rename: { new in
                             model.change {
                                 guard let ws = $0.workspaces.removeValue(forKey: name) else { return }
@@ -126,7 +126,7 @@ struct SettingsView: View {
                             }
                         },
                         tie: {
-                            model.app.workspaces.tie(name); model.reload()
+                            model.app.engine.workspaces.tie(name); model.reload()
                         },
                         delete: {
                             model.change {
@@ -255,10 +255,10 @@ struct SettingsView: View {
                     }
                     HStack {
                         Button("Switch to it") {
-                            model.app.workspaces.applyProfile(p.name); model.reload()
+                            model.app.engine.workspaces.applyProfile(p.name); model.reload()
                         }
                         Button("Save current settings into it") {
-                            model.app.workspaces.saveProfile(p.name); model.reload()
+                            model.app.engine.workspaces.saveProfile(p.name); model.reload()
                         }
                         Button("Delete") {
                             model.change {
@@ -277,7 +277,7 @@ struct SettingsView: View {
                     "Name these settings. Switching to the profile later "
                         + "brings them back, and anchored apps stay where they are.")
                 {
-                    model.app.workspaces.saveProfile(name)
+                    model.app.engine.workspaces.saveProfile(name)
                     model.reload()
                 }
             }
@@ -314,7 +314,7 @@ struct SettingsView: View {
                 }
             }
             Button("Save current widths") {
-                let w = model.app.anchors.widths
+                let w = model.app.engine.anchors.widths
                 model.change { if !$0.widthPresets.contains(w) { $0.widthPresets.append(w) } }
             }
         }
@@ -322,7 +322,7 @@ struct SettingsView: View {
 
     // widthRow edits one strip's width with a field, a stepper and the points it covers.
     private func widthRow(_ title: String, _ side: Side) -> some View {
-        let anchors = model.app.anchors
+        let anchors = model.app.engine.anchors
         let w = anchors.widths
         let minPoints = anchors.minWidth(side)
         let screenWidth = Screens.current().wide?.w
@@ -354,7 +354,7 @@ struct SettingsView: View {
 
     // heightRow edits one strip's top row height.
     private func heightRow(_ title: String, _ side: Side) -> some View {
-        let h = model.app.anchors.heights
+        let h = model.app.engine.anchors.heights
         let value = Binding(
             get: { h[side] },
             set: { v in

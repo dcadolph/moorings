@@ -4,11 +4,9 @@ import WinSDK
 import MooringsCore
 import MooringsEngine
 
-// App runs the passes on the main thread's message loop: each pass reads the windows, asks Anchors
-// where they belong, and moves them, on a one-shot timer Pace sets.
+// App runs the engine on the main thread's message loop: it builds the Windows adapters and one
+// Engine on them, and pumps the messages its timers, hooks and shortcuts arrive by.
 final class App {
-    // anchors decides where each window belongs.
-    let anchors: Anchors
     // windows reads and moves the windows.
     let windows = WinWindows()
     // pointer reads and warps the mouse pointer.
@@ -23,75 +21,37 @@ final class App {
     let store: Store
     // minAspect is the ratio a monitor needs to count as ultrawide. Only probes change it.
     let minAspect: Double
-    // moved is told each move a pass applied, the time, and where the window read back.
-    var moved: (Move, Double, Frame?) -> Void = { _, _, _ in }
-    // released is told each pin the owner moved by hand, and the time.
-    var released: (WindowID, Double) -> Void = { _, _ in }
     // noticed is told each window event that wakes the passes, the window, and the time.
     var noticed: (WinEvent, WindowID, Double) -> Void = { _, _, _ in }
-    // passed is told the time of each pass and how many moves it made.
-    var passed: (Double, Int) -> Void = { _, _ in }
     // notify shows a banner with a title and a body. It does nothing until the app wires the
     // banner, so probes print none.
     var notify: (String, String) -> Void = { _, _ in }
-    // reloaded is told after the choices were re-read from the file, so the app can rebind the
-    // shortcuts.
-    var reloaded: () -> Void = {}
-    // reloads counts the times the choices were re-read because the file changed or was asked for.
+    // reloads counts the times the choices were re-read because the file changed.
     private(set) var reloads = 0
-    // actions runs the window actions the shortcuts name.
-    private(set) lazy var actions: ActionRunner = {
-        let r = ActionRunner(platform: platform, anchors: anchors)
-        r.landed = { [unowned self] id, frame in
-            landed(id, at: frame)
-            wake()
-        }
-        r.wake = { [unowned self] in wake() }
-        r.moor = { [unowned self] in moor() }
-        return r
-    }()
     // hotkeys delivers the shortcuts bound for the actions.
-    private(set) lazy var hotkeys = WinHotkeys { [unowned self] name in self.actions.run(name) }
+    private(set) lazy var hotkeys = WinHotkeys { [unowned self] name in self.engine.actions.run(name) }
     // keys spells the shortcuts and grabs the keys a hold takes.
     private(set) lazy var keys = WinKeys(hotkeys)
     // mouse delivers the pointer for drag snapping.
     private(set) lazy var mouse = WinMouseHook()
-    // drag feeds a window moved by its frame to the follower.
+    // drag feeds a window moved by its frame to the engine's drag follower.
     private(set) lazy var drag = WinDrag(app: self)
-    // follower follows a dragged window, shows where it will land, and runs its drop.
-    private(set) lazy var follower: DragFollower = {
-        let f = DragFollower(
-            platform: platform, anchors: anchors,
-            preview: { [unowned self] name, w, screens, _ in
-                actions.preview(name, for: w, screens: screens)
-            },
-            apply: { [unowned self] name, w, screens, _ in
-                actions.apply(name, to: w, screens: screens)
-            })
-        f.changed = { [unowned self] in
-            save()
-            wake()
-        }
-        return f
-    }()
     // footprint shows where a dragged window will land.
     let footprint = WinFootprint()
-    // passes run the window passes on the engine's pass loop.
-    private(set) lazy var passes: PassLoop = {
-        let p = PassLoop(platform: platform, anchors: anchors)
-        p.prepare = { [unowned self] in
+    // engine builds and runs every engine object on the Windows platform, with none of the routed
+    // actions yet. Until the event source goes live, prepare re-reads a choices file another program
+    // changed and keeps the displays the describe filter reads.
+    private(set) lazy var engine: Engine = {
+        let e = Engine(platform: platform, features: [])
+        e.passes.prepare = { [unowned self] in
+            screens = platform.screens.current()
             if store.changed() {
-                reload()
+                reloads += 1
+                engine.reload()
             }
         }
-        p.mouseHeld = { [unowned self] in dragging || pointer.primaryDown }
-        p.refreshed = { [unowned self] alive in actions.prune(alive: alive) }
-        p.after = { [unowned self] _, screens, _ in self.screens = screens }
-        p.tellsRefused = true
-        p.moved = { [unowned self] move, t, got in moved(move, t, got) }
-        p.released = { [unowned self] id, t in released(id, t) }
-        p.passed = { [unowned self] t, n in passed(t, n) }
-        return p
+        e.passes.tellsRefused = true
+        return e
     }()
     // platform is what the engine reads and drives on Windows.
     private(set) lazy var platform = Platform(
@@ -104,63 +64,37 @@ final class App {
     var hooksMouse = true
     // watcher delivers the window events.
     private(set) lazy var watcher = WinWatcher { [unowned self] kind, hwnd in self.event(kind, hwnd) }
-    // dragging reports whether the owner is moving or sizing a window by its frame.
-    private var dragging = false
     // screens are the displays the last pass read.
     private var screens: Screens?
 
-    // init loads the choices from store.
+    // init builds the app on store, whose choices the engine loads.
     init(store: Store, minAspect: Double = Layout.minAspect) {
         self.store = store
         self.minAspect = minAspect
-        anchors = Anchors(choices: store.load())
     }
 
     // now is the time in seconds since the system started, the same clock in every process.
     static var now: Double { Double(GetTickCount64()) / 1000 }
 
-    // save writes the choices, telling stderr when the file cannot be written.
-    func save() {
-        do {
-            try store.save(anchors.choices)
-        } catch {
-            FileHandle.standardError.write(Data("choices not saved: \(error)\n".utf8))
-        }
-    }
-
-    // reload re-reads the choices from the file and tells reloaded.
-    func reload() {
-        anchors.choices = store.load()
-        reloads += 1
-        reloaded()
-    }
-
-    // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle.
-    func wake() {
-        passes.wake()
-    }
-
     // event wakes the passes for a window event a pass acts on. A move or birth of a window no scan
     // keeps changes nothing a pass decides, so it is dropped. Moving or sizing a window by its frame
-    // counts as the mouse button held until it ends.
+    // counts as the mouse button held until it ends, through the drag follower.
     private func event(_ kind: WinEvent, _ hwnd: HWND) {
         switch kind {
         case .moveSizeStart:
-            dragging = true
             drag.began(hwnd)
         case .moveSizeEnd:
-            dragging = false
             drag.ended()
         default:
             break
         }
         let id = WinWindows.id(hwnd)
-        if kind.geometry, !passes.lastRead.contains(id) {
+        if kind.geometry, !engine.passes.lastRead.contains(id) {
             let screens = screens ?? Screens.current(minAspect: minAspect)
             guard WinWindows.describe(hwnd, screens: screens) != nil else { return }
         }
         noticed(kind, id, Self.now)
-        wake()
+        engine.wake()
     }
 
     // run watches window events, pumps messages and runs passes until until, or until WM_QUIT when
@@ -182,9 +116,9 @@ final class App {
             if stop != 0 {
                 _ = KillTimer(nil, stop)
             }
-            passes.stop()
+            engine.passes.stop()
         }
-        wake()
+        engine.wake()
         var msg = MSG()
         while GetMessageW(&msg, nil, 0, 0) {
             if mouse.deliver(msg) {
@@ -215,16 +149,6 @@ final class App {
         UINT(max(1, (seconds * 1000).rounded(.up)))
     }
 
-    // moor runs one pass now.
-    func moor() {
-        passes.moor()
-    }
-
-    // landed records frame as the last frame read for the window with id, which an action just read
-    // back after moving it, so the pass after reads it at rest and ends the polling.
-    func landed(_ id: WindowID, at frame: Frame) {
-        passes.landed(id, at: frame)
-    }
 }
 
 // WinClock is the Windows Clock: seconds since the system started, the clock App.now reads.

@@ -188,7 +188,7 @@ final class EdgeResizer {
     // modifiers in flags, and reports whether it did, so the press is swallowed. Anchored, stashed,
     // fullscreen windows and file panels never take part.
     func pressed(_ p: CGPoint, flags: CGEventFlags) -> Bool {
-        let anchors = app.anchors
+        let anchors = app.engine.anchors
         guard !anchors.choices.paused, Hover.holds(Modifiers(flags: flags), anchors.choices.overlay.edgeResize) else {
             return false
         }
@@ -233,8 +233,8 @@ final class EdgeResizer {
             guard let self else { return }
             apply()
             drag = nil
-            app.tiler.mouseUp()
-            app.wake()
+            app.engine.tiler.mouseUp()
+            app.engine.wake()
         }
     }
 }
