@@ -537,9 +537,12 @@ jobs:
               Expect $f "^${name}: ran true windows \d+$" "$name ran through the action runner"
             }
             $cols = @($f -match '^tile-columns (pad|other): ' | ForEach-Object { Rect $_ ($_ -replace '^(tile-columns \w+: ).*$', '$1') }) | Sort-Object { $_[0] }
-            $w = $cols[0][2]
+            $w = [Math]::Floor($c[2] / $cols.Count)
+            $padCols = @($f -match '^tile-columns pad: ' | ForEach-Object { Rect $_ 'tile-columns pad: ' })
+            foreach ($r in $padCols) {
+              if ([Math]::Abs($r[2] - $w) -gt 1) { throw "a pad's column is $($r -join ' '), want width $w, a share of the channel for each of $($cols.Count) windows" }
+            }
             foreach ($r in $cols) {
-              if ([Math]::Abs($r[2] - $w) -gt 1) { throw "tile-columns widths differ: $($r -join ' ') against $w" }
               if ([Math]::Abs($r[1] - $c[1]) -gt 1 -or [Math]::Abs($r[3] - $c[3]) -gt 1) { throw "tile-columns $($r -join ' ') is not the channel's height $($c -join ' ')" }
             }
             if ([Math]::Abs($cols[0][0] - $c[0]) -gt 1) { throw "the first column starts at $($cols[0][0]), not the channel's left edge $($c[0])" }
@@ -559,7 +562,7 @@ jobs:
               if (-not $m.Success) { throw "undo line unreadable: $u" }
               if ((Off ($m.Groups[1].Value -split ' ' | ForEach-Object { [int]$_ }) ($m.Groups[2].Value -split ' ' | ForEach-Object { [int]$_ })) -gt 1) { throw "undo left a window off its start: $u" }
             }
-            Write-Host "  check: $($cols.Count) equal columns across the channel $($c -join ' '), cascade step $dx from its corner, undo put every pad back"
+            Write-Host "  check: $($padCols.Count) pads in columns $w wide among $($cols.Count) windows across the channel $($c -join ' '), cascade step $dx from its corner, undo put every pad back"
             $pads | ForEach-Object { Stop-Process -Id $_.Id -ErrorAction SilentlyContinue }
           }
           OrganizeCheck @('--min-aspect', '1.0')
