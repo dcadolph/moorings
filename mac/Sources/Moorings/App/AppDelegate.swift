@@ -69,18 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var snap = MacDrag(app: self)
     // platform is what the engine reads and drives on the Mac. A save shows the choices the menu bar
     // icon, the ignore list and the anchor hint read.
-    lazy var platform = Platform(
-        windows: windows, screens: MacScreens(), overlay: Footprint(haptic: true),
-        notifier: MacNotifier { [unowned self] in self.notify($0, $1) },
-        clock: MacClock(),
-        store: DefaultsStore(key: Self.choicesKey) { [unowned self] _ in
-            showIcon()
-            refreshShortcuts()
-            hintAnchor(Screens.current())
-        },
-        pointer: pointer, keys: keys, apps: apps, log: log, timers: timers, events: events,
-        grid: GridPanel(), badge: badge
-    )
+    lazy var platform = macPlatform()
     // engine builds and runs every engine object on the Mac's platform, with every routed action and
     // the menu and strip editor.
     lazy var engine: Engine = {
@@ -383,7 +372,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // hintAnchor says once how to anchor an app, while an ultrawide is attached and nothing is
     // anchored. Emptied slots count as a choice. It runs at launch, when the displays change and after
     // each save.
-    private func hintAnchor(_ screens: Screens) {
+    func hintAnchor(_ screens: Screens) {
         let defaults = UserDefaults.standard
         guard screens.wide != nil, engine.anchors.choices.slots.isEmpty, !defaults.bool(forKey: Self.hintKey) else {
             return
@@ -469,7 +458,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // showIcon shows the menu bar icon unless the choices hide it. Opening Moorings again while it
     // runs opens the settings, where the icon can be turned back on.
-    private func showIcon() {
+    func showIcon() {
         item.isVisible = !engine.anchors.choices.behavior.hideMenuBarIcon
     }
 
@@ -557,81 +546,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         hintAnchor(Screens.current())
     }
 }
-
-// MacClock is the Mac Clock: seconds since boot, the clock the delegate's own timestamps use.
-final class MacClock: Clock {
-    // now is the system uptime in seconds.
-    var now: Double { ProcessInfo.processInfo.systemUptime }
-}
-
-// MacScheduler is the Mac Scheduler: one main run loop timer, replaced on each schedule.
-@MainActor
-final class MacScheduler: @preconcurrency Scheduler {
-    // timer is the pending timer, nil when nothing is pending.
-    private var timer: Timer?
-    // work is the pending work, nil when nothing is pending.
-    private var work: (() -> Void)?
-
-    // schedule runs work at uptime at on the main thread, replacing any pending work.
-    func schedule(at: Double, _ work: @escaping () -> Void) {
-        timer?.invalidate()
-        self.work = work
-        let wait = max(0, at - ProcessInfo.processInfo.systemUptime)
-        timer = Timer.scheduledTimer(withTimeInterval: wait, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated { self?.fire() }
-        }
-    }
-
-    // cancel drops the pending work.
-    func cancel() {
-        timer?.invalidate()
-        timer = nil
-        work = nil
-    }
-
-    // fire runs the pending work once, clearing it first so the work may schedule more.
-    private func fire() {
-        let w = work
-        timer = nil
-        work = nil
-        w?()
-    }
-}
-
-// DefaultsStore is the Mac ChoicesStore: the encoded choices under one user defaults key.
-final class DefaultsStore: ChoicesStore {
-    // key is the defaults key the choices live under.
-    private let key: String
-    // saved runs after each save with the choices saved, for the parts of the app a choice shows:
-    // the menu bar icon and the ignore-list switch.
-    let saved: (Choices) -> Void
-
-    // init keeps the choices under key and tells saved after each save.
-    init(key: String, saved: @escaping (Choices) -> Void) {
-        self.key = key
-        self.saved = saved
-    }
-
-    // load decodes the saved choices, or the defaults when none are saved.
-    func load() -> Choices {
-        Choices.decode(UserDefaults.standard.data(forKey: key) ?? Data())
-    }
-
-    // save encodes choices under the key.
-    func save(_ choices: Choices) throws {
-        UserDefaults.standard.set(try Choices.encode(choices), forKey: key)
-        saved(choices)
-    }
-
-    // changed is false: Moorings is the only writer of its defaults, and a choice changed under it is
-    // read at the next launch.
-    func changed() -> Bool {
-        false
-    }
-}
-
-let app = NSApplication.shared
-let delegate = AppDelegate()
-app.delegate = delegate
-app.setActivationPolicy(.accessory)
-app.run()

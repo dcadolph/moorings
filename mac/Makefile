@@ -54,7 +54,7 @@ app: $(ICNS) $(INTENTS_PROTOCOLS)
 	rm -rf $(APP) $(INTENTS_OUT)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources $(INTENTS_OUT)
 	cp $(ICNS) $(APP)/Contents/Resources/AppIcon.icns
-	ls Sources/Moorings/*.swift | sed "s|^|$$PWD/|" > $(INTENTS_OUT)/sources.txt
+	find "$$PWD/Sources/Moorings" -name '*.swift' | sort > $(INTENTS_OUT)/sources.txt
 	find "$$PWD/$(INTENTS_CONSTS_DIR)" -name '*.swiftconstvalues' $(if $(ARCHS),-path '*/arm64/*') \
 		> $(INTENTS_OUT)/consts.txt 2>/dev/null || true
 	test -s $(INTENTS_OUT)/consts.txt || { find .build -name '*.swiftconstvalues'; exit 1; }
