@@ -657,6 +657,9 @@ jobs:
           - Pause stops everything until you choose it again. Launch at login starts Moorings when
             you sign in.
 
+          This build is checked on GitHub's Windows runner and in a Windows 11 virtual machine at
+          3440x1440, not yet on a physical ultrawide.
+
           Settings live in %APPDATA%\Moorings\choices.json. To quit, choose Quit Moorings from the
           tray menu.
           '@
