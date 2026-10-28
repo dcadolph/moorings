@@ -297,8 +297,9 @@ final class Tray {
             app.save()
         }
         let result = ShellExecuteW(window, wide("open"), wide(app.store.url.path), nil, nil, SW_SHOWNORMAL)
-        if Int(bitPattern: result) <= 32 {
-            FileHandle.standardError.write(Data("tray: settings file not opened: \(result)\n".utf8))
+        let code = Int(bitPattern: result)
+        if code <= 32 {
+            FileHandle.standardError.write(Data("tray: settings file not opened: \(code)\n".utf8))
         }
     }
 
