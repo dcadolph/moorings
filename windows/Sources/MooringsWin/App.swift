@@ -48,7 +48,7 @@ final class App {
         let k = WorkspaceKeeper(platform: platform, anchors: anchors, organizer: organizer, actions: actions)
         k.title = { WinWindows.title($0) }
         k.openApp = { bundle, target in WinWindows.open(bundle, target: target) }
-        k.after = { [unowned self] seconds, work in settle.schedule(at: Self.now + seconds, work) }
+        k.after = { [unowned self] seconds, work in settle.schedule(at: App.now + seconds, work) }
         k.changed = { [unowned self] in
             save()
             wake()
