@@ -565,6 +565,34 @@ jobs:
           }
           ChainCheck @('--min-aspect', '1.0')
 
+          function ActionsCheck([string[]] $geo) {
+            Write-Host "probe actions $geo"
+            $pad = Pad
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'actions') + $geo)
+            $t = [regex]::Match(($f -match '^table: ')[0], 'table: (\d+) registered: (\d+) skipped: (\d+)')
+            if (-not $t.Success) { throw "no table line in the actions probe output" }
+            if ([int]$t.Groups[2].Value + [int]$t.Groups[3].Value -ne [int]$t.Groups[1].Value) { throw "registered plus skipped is not the table: $($t.Value)" }
+            foreach ($s in @($f -match '^skipped ')) {
+              if ($s -notmatch ': Windows keeps it routed (true|false)$' -and $s -notmatch ': not on Windows yet routed true$') { throw "skip not allowed (only Windows keeps it, or not on Windows yet for a routed action): $s" }
+            }
+            $least = [regex]::Match(($f -match '^minimum: ')[0], '^minimum: (\d+) (\d+)$')
+            if (-not $least.Success) { throw "no minimum line in the actions probe output" }
+            if ([int]$least.Groups[1].Value -gt 300 -or [int]$least.Groups[2].Value -gt 300) { throw "the window kept $($least.Value), too large to judge sixths and eighths" }
+            $compared = @($f -match '^action .*: want ')
+            foreach ($a in $compared) {
+              $o = [regex]::Match($a, ' off (\d+)$')
+              if (-not $o.Success) { throw "no off value in: $a" }
+              if ([int]$o.Groups[1].Value -gt 1) { throw "action landed off its previewed frame: $a" }
+            }
+            if ($compared.Count -lt 20) { throw "only $($compared.Count) actions compared, want at least 20" }
+            Expect $f '^actions: \d+ compared, \d+ without a frame, worst off \d+$' 'the actions summary line'
+            $kept = @($compared -match ' kept a minimum off ').Count
+            Write-Host "  check: $($compared.Count) actions landed on the frame the engine previewed within 1 px ($kept held at the app's $($least.Value)), every skip is the Windows shell's or a routed action"
+            Stop-Process -Id $pad.Id -ErrorAction SilentlyContinue
+          }
+          ActionsCheck @('--min-aspect', '1.0')
+
           Write-Host "probe login"
           $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
           Remove-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue
@@ -664,6 +692,7 @@ jobs:
           LiftCheck $simApp
           ChainCheck $simApp
           ReloadCheck $simApp
+          ActionsCheck $simApp
 
           Write-Host "SIM probe drag"
           $pad = Pad
