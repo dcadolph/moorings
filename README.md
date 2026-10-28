@@ -73,8 +73,18 @@ Or download `moorings_vX.Y.Z_macos_universal.dmg` from the
 double-click Moorings. After one okay it copies itself into Applications, starts from there,
 ejects the disk image, and moves it to the Trash. Dragging Moorings onto Applications works too,
 and then it asks once before trashing the disk image. The zip is still attached for scripts and
-Homebrew. Both are signed with a Developer ID
-and notarized by Apple, and `SHA256SUMS` on the release lists their checksums.
+Homebrew. Both are signed with a Developer ID and notarized by Apple. `SHA256SUMS` on the release
+lists their checksums and is signed through Sigstore by the release workflow, and each file
+carries a build attestation. To check a download, run
+`gh attestation verify moorings_vX.Y.Z_macos_universal.dmg --repo dcadolph/moorings`, or verify
+the checksums with cosign:
+
+```sh
+cosign verify-blob SHA256SUMS --signature SHA256SUMS.sig --certificate SHA256SUMS.pem \
+  --certificate-identity-regexp '^https://github.com/dcadolph/moorings/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+shasum -a 256 -c SHA256SUMS --ignore-missing
+```
 
 Open Moorings. A small sailboat appears in the menu bar. The first time, a banner asks for
 Accessibility access: click it, turn on Moorings in Privacy & Security, and the sailboat is
@@ -93,9 +103,12 @@ Windows 11 with a monitor 21:9 or wider and lives in the notification area.
   window stays in that strip.
 - Any other window that lands on a strip goes back into the channel. A held window moved by hand
   is released, and Ctrl+Alt+Backspace puts it back.
-- The Rectangle shortcuts on Ctrl+Alt: Ctrl+Alt+Left gives a window the channel's left half, and
-  Ctrl+Alt+Enter lifts a held window over the channel.
+- Most of the Mac's default keymap on Ctrl+Alt: Ctrl+Alt+Left gives a window the channel's left
+  half, and Ctrl+Alt+Enter lifts a held window over the channel.
 - Strip widths, Pause and Launch at login are in the tray menu.
+- Settings live in `%APPDATA%\Moorings\choices.json`. Open settings file in the tray menu opens
+  it, and Moorings reads it again when it changes or on Reload settings, so shortcuts and chains
+  edited there take hold without a restart.
 
 Each green run of the
 [windows workflow](https://github.com/dcadolph/moorings/actions/workflows/windows.yml) attaches
@@ -421,7 +434,9 @@ every feature with the check behind it.
 The code is three Swift packages. `core/` is MooringsCore, with three libraries. MooringsCore holds
 the pure logic: geometry, snapping, actions, anchors and pacing. MooringsEngine holds the seven
 platform protocols (WindowStore, ScreenSource, OverlayView, Notifier, Clock, Scheduler and
-ChoicesStore) and the code both apps run on them: DragFollower, ActionRunner and PassLoop.
+ChoicesStore) and the code that runs on them: DragFollower, ActionRunner, PassLoop, the
+organizer and stack badge, the stasher, the tiler, workspaces, the throw overlay, the grid picker
+and the hover mover.
 MooringsTesting holds a fake for every protocol and the contract suites, in plain Swift with no
 XCTest. `mac/` is the Mac app, with the release build, Makefile and Info.plist. `windows/` is
 MooringsWin, the Windows app, built only on Windows. Both apps depend on `core/`.

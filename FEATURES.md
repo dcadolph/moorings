@@ -177,7 +177,8 @@ each part.
   last check, and offers it at the top of the menu. The offer opens the release page, and
   Homebrew or the dmg installs it. Nothing installs on its own.
 - Installs with `brew install --cask dcadolph/tap/moorings`, or from the signed and notarized dmg
-  on each release.
+  on each release. The release's `SHA256SUMS` is signed through Sigstore and every file carries a
+  build attestation, so `gh attestation verify` or `cosign verify-blob` checks a download.
 - `moorings://selftest` checks the layout against real TextEdit windows, then puts your slots back.
 - `moorings://selftest?apps=<bundle ids>` checks move, resize, snap and restore on other apps' windows.
   A resize the app holds at its own minimum size reads MIN instead of FAIL.

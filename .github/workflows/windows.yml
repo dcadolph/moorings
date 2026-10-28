@@ -798,8 +798,9 @@ jobs:
           This build is checked on GitHub's Windows runner and in a Windows 11 virtual machine at
           3440x1440, not yet on a physical ultrawide.
 
-          Settings live in %APPDATA%\Moorings\choices.json. To quit, choose Quit Moorings from the
-          tray menu.
+          Settings live in %APPDATA%\Moorings\choices.json. Open settings file in the tray menu
+          opens it, and Moorings reads it again when it changes or on Reload settings. To quit,
+          choose Quit Moorings from the tray menu.
           '@
           "name=$name" >> $env:GITHUB_OUTPUT
           "dir=$dir" >> $env:GITHUB_OUTPUT
