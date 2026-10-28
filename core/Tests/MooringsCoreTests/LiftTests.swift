@@ -746,10 +746,10 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     let c = try JSONDecoder().decode(OverlayChoices.self, from: Data(#"{"edgeResize":["ctrl","alt","bogus"]}"#.utf8))
     #expect(c.edgeResize == [.ctrl, .alt])
     #expect(try JSONDecoder().decode(OverlayChoices.self, from: Data("{}".utf8)).edgeResize == [])
-    #expect(Hover.holds(0x40000 | 0x80000, [.ctrl, .alt]))
-    #expect(!Hover.holds(0x40000 | 0x80000 | 0x20000, [.ctrl, .alt]))
-    #expect(!Hover.holds(0, []))
-    #expect(!Hover.holds(0x20000, [.shift]))
+    #expect(Hover.holds([.control, .option], [.ctrl, .alt]))
+    #expect(!Hover.holds([.control, .option, .shift], [.ctrl, .alt]))
+    #expect(!Hover.holds([], []))
+    #expect(!Hover.holds(.shift, [.shift]))
 }
 
 // Swift only: a pin that refuses its strip's width while alone learns no height, so when a second

@@ -135,15 +135,6 @@ final class MacDrag {
         }
     }
 
-    // held returns the names of the snap modifiers down in flags.
-    static func held(_ flags: CGEventFlags) -> Set<String> {
-        let names: [(CGEventFlags, String)] = [
-            (.maskShift, "shift"), (.maskControl, "control"),
-            (.maskAlternate, "option"), (.maskCommand, "command"),
-        ]
-        return Set(names.filter { flags.contains($0.0) }.map(\.1))
-    }
-
     // pressed starts following a new drag from p.
     func pressed(_ p: CGPoint) {
         DispatchQueue.main.async { [weak self] in self?.follower.began(at: Point(x: p.x, y: p.y)) }
@@ -151,7 +142,7 @@ final class MacDrag {
 
     // dragged follows the cursor at p with flags down.
     func dragged(_ p: CGPoint, flags: CGEventFlags) {
-        let held = Self.held(flags)
+        let held = Modifiers(flags: flags)
         DispatchQueue.main.async { [weak self] in self?.follower.moved(Point(x: p.x, y: p.y), held: held) }
     }
 
@@ -185,11 +176,11 @@ final class MacDragPanel: @preconcurrency DragPanelHook {
 
     // zone highlights the target under p when the panel is on for w with held, waits for a pause to
     // show the panel, and returns the target's action.
-    func zone(at p: Point, window w: WindowInfo, held: Set<String>, option: Bool) -> String? {
+    func zone(at p: Point, window w: WindowInfo, held: Modifiers, option: Bool) -> String? {
         let s = app.anchors.choices.snapping
         let on =
             s.snapPanel && !option && !app.anchors.pinned(w) && !app.anchors.isCastOff(w.id)
-            && Set(s.snapModifiers).isSubset(of: held)
+            && Modifiers(names: s.snapModifiers).map(held.isSuperset) == true
         let hit = on ? cells.flatMap { SnapPanel.hit(SnapPoint(p.x, p.y), $0) } : nil
         panel.highlight(hit)
         if on {

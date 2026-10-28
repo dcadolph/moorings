@@ -3,48 +3,37 @@ import Testing
 
 @testable import MooringsCore
 
-// Flag bits as CGEventFlags reports them.
-let flagShift: UInt64 = 0x20000
-let flagControl: UInt64 = 0x40000
-let flagOption: UInt64 = 0x80000
-let flagCommand: UInt64 = 0x100000
-let flagLeftOption: UInt64 = 0x20
-let flagRightOption: UInt64 = 0x40
-let flagRightCommand: UInt64 = 0x10
-let flagRightControl: UInt64 = 0x2000
-let flagFn: UInt64 = 0x800000
-
 // Swift only: each trigger is held only on its own key, with shift allowed and no other modifier.
 @Test func testOverlayTriggerHeld() {
-    let tests: [(trigger: OverlayTrigger, flags: UInt64, want: Bool)] = [
+    let tests: [(trigger: OverlayTrigger, flags: Modifiers, want: Bool)] = [
         // Test 0: Right Option alone.
-        (.rightOption, flagOption | flagRightOption, true),
+        (.rightOption, [.option, .rightOption], true),
         // Test 1: Left Option alone is not the trigger.
-        (.rightOption, flagOption | flagLeftOption, false),
+        (.rightOption, [.option], false),
         // Test 2: Right Option with Shift still holds.
-        (.rightOption, flagOption | flagRightOption | flagShift, true),
+        (.rightOption, [.option, .rightOption, .shift], true),
         // Test 3: Right Option with Command is a different chord.
-        (.rightOption, flagOption | flagRightOption | flagCommand, false),
+        (.rightOption, [.option, .rightOption, .command], false),
         // Test 4: Right Option with Control is a different chord.
-        (.rightOption, flagOption | flagRightOption | flagControl, false),
+        (.rightOption, [.option, .rightOption, .control], false),
         // Test 5: Right Command alone.
-        (.rightCommand, flagCommand | flagRightCommand, true),
+        (.rightCommand, [.command, .rightCommand], true),
         // Test 6: Right Command with Option is a different chord.
-        (.rightCommand, flagCommand | flagRightCommand | flagOption, false),
+        (.rightCommand, [.command, .rightCommand, .option], false),
         // Test 7: Right Control alone.
-        (.rightControl, flagControl | flagRightControl, true),
+        (.rightControl, [.control, .rightControl], true),
         // Test 8: Fn alone.
-        (.fn, flagFn, true),
+        (.fn, .function, true),
         // Test 9: Fn with Shift.
-        (.fn, flagFn | flagShift, true),
+        (.fn, [.function, .shift], true),
         // Test 10: Fn with Option is a different chord.
-        (.fn, flagFn | flagOption, false),
+        (.fn, [.function, .option], false),
         // Test 11: None reacts to nothing.
-        (.none, flagOption | flagRightOption, false),
+        (.none, [.option, .rightOption], false),
         // Test 12: None reacts to no flags.
-        (.none, 0, false),
+        (.none, [], false),
         // Test 13: Nothing down.
-        (.rightOption, 0, false),
+        (.rightOption, [], false),
     ]
     for (i, test) in tests.enumerated() {
         #expect(test.trigger.held(test.flags) == test.want, "test \(i)")
@@ -208,38 +197,38 @@ func span(_ g: OverlayGrid) -> [Int] {
     var o = OverlayChoices()
     o.hoverMove = [.ctrl, .alt]
     o.hoverResize = [.ctrl, .alt, .shift]
-    let tests: [(choices: OverlayChoices, flags: UInt64, want: HoverMode?)] = [
+    let tests: [(choices: OverlayChoices, flags: Modifiers, want: HoverMode?)] = [
         // Test 0: Exactly the move set.
-        (o, flagControl | flagOption, .move),
+        (o, [.control, .option], .move),
         // Test 1: Device bits ride along.
-        (o, flagControl | flagOption | flagRightOption, .move),
+        (o, [.control, .option, .rightOption], .move),
         // Test 2: Exactly the resize set.
-        (o, flagControl | flagOption | flagShift, .resize),
+        (o, [.control, .option, .shift], .resize),
         // Test 3: One more modifier than either set.
-        (o, flagControl | flagOption | flagCommand, nil),
+        (o, [.control, .option, .command], nil),
         // Test 4: Part of the move set.
-        (o, flagControl, nil),
+        (o, .control, nil),
         // Test 5: Nothing held.
-        (o, 0, nil),
+        (o, [], nil),
         // Test 6: Off by default.
-        (OverlayChoices(), flagControl | flagOption, nil),
+        (OverlayChoices(), [.control, .option], nil),
         // Test 7: Shift alone never drives a hover.
         (
             {
                 var c = OverlayChoices(); c.hoverMove = [.shift]; return c
-            }(), flagShift, nil
+            }(), .shift, nil
         ),
         // Test 8: A resize set equal to the move set moves.
         (
             {
                 var c = o; c.hoverResize = [.alt, .ctrl]; return c
-            }(), flagControl | flagOption, .move
+            }(), [.control, .option], .move
         ),
         // Test 9: Resize alone.
         (
             {
                 var c = OverlayChoices(); c.hoverResize = [.cmd]; return c
-            }(), flagCommand, .resize
+            }(), .command, .resize
         ),
     ]
     for (i, test) in tests.enumerated() {

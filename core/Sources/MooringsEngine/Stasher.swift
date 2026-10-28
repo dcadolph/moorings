@@ -170,8 +170,8 @@ public final class Stasher {
     // dropEdge returns the edge a drag ending at p with the held keys stashes at: command held,
     // command not one of the keys snapping needs, and p within edgeReach of a display's left, right
     // or bottom edge.
-    public func dropEdge(_ p: Point, held: Set<String>) -> StashEdge? {
-        guard held.contains("command"), !anchors.choices.snapping.snapModifiers.contains("command") else {
+    public func dropEdge(_ p: Point, held: Modifiers) -> StashEdge? {
+        guard held.contains(.command), !anchors.choices.snapping.snapModifiers.contains("command") else {
             return nil
         }
         let screens = platform.screens.current()

@@ -1233,11 +1233,43 @@ func probeContracts(_ opts: ProbeOptions) -> Int32 {
     failures += OverlayContract.run(WinFootprint(), store: windows, host: host)
     failures += NotifierContract.run(WinNotifier { banner.show($0, $1) }, store: windows, host: host)
     failures += SchedulerContract.run(scheduler, clock: WinClock(), host: host)
+    failures += modifiersTable()
     for f in failures {
         print("contract failed: \(f)")
     }
     print("contracts: 4 suites, \(failures.count) failures")
     return failures.isEmpty ? 0 : 1
+}
+
+// modifiersTable checks Modifiers(down:) against virtual key sets, so a wrong code fails the contracts
+// probe.
+func modifiersTable() -> [ContractFailure] {
+    let tests: [(vks: Set<Int32>, want: Modifiers)] = [
+        // Test 0: Nothing down.
+        ([], []),
+        // Test 1: Left Alt is Option with no side bit.
+        ([0x12, 0xA4], .option),
+        // Test 2: Right Alt.
+        ([0x12, 0xA5], [.option, .rightOption]),
+        // Test 3: Left Win is Command.
+        ([0x5B], .command),
+        // Test 4: Right Win.
+        ([0x5C], [.command, .rightCommand]),
+        // Test 5: Right Ctrl.
+        ([0x11, 0xA3], [.control, .rightControl]),
+        // Test 6: Right Shift.
+        ([0x10, 0xA1], [.shift, .rightShift]),
+        // Test 7: Every side-free key.
+        ([0x10, 0x11, 0x12, 0x5B], [.shift, .control, .option, .command]),
+    ]
+    return tests.enumerated().compactMap { i, test in
+        let got = Modifiers { test.vks.contains($0) }
+        return got == test.want
+            ? nil
+            : ContractFailure(
+                rule: "virtual keys read as the same modifiers as the Mac",
+                detail: "case \(i) want \(test.want.rawValue) got \(got.rawValue)")
+    }
 }
 
 // WinHost is the Windows ContractHost: each window is a stand-in from this exe's stand probe in a
