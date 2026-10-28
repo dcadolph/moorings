@@ -707,6 +707,39 @@ func testCastReason(test: CastReasonCase) {
     #expect(anchors.slotWindows(.rightTop).isEmpty)
 }
 
+// testSlotStacksBackOn checks that windows a slot let go into the channel when slotStacks went off,
+// including one with a part and one moved by hand while free, stack in the slot again when it goes
+// back on, rather than being read as released.
+@Test func testSlotStacksBackOn() {
+    let anchors = anchored()
+    var world = TestWorld()
+    let main = world.add(slack, Frame(x: 1500, y: 200, w: 800, h: 600))
+    let second = world.add(slack, Frame(x: 2000, y: 300, w: 700, h: 500), main: false)
+    let third = world.add(slack, Frame(x: 2500, y: 400, w: 600, h: 400), main: false)
+    world.pass(anchors)
+    #expect(anchors.holdPart(second, "left-half", Frame(x: 0, y: 25, w: 256, h: 1415)))
+    world.clock += 1
+    world.pass(anchors)
+    anchors.choices.slotStacks = false
+    world.clock += 1
+    world.pass(anchors)
+    #expect(world.frame(second) != leftFull)
+    #expect(world.frame(third) != leftFull)
+    world.set(third, Frame(x: 1800, y: 300, w: 600, h: 400))
+    world.clock += 5
+    world.pass(anchors)
+    anchors.choices.slotStacks = true
+    for _ in 0..<2 {
+        world.clock += 5
+        world.pass(anchors)
+    }
+    for id in [main, second, third] {
+        #expect(world.frame(id) == leftFull, "window \(id)")
+        #expect(!anchors.isReleased(id), "window \(id)")
+    }
+    #expect(anchors.part(second) == nil)
+}
+
 // testWideWindowIDKept checks that a window id wider than 32 bits, as a Windows HWND can be,
 // passes through moor unchanged.
 @Test func testWideWindowIDKept() {

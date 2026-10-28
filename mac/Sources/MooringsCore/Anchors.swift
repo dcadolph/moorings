@@ -922,6 +922,11 @@ public final class Anchors {
                     moves.append(move)
                 }
             } else if w.onUltrawide, !w.isFilePanel {
+                // A window no pin holds has no slot place to keep, so a later hold starts fresh
+                // instead of reading its time in the channel as a move by hand.
+                placed[w.id] = nil
+                parts[w.id] = nil
+                released.remove(w.id)
                 cap(w.id, ch)
                 drop(w, dropped: dropped)
                 if w.isFullScreen {
