@@ -39,7 +39,7 @@ final class ScenarioRig {
     for r in results {
         print("scenario \(r.name): \(r.notes.joined(separator: "; "))")
     }
-    #expect(report.summary == "scenarios: 12 run, 0 failed")
+    #expect(report.summary == "scenarios: 18 run, 0 failed")
     #expect(report.failures.isEmpty, "\(report.failures)")
     #expect(Set(results.map(\.name)) == Set(Scenarios.all.map(\.name)))
 }
@@ -55,13 +55,15 @@ final class ScenarioRig {
         results.first?.failures.map(\.rule) == ["a pinned window reads back at its strip within 2 s, 1 point"])
 }
 
-// Test 6: An engine without the stash skips the stash scenario by name with its reason and runs the rest.
+// Test 6: An engine with no routed features skips the stash, organize, badge and workspace scenarios by
+// name with their reasons and runs the rest.
 @Test func testScenariosSkipMissingFeature() {
     let rig = ScenarioRig(features: [])
     let results = Scenarios.run(rig.engine, host: rig.host)
-    #expect(results.filter { $0.skipped != nil }.map(\.name) == ["quitRestoresStash"])
-    #expect(results.first { $0.name == "quitRestoresStash" }?.skipped == "needs stash")
-    #expect(ScenarioReport(host: "fakes", results: results).summary == "scenarios: 11 run, 1 skipped, 0 failed")
+    let skipped = results.filter { $0.skipped != nil }
+    #expect(skipped.map(\.name) == ["quitRestoresStash", "organize", "badgeCounts", "workspaceRecall"])
+    #expect(skipped.map(\.skipped) == ["needs stash", "needs organize", "needs badge", "needs workspaces"])
+    #expect(ScenarioReport(host: "fakes", results: results).summary == "scenarios: 14 run, 4 skipped, 0 failed")
 }
 
 // Test 2: The run puts back the engine's choices and stops its passes.

@@ -335,6 +335,12 @@ public enum Scenarios {
         ("footprintFollowsDrag", [], footprintFollowsDrag),
         ("dropPastDesktop", [], dropPastDesktop),
         ("altDragParks", [], altDragParks),
+        ("everyKeymapAction", [], everyKeymapAction),
+        ("chainsRun", [], chainsRun),
+        ("reloadOnFileChange", [], reloadOnFileChange),
+        ("organize", .organize, organize),
+        ("badgeCounts", .badge, badgeCounts),
+        ("workspaceRecall", .workspaces, workspaceRecall),
     ]
 
     // featureNames names each feature the way a skip line says it.
