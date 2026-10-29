@@ -133,7 +133,7 @@ How Moorings compares with every other Mac window manager, row by row with a che
 ### Menu
 
 The menu rebuilds each time it opens. From the top: an update offer when one is waiting, the
-anchor toggle (Weigh anchor lets windows drift, Drop anchor holds them again), Re-moor now,
+Pause Moorings toggle (Resume Moorings while paused), Re-moor now,
 Anchor or Unanchor the front app, Cast off this window, a Re-moor entry for each released app,
 then the Anchored apps, Window, Lift, Workspaces, Profiles, Widths and Heights folders, Settings,
 Launch at login, Check for updates now, Check for updates automatically, Tip the harbormaster, and
@@ -399,7 +399,7 @@ app puts it back in its slot. The Lift folder has a switch for each.
 ### Guards
 
 Nothing moves while the mouse button is down. A window that keeps fighting its place is left
-alone for a minute. Weigh anchor freezes everything, including the shortcuts and the green
+alone for a minute. Pause Moorings freezes everything, including the shortcuts and the green
 button. Moorings checks the layout when a window opens, closes or moves, when an app launches or hides,
 and when displays change. No layout timer runs while nothing moves.
 

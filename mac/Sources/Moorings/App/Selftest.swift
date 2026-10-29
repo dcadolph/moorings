@@ -370,10 +370,10 @@ final class Selftest {
         app.engine.save()
         app.windows.move(c, to: moved)
         let held = app.windows.frame(c) ?? moved
-        check("weigh anchor leaves windows where they are", await steady { self.at(c, held) })
+        check("pause leaves windows where they are", await steady { self.at(c, held) })
         anchors.choices.paused = false
         app.engine.save()
-        check("drop anchor puts the window back", await settled { self.landed(c) })
+        check("resume puts the window back", await settled { self.landed(c) })
 
         let d = try await newDocument()
         let focusName = "focus next window brings the app's other window forward"

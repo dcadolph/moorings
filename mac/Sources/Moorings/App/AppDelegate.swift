@@ -89,6 +89,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     // quitting reports whether Quit Moorings was chosen, so the icon stays blank while the boat sinks.
     private var quitting = false
+    // shownMark is the trust and pause state the menu bar icon last drew.
+    private var shownMark: (trusted: Bool, paused: Bool)?
     // sinking plays the quit animation.
     private let sinking = Sinking()
 
@@ -113,8 +115,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(screensChanged(_:)),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        events.turned = { [weak self] in self?.showTrust() }
-        showTrust()
+        events.turned = { [weak self] in self?.showMark() }
+        engine.observers.passed = { [weak self] _, _ in self?.showMark() }
+        showMark()
         if !windows.trusted {
             logger.notice("Accessibility is not granted: windows will not move")
             notify(
@@ -388,12 +391,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         banner.show(title, body, palette: .harbor, action: action)
     }
 
-    // showTrust shows a warning mark on the menu bar icon while Accessibility is missing.
-    private func showTrust() {
+    // showMark shows a warning mark on the menu bar icon while Accessibility is missing, and the
+    // sailboat with its sails lowered while paused. It sets the image only when either changed.
+    private func showMark() {
         guard !quitting else { return }
+        let state = (trusted: windows.trusted, paused: engine.anchors.choices.paused)
+        guard shownMark.map({ $0 != state }) ?? true else { return }
+        shownMark = state
         item.button?.image =
-            windows.trusted
-            ? Mark.image()
+            state.trusted
+            ? Mark.image(paused: state.paused)
             : NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: "Moorings")
     }
 

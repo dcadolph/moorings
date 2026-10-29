@@ -70,9 +70,16 @@ struct MenuBuilder {
             out.append(.separator())
         }
         let paused = anchors.choices.paused
+        if paused {
+            out.append(
+                ActionItem(
+                    "Paused: nothing is held",
+                    tip: "Moorings moves no windows until you choose Resume Moorings.", enabled: false
+                ) {})
+        }
         out.append(
             ActionItem(
-                paused ? "⚓ Drop anchor (hold the layout)" : "⚓ Weigh anchor (let windows drift)",
+                paused ? "⚓ Resume Moorings (hold the layout)" : "⚓ Pause Moorings (windows stay put)",
                 tip: paused
                     ? "Hold anchored apps in their slots and free windows in the channel again."
                     : "Stop holding windows so you can arrange them freely."
@@ -207,6 +214,7 @@ struct MenuBuilder {
                     anchors.assign(key, "")
                 }
                 app.engine.save()
+                notifyPaused("\(name) is unanchored")
             }
         }
         let targets = SlotKey.allCases.map { key in
@@ -297,20 +305,37 @@ struct MenuBuilder {
         out.append(
             ActionItem(
                 "Unanchor all apps",
-                tip: "Empty every slot so no app is held. Weigh anchor pauses "
+                tip: "Empty every slot so no app is held. Pause Moorings pauses "
                     + "instead.", enabled: picks.values.contains { !$0.isEmpty }
             ) {
                 anchors.clearSlots()
                 app.engine.save()
+                notifyPaused("Every slot is empty")
             })
         return out
     }
 
-    // lock puts bundle in the slot key and opens it like a Dock click.
+    // lock puts bundle in the slot key and opens it like a Dock click. While paused it says the app
+    // will not move there until Resume Moorings.
     private func lock(_ key: SlotKey, _ bundle: String) {
         anchors.lock(key, bundle, now: AppDelegate.now)
         app.engine.save()
         app.open(bundle, background: false)
+        notifyPaused("\(appName(bundle)) is anchored to the \(key.title.lowercased()) slot")
+    }
+
+    // notifyPaused shows a banner saying change waits for Resume Moorings, when Moorings is paused.
+    private func notifyPaused(_ change: String) {
+        if let body = Self.pausedNotice(paused: anchors.choices.paused, change: change) {
+            app.notify("Moorings is paused", body)
+        }
+    }
+
+    // pausedNotice returns the banner body for a slot change made while paused, nil when Moorings is
+    // not paused.
+    static func pausedNotice(paused: Bool, change: String) -> String? {
+        guard paused else { return nil }
+        return "\(change), but nothing moves while paused. Choose Resume Moorings in the menu to apply it."
     }
 
     // chooseApp asks for an app in Applications and locks it in the slot key.
