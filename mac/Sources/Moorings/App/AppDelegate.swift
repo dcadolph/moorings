@@ -187,10 +187,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         let rect = win.convertToScreen(button.convert(button.bounds, to: nil))
         button.image = NSImage(size: button.image?.size ?? NSSize(width: 18, height: 18))
-        sinking.play(
-            over: rect, appearance: button.effectiveAppearance,
-            accent: BannerPanel.color(Palette.harbor.accent)
-        ) {
+        sinking.play(over: rect, appearance: button.effectiveAppearance) {
             NSApp.terminate(nil)
         }
     }

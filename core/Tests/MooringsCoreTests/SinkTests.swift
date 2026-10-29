@@ -6,9 +6,10 @@ import Testing
 // sinkSteps samples the animation every hundredth of its length.
 let sinkSteps = (0...100).map { Double($0) / 100 }
 
-// Test 0: The first frame is the boat at rest, with no water and nothing faded.
+// Test 0: The first frame is the boat at rest, with nothing risen and nothing faded.
 @Test func testSinkStart() {
-    #expect(Sink.pose(0) == SinkPose(water: 0, reach: 0, depth: 0, tilt: 0, bubbles: 0, fade: 1))
+    #expect(
+        Sink.pose(0) == SinkPose(reach: 0, flop: 0, grab: 0, depth: 0, tilt: 0, bubbles: 0, fade: 1))
 }
 
 // Test 1: The last frame has the boat under, the bubbles up and the scene gone.
@@ -30,7 +31,19 @@ let sinkSteps = (0...100).map { Double($0) / 100 }
 @Test func testSinkGrabFirst() {
     for t in sinkSteps where Sink.pose(t).depth > 0 {
         #expect(Sink.pose(t).reach == 1, "t \(t)")
+        #expect(Sink.pose(t).grab == 1, "t \(t)")
     }
+}
+
+// Test 7: The tentacles rise slowly, over at least 1 s, while the boat rocks both ways, then lash
+// out in at most 0.2 s and drag the boat under in at most 0.4 s.
+@Test func testSinkRisesSlowStrikesFast() {
+    let span = { (xs: [Double]) in ((xs.max() ?? 0) - (xs.min() ?? 0)) * Sink.seconds }
+    let rising = sinkSteps.filter { Sink.pose($0).reach > 0 && Sink.pose($0).reach < 1 }
+    #expect(span(rising) >= 1)
+    #expect(Set(rising.map { Sink.pose($0).tilt.sign }).count == 2, "the boat rocks both ways")
+    #expect(span(sinkSteps.filter { Sink.pose($0).grab > 0 && Sink.pose($0).grab < 1 }) <= 0.2)
+    #expect(span(sinkSteps.filter { Sink.pose($0).depth > 0 && Sink.pose($0).depth < 1 }) <= 0.4)
 }
 
 // Test 4: The boat only ever goes down.
