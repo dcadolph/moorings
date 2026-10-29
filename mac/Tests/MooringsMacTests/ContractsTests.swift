@@ -118,9 +118,14 @@ final class MacHost: @preconcurrency ContractHost {
     }
 }
 
-// The Mac adapters keep every contract rule. Without Accessibility access the suite prints why and
-// passes; GitHub's macOS runner and a trusted local shell both run it live.
+// The Mac adapters keep every contract rule. The suite opens and moves real TextEdit windows, so it
+// runs only when MOORINGS_LIVE_CONTRACTS is 1: on GitHub's macOS runner, and locally on the owner's
+// go. Otherwise, or without Accessibility access, it prints why and passes.
 @Test @MainActor func testMacContracts() {
+    guard ProcessInfo.processInfo.environment["MOORINGS_LIVE_CONTRACTS"] == "1" else {
+        print("Mac contracts skipped: MOORINGS_LIVE_CONTRACTS is not 1")
+        return
+    }
     guard AXIsProcessTrusted() else {
         print("Mac contracts skipped: this test host has no Accessibility access")
         return

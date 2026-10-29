@@ -48,6 +48,8 @@ jobs:
 
       - name: Mac contracts
         run: swift test -Xswiftc -warnings-as-errors
+        env:
+          MOORINGS_LIVE_CONTRACTS: "1"
 
       - name: Bundle with Shortcuts metadata
         run: make app ARCHS="arm64 x86_64"
