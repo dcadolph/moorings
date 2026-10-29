@@ -196,6 +196,19 @@ final class DragRig {
     #expect(drops == [.zone("left-half")])
 }
 
+// A press on a window that is not focused follows the window under the pointer, not the focused
+// one, and the drop applies to it.
+@Test @MainActor func testDragFollowsWindowUnderPointer() {
+    let rig = DragRig()
+    let other = rig.windows.add(bundle: "com.example.other", frame: Frame(x: 2400, y: 100, w: 600, h: 400), focus: true)
+    rig.drag(DragRig.path(Point(x: 1600, y: 415), Point(x: 2, y: 700)))
+    rig.follower.ended(held: [])
+    let u = rig.screens.screens.usable[0]
+    #expect(rig.applied == ["left-half"])
+    #expect(rig.windows.frame(rig.id) == Frame(x: u.x, y: u.y, w: u.w / 2, h: u.h))
+    #expect(rig.windows.frame(other) == Frame(x: 2400, y: 100, w: 600, h: 400))
+}
+
 // A platform that says the press sizes the window ends the drag at once.
 @Test @MainActor func testDragGivenSizing() {
     let rig = DragRig()

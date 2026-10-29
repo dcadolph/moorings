@@ -227,13 +227,22 @@ public final class DragFollower {
         return moving == true && !done
     }
 
-    // look reads the dragged window: the given or focused window the first time, then its frame,
-    // until it moves, resizes, or Behavior.stillDrag gives up on it. A snapped window that starts
-    // moving gets its size from before the snap back.
+    // look reads the dragged window: the first time the given window, else the window under the
+    // pointer, else the focused one, then its frame until it moves, resizes, or Behavior.stillDrag
+    // gives up on it. The focused window can still be another one when a press lands on a window that
+    // is not in front yet. A snapped window that starts moving gets its size from before the snap
+    // back.
     private func look() {
         guard let w = win, let s = start else {
             let scan = platform.windows.scan(platform.screens.current(), full: false)
-            guard let found = given.map({ id in scan.windows.first { $0.id == id } }) ?? scan.focused else {
+            let found: WindowInfo?
+            if let given {
+                found = scan.windows.first { $0.id == given }
+            } else {
+                let under = (from ?? at).flatMap { platform.windows.hit($0) }
+                found = under.flatMap { id in scan.windows.first { $0.id == id } } ?? scan.focused
+            }
+            guard let found else {
                 done = true
                 return
             }
