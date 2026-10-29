@@ -462,11 +462,31 @@ final class Windows {
         AXUIElementPerformAction(el, kAXRaiseAction as CFString)
     }
 
-    // alive returns the ids of every window that exists, on any Space.
-    static func alive() -> Set<WindowID> {
+    // listed returns the id of every window in the window server's list, on any Space, with whether
+    // it is on screen.
+    static func listed() -> [WindowID: Bool] {
         let list =
             CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
-        return Set((list ?? []).compactMap { $0[kCGWindowNumber as String] as? WindowID })
+        var out: [WindowID: Bool] = [:]
+        for entry in list ?? [] {
+            guard let id = entry[kCGWindowNumber as String] as? WindowID else { continue }
+            out[id] = entry[kCGWindowIsOnscreen as String] as? Bool ?? false
+        }
+        return out
+    }
+
+    // living returns the ids in listed less the off-screen ones destroyed reports. An app such as
+    // TextEdit keeps a closed window in the window server's list until it quits, so the list alone
+    // cannot tell a closed window from one minimized or on another Space.
+    nonisolated static func living(_ listed: [WindowID: Bool], destroyed: (WindowID) -> Bool) -> Set<WindowID> {
+        Set(listed.compactMap { id, onscreen in onscreen || !destroyed(id) ? id : nil })
+    }
+
+    // destroyed reports whether el belongs to a closed window. A closed window's element answers
+    // every read as invalid, while one minimized or on another Space still answers.
+    static func destroyed(_ el: AXUIElement) -> Bool {
+        var value: CFTypeRef?
+        return AXUIElementCopyAttributeValue(el, kAXRoleAttribute as CFString, &value) == .invalidUIElement
     }
 
     // forget drops the cached elements, windows and frames of a process that quit.
@@ -703,9 +723,11 @@ extension Windows: @preconcurrency WindowStore {
     var refused: Set<WindowID> { refusedIDs }
 
     // alive lists the ids of every window on any space, and drops the elements of windows that are
-    // gone.
+    // gone. An off-screen window whose element this store holds counts only while the element still
+    // answers. One it never held counts while the window server lists it.
     func alive() -> Set<WindowID> {
-        let ids = Self.alive()
+        let held = elements
+        let ids = Self.living(Self.listed()) { id in held[id].map(Self.destroyed) ?? false }
         elements = elements.filter { ids.contains($0.key) }
         return ids
     }
