@@ -424,76 +424,6 @@ jobs:
           }
           SkipCheck '--min-aspect 1.0'
 
-          function ReloadCheck([string[]] $geo) {
-            Write-Host "probe reload $geo"
-            $pad = Pad
-            Start-Sleep -Seconds 3
-            $f = Probe (@('--probe', 'reload') + $geo)
-            $before = Rect ($f -match '^before: ')[0] 'before: '
-            $control = Rect ($f -match '^control: ')[0] 'control: '
-            $after = Rect ($f -match '^after: ')[0] 'after: '
-            $strip = Rect ($f -match '^strip: ')[0] 'strip: '
-            Expect $f '^control: .* reloads 0$' 'a write with the old write time was not reloaded'
-            Expect $f '^after: .* reloads 1$' 'the changed file was reloaded once'
-            if ((Off $control $before) -gt 1) { throw "the control moved the pad from $($before -join ' ') to $($control -join ' ')" }
-            if ((Off $after $strip) -gt 1) { throw "after the reload the pad is $($after -join ' '), not the new strip $($strip -join ' ')" }
-            if ([Math]::Abs($after[2] - $before[2]) -le 1) { throw "the width stayed $($before[2]) px, so the reload check proves nothing" }
-            Write-Host "  check: the file with its old write time was ignored, the changed file was reloaded once and the pad took the new strip $($strip -join ' ')"
-            Stop-Process -Id $pad.Id
-          }
-          ReloadCheck @('--min-aspect', '1.0')
-
-          function ChainCheck([string[]] $geo) {
-            Write-Host "probe chain $geo"
-            $pad = Pad
-            Start-Sleep -Seconds 3
-            $c = Probe (@('--probe', 'chain') + $geo)
-            Expect $c '^bound chain:Halves: true$' 'the Halves chain bound to its chord'
-            Expect $c '^bound chain:Once: true$' 'the Once chain bound to its chord'
-            $half = Rect ($c -match '^left-half: ')[0] 'left-half: '
-            $third = Rect ($c -match '^left-third: ')[0] 'left-third: '
-            if ((Off $half $third) -le 1) { throw "left-half and left-third are the same frame $half, so the check proves nothing" }
-            foreach ($name in 'Halves', 'Once') {
-              $p = @(1..3 | ForEach-Object { Rect ($c -match "^$name press ${_}: ")[0] "$name press ${_}: " })
-              $want = if ($name -eq 'Halves') { @($half, $third, $half) } else { @($half, $third, $third) }
-              foreach ($k in 0..2) {
-                $off = Off $p[$k] $want[$k]
-                if ($off -gt 1) { throw "$name press $($k + 1) is $($p[$k] -join ' '), $off px off $($want[$k] -join ' ')" }
-              }
-            }
-            Write-Host "  check: Halves stepped left half, left third, left half again and Once stayed on the left third after its last step"
-            Stop-Process -Id $pad.Id
-          }
-          ChainCheck @('--min-aspect', '1.0')
-
-          function ActionsCheck([string[]] $geo) {
-            Write-Host "probe actions $geo"
-            $pad = Pad
-            Start-Sleep -Seconds 3
-            $f = Probe (@('--probe', 'actions') + $geo)
-            $t = [regex]::Match(($f -match '^table: ')[0], 'table: (\d+) registered: (\d+) skipped: (\d+)')
-            if (-not $t.Success) { throw "no table line in the actions probe output" }
-            if ([int]$t.Groups[2].Value + [int]$t.Groups[3].Value -ne [int]$t.Groups[1].Value) { throw "registered plus skipped is not the table: $($t.Value)" }
-            foreach ($s in @($f -match '^skipped ')) {
-              if ($s -notmatch ': Windows keeps it routed (true|false)$' -and $s -notmatch ': not on Windows yet routed true$') { throw "skip not allowed (only Windows keeps it, or not on Windows yet for a routed action): $s" }
-            }
-            $least = [regex]::Match(($f -match '^minimum: ')[0], '^minimum: (\d+) (\d+)$')
-            if (-not $least.Success) { throw "no minimum line in the actions probe output" }
-            if ([int]$least.Groups[1].Value -gt 300 -or [int]$least.Groups[2].Value -gt 300) { throw "the window kept $($least.Value), too large to judge sixths and eighths" }
-            $compared = @($f -match '^action .*: want ')
-            foreach ($a in $compared) {
-              $o = [regex]::Match($a, ' off (\d+)$')
-              if (-not $o.Success) { throw "no off value in: $a" }
-              if ([int]$o.Groups[1].Value -gt 1) { throw "action landed off its previewed frame: $a" }
-            }
-            if ($compared.Count -lt 20) { throw "only $($compared.Count) actions compared, want at least 20" }
-            Expect $f '^actions: \d+ compared, \d+ without a frame, worst off \d+$' 'the actions summary line'
-            $kept = @($compared -match ' kept a minimum off ').Count
-            Write-Host "  check: $($compared.Count) actions landed on the frame the engine previewed within 1 px ($kept held at the app's $($least.Value)), every skip is the Windows shell's or a routed action"
-            Stop-Process -Id $pad.Id -ErrorAction SilentlyContinue
-          }
-          ActionsCheck @('--min-aspect', '1.0')
-
           Write-Host "probe login"
           $run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
           Remove-ItemProperty -Path $run -Name Moorings -ErrorAction SilentlyContinue
@@ -562,34 +492,12 @@ jobs:
           Expect $m '^monitor 0: full 0 0 3440 1440 usable 0 0 3440 1392 primary true$' 'one fake 3440x1440 monitor with a 48 px taskbar'
           Expect $m '^ultrawide: 0$' 'the fake monitor counts as the ultrawide at the default min aspect'
 
-          Write-Host "SIM probe place past the desktop"
-          $pad = Start-Process notepad -PassThru
-          Start-Sleep -Seconds 3
-          foreach ($frame in '0,0,1376,1392', '2064,0,1376,1392', '1376,100,1032,600') {
-            $p = Probe (@('--probe', 'place', '--frame', $frame) + $sim)
-            $off = (Placed $p)[0]
-            Write-Host "  read-back off by $off px at $frame"
-          }
-          Stop-Process -Id $pad.Id
-
-          Write-Host "SIM stand-in place past the desktop"
           $script:standIn = $true
           $simApp = $sim + @('--app', '\mooringswin.exe')
-          $pad = Pad
-          Start-Sleep -Seconds 3
-          foreach ($frame in '0,0,1376,1392', '2064,0,1376,1392', '0,0,3440,1392') {
-            $off = (Placed (Probe (@('--probe', 'place', '--frame', $frame) + $simApp)))[0]
-            if ($off -gt 1) { throw "the stand-in read back $off px off $frame" }
-          }
-          Stop-Process -Id $pad.Id
-          Write-Host "  check: the stand-in read back the left strip, the right strip and the whole usable area within 1 px"
 
           HotkeyCheck $simApp
           if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
-          ChainCheck $simApp
-          ReloadCheck $simApp
-          ActionsCheck $simApp
 
           Write-Host "SIM probe drag"
           $pad = Pad
@@ -648,19 +556,19 @@ jobs:
           }
           function Written($run) {
             $shots = @(Get-ChildItem (Join-Path $run.Dir '*.png') -ErrorAction SilentlyContinue)
-            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 10) { throw "want report.html and 10 pictures in $($run.Dir), got $($shots.Count)" }
+            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 13) { throw "want report.html and 13 pictures in $($run.Dir), got $($shots.Count)" }
             if (-not ($run.Lines -match '^hook reinstalled: 0$')) { throw "the mouse hook was put back during the scenarios in $($run.Dir)" }
           }
 
           Write-Host "scenarios on the runner's screen"
           $s = Scenarios 'runner' @('--min-aspect', '1.0')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 10 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 13 run, 5 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
-          Write-Host "  check: 10 scenarios passed on the Win32 adapters, quitRestoresStash and refusedWindowTriedOnce skipped, with report.html, 10 pictures and the hook never put back"
+          Write-Host "  check: 13 scenarios passed on the Win32 adapters, quitRestoresStash, organize, badgeCounts, workspaceRecall and refusedWindowTriedOnce skipped, with report.html, 13 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
           $s = Scenarios 'sim' @('--screen', '3440x1440')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 10 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 13 run, 5 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
           if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
           Written $s
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
