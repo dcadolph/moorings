@@ -61,11 +61,12 @@ extension Scenarios {
         }
         s.measure("\(landed) actions landed of \(keymapActions.count) listed, worst off \(Int(worst.rounded()))")
         let listed = Set(keymapActions)
-        if listed != previewed {
+        let onOne = previewed.subtracting(crossing)
+        if listed != onOne {
             s.fail(
-                "the list names every action that previews a frame, \(previewed.count) previewed",
-                "\(listed.count) listed; unlisted \(previewed.subtracting(listed).sorted()), "
-                    + "no preview \(listed.subtracting(previewed).sorted())")
+                "the list names every action that previews a frame on one screen, \(onOne.count) previewed",
+                "\(listed.count) listed; unlisted \(onOne.subtracting(listed).sorted()), "
+                    + "no preview \(listed.subtracting(onOne).sorted())")
         }
         if landed < 20 {
             s.fail("at least 20 actions land within 1 point of the engine's preview", "\(landed) landed")
@@ -101,6 +102,10 @@ extension Scenarios {
         let edge = got > want ? got - want : got < want - slack ? want - slack - got : 0
         return (edge, abs(least - gotLen))
     }
+
+    // crossing lists the actions that send a window to another screen, which preview a frame only on a
+    // host with more than one, so the list leaves them out.
+    static let crossing = Set(["previous-display", "next-display"] + Actions.displayNames)
 
     // keymapActions lists every action everyKeymapAction runs: each one of the default keymap and the Window
     // families that previews a frame on one screen, 124 of them.
