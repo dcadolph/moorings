@@ -158,9 +158,12 @@ final class SinkingView: NSView {
             let u = 1 - t
             let a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t
             return CGPoint(
-                x: a * p[0].x + b * p[1].x + c * p[2].x + d * p[3].x, y: a * p[0].y + b * p[1].y + c * p[2].y + d * p[3].y)
+                x: a * p[0].x + b * p[1].x + c * p[2].x + d * p[3].x,
+                y: a * p[0].y + b * p[1].y + c * p[2].y + d * p[3].y)
         }
-        let mix = { (a: CGPoint, b: CGPoint, k: CGFloat) in CGPoint(x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k) }
+        let mix = { (a: CGPoint, b: CGPoint, k: CGFloat) in
+            CGPoint(x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k)
+        }
         let w = 2 * .pi * (1.2 * pose.flop + (side > 0 ? 0.35 : 0))
         let sway = sin(w) * min(1, pose.flop * 3)
         let tip = CGPoint(x: base.x + side * (7 + 4 * sway), y: waterline - 4 - 2 * cos(w * 1.3))
@@ -169,14 +172,21 @@ final class SinkingView: NSView {
                 base, CGPoint(x: base.x - side * (2 + 3 * cos(w)), y: base.y - 7),
                 CGPoint(x: tip.x + side * 5 * sway, y: tip.y + 6), tip,
             ],
-            curl: [tip, CGPoint(x: tip.x - side * (3 + 3 * sway), y: tip.y - 5), CGPoint(x: tip.x - side * 7, y: tip.y - 2),
-                CGPoint(x: tip.x - side * 5, y: tip.y + 2)]
+            curl: [
+                tip, CGPoint(x: tip.x - side * (3 + 3 * sway), y: tip.y - 5),
+                CGPoint(x: tip.x - side * 7, y: tip.y - 2),
+                CGPoint(x: tip.x - side * 5, y: tip.y + 2),
+            ]
         )
         let held = CGPoint(x: hook.x + side * 2, y: hook.y - 2)
         let grip = (
-            rise: [base, CGPoint(x: base.x + side * 4, y: base.y - 7), CGPoint(x: hook.x + side * 7, y: hook.y + 5), held],
-            curl: [held, CGPoint(x: hook.x - side * 1, y: hook.y - 6), CGPoint(x: hook.x - side * 6, y: hook.y - 5),
-                CGPoint(x: hook.x - side * 5, y: hook.y + 1)]
+            rise: [
+                base, CGPoint(x: base.x + side * 4, y: base.y - 7), CGPoint(x: hook.x + side * 7, y: hook.y + 5), held,
+            ],
+            curl: [
+                held, CGPoint(x: hook.x - side * 1, y: hook.y - 6), CGPoint(x: hook.x - side * 6, y: hook.y - 5),
+                CGPoint(x: hook.x - side * 5, y: hook.y + 1),
+            ]
         )
         let k = CGFloat(pose.grab)
         let rise = zip(free.rise, grip.rise).map { mix($0, $1, k) }
