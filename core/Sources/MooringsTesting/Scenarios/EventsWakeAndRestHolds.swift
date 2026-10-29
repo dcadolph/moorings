@@ -41,9 +41,13 @@ extension Scenarios {
             return t - c.t > 1
         }
         if !idle.isEmpty {
+            // The events since the start name what kept the passes running, such as another app's
+            // launch, which holds them at Pace.busySeconds for Pace.launchSeconds.
+            let seen = events.map { "\(seconds($0.t - t0)) \($0.event)" }
             s.fail(
                 "no pass runs more than 1 s after the last window event",
-                "\(idle.count) idle passes at \(idle.map { seconds($0 - t0) }) s after the start")
+                "\(idle.count) idle passes at \(idle.map { seconds($0 - t0) }) s after the start, "
+                    + "passes \(passes.map { seconds($0 - t0) }), events \(seen)")
         }
     }
 }
