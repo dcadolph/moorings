@@ -20,13 +20,16 @@ extension MacHost: @preconcurrency ScenarioHost {
         return true
     }
 
-    // drag raises the window, presses on its title bar with a posted event, moves the pointer by
-    // offset in 20 steps 15 ms apart with held down and lets go, and feeds drag each point the way
-    // the app's event tap feeds MacDrag, since a test host runs no tap.
+    // drag raises the window and waits up to 1 s for it to be the window under its title bar, presses
+    // there with a posted event, moves the pointer by offset in 20 steps 15 ms apart with held down
+    // and lets go, and feeds drag each point the way the app's event tap feeds MacDrag, since a test
+    // host runs no tap. A press before the raise lands goes to another window, so it reports false
+    // when the window never comes up under the press.
     func drag(_ id: WindowID, by offset: Point, held: Modifiers) -> Bool {
         guard let drag, let f = store.frame(id) else { return false }
         store.raise(id)
         let grab = Scenarios.grab(f)
+        guard wait(until: now + 1, { store.hit(grab) == id }) else { return false }
         let flags = CGEventFlags(
             rawValue: Modifiers.sideFree.filter { held.contains($0.0) }.reduce(0) { $0 | $1.1 })
         func post(_ type: CGEventType, _ p: Point) {
