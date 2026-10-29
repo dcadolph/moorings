@@ -52,9 +52,14 @@ extension MacHost: @preconcurrency ScenarioHost {
     }
 }
 
-// The Mac engine shows every scenario's behavior on TextEdit windows. Without Accessibility access the
-// test prints why and passes; it runs live on the owner's go.
+// The Mac engine shows every scenario's behavior on TextEdit windows. It moves real windows on an
+// ultrawide, so it runs only when MOORINGS_LIVE_SCENARIOS is 1 on the owner's go; otherwise, or
+// without Accessibility access, the test prints why and passes.
 @Test @MainActor func testMacScenarios() {
+    guard ProcessInfo.processInfo.environment["MOORINGS_LIVE_SCENARIOS"] == "1" else {
+        print("Mac scenarios skipped: MOORINGS_LIVE_SCENARIOS is not 1")
+        return
+    }
     guard AXIsProcessTrusted() else {
         print("Mac scenarios skipped: this test host has no Accessibility access")
         return
