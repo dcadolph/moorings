@@ -1,6 +1,7 @@
 name: ci
 
-# Run the core suite, then build the native app on macOS.
+# Lint on macos-26, which carries the Xcode that ships swift-format 6.3.0, then run the core suite
+# and build the native app on macos-15, the release runner.
 on:
   push:
     branches: [main]
@@ -8,18 +9,15 @@ on:
     branches: [main]
 
 jobs:
-  mac:
-    runs-on: macos-15
-    defaults:
-      run:
-        working-directory: mac
+  format:
+    runs-on: macos-26
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
       # Lint with the swift-format 6.3.0 that formatted the tree, since another version may format
-      # differently. DEVELOPER_DIR picks it for this step only, so the build keeps the default Xcode.
+      # differently. DEVELOPER_DIR picks it, so the default Xcode of the image does not matter.
       - name: Format
-        working-directory: .
         run: |
           set -euo pipefail
           for app in /Applications/Xcode*.app; do
@@ -32,6 +30,14 @@ jobs:
           done
           echo "no Xcode on this runner has swift-format 6.3.0"
           exit 1
+
+  mac:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@v5
 
       - name: Core tests
         run: swift test -Xswiftc -warnings-as-errors
