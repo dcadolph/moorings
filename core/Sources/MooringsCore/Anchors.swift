@@ -126,7 +126,7 @@ public struct Choices: Equatable, Sendable, Codable {
     // init builds a set of choices.
     public init(
         slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil, paused: Bool = false,
-        fullscreenFills: Bool = true, pinFullscreenFills: Bool = true
+        fullscreenFills: Bool = true, pinFullscreenFills: Bool = false
     ) {
         self.slots = slots
         self.widths = widths
@@ -154,7 +154,7 @@ public struct Choices: Equatable, Sendable, Codable {
         widthPresets = (try? c.decodeIfPresent([Widths].self, forKey: .widthPresets)) ?? []
         paused = (try? c.decodeIfPresent(Bool.self, forKey: .paused)) ?? false
         fullscreenFills = (try? c.decodeIfPresent(Bool.self, forKey: .fullscreenFills)) ?? true
-        pinFullscreenFills = (try? c.decodeIfPresent(Bool.self, forKey: .pinFullscreenFills)) ?? true
+        pinFullscreenFills = (try? c.decodeIfPresent(Bool.self, forKey: .pinFullscreenFills)) ?? false
         keymap = (try? c.decodeIfPresent(String.self, forKey: .keymap)) ?? Keymap.rectangle.rawValue
         shortcuts = (try? c.decodeIfPresent([String: StoredShortcut?].self, forKey: .shortcuts)) ?? [:]
         sizes = (try? c.decodeIfPresent([StoredSize].self, forKey: .sizes)) ?? []
@@ -690,7 +690,7 @@ public final class Anchors {
             if held == w.id {
                 return true
             }
-        } else if w.isMain && !w.isFilePanel {
+        } else if w.isMain && !w.isFilePanel && !w.isFullScreen {
             holders[pin.bundle] = w.id
             return true
         }
@@ -975,8 +975,12 @@ public final class Anchors {
         for w in scene.windows {
             seen.insert(w.id)
             if let pin = pin(w.bundle, in: pins), pinsWindow(pin, w) {
+                // Only the window the pin held is sent back from native fullscreen. Another window
+                // of the app, such as a video player's fullscreen window, is left alone.
                 if w.isFullScreen {
-                    if choices.pinFullscreenFills, let exit = leaveFullScreen(w) {
+                    if choices.pinFullscreenFills, holders[pin.bundle] == w.id,
+                        let exit = leaveFullScreen(w)
+                    {
                         moves.append(exit)
                     }
                     continue

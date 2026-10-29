@@ -169,6 +169,7 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
 // Lua case 128: A pinned window that goes native fullscreen leaves it and lands in its slot.
 @Test func testLiftPinFullscreen() {
     let anchors = liftAnchors()
+    anchors.choices.pinFullscreenFills = true
     var world = LiftWorld()
     let term = world.add(iterm, Frame(x: 100, y: 100, w: 900, h: 700))
     world.pass(anchors)
@@ -199,6 +200,7 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
 // Lua case 130: The pin and channel fullscreen settings work independently.
 @Test func testLiftFullscreenSwitchesIndependent() {
     let anchors = liftAnchors()
+    anchors.choices.pinFullscreenFills = true
     var world = LiftWorld()
     let term = world.add(iterm, Frame(x: 100, y: 100, w: 900, h: 700))
     let free = world.add(safari, Frame(x: 1000, y: 200, w: 800, h: 600))
@@ -244,22 +246,74 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
 @Test func testLiftSecondWindowFullscreenStacks() {
     var choices = Choices(slots: [.leftTop: slack, .rightTop: iterm])
     choices.fullscreenFills = false
+    choices.pinFullscreenFills = true
     let anchors = liftAnchors(choices)
     var world = LiftWorld()
     let main = world.add(slack, Frame(x: 1000, y: 100, w: 900, h: 700))
     let huddle = world.add(slack, Frame(x: 1200, y: 200, w: 400, h: 300), main: false)
     world.pass(anchors)
+    let before = world.frame(main)
     world.full(huddle, true)
     world.pass(anchors)
-    #expect(world.exits[huddle] != nil)
-    #expect(world.info(huddle).isFullScreen == false)
     world.pass(anchors)
-    #expect(world.frame(huddle) == world.frame(main))
+    #expect(world.exits[huddle] == nil)
+    #expect(world.info(huddle).isFullScreen == true)
+    #expect(world.frame(main) == before)
+}
+
+// A video player's fullscreen window stays fullscreen while the anchored browser window it came from
+// leaves the scan, as Safari's does on the fullscreen Space, and the player is never adopted.
+@Test func testLiftPlayerWindowWhileHolderHidden() {
+    var choices = Choices(slots: [.leftTop: safari])
+    choices.pinFullscreenFills = true
+    let anchors = liftAnchors(choices)
+    var world = LiftWorld()
+    let browser = world.add(safari, Frame(x: 100, y: 100, w: 900, h: 700))
+    world.pass(anchors)
+    let player = world.add(safari, Frame(x: 0, y: 30, w: 1894, h: 1410), main: false)
+    world.full(player, true)
+    world.remove(browser)
+    world.pass(anchors)
+    world.pass(anchors)
+    #expect(world.exits[player] == nil)
+    #expect(world.info(player).isFullScreen == true)
+    #expect(anchors.holders[safari] == nil)
+}
+
+// A window that is already fullscreen when the pin first sees it is neither adopted nor sent back.
+@Test func testLiftPlayerWindowBornFullscreen() {
+    var choices = Choices(slots: [.leftTop: safari])
+    choices.pinFullscreenFills = true
+    let anchors = liftAnchors(choices)
+    var world = LiftWorld()
+    let player = world.add(safari, Frame(x: 0, y: 0, w: 5120, h: 1440))
+    world.full(player, true)
+    world.pass(anchors)
+    #expect(world.exits[player] == nil)
+    #expect(anchors.holders[safari] == nil)
+}
+
+// Once the player closes and the browser window comes back, the browser takes the slot again.
+@Test func testLiftHolderReturnsAfterPlayer() {
+    var choices = Choices(slots: [.leftTop: safari])
+    choices.pinFullscreenFills = true
+    let anchors = liftAnchors(choices)
+    var world = LiftWorld()
+    let player = world.add(safari, Frame(x: 0, y: 0, w: 5120, h: 1440))
+    world.full(player, true)
+    world.pass(anchors)
+    world.remove(player)
+    let browser = world.add(safari, Frame(x: 100, y: 100, w: 900, h: 700))
+    world.pass(anchors)
+    world.pass(anchors)
+    #expect(anchors.holders[safari] == browser)
+    #expect(world.frame(browser).x == 0)
 }
 
 // Lua case 132: A pinned window still animating out of fullscreen is told to leave once.
 @Test func testLiftExitAskedOnce() {
     let anchors = liftAnchors()
+    anchors.choices.pinFullscreenFills = true
     var world = LiftWorld()
     let term = world.add(iterm, Frame(x: 100, y: 100, w: 900, h: 700))
     world.pass(anchors)
@@ -276,6 +330,7 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
 // Lua case 133: A pinned window that lands in its slot and goes fullscreen again is redirected again.
 @Test func testLiftFullscreenAgain() {
     let anchors = liftAnchors()
+    anchors.choices.pinFullscreenFills = true
     var world = LiftWorld()
     let term = world.add(iterm, Frame(x: 100, y: 100, w: 900, h: 700))
     world.pass(anchors)
@@ -292,11 +347,11 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
 // Lua case 134: The pin fullscreen setting survives a save and reload.
 @Test func testLiftFullscreenChoiceSaved() throws {
     var choices = Choices()
-    choices.pinFullscreenFills = false
+    choices.pinFullscreenFills = true
     let back = Choices.decode(try Choices.encode(choices)).choices
-    #expect(back.pinFullscreenFills == false)
+    #expect(back.pinFullscreenFills == true)
     #expect(back.fullscreenFills == true)
-    #expect(Choices.decode(Data("{}".utf8)).choices.pinFullscreenFills == true)
+    #expect(Choices.decode(Data("{}".utf8)).choices.pinFullscreenFills == false)
 }
 
 // Lua case 165: A left pin that will not shrink to the strip keeps its own width at the edge and

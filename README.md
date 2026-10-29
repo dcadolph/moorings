@@ -393,8 +393,9 @@ and Re-moor now also bring it back.
 A free window that strays into a strip is pushed back, and one too wide is narrowed and grows
 back when the channel widens. Cast off this window lets one window cover the strips until it
 closes or you click again. A free window's green button fills the channel, and a second click
-puts it back. Native fullscreen on the ultrawide fills the channel instead, and on an anchored
-app puts it back in its slot. The Lift folder has a switch for each.
+puts it back. Native fullscreen on the ultrawide fills the channel instead. On an anchored app it
+stays fullscreen, so a video can take the whole screen, and the app returns to its slot when it
+leaves fullscreen. The Lift folder has a switch for each.
 
 ### Guards
 

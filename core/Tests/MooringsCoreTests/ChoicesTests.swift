@@ -10,7 +10,7 @@ import Testing
     let c = Choices.decode(old).choices
     #expect(c.slots[.leftTop] == "com.tinyspeck.slackmacgap")
     #expect(c.keymap == "rectangle" && c.shortcuts.isEmpty && c.sizes.isEmpty)
-    #expect(c.gapPx == 0 && c.ignores.isEmpty && c.snap && c.fullscreenFills && c.pinFullscreenFills)
+    #expect(c.gapPx == 0 && c.ignores.isEmpty && c.snap && c.fullscreenFills && !c.pinFullscreenFills)
 }
 
 // Swift only: every window action field survives a save and reload, a removed shortcut included.
