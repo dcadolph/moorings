@@ -112,7 +112,11 @@ public enum WindowStoreContract {
         }
         subject.close(a)
         if !host.wait(until: host.now + 1, { !subject.alive().contains(a) }) {
-            fail("close removes the window from alive within 1 s", "still alive")
+            let listed = subject.scan(screens, full: true).windows.contains { $0.id == a }
+            fail(
+                "close removes the window from alive within 1 s",
+                "still alive, frame \(Contract.show(subject.frame(a))) title \(subject.title(a) ?? "nil") "
+                    + "listed \(listed)")
         }
         return out
     }
