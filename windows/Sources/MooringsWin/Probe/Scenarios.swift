@@ -37,6 +37,7 @@ func probeScenarios(_ opts: ProbeOptions) -> Int32 {
     host.hotkey = { app.hotkeys.fire($0) }
     host.mouse = { app.mouse.deliver($0) }
     host.shots = dir
+    host.choices = file
     app.mouse.handler = { message, p in
         if message == UINT(WM_MOUSEMOVE) {
             app.drag.pointer(p)
