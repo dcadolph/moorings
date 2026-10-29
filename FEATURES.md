@@ -150,8 +150,9 @@ each part.
 - Cast off this window lets one window cover the strips, even an anchored app, until it closes
   or you click again.
 - A free window's green button fills the channel, and a second click puts it back. Native
-  fullscreen fills the channel instead of covering the anchored apps. Each kind of window has its
-  own switch.
+  fullscreen fills the channel instead of covering the anchored apps. An anchored app stays
+  fullscreen, so a video can take the whole screen, and returns to its slot when it leaves
+  fullscreen. Each kind of window has its own switch.
 
 ## Settings window
 
@@ -168,6 +169,8 @@ each part.
 ## Out of sight
 
 - One sailboat in the menu bar and no Dock icon.
+- Pause Moorings freezes everything until Resume Moorings. While paused the sailboat's sails are
+  lowered, the menu says nothing is held, and anchoring an app says it waits for Resume.
 - Messages appear in a banner at the top right, not in macOS notifications, so there is no
   notification permission to grant.
 - Quit Moorings from the menu and an octopus pulls the sailboat under the water. With Reduce
