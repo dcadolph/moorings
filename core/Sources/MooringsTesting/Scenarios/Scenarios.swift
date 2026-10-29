@@ -288,7 +288,8 @@ public final class Stage {
         if !dropped {
             fail(
                 "a drag of the \(label) ends in a drop within \(Int(Scenarios.dropSeconds)) s",
-                "no drop after the drag from \(grab) to \(p)")
+                "no drop after the drag from \(grab) to \(p), dragged \(w.id), follower: "
+                    + engine.drag.trace.joined(separator: "; "))
         }
         return dropped
     }

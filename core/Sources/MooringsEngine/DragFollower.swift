@@ -59,6 +59,9 @@ public final class DragFollower {
     private var placedFrame: Frame?
     // stashAt is the edge a Command-drag would stash the window at, nil when it would not.
     private var stashAt: StashEdge?
+    // trace lists what the last drag read, one line each: the window it watched and how it found it,
+    // each frame it read, and how the drag ended. A scenario prints it when a drop goes missing.
+    public private(set) var trace: [String] = []
 
     // init builds a follower on engine's platform and anchors that previews and applies actions
     // through the engine's action runner.
@@ -76,6 +79,10 @@ public final class DragFollower {
     // moving its answer to move versus size when it has one; at is where the button went down.
     public func began(window: WindowID? = nil, moving: Bool? = nil, at: Point? = nil) {
         reset()
+        trace = [
+            "began window \(String(describing: window)) moving \(String(describing: moving)) "
+                + "at \(String(describing: at))"
+        ]
         down = true
         given = window
         self.moving = moving
@@ -150,9 +157,14 @@ public final class DragFollower {
     // a Command-drag at an edge stashes the window. A window that can no longer be read gets nothing.
     public func ended(held: Modifiers) {
         let (w, drop, screen, stashAt, start, moved) = (win, drop, screen, stashAt, start, moving == true)
+        trace.append(
+            "ended moving \(String(describing: moving)) done \(done) window \(String(describing: w?.id))")
         reset()
         guard moved, var w else { return }
-        guard let f = platform.windows.frame(w.id) else { return }
+        guard let f = platform.windows.frame(w.id) else {
+            trace.append("ended window \(w.id) unreadable")
+            return
+        }
         w.frame = f
         if let stashAt {
             engine.stash(w, edge: stashAt, original: start)
@@ -238,14 +250,22 @@ public final class DragFollower {
             let found: WindowInfo?
             if let given {
                 found = scan.windows.first { $0.id == given }
+                trace.append("first read given \(given) in scan \(found != nil)")
             } else {
                 let under = (from ?? at).flatMap { platform.windows.hit($0) }
-                found = under.flatMap { id in scan.windows.first { $0.id == id } } ?? scan.focused
+                let hit = under.flatMap { id in scan.windows.first { $0.id == id } }
+                found = hit ?? scan.focused
+                trace.append(
+                    "first read at \(String(describing: from ?? at)) under \(String(describing: under)) "
+                        + "in scan \(hit != nil) focused \(String(describing: scan.focused?.id)) "
+                        + "of \(scan.windows.count) windows")
             }
             guard let found else {
+                trace.append("first read found no window")
                 done = true
                 return
             }
+            trace.append("watching \(found.id) at \(found.frame)")
             win = found
             start = found.frame
             if let at, let from, let p = engine.actions.placed(found.id), !anchors.pinned(found),
@@ -256,10 +276,13 @@ public final class DragFollower {
             return
         }
         guard let f = platform.windows.frame(w.id) else {
+            trace.append("read \(w.id) unreadable")
             done = true
             return
         }
+        trace.append("read \(f)")
         if abs(f.w - s.w) > Self.sizeTolerance || abs(f.h - s.h) > Self.sizeTolerance {
+            trace.append("sized, not a move")
             done = true
         } else if f.x != s.x || f.y != s.y {
             moving = true
@@ -273,6 +296,9 @@ public final class DragFollower {
             let first = firstRead ?? now
             firstRead = first
             done = Behavior.stillDrag(reads: checks, seconds: now - first)
+            if done {
+                trace.append("still after \(checks) reads in \(now - first) s")
+            }
         }
     }
 }
