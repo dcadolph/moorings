@@ -56,8 +56,9 @@ public final class PassLoop {
 
     // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle. A full
     // wake also makes the scans read every app for Pace.settleSeconds; an event that named its window
-    // wakes narrow, since the source marked that window's app.
+    // wakes narrow, since the source marked that window's app. Nothing wakes while paused.
     public func wake(full: Bool = true) {
+        guard !anchors.choices.paused else { return }
         let t = platform.clock.now
         woke = t
         if full {
@@ -211,8 +212,12 @@ public final class PassLoop {
     }
 
     // pace sets the next pass: soon while windows change, every Pace.busySeconds while something
-    // pending sends no event, at the next deadline, or not at all.
+    // pending sends no event, at the next deadline, or not at all, and never while paused.
     private func pace() {
+        guard !anchors.choices.paused else {
+            schedule(nil)
+            return
+        }
         let t = platform.clock.now
         let busy = !platform.windows.ready || platform.events.waiting || workspaces.waiting || t < launching
         schedule(

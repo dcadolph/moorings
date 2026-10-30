@@ -916,3 +916,18 @@ let finder = "com.apple.finder"
     #expect(!anchors.pinned(world.info(extra)))
     #expect(inChannel(anchors, world.frame(extra)))
 }
+
+// weigh lets go of what the pins hold, and the pass after it places them again.
+@Test func testWeighLetsGoOfThePins() {
+    let anchors = anchored()
+    var world = TestWorld()
+    let s = world.add(slack, Frame(x: 900, y: 100, w: 800, h: 600))
+    world.pass(anchors)
+    #expect(world.frame(s) == leftFull)
+    #expect(!anchors.held.isEmpty && !anchors.holdAreas.isEmpty && !anchors.placed.isEmpty)
+    anchors.weigh()
+    #expect(anchors.held.isEmpty && anchors.holdAreas.isEmpty && anchors.placed.isEmpty)
+    world.pass(anchors)
+    #expect(world.frame(s) == leftFull)
+    #expect(!anchors.held.isEmpty)
+}
