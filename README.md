@@ -11,7 +11,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-0a6c74" alt="License: Apache-2.0"></a>
   <img src="https://img.shields.io/badge/swift-6-F05138?logo=swift&logoColor=white" alt="Swift 6">
-  <img src="https://img.shields.io/badge/platform-macOS_14+-lightgrey?logo=apple&logoColor=white" alt="Platform: macOS 14 or later">
+  <img src="https://img.shields.io/badge/platform-macOS_15+-lightgrey?logo=apple&logoColor=white" alt="Platform: macOS 15 or later">
 </p>
 
 A free window manager for every Mac. Snap windows with a key or a drag, and on an ultrawide, pin
@@ -56,7 +56,7 @@ to my ultrawide way of working.
 
 ## Requirements
 
-- macOS 14 Sonoma or later, on Apple silicon or Intel
+- macOS 15 Sequoia or later, on Apple silicon or Intel
 - Accessibility permission for Moorings
 - Any other window manager quit, since both would move windows
 

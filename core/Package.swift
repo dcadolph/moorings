@@ -6,7 +6,7 @@ import PackageDescription
 // MooringsTesting the fakes and contracts every test target uses.
 let package = Package(
     name: "MooringsCore",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     products: [
         .library(name: "MooringsCore", targets: ["MooringsCore"]),
         .library(name: "MooringsEngine", targets: ["MooringsEngine"]),

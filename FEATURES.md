@@ -1,6 +1,6 @@
 # What you get
 
-Moorings is a free, native menu bar app for macOS 14 or later, signed and notarized. Everything
+Moorings is a free, native menu bar app for macOS 15 or later, signed and notarized. Everything
 here works on any display unless it says ultrawide. The [README](README.md) has the details for
 each part.
 
