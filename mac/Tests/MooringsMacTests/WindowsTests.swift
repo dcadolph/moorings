@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 import MooringsCore
@@ -23,4 +24,35 @@ import MooringsCore
         let got = Windows.living(test.listed) { test.destroyed.contains($0) }
         #expect(got == test.want, "test \(i)")
     }
+}
+
+// A scan right after an action's own move carries the last window server list instead of asking for
+// a new one, and a scan after any app's event, a forced scan or one with nothing placed asks again.
+@MainActor
+@Test func testScanCarriesTheListAfterAnActionsMove() {
+    var asked = 0
+    let moved = Frame(x: 200, y: 0, w: 100, h: 100)
+    let windows = Windows {
+        asked += 1
+        return [(id: 1, pid: 999_999, frame: Frame(x: 0, y: 0, w: 100, h: 100))]
+    }
+    let screens = Screens.current()
+    _ = windows.scan(screens, full: false)
+    #expect(asked == 1)
+    // Test 0: An action placed window 1 and no app sent an event, so the scan carries the list.
+    windows.echoes[1] = (moved, ProcessInfo.processInfo.systemUptime)
+    _ = windows.scan(screens, full: false)
+    #expect(asked == 1)
+    // Test 1: Nothing placed since the last scan, so the scan asks.
+    _ = windows.scan(screens, full: false)
+    #expect(asked == 2)
+    // Test 2: A placement and an app's event since the last scan, so the scan asks.
+    windows.echoes[1] = (moved, ProcessInfo.processInfo.systemUptime)
+    windows.appWoke[999_999] = ProcessInfo.processInfo.systemUptime
+    _ = windows.scan(screens, full: false)
+    #expect(asked == 3)
+    // Test 3: A forced scan asks even right after a placement.
+    windows.echoes[1] = (moved, ProcessInfo.processInfo.systemUptime)
+    _ = windows.scan(screens, full: true)
+    #expect(asked == 4)
 }

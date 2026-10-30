@@ -154,3 +154,53 @@ let refreshAppsCases: [RefreshAppsCase] = [
 func testRefreshesApps(test: RefreshAppsCase) {
     #expect(PassPlan.refreshesApps(now: test.Now, last: test.Last, waiting: test.Waiting) == test.WantRefresh)
 }
+
+// CarriesCase is one call to PassPlan.carries and its answer.
+struct CarriesCase: Sendable {
+    // Now is when the pass runs.
+    var Now = 100.0
+    // Forced reports whether the pass must read every app.
+    var Forced = false
+    // LastFull is when the last full pass ran.
+    var LastFull = 95.0
+    // LastScan is when the last scan ran.
+    var LastScan = 99.0
+    // Woke maps a process id to when its last event came.
+    var Woke: [Int32: Double] = [:]
+    // Placed maps each window an action placed to when it did.
+    var Placed: [WindowID: Double] = [1: 99.5]
+    // Listed holds the windows on the last window server list.
+    var Listed: Set<WindowID> = [1, 2]
+    // WantCarry is whether the pass carries the last list.
+    var WantCarry: Bool
+}
+
+// carriesCases covers each rule of carries.
+let carriesCases: [CarriesCase] = [
+    // Test 19: A pass after an action's move alone carries the list.
+    CarriesCase(WantCarry: true),
+    // Test 20: A forced pass lists.
+    CarriesCase(Forced: true, WantCarry: false),
+    // Test 21: A pass with a full one due lists.
+    CarriesCase(LastFull: 90, WantCarry: false),
+    // Test 22: An app's event since the last scan makes the pass list.
+    CarriesCase(Woke: [10: 99.8], WantCarry: false),
+    // Test 23: An event before the last scan does not.
+    CarriesCase(Woke: [10: 98], WantCarry: true),
+    // Test 24: A placement before the last scan does not count, so the pass lists.
+    CarriesCase(Placed: [1: 98], WantCarry: false),
+    // Test 25: No placement at all lists.
+    CarriesCase(Placed: [:], WantCarry: false),
+    // Test 26: A placed window missing from the last list makes the pass list.
+    CarriesCase(Placed: [3: 99.5], WantCarry: false),
+    // Test 27: Two placements since the last scan, both listed, carry.
+    CarriesCase(Placed: [1: 99.5, 2: 99.6], WantCarry: true),
+]
+
+@Test(arguments: carriesCases)
+func testCarries(test: CarriesCase) {
+    let got = PassPlan.carries(
+        now: test.Now, forced: test.Forced, lastFull: test.LastFull, lastScan: test.LastScan, woke: test.Woke,
+        placed: test.Placed, listed: test.Listed)
+    #expect(got == test.WantCarry)
+}
