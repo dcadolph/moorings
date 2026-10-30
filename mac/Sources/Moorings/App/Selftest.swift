@@ -239,6 +239,9 @@ final class Selftest {
     private func prepare() -> String? {
         guard app.windows.trusted else { return "Accessibility is not granted" }
         guard Screens.current().wide != nil else { return "no ultrawide screen is attached" }
+        if let why = Self.held(CGEventSource.flagsState(.combinedSessionState)) {
+            return why
+        }
         if textEdit() != nil {
             return "TextEdit is open. Quit it first, since the run makes throwaway documents in it"
         }
@@ -257,6 +260,19 @@ final class Selftest {
             }
         }
         return "every slot is taken. Empty one in Anchored apps first"
+    }
+
+    // held returns why a run cannot start while flags holds Shift, Control, Option or Command, nil
+    // when it holds none. macOS reads a drag with a key the system thinks is down as that key's drag,
+    // so a stuck Option would tile the dragged window.
+    nonisolated static func held(_ flags: CGEventFlags) -> String? {
+        let keys: [(CGEventFlags, String)] = [
+            (.maskShift, "Shift"), (.maskControl, "Control"), (.maskAlternate, "Option"), (.maskCommand, "Command"),
+        ]
+        let names = keys.filter { flags.contains($0.0) }.map(\.1)
+        guard !names.isEmpty else { return nil }
+        return "The system reads \(names.joined(separator: " and ")) as held. Press and release "
+            + (names.count == 1 ? "it" : "them") + ", then run again"
     }
 
     // scenarios runs the checks in the order selftest.lua does.
@@ -591,29 +607,34 @@ final class Selftest {
     }
 
     // drag presses the primary button at from, moves to to in steps, and lets go, through the mouse
-    // tap like a real drag.
+    // tap like a real drag with no modifier held.
     private func drag(from: CGPoint, to: CGPoint) async {
-        let post = { (type: CGEventType, p: CGPoint) in
-            CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(
-                tap: .cghidEventTap)
-        }
-        post(.leftMouseDown, from)
+        Self.post(.leftMouseDown, at: from)
         try? await Task.sleep(for: .seconds(0.1))
         let steps = 20
         for i in 1...steps {
             let t = CGFloat(i) / CGFloat(steps)
-            post(.leftMouseDragged, CGPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t))
+            Self.post(.leftMouseDragged, at: CGPoint(x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t))
             try? await Task.sleep(for: .seconds(0.02))
         }
         try? await Task.sleep(for: .seconds(0.1))
-        post(.leftMouseUp, to)
+        Self.post(.leftMouseUp, at: to)
     }
 
-    // click clicks the primary button at p, through the mouse tap like a real click.
+    // click clicks the primary button at p, through the mouse tap like a real click with no modifier
+    // held.
     private func click(_ p: CGPoint) {
         for type in [CGEventType.leftMouseDown, .leftMouseUp] {
-            CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?.post(
-                tap: .cghidEventTap)
+            Self.post(type, at: p)
         }
+    }
+
+    // post posts a primary button event of type at p with no modifier flags. An event made without
+    // a source takes the session's modifier state, so a modifier the system reads as stuck would
+    // turn the drag into, say, an Option-drag that macOS tiles.
+    private static func post(_ type: CGEventType, at p: CGPoint) {
+        let e = CGEvent(mouseEventSource: nil, mouseType: type, mouseCursorPosition: p, mouseButton: .left)
+        e?.flags = []
+        e?.post(tap: .cghidEventTap)
     }
 }
