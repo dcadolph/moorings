@@ -562,13 +562,13 @@ jobs:
 
           Write-Host "scenarios on the runner's screen"
           $s = Scenarios 'runner' @('--min-aspect', '1.0')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 13 run, 5 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 13 run, 6 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
           Write-Host "  check: 13 scenarios passed on the Win32 adapters, quitRestoresStash, organize, badgeCounts, workspaceRecall and refusedWindowTriedOnce skipped, with report.html, 13 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
           $s = Scenarios 'sim' @('--screen', '3440x1440')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 13 run, 5 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 13 run, 6 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
           if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
           Written $s
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
