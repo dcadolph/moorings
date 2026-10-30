@@ -42,6 +42,20 @@ public final class ActionRunner {
         return Keymaps.known(name) || Bindings(anchors.choices).specs[name] != nil
     }
 
+    // linkRefused returns the closing action a link may not run, close-window or close-others, asked
+    // for directly or as a step of the chain name, and nil when a link may run name.
+    public func linkRefused(_ name: String) -> String? {
+        let closing = ["close-window", "close-others"]
+        if closing.contains(name) {
+            return name
+        }
+        guard name.hasPrefix(Chain.prefix) else {
+            return nil
+        }
+        let chain = anchors.choices.chains.first { $0.actionName == name }
+        return chain?.steps.first { closing.contains($0) }
+    }
+
     // supports reports whether this platform runs action name: runnable, and either the engine's own
     // or a routed one the engine offers here.
     public func supports(_ name: String) -> Bool {

@@ -208,6 +208,9 @@ open "moorings://selftest"
 Shortcuts can run any action too. Run Moorings Action takes an action name and offers the list,
 chains, workspaces and profiles included, so a shortcut, Spotlight or Siri can move a window.
 
+Links refuse `close-window` and `close-others`, and any chain with either as a step. Those run
+only from shortcuts and the menu.
+
 `status` writes the screens, slots and every window Moorings sees to the unified log under the
 `com.dcadolph.moorings` subsystem.
 
