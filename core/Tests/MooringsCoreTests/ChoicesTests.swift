@@ -48,6 +48,19 @@ import Testing
     #expect(Bindings(c).map["left-half"]?.text == "⌃⌥←")
 }
 
+// Swift only: the specs read without the shortcuts match the bindings' specs, and drop invalid sizes.
+@Test func testBindingsSpecs() {
+    var c = Choices()
+    #expect(Bindings.specs(c).isEmpty)
+    c.sizes = [
+        StoredSize(title: "Reading", x: 0.25, w: 0.5, shortcut: StoredShortcut(mods: ["ctrl", "alt"], key: "9")),
+        StoredSize(title: "Video", width: 1280, height: 720),
+        StoredSize(title: "Flat", h: 0),
+    ]
+    #expect(Bindings.specs(c) == Bindings(c).specs)
+    #expect(Bindings.specs(c).keys.sorted() == ["size:Reading", "size:Video"])
+}
+
 // Swift only: a saved workspace survives a save and reload with its slots, widths and windows.
 @Test func testChoicesWorkspaceRoundTrip() throws {
     var c = Choices()
