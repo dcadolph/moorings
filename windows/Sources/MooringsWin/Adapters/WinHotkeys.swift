@@ -63,6 +63,14 @@ final class WinHotkeys {
     // grabHandler is called with the tag of a pressed grabbed key, nil while nothing is grabbed.
     private var grabHandler: ((String) -> Void)?
 
+    // claimBase is the first hotkey id of the claimed keys, clear of the shortcut and grab ids and
+    // under 0xC000, the top of the range RegisterHotKey allows an application.
+    static let claimBase: Int32 = 0xA000
+    // claimTags maps each claimed key's id to its tag.
+    private var claimTags: [Int32: String] = [:]
+    // claimHandler is called with the tag of a pressed claimed key, nil while nothing is claimed.
+    private var claimHandler: ((String) -> Void)?
+
     // init builds hotkeys that call run with the action name of each press.
     init(run: @escaping (String) -> Void) {
         self.run = run
@@ -147,10 +155,40 @@ final class WinHotkeys {
         grabHandler = nil
     }
 
-    // fire runs the action of the hotkey a WM_HOTKEY message names, or hands a grabbed key's tag to
-    // the grab's handler.
+    // claim registers each key until unclaim, so its presses go to handler by tag whatever is grabbed
+    // or bound. It returns how many keys registered; a key another program holds is skipped. A second
+    // claim replaces the first.
+    @discardableResult
+    func claim(_ keys: [GrabKey], _ handler: @escaping (String) -> Void) -> Int {
+        unclaim()
+        claimHandler = handler
+        for (i, k) in keys.enumerated() {
+            guard let vk = Self.keyCodes[k.key] else { continue }
+            let id = Self.claimBase + Int32(i)
+            let mods = k.modifiers.shortcut.reduce(Self.noRepeat) { $0 | (Self.modifierFlags[$1] ?? 0) }
+            guard RegisterHotKey(nil, id, mods, vk) else { continue }
+            claimTags[id] = k.tag
+        }
+        return claimTags.count
+    }
+
+    // unclaim removes every claimed key.
+    func unclaim() {
+        for id in claimTags.keys {
+            _ = UnregisterHotKey(nil, id)
+        }
+        claimTags = [:]
+        claimHandler = nil
+    }
+
+    // fire runs the action of the hotkey a WM_HOTKEY message names, or hands a claimed or grabbed
+    // key's tag to its handler.
     func fire(_ wParam: WPARAM) {
         let id = Int32(truncatingIfNeeded: wParam)
+        if let tag = claimTags[id] {
+            claimHandler?(tag)
+            return
+        }
         if let tag = grabTags[id] {
             grabHandler?(tag)
             return
