@@ -39,8 +39,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Core tests
-        run: swift test -Xswiftc -warnings-as-errors
+      - name: Core tests with coverage floors
+        run: make coverage
         working-directory: core
 
       - name: Core tests under the thread sanitizer
