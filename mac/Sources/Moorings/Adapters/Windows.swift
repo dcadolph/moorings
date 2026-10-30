@@ -80,6 +80,8 @@ final class Windows {
     typealias Listing = (id: WindowID, pid: pid_t, frame: Frame)
     // list asks the window server for its list, front-most first.
     private let list: @MainActor () -> [Listing]
+    // lookup asks the window server for one window as list would show it, nil when list would not.
+    private let lookup: @MainActor (WindowID) -> Listing?
     // listing is the list the last scan used, which a pass woken by an action's own move carries.
     private var listing: [Listing] = []
     // lastScan is when the last scan ran, by system uptime.
@@ -88,9 +90,13 @@ final class Windows {
     // it there.
     private var readBack: [WindowID: Frame] = [:]
 
-    // init asks the window server for its list with list.
-    init(list: @escaping @MainActor () -> [Listing] = Windows.onScreen) {
+    // init asks the window server for its list with list and for one window with lookup.
+    init(
+        list: @escaping @MainActor () -> [Listing] = Windows.onScreen,
+        lookup: @escaping @MainActor (WindowID) -> Listing? = Windows.onScreen
+    ) {
         self.list = list
+        self.lookup = lookup
     }
 
     // front returns the front app, or the one before moorings when a link brought moorings forward.
@@ -218,7 +224,7 @@ final class Windows {
     // read describes window el with id of the app with pid as a scan would, and caches its element.
     // It returns nil when the app is hidden or has no bundle id, or when a scan would drop the window.
     private func read(_ el: AXUIElement, id: WindowID, pid: pid_t, screens: Screens) -> WindowInfo? {
-        guard list().contains(where: { $0.id == id && $0.pid == pid }) else { return nil }
+        guard lookup(id)?.pid == pid else { return nil }
         if running[pid] == nil, let app = NSRunningApplication(processIdentifier: pid) {
             running[pid] = RunningApp(app: app, bundle: app.bundleIdentifier, hidden: app.isHidden)
         }
@@ -663,6 +669,20 @@ final class Windows {
             else { return nil }
             return (id, pid, Frame(x: b["X"] ?? 0, y: b["Y"] ?? 0, w: b["Width"] ?? 0, h: b["Height"] ?? 0))
         }
+    }
+
+    // onScreen returns the window with id as onScreen() would list it, nil when it would not: off
+    // screen, not at the normal layer, or gone. It asks the window server for that window alone.
+    static func onScreen(_ id: WindowID) -> Listing? {
+        guard
+            let entry = (CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(id)) as? [[String: Any]])?
+                .first,
+            entry[kCGWindowNumber as String] as? WindowID == id, entry[kCGWindowLayer as String] as? Int == 0,
+            entry[kCGWindowIsOnscreen as String] as? Bool == true,
+            let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
+            let b = entry[kCGWindowBounds as String] as? [String: Double]
+        else { return nil }
+        return (id, pid, Frame(x: b["X"] ?? 0, y: b["Y"] ?? 0, w: b["Width"] ?? 0, h: b["Height"] ?? 0))
     }
 
     // id returns the window id of el.
