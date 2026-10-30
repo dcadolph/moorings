@@ -64,7 +64,8 @@ final class Windows {
     // scan that carries the front app keeps its focus.
     private var focus: (pid: pid_t, id: WindowID?)?
 
-    // lastFront is the last app other than moorings to come to the front.
+    // lastFront is the last app other than moorings to come to the front, as the activation
+    // notifications tell it.
     var lastFront: pid_t?
     // refusedIDs holds the windows whose position or size Accessibility reported it cannot set.
     private(set) var refusedIDs: Set<WindowID> = []
@@ -114,8 +115,9 @@ final class Windows {
     // and every other app is carried from the last scan at its window server frames. The front app
     // is carried with its focus only when the last scan that read it saw it in front. carry uses the
     // last window server list, with the windows placed since at their new frames, instead of a new one.
+    // tracked takes the front app from the activation notifications instead of asking LaunchServices.
     func scan(
-        _ screens: Screens, carry: Bool = false,
+        _ screens: Screens, carry: Bool = false, tracked: Bool = false,
         decide: (
             _ listed: [pid_t: [WindowID: Frame]], _ previous: [pid_t: [WindowID: Frame]], _ slow: Set<pid_t>,
             _ front: pid_t?
@@ -129,7 +131,7 @@ final class Windows {
         var focusedID: WindowID?
         var byPid: [pid_t: [WindowInfo]] = [:]
         scanned = []
-        let front = front
+        let front = tracked ? (lastFront ?? front) : front
         let frames = Dictionary(order.map { ($0.id, $0.frame) }, uniquingKeysWith: { a, _ in a })
         var now: [pid_t: [WindowID: Frame]] = [:]
         for w in order {
@@ -741,7 +743,9 @@ final class Windows {
 // Windows is the Mac WindowStore. Its witnesses run on the main actor, where the engine lives.
 extension Windows: @preconcurrency WindowStore {
     // scan reads every app when full, otherwise the apps PassPlan picks: those that woke or changed
-    // since the last scan, the front app, and every app when a full read is due.
+    // since the last scan, the front app, and every app when a full read is due. A scan that is not
+    // full takes the front app from the activation notifications, since an activation wakes a full
+    // one.
     func scan(_ screens: Screens, full: Bool) -> Scan {
         let t = ProcessInfo.processInfo.systemUptime
         appWoke = appWoke.filter { t - $0.value < Pace.settleSeconds }
@@ -750,7 +754,7 @@ extension Windows: @preconcurrency WindowStore {
         let carry = PassPlan.carries(
             now: t, forced: full, lastFull: lastFull, lastScan: lastScan, woke: appWoke,
             placed: echoes.mapValues(\.at), listed: Set(listing.map(\.id)))
-        let read = scan(screens, carry: carry) { [self] listed, previous, slow, front in
+        let read = scan(screens, carry: carry, tracked: !full) { [self] listed, previous, slow, front in
             PassPlan.plan(
                 now: t, forced: full, lastFull: lastFull, woke: appWoke,
                 listed: listed, previous: previous, slow: slow, front: front, echoes: echoed)
