@@ -65,7 +65,7 @@ app: $(ICNS) $(INTENTS_PROTOCOLS)
 		--toolchain-dir "$$(dirname "$$(dirname "$$(dirname "$$(xcrun --find swift)")")")" --module-name Moorings \
 		--sdk-root "$$(xcrun --sdk macosx --show-sdk-path)" \
 		--xcode-version "$$(xcodebuild -version | awk '/Build version/ {print $$3}')" --platform-family macOS \
-		--deployment-target 14.0 --target-triple arm64-apple-macos14.0 --source-file-list $(INTENTS_OUT)/sources.txt \
+		--deployment-target 15.0 --target-triple arm64-apple-macos15.0 --source-file-list $(INTENTS_OUT)/sources.txt \
 		--swift-const-vals-list $(INTENTS_OUT)/consts.txt
 	test -f $(APP)/Contents/Resources/Metadata.appintents/extract.actionsdata
 	cp "$$(swift build -c release $(ARCH_FLAGS) --show-bin-path)/Moorings" $(APP)/Contents/MacOS/Moorings

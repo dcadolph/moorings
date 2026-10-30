@@ -28,7 +28,7 @@ var targets: [Target] = []
 
 let package = Package(
     name: "Moorings",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v15)],
     dependencies: [.package(path: "../core")],
     targets: targets
 )
