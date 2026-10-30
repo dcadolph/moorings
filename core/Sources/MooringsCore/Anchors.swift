@@ -122,6 +122,9 @@ public struct Choices: Equatable, Sendable, Codable {
     // slotStacks reports whether a slot holds every window of its app on the ultrawide, stacked,
     // instead of the main window alone.
     public var slotStacks: Bool = true
+    // channelCycle reports whether Control-Left and Control-Right walk the channel's windows while the
+    // front window fills the channel.
+    public var channelCycle: Bool = true
 
     // init builds a set of choices.
     public init(
@@ -142,6 +145,7 @@ public struct Choices: Equatable, Sendable, Codable {
             sizes, gapPx
         case ignores, snap, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
         case chains, menu, appRules, buttonClicks, profiles, activeProfile, overlay, tiling, slotStacks
+        case channelCycle
     }
 
     // init decodes saved choices, skipping unknown slots and keeping what else is readable.
@@ -176,6 +180,7 @@ public struct Choices: Equatable, Sendable, Codable {
         profiles = (try? c.decodeIfPresent([Profile].self, forKey: .profiles)) ?? []
         activeProfile = try? c.decodeIfPresent(String.self, forKey: .activeProfile)
         slotStacks = (try? c.decodeIfPresent(Bool.self, forKey: .slotStacks)) ?? true
+        channelCycle = (try? c.decodeIfPresent(Bool.self, forKey: .channelCycle)) ?? true
     }
 
     // encode writes the choices with slots keyed by slot name.
@@ -209,6 +214,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(profiles, forKey: .profiles)
         try c.encodeIfPresent(activeProfile, forKey: .activeProfile)
         try c.encode(slotStacks, forKey: .slotStacks)
+        try c.encode(channelCycle, forKey: .channelCycle)
     }
 
     // restoringDefaults returns the default choices with the owner's own data kept: anchored apps, strip

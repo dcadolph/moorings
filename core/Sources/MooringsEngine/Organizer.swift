@@ -89,11 +89,40 @@ public final class Organizer {
             else { return false }
             platform.windows.raise(next)
             return true
+        case "cycle-channel-windows", "cycle-channel-windows-backward":
+            return cycleChannel(scan, win, screens, backward: name == "cycle-channel-windows-backward")
         case "reverse-all":
             return place(list, list.map { Tile.reverse(a, $0.frame) })
         default:
             return false
         }
+    }
+
+    // cycleChannel brings forward the channel window after win, or before it when backward, in window
+    // id order with wrap, filling the channel with it when it does not fill it already. The stage is
+    // the free windows on the ultrawide less the stashed and cast-off ones. A focused window off the
+    // stage, or a stage of one, moves nothing.
+    private func cycleChannel(_ scan: Scan, _ win: WindowInfo, _ screens: Screens, backward: Bool) -> Bool {
+        let name = backward ? "cycle-channel-windows-backward" : "cycle-channel-windows"
+        guard let u = screens.ultrawide else {
+            platform.log.note(.actions, "\(name): no ultrawide")
+            return false
+        }
+        let stage = organizable(scan.windows, screens, u)
+            .filter { !anchors.stashed.contains($0.id) && !anchors.isCastOff($0.id) && !$0.isFilePanel }
+            .sorted { $0.id < $1.id }
+        guard stage.count > 1, let at = stage.firstIndex(where: { $0.id == win.id }) else {
+            platform.log.note(.actions, "\(name): the front window is not one of two or more in the channel")
+            return false
+        }
+        let dir = backward ? -1 : 1
+        let next = stage[((at + dir) % stage.count + stage.count) % stage.count]
+        if !engine.actions.fills(next, screens: screens) {
+            engine.actions.fill(next, screens: screens)
+        }
+        platform.windows.raise(next.id)
+        engine.wake()
+        return true
     }
 
     // cascade cascades list in area, back-most window first so the front-most stays on top.

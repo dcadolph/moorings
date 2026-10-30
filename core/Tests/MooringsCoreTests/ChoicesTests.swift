@@ -272,12 +272,26 @@ private func choicesFixture() throws -> Data {
     }
 }
 
-// Swift only: the choices v1.13.0 saved decode with no fallback and save back byte for byte.
+// Swift only: the choices v1.13.0 saved decode with no fallback and save back unchanged, with only the
+// keys added since then on their defaults.
 @Test func testChoicesDecodeV1_13_0() throws {
     let data = try choicesFixture()
     let got = Choices.decode(data)
     #expect(got.fallback == nil, "\(got.fallback ?? "")")
     #expect(got.choices != Choices())
     #expect(got.choices.gapPx == 8 && got.choices.activeProfile == "Work" && got.choices.tiling.mode == .bsp)
-    #expect(String(decoding: try Choices.encode(got.choices), as: UTF8.self) == String(decoding: data, as: UTF8.self))
+    #expect(got.choices.channelCycle)
+    let saved = try Choices.encode(got.choices)
+    var back = try #require(try JSONSerialization.jsonObject(with: saved) as? [String: Any])
+    back["channelCycle"] = nil
+    let want = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect(NSDictionary(dictionary: back).isEqual(to: want))
+}
+
+// Swift only: choices saved without channelCycle load with it on, and it round trips.
+@Test func testChoicesChannelCycle() throws {
+    #expect(Choices.decode(Data(#"{"paused":false}"#.utf8)).choices.channelCycle)
+    var c = Choices()
+    c.channelCycle = false
+    #expect(Choices.decode(try Choices.encode(c)).choices.channelCycle == false)
 }

@@ -107,7 +107,7 @@ public enum Tile {
     public static let names = [
         "tile-columns", "tile-rows", "tile-all", "tile-active-app", "cascade-all", "cascade-active-app",
         "cycle-stacked-windows", "cycle-stacked-windows-backward", "cycle-slot-windows",
-        "cycle-slot-windows-backward", "reverse-all",
+        "cycle-slot-windows-backward", "cycle-channel-windows", "cycle-channel-windows-backward", "reverse-all",
     ]
 
     // cascadeStep is how far in points each cascaded window sits from the last.

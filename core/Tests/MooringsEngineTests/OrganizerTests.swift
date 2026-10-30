@@ -206,3 +206,60 @@ final class OrganizerRig {
     #expect(!rig.organizer.run("tile-columns"))
     #expect(rig.moved.isEmpty)
 }
+
+// Test 13: With the first window filling the channel, cycle channel windows fills the channel with
+// the next window by id and focuses it, wraps, and steps back; a window that already fills is raised
+// without a move.
+@Test func testOrganizerCycleChannel() {
+    let rig = OrganizerRig()
+    let s = rig.screens.current()
+    let first = rig.windows.scan(s, full: true).windows.first { $0.id == rig.pads[0] }!
+    #expect(!rig.engine.actions.fills(first, screens: s))
+    #expect(rig.engine.actions.fill(first, screens: s))
+    let fill = rig.frame(rig.pads[0])
+    rig.windows.focusedID = rig.pads[0]
+    let filled = rig.windows.scan(s, full: true).windows.first { $0.id == rig.pads[0] }!
+    #expect(rig.engine.actions.fills(filled, screens: s), "\(fill)")
+    #expect(rig.organizer.run("cycle-channel-windows"))
+    #expect(Actions.near(rig.frame(rig.pads[1]), fill, tolerance: 1) && rig.windows.focusedID == rig.pads[1])
+    #expect(rig.organizer.run("cycle-channel-windows"))
+    #expect(Actions.near(rig.frame(rig.pads[2]), fill, tolerance: 1) && rig.windows.focusedID == rig.pads[2])
+    let before = rig.moved.count
+    #expect(rig.organizer.run("cycle-channel-windows"))
+    #expect(rig.windows.focusedID == rig.pads[0] && rig.moved.count == before, "the fill is raised, not moved")
+    #expect(rig.organizer.run("cycle-channel-windows-backward"))
+    #expect(rig.windows.focusedID == rig.pads[2] && rig.moved.count == before)
+}
+
+// Test 14: A channel of one window has nothing to cycle to and moves nothing.
+@Test func testOrganizerCycleChannelAlone() {
+    let rig = OrganizerRig(count: 1)
+    #expect(!rig.organizer.run("cycle-channel-windows"))
+    #expect(rig.moved.isEmpty)
+    #expect(!rig.windows.calls.contains { if case .raise = $0 { true } else { false } })
+}
+
+// Test 15: A pinned window in front is not on the channel's stage, so nothing cycles.
+@Test func testOrganizerCycleChannelPinned() {
+    let rig = OrganizerRig { $0.slots = [.leftTop: "com.tinyspeck.slackmacgap"] }
+    let slack = rig.windows.add(bundle: "com.tinyspeck.slackmacgap", frame: Frame(x: 1500, y: 200, w: 800, h: 600))
+    let s = rig.screens.current()
+    let scan = rig.windows.scan(s, full: true)
+    for m in rig.anchors.moor(Scene(screen: s.wide, windows: scan.windows, focused: scan.focused?.id, now: 1)) {
+        rig.windows.move(m.id, to: m.frame, from: nil, behavior: Behaviors())
+    }
+    rig.windows.focusedID = slack
+    let moves = rig.moved.count
+    #expect(!rig.organizer.run("cycle-channel-windows"))
+    #expect(rig.moved.count == moves)
+}
+
+// Test 16: A stashed window is skipped on the channel's stage.
+@Test func testOrganizerCycleChannelSkipsStashed() {
+    let rig = OrganizerRig()
+    rig.anchors.stashed.insert(rig.pads[1])
+    rig.windows.focusedID = rig.pads[0]
+    #expect(rig.organizer.run("cycle-channel-windows"))
+    #expect(rig.windows.focusedID == rig.pads[2])
+    #expect(!rig.moved.contains(rig.pads[1]))
+}

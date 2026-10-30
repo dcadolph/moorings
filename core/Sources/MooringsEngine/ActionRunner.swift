@@ -340,6 +340,34 @@ public final class ActionRunner {
         return frame(name, for: w, screens: screens, index: index).0
     }
 
+    // fill fills the channel with the free window w the way the green button does, records the fill
+    // so Restore and the green button undo it, and reports whether it moved.
+    @discardableResult
+    public func fill(_ w: WindowInfo, screens: Screens) -> Bool {
+        guard apply("maximize", to: w, screens: screens), let f = platform.windows.frame(w.id) else { return false }
+        anchors.markFilled(w.id, f, from: w.frame)
+        return true
+    }
+
+    // unfill puts the window with id back where it was before its last fill, forgets the fill, and
+    // reports whether there was one.
+    @discardableResult
+    public func unfill(_ id: WindowID) -> Bool {
+        guard let f = anchors.unfill(id) else { return false }
+        move(id, to: f)
+        return true
+    }
+
+    // fills reports whether w fills the channel: a free window on the ultrawide, not pinned, lifted,
+    // cast off, stashed, a file panel or fullscreen, whose frame is the one Maximize would give it.
+    public func fills(_ w: WindowInfo, screens: Screens) -> Bool {
+        guard let u = screens.ultrawide, screens.index(w.frame) == u, !anchors.pinned(w), !anchors.isLifted(w.id),
+            !anchors.isCastOff(w.id), !anchors.stashed.contains(w.id), !w.isFilePanel, !w.isFullScreen,
+            let f = preview("maximize", for: w, screens: screens)
+        else { return false }
+        return Actions.near(f, w.frame, tolerance: Anchors.tolerance)
+    }
+
     // placed returns the frame the last action gave the window with id, nil when none has.
     public func placed(_ id: WindowID) -> Frame? {
         last[id]?.frame
