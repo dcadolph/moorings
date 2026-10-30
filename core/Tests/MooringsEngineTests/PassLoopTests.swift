@@ -227,3 +227,15 @@ final class SpellingKeys: Keys {
     rig.passes.moor()
     #expect(rig.apps.opened == [PassRig.slackID])
 }
+
+// Each pass traces one "pass" line, which the idle check counts, and notes nothing for it.
+@Test func testPassTracesOneLine() {
+    let rig = PassRig()
+    rig.windows.add(bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 800, h: 600), focus: true)
+    rig.passes.moor()
+    rig.clock.advance(by: 1)
+    rig.passes.moor()
+    let want = [FakeLog.Line(.passes, "pass full read 1 moved 1"), FakeLog.Line(.passes, "pass apps read 1 moved 0")]
+    #expect(rig.log.traces == want)
+    #expect(!rig.log.lines.contains { $0.text.hasPrefix("pass ") })
+}

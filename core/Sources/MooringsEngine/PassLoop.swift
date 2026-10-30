@@ -108,6 +108,7 @@ public final class PassLoop {
             screen: screens.wide, windows: list, focused: scan.focused?.id, mouseHeld: held,
             now: platform.clock.now)
         let moves = anchors.moor(scene)
+        platform.log.trace(.passes, "pass \(forced ? "full" : "apps") read \(list.count) moved \(moves.count)")
         for move in moves {
             apply(move, bundle: list.first { $0.id == move.id }?.bundle ?? "?")
         }
