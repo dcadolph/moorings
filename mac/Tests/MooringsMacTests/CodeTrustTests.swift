@@ -156,3 +156,33 @@ func run(_ tool: String, _ args: String...) throws -> Int32 {
         #expect(CodeTrust.notarized(test.output) == test.want, "test \(testNum)")
     }
 }
+
+// A release that needs a newer macOS than the Mac runs is refused, and one that names no minimum
+// or an older one is accepted.
+@Test func testCodeTrustMinimumSystem() throws {
+    let os = OperatingSystemVersion(majorVersion: 15, minorVersion: 6, patchVersion: 1)
+    let tests: [(minimum: String?, want: Bool)] = [
+        (nil, true), ("14.0", true), ("15", true), ("15.6.1", true), ("15.6.2", false), ("15.7", false),
+        ("26.0", false), ("", false), ("15.x", false), ("1.2.3.4", false),
+    ]
+    for (i, test) in tests.enumerated() {
+        #expect(CodeTrust.runs(minimum: test.minimum, on: os) == test.want, "test \(i)")
+    }
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("minos-\(UUID().uuidString)")
+    let contents = dir.appendingPathComponent("Contents")
+    try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    let plist: [String: Any] = [
+        "CFBundleIdentifier": CodeTrust.bundleID, "CFBundleShortVersionString": "1.16.0",
+        "LSMinimumSystemVersion": "26.0",
+    ]
+    try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        .write(to: contents.appendingPathComponent("Info.plist"))
+    let current = try #require(ReleaseVersion("1.15.1"))
+    #expect(!CodeTrust.plistMatches(dir, version: "1.16.0", current: current, os: os))
+    #expect(
+        CodeTrust.plistMatches(
+            dir, version: "1.16.0", current: current,
+            os: OperatingSystemVersion(
+                majorVersion: 26, minorVersion: 0, patchVersion: 0)))
+}
