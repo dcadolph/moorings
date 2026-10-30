@@ -91,8 +91,10 @@ Accessibility access: click it, turn on Moorings in Privacy & Security, and the 
 ready. Until then the sailboat shows a warning sign and the menu's first entry opens the same
 settings page. Nothing needs a restart after the grant.
 
-To update, take the offer at the top of the menu, or run `brew upgrade --cask moorings`. To
-uninstall, quit Moorings and run `brew uninstall --cask moorings`, or drag it to the Trash.
+With Install updates automatically on, Moorings downloads, verifies and installs new releases
+itself. To update by hand, take the offer at the top of the menu, or run
+`brew upgrade --cask moorings`. To uninstall, quit Moorings and run
+`brew uninstall --cask moorings`, or drag it to the Trash.
 
 ## Windows
 
@@ -136,8 +138,9 @@ The menu rebuilds each time it opens. From the top: an update offer when one is 
 Pause Moorings toggle (Resume Moorings while paused), Re-moor now,
 Anchor or Unanchor the front app, Cast off this window, a Re-moor entry for each released app,
 then the Anchored apps, Window, Lift, Workspaces, Profiles, Widths and Heights folders, Settings,
-Launch at login, Check for updates now, Check for updates automatically, Tip the harbormaster, and
-Quit. Quit pulls the sailboat under the water before Moorings exits, unless Reduce Motion is on.
+Launch at login, Check for updates now, Check for updates automatically, Install updates
+automatically, Tip the harbormaster, and Quit. Quit pulls the sailboat under the water before
+Moorings exits, unless Reduce Motion is on.
 
 ### Window actions
 

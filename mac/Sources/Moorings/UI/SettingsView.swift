@@ -1046,6 +1046,16 @@ struct SettingsView: View {
                 isOn: Binding(
                     get: { model.choices.checkUpdates },
                     set: { v in model.change { $0.checkUpdates = v } }))
+            Toggle(
+                "Install updates automatically",
+                isOn: Binding(
+                    get: { model.choices.checkUpdates && model.choices.installUpdates },
+                    set: { v in model.change { $0.installUpdates = v } })
+            )
+            .disabled(!model.choices.checkUpdates)
+            .help(
+                "Download a new release, verify its Apple signature and notarization, "
+                    + "and restart into it once the Mac has sat idle for 30 seconds.")
             HStack {
                 Button("Export settings…") { model.exportSettings() }
                 Button("Import settings…") { model.importSettings() }
