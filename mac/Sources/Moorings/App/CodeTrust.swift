@@ -94,14 +94,24 @@ enum CodeTrust {
     }
 
     // assess runs spctl's execute assessment on the bundle and returns what it printed, or an
-    // empty string when it could not run or ran past assessTimeout.
+    // empty string when it could not run or ran past assessTimeout. The output goes to a file rather
+    // than a pipe, so the wait is bounded by the timeout and never by spctl closing its output.
     static func assess(_ bundle: URL) -> String {
+        let out = FileManager.default.temporaryDirectory.appendingPathComponent("spctl-\(UUID().uuidString)")
+        guard FileManager.default.createFile(atPath: out.path, contents: nil),
+            let handle = try? FileHandle(forWritingTo: out)
+        else {
+            return ""
+        }
+        defer {
+            try? handle.close()
+            try? FileManager.default.removeItem(at: out)
+        }
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/sbin/spctl")
         task.arguments = ["--assess", "--type", "execute", "--verbose=4", bundle.path]
-        let pipe = Pipe()
-        task.standardOutput = pipe
-        task.standardError = pipe
+        task.standardOutput = handle
+        task.standardError = handle
         let done = DispatchSemaphore(value: 0)
         task.terminationHandler = { _ in done.signal() }
         do {
@@ -109,12 +119,11 @@ enum CodeTrust {
         } catch {
             return ""
         }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard done.wait(timeout: .now() + assessTimeout) == .success else {
             task.terminate()
             return ""
         }
-        guard task.terminationStatus == 0 else {
+        guard task.terminationStatus == 0, let data = try? Data(contentsOf: out) else {
             return ""
         }
         return String(decoding: data, as: UTF8.self)

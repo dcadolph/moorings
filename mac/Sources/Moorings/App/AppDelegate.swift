@@ -37,6 +37,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // that last ran.
     static let checkedKey = "updateChecked"
     static let versionKey = "lastVersion"
+    // attemptKey holds the tag an install swapped in, until the next launch reads whether it started.
+    static let attemptKey = "updateAttempt"
+    // failedKey lists the tags that were swapped in and never started, so none is fetched again.
+    static let failedKey = "updateFailed"
+    // trustedKey records whether Accessibility was granted when an install began.
+    static let trustedKey = "updateTrusted"
+    // stagedKey holds the tag of a verified update that found no quiet moment before Quit.
+    static let stagedKey = "updateStaged"
+    // toldKey records that Moorings said once it now installs updates on its own.
+    static let toldKey = "autoUpdateTold"
     // supportURL is the https tip link baked into the bundle, nil when the build has none.
     static let supportURL: URL? = {
         guard
@@ -53,8 +63,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     let banner = BannerPanel()
     // badge is the stack badge's panel.
     let badge = BadgePanel()
-    // update is a newer release found by the update check, nil when none.
-    var update: ReleaseInfo?
+    // updater checks for, verifies and installs newer releases.
+    lazy var updater = makeUpdater()
+    // marker records each launch, so the relaunch helper can roll back a build that never starts.
+    let marker = LaunchMarker(
+        folder: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Moorings", isDirectory: true))
     // launched is when moorings started.
     private let launched = Date()
     // updateTimer runs the update check.
@@ -94,8 +108,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // sinking plays the quit animation.
     private let sinking = Sinking()
 
+    // version is the running short version, empty for a build without one.
+    static var version: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "" }
+    // build is the running build number, empty for a build without one.
+    static var build: String { Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "" }
+    // updateCache is the folder update downloads are staged in.
+    static let updateCache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("com.dcadolph.moorings", isDirectory: true)
+        .appendingPathComponent("update", isDirectory: true)
+
     // now returns the time in seconds since boot.
     static var now: Double { ProcessInfo.processInfo.systemUptime }
+
+    // applicationWillFinishLaunching records the launch under way, and says when the last run of this
+    // build ended without Quit.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        if marker.begin(build: Self.build, pid: ProcessInfo.processInfo.processIdentifier) {
+            logger.notice("previous run ended without quit")
+        }
+    }
 
     // applicationDidFinishLaunching builds the menu, subscribes to events, and runs the first pass.
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -104,6 +135,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         installer.offerTrash()
+        if installStaged() {
+            return
+        }
+        let lost = settleAttempt()
         item.button?.image = Mark.image()
         showIcon()
         let menu = NSMenu()
@@ -118,7 +153,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         events.turned = { [weak self] in self?.showMark() }
         engine.observers.passed = { [weak self] _, _ in self?.showMark() }
         showMark()
-        if !windows.trusted {
+        if !windows.trusted, lost {
+            logger.notice("Accessibility was lost across an update: windows will not move")
+            notify(
+                "Moorings lost its Accessibility grant",
+                "Click here to open Privacy & Security, then turn on Moorings again."
+            ) { NSWorkspace.shared.open(Self.accessibilityPane) }
+        } else if !windows.trusted {
             logger.notice("Accessibility is not granted: windows will not move")
             notify(
                 "Moorings needs Accessibility",
@@ -175,6 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         engine.start()
         refreshShortcuts()
         hintAnchor(Screens.current())
+        marker.finish(build: Self.build)
     }
 
     // quit pulls the menu bar sailboat under the water, then quits. With Reduce Motion on, the icon
@@ -199,6 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // parked off screen.
     func applicationWillTerminate(_ notification: Notification) {
         engine.shutdown()
+        marker.quit()
     }
 
     // applicationShouldHandleReopen opens the settings window when Moorings is opened again while it
@@ -216,6 +259,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case "moor": engine.moor()
             case "action": runLink(url)
             case "settings": settings.show()
+            case "update": updateNow()
             case "selftest":
                 let apps = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first {
                     $0.name == "apps"
@@ -409,7 +453,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let last = UserDefaults.standard.string(forKey: Self.versionKey)
         UserDefaults.standard.set(version, forKey: Self.versionKey)
         guard let last, last != version, !version.isEmpty else { return }
-        notify("Moorings \(version)", "Updated from \(last). Click to see what is new.") {
+        let choices = engine.anchors.choices
+        if !UserDefaults.standard.bool(forKey: Self.toldKey), choices.checkUpdates, choices.installUpdates {
+            UserDefaults.standard.set(true, forKey: Self.toldKey)
+            notify(
+                "Moorings updated to v\(version)",
+                "Moorings now installs updates on its own. Click to change that in Settings."
+            ) { [weak self] in self?.settings.show() }
+            return
+        }
+        notify("Moorings updated to v\(version)", "Updated from \(last). Click to see what is new.") {
             NSWorkspace.shared.open(Self.releasesPage.appendingPathComponent("tag/v\(version)"))
         }
     }
@@ -417,7 +470,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // checkUpdate looks for a newer release when the last check is older than fresh seconds, a minute
     // after launch at the earliest.
     private func checkUpdate(fresh: TimeInterval = UpdateSchedule.everySeconds) {
-        guard engine.anchors.choices.checkUpdates, update == nil else { return }
+        guard engine.anchors.choices.checkUpdates, !updater.state.busy else { return }
         let defaults = UserDefaults.standard
         let last = defaults.object(forKey: Self.checkedKey) as? Date
         guard UpdateSchedule.isDue(lastChecked: last, launched: launched, now: Date(), fresh: fresh) else {
@@ -432,16 +485,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         runUpdateCheck(say: true)
     }
 
-    // runUpdateCheck asks GitHub for the latest release and keeps a newer one for the menu. With say
-    // set it shows a banner for every outcome, including up to date and a failed request.
+    // runUpdateCheck asks GitHub for the latest release, and with installs on fetches and verifies it.
+    // With say set it shows a banner for every outcome, including up to date and a failed request.
     private func runUpdateCheck(say: Bool) {
-        let shown = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
-        guard let current = ReleaseVersion(shown) else { return }
+        guard ReleaseVersion(Self.version) != nil else { return }
         UserDefaults.standard.set(Date(), forKey: Self.checkedKey)
-        let checker = UpdateChecker(client: URLSessionClient(), current: current)
+        let choices = engine.anchors.choices
+        let install = choices.checkUpdates && choices.installUpdates
         Task { @MainActor in
+            let found: ReleaseInfo?
             do {
-                self.update = try await checker.check()
+                found = try await self.updater.check(automatic: choices.checkUpdates, install: install, forced: say)
             } catch {
                 self.logger.notice("update check failed: \(error.localizedDescription, privacy: .public)")
                 if say {
@@ -450,14 +504,152 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 return
             }
             guard say else { return }
-            if let found = self.update {
+            guard let found else {
+                self.notify("Moorings is up to date", "Version \(Self.version) is the latest release.")
+                return
+            }
+            if case .verified = self.updater.state {
+                self.notify("Moorings \(found.tag) is ready", "It installs the next time you pause for a moment.")
+            } else {
                 self.notify("Moorings \(found.tag) is out", "Click to open the release page.") {
                     NSWorkspace.shared.open(found.page)
                 }
-            } else {
-                self.notify("Moorings is up to date", "Version \(shown) is the latest release.")
             }
         }
+    }
+
+    // updateNow checks, verifies and installs the latest release at once, without waiting for a quiet
+    // moment, and logs each step. It is the moorings://update link.
+    private func updateNow() {
+        logger.notice("update: asked by link")
+        guard ReleaseVersion(Self.version) != nil else {
+            logger.notice("update: this build has no release version")
+            return
+        }
+        Task { @MainActor in
+            do {
+                let found = try await self.updater.check(automatic: true, install: true, forced: true)
+                if found == nil {
+                    self.logger.notice("update: \(Self.version, privacy: .public) is the latest release")
+                }
+            } catch {
+                self.logger.notice("update: check failed: \(error.localizedDescription, privacy: .public)")
+                return
+            }
+            self.updater.installNow()
+        }
+    }
+
+    // makeUpdater builds the updater for the running bundle, skipping tags that failed to start.
+    private func makeUpdater() -> Updater {
+        let current = ReleaseVersion(Self.version) ?? ReleaseVersion("0.0.0")!
+        let failed = UserDefaults.standard.stringArray(forKey: Self.failedKey) ?? []
+        let u = Updater(
+            client: URLSessionClient(), downloader: URLSessionDownloader(),
+            trust: CodeTrustCheck(current: current, running: CodeTrust.runningRequirement()), current: current,
+            bundle: Installer.originalURL(Bundle.main.bundleURL), cache: Self.updateCache, skip: Set(failed))
+        u.log = { [logger] line in logger.notice("update: \(line, privacy: .public)") }
+        u.changed = { [weak self] in
+            guard let self else { return }
+            if case .verified(let tag) = self.updater.state {
+                UserDefaults.standard.set(tag, forKey: Self.stagedKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.stagedKey)
+            }
+        }
+        u.quiet = { [weak self] in self?.quietMoment() ?? false }
+        u.install = { [weak self] staged, tag in self?.installUpdate(staged, tag: tag) }
+        return u
+    }
+
+    // quietMoment reports whether a relaunch would interrupt nothing: no window held, no grid or strip
+    // editor up, no Moorings window or alert open, and no input for the last 30 seconds.
+    private func quietMoment() -> Bool {
+        let anyInput = CGEventType(rawValue: ~0)!
+        return !engine.mouseHeld && !engine.gridPicker.showing && !strips.showing
+            && !NSApp.windows.contains { $0.isVisible && $0.styleMask.contains(.titled) }
+            && CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput) >= 30
+    }
+
+    // installUpdate swaps the staged bundle in, starts the helper that relaunches it and rolls back a
+    // build that never starts, and quits through the same path as Quit.
+    private func installUpdate(_ staged: URL, tag: String) {
+        let bundle = updater.bundle
+        let previous = marker.folder.appendingPathComponent("previous", isDirectory: true)
+            .appendingPathComponent(Updater.appName)
+        let build =
+            (NSDictionary(contentsOf: staged.appendingPathComponent("Contents/Info.plist"))?["CFBundleVersion"]
+                as? String) ?? ""
+        let backup: URL
+        do {
+            backup = try Updater.swap(bundle: bundle, staged: staged, previous: previous)
+        } catch {
+            logger.error("update: swap failed: \(error.localizedDescription, privacy: .public)")
+            updater.refuse(.location, tag)
+            return
+        }
+        let defaults = UserDefaults.standard
+        defaults.set(tag, forKey: Self.attemptKey)
+        defaults.set(windows.trusted, forKey: Self.trustedKey)
+        defaults.removeObject(forKey: Self.stagedKey)
+        var plan = Relaunch.Plan(bundle: bundle)
+        plan.previous = backup
+        plan.failed = Self.updateCache.deletingLastPathComponent().appendingPathComponent("failed-\(tag).app")
+        plan.marker = marker.marker
+        plan.build = build
+        do {
+            try Relaunch.start(plan)
+        } catch {
+            logger.error("update: relaunch failed: \(error.localizedDescription, privacy: .public)")
+        }
+        logger.notice("update: relaunch into \(tag, privacy: .public) build \(build, privacy: .public)")
+        NSApp.terminate(nil)
+    }
+
+    // installStaged installs a verified update that found no quiet moment before the last Quit,
+    // verifying it again first, and reports whether Moorings is quitting to relaunch it.
+    private func installStaged() -> Bool {
+        let defaults = UserDefaults.standard
+        guard let tag = defaults.string(forKey: Self.stagedKey) else { return false }
+        defaults.removeObject(forKey: Self.stagedKey)
+        let choices = engine.anchors.choices
+        let staged = Self.updateCache.appendingPathComponent(tag, isDirectory: true)
+            .appendingPathComponent("unpacked", isDirectory: true).appendingPathComponent(Updater.appName)
+        guard choices.checkUpdates, choices.installUpdates, let version = ReleaseVersion(tag),
+            let current = ReleaseVersion(Self.version), version > current,
+            FileManager.default.fileExists(atPath: staged.path)
+        else { return false }
+        let name = String(tag.dropFirst(tag.hasPrefix("v") ? 1 : 0))
+        if let step = updater.trust.verify(bundle: staged, version: name) {
+            logger.notice("update: staged \(tag, privacy: .public) refused at \(step.rawValue, privacy: .public)")
+            return false
+        }
+        logger.notice("update: installing \(tag, privacy: .public) staged before the last quit")
+        installUpdate(staged, tag: tag)
+        return true
+    }
+
+    // settleAttempt reads how the last install went: a tag this build is not at never started, so
+    // it is never fetched again, and the owner is told. It reports whether Accessibility was granted
+    // before the install, so a loss can be named.
+    private func settleAttempt() -> Bool {
+        let defaults = UserDefaults.standard
+        guard let tag = defaults.string(forKey: Self.attemptKey) else { return false }
+        let wasTrusted = defaults.bool(forKey: Self.trustedKey)
+        defaults.removeObject(forKey: Self.attemptKey)
+        defaults.removeObject(forKey: Self.trustedKey)
+        if ReleaseVersion(tag) != ReleaseVersion(Self.version) {
+            var failed = defaults.stringArray(forKey: Self.failedKey) ?? []
+            failed.append(tag)
+            defaults.set(failed, forKey: Self.failedKey)
+            logger.error("update: \(tag, privacy: .public) did not start, back on \(Self.version, privacy: .public)")
+            notify(
+                "Moorings \(tag) did not start",
+                "Moorings went back to v\(Self.version) and will not try \(tag) again. Click for the release page."
+            ) { NSWorkspace.shared.open(Self.releasesPage) }
+            return false
+        }
+        return wasTrusted
     }
 
     // showIcon shows the menu bar icon unless the choices hide it. Opening Moorings again while it
@@ -511,6 +703,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private func status() {
         let screens = Screens.current()
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
+        logger.notice("status: update=\(self.updater.state.status, privacy: .public)")
         logger.notice(
             "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) observed=\(self.events.observed) hotkeys=\(self.hotkeys.enabled)"
         )
