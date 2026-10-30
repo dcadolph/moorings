@@ -117,16 +117,32 @@ public final class FakeWindows: WindowStore {
         index(id).map { windows[$0] }
     }
 
+    // answersFocused reports whether focused reads the focused window alone, as the Mac store does,
+    // instead of leaving the caller to scan.
+    public var answersFocused = false
+
+    // focused returns the focused window as a scan would list it, without recording a scan, when
+    // answersFocused is on.
+    public func focused(_ screens: Screens) -> WindowInfo? {
+        guard answersFocused else { return nil }
+        return infos(screens).first { $0.id == focusedID }
+    }
+
     // scan lists the windows that are not minimized and overlap a screen, front to back.
     public func scan(_ screens: Screens, full: Bool) -> Scan {
         calls.append(.scan(full: full))
-        let infos = windows.compactMap { w -> WindowInfo? in
+        let infos = infos(screens)
+        return Scan(windows: infos, focused: infos.first { $0.id == focusedID })
+    }
+
+    // infos describes the windows a scan lists, front to back.
+    private func infos(_ screens: Screens) -> [WindowInfo] {
+        windows.compactMap { w -> WindowInfo? in
             guard !w.minimized, let i = screens.index(w.frame) else { return nil }
             return WindowInfo(
                 id: w.id, bundle: w.bundle, frame: w.frame, onUltrawide: i == screens.ultrawide,
                 isMain: w.isMain)
         }
-        return Scan(windows: infos, focused: infos.first { $0.id == focusedID })
     }
 
     // frame returns the window's frame, nil when it is gone.

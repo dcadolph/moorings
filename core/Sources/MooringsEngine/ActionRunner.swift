@@ -137,8 +137,12 @@ public final class ActionRunner {
         platform.log.note(.actions, line)
     }
 
-    // subject returns the window with id window, or the focused window when nil, from a scan.
+    // subject returns the window with id window, or the focused window when nil. The focused window
+    // is read alone where the store can, and otherwise both come from a scan.
     private func subject(_ window: WindowID?, screens: Screens) -> WindowInfo? {
+        if window == nil, let w = platform.windows.focused(screens) {
+            return w
+        }
         let scan = platform.windows.scan(screens, full: false)
         return window.flatMap { id in scan.windows.first { $0.id == id } } ?? scan.focused
     }
