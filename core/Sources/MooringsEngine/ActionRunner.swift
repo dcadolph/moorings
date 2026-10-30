@@ -51,9 +51,11 @@ public final class ActionRunner {
     // run applies action name to the window with id window, raised first, or to the focused window
     // when nil, and reports whether anything moved. Nothing runs while the anchor is weighed. On a
     // pin, Maximize lifts or lowers it, a half or a third places it inside its slot, and Restore gives
-    // it its whole slot back or else re-moors it. A chain runs its next step.
+    // it its whole slot back or else re-moors it. A chain runs its next step. Afterward the channel
+    // cycle's claim follows the front window.
     @discardableResult
     public func run(_ name: String, window: WindowID? = nil) -> Bool {
+        defer { engine.channelCycle.sync() }
         if name == Keymaps.menuName || name == Keymaps.stripsName {
             return engine.route(name, window: window)
         }

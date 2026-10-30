@@ -356,6 +356,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 engine.actions.unfill(id)
             }
         }
+        engine.channelCycle.sync()
         engine.wake()
         engine.moor()
     }
@@ -465,10 +466,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.isVisible = !engine.anchors.choices.behavior.hideMenuBarIcon
     }
 
-    // refreshShortcuts turns the shortcuts off while an app in the ignore list is in front.
+    // refreshShortcuts turns the shortcuts off while an app in the ignore list is in front, and the
+    // channel cycle's claim with them.
     func refreshShortcuts() {
         let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         hotkeys.setEnabled(front.map { !engine.anchors.choices.ignores.contains($0) } ?? true)
+        engine.channelCycle.sync()
     }
 
     // runLink runs the action a moorings://action?name= link asks for.
