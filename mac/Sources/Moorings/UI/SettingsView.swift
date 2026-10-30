@@ -471,6 +471,11 @@ struct SettingsView: View {
                     get: { model.choices.fullscreenFills },
                     set: { v in model.change { $0.fullscreenFills = v } }))
             Toggle(
+                "Control-Left and Right walk the channel's windows while one fills it",
+                isOn: Binding(
+                    get: { model.choices.channelCycle },
+                    set: { v in model.change { $0.channelCycle = v } }))
+            Toggle(
                 "Fullscreen keeps anchored apps in their slots",
                 isOn: Binding(
                     get: { model.choices.pinFullscreenFills },

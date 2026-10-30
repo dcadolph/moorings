@@ -88,6 +88,9 @@ each part.
 
 - Tile columns, tile rows, tile all or one app, cascade all or one app, cycle stacked windows,
   cycle slot windows, and reverse.
+- Cycle channel windows (cycle-channel-windows) walks the channel's windows, each filling as it
+  comes forward. It is unbound by default, and Control-Left and Right do it while a window fills
+  the channel.
 - An optional badge counts the windows stacked at a corner when the pointer rests there, and
   cycle stacked windows walks the same windows.
 - Tidy channel lines up the two or three front windows, and Undo tidy puts everything back.
@@ -153,6 +156,10 @@ each part.
   fullscreen fills the channel instead of covering the anchored apps. An anchored app stays
   fullscreen, so a video can take the whole screen, and returns to its slot when it leaves
   fullscreen. Each kind of window has its own switch.
+- While a window fills the channel, Control-Left and Right walk the channel's windows and each
+  fills as it comes forward. Anywhere else the keys are macOS's, and they go back to macOS a
+  moment after a fill ends. Up and Down walk a slot, Left and Right walk the channel. Settings >
+  Lift turns it off.
 
 ## Settings window
 
