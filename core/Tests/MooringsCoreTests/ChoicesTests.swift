@@ -281,11 +281,10 @@ private func choicesFixture() throws -> Data {
     #expect(got.choices != Choices())
     #expect(got.choices.gapPx == 8 && got.choices.activeProfile == "Work" && got.choices.tiling.mode == .bsp)
     #expect(got.choices.channelCycle)
-    let saved = try Choices.encode(got.choices)
-    var back = try #require(try JSONSerialization.jsonObject(with: saved) as? [String: Any])
-    back["channelCycle"] = nil
-    let want = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
-    #expect(NSDictionary(dictionary: back).isEqual(to: want))
+    let added = #""channelCycle":true,"#
+    let saved = String(decoding: try Choices.encode(got.choices), as: UTF8.self)
+    #expect(saved.components(separatedBy: added).count == 2, "\(saved)")
+    #expect(saved.replacingOccurrences(of: added, with: "") == String(decoding: data, as: UTF8.self))
 }
 
 // Swift only: choices saved without channelCycle load with it on, and it round trips.
