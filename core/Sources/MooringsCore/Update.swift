@@ -50,11 +50,111 @@ public struct ReleaseInfo: Sendable, Equatable {
     public let tag: String
     // Page is the release page the user is sent to.
     public let page: URL
+    // Zip is the universal macOS zip asset, or nil when the release lacks a trusted one.
+    public let zip: URL?
+    // Checksums is the SHA256SUMS asset, or nil when the release lacks a trusted one.
+    public let checksums: URL?
 
-    // init creates a release from its tag and page.
-    public init(tag: String, page: URL) {
+    // init creates a release from its tag, page and optional assets.
+    public init(tag: String, page: URL, zip: URL? = nil, checksums: URL? = nil) {
         self.tag = tag
         self.page = page
+        self.zip = zip
+        self.checksums = checksums
+    }
+
+    // assetURL returns the asset of the given name when it sits at the pinned download path for
+    // the tag on github.com over https, and nil otherwise.
+    static func assetURL(tag: String, name: String, in assets: [Asset]) -> URL? {
+        guard !tag.isEmpty, !tag.hasPrefix("."),
+            tag.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "." || $0 == "-") })
+        else {
+            return nil
+        }
+        let prefix = "/dcadolph/moorings/releases/download/\(tag)/"
+        for asset in assets where asset.name == name {
+            guard let url = URL(string: asset.url), url.scheme == "https", url.host == "github.com",
+                url.port == nil, url.user == nil, url.password == nil,
+                url.path == prefix + name
+            else {
+                continue
+            }
+            return url
+        }
+        return nil
+    }
+
+    // Asset is one entry of a release's assets list.
+    struct Asset: Decodable, Equatable {
+        // Name is the asset file name.
+        let name: String
+        // URL is the browser download URL.
+        let url: String
+
+        enum CodingKeys: String, CodingKey {
+            case name
+            case url = "browser_download_url"
+        }
+    }
+}
+
+// UpdateVerdict names the step of the update trust chain that refused, so every refusal maps to
+// one word.
+public enum UpdateVerdict: String, Sendable, Equatable, CaseIterable {
+    // metadata is a release record that is missing, malformed or not newer.
+    case metadata
+    // assets is a release without the pinned zip or checksum asset.
+    case assets
+    // checksum is a download whose hash is absent from or differs from SHA256SUMS.
+    case checksum
+    // signature is a bundle whose code signature is invalid.
+    case signature
+    // requirement is a bundle that fails the signing requirement or the designated requirement match.
+    case requirement
+    // notarization is a bundle Gatekeeper does not accept as notarized.
+    case notarization
+    // plist is a bundle whose Info.plist differs from what is expected.
+    case plist
+    // location is an install location that cannot be replaced.
+    case location
+    // space is too little free disk space to stage the update.
+    case space
+}
+
+// Checksums reads and checks `shasum -a 256` output.
+public enum Checksums {
+    // parse maps file names to lowercase hex digests. Lines are "<hex>  <name>" or "<hex> *<name>".
+    // Lines that do not fit are skipped, and a later line for the same name replaces an earlier one.
+    public static func parse(_ text: String) -> [String: String] {
+        var result: [String: String] = [:]
+        for line in text.split(whereSeparator: \.isNewline) {
+            let hex = line.prefix { $0.isASCII && $0.isHexDigit }
+            guard hex.count == 64 else {
+                continue
+            }
+            var rest = line.dropFirst(hex.count)
+            guard rest.first == " " else {
+                continue
+            }
+            rest = rest.dropFirst()
+            guard rest.first == " " || rest.first == "*" else {
+                continue
+            }
+            let name = String(rest.dropFirst())
+            guard !name.isEmpty else {
+                continue
+            }
+            result[name] = hex.lowercased()
+        }
+        return result
+    }
+
+    // matches reports whether the digest equals the one listed for the exact name, ignoring hex case.
+    public static func matches(_ hex: String, name: String, in sums: [String: String]) -> Bool {
+        guard let want = sums[name] else {
+            return false
+        }
+        return want == hex.lowercased()
     }
 }
 
@@ -93,7 +193,12 @@ public struct UpdateChecker: Sendable {
         else {
             return nil
         }
-        return ReleaseInfo(tag: release.tagName, page: page)
+        let assets = release.assets ?? []
+        return ReleaseInfo(
+            tag: release.tagName, page: page,
+            zip: ReleaseInfo.assetURL(
+                tag: release.tagName, name: "moorings_\(release.tagName)_macos_universal.zip", in: assets),
+            checksums: ReleaseInfo.assetURL(tag: release.tagName, name: "SHA256SUMS", in: assets))
     }
 
     // Release is the part of GitHub's release response the check reads.
@@ -106,12 +211,15 @@ public struct UpdateChecker: Sendable {
         let draft: Bool?
         // Prerelease reports a release marked as a prerelease.
         let prerelease: Bool?
+        // Assets lists the files attached to the release.
+        let assets: [ReleaseInfo.Asset]?
 
         enum CodingKeys: String, CodingKey {
             case tagName = "tag_name"
             case htmlURL = "html_url"
             case draft
             case prerelease
+            case assets
         }
     }
 }

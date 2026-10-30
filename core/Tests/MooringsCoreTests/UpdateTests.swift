@@ -159,6 +159,92 @@ func testUpdateChecker(test: UpdateCase) async throws {
     #expect(got?.tag == test.wantTag)
 }
 
+// fixtureRelease is a v1.15.1 release response shaped like the release workflow's uploads.
+let fixtureRelease = """
+    {"tag_name":"v1.15.1","html_url":"https://github.com/dcadolph/moorings/releases/tag/v1.15.1",
+    "draft":false,"prerelease":false,"assets":[
+    {"name":"moorings_v1.15.1_macos_universal.zip","browser_download_url":"https://github.com/dcadolph/moorings/releases/download/v1.15.1/moorings_v1.15.1_macos_universal.zip"},
+    {"name":"moorings_v1.15.1_macos_universal.dmg","browser_download_url":"https://github.com/dcadolph/moorings/releases/download/v1.15.1/moorings_v1.15.1_macos_universal.dmg"},
+    {"name":"SHA256SUMS","browser_download_url":"https://github.com/dcadolph/moorings/releases/download/v1.15.1/SHA256SUMS"}]}
+    """
+
+// testUpdateAssets checks that the pinned zip and checksum assets are read from the release.
+@Test func testUpdateAssets() async throws {
+    let client = HTTPClientFunc { _ in (Data(fixtureRelease.utf8), 200) }
+    let checker = UpdateChecker(client: client, current: try #require(ReleaseVersion("1.15.0")))
+    let got = try #require(try await checker.check())
+    let base = "https://github.com/dcadolph/moorings/releases/download/v1.15.1/"
+    #expect(got.zip?.absoluteString == base + "moorings_v1.15.1_macos_universal.zip")
+    #expect(got.checksums?.absoluteString == base + "SHA256SUMS")
+}
+
+// testUpdateAssetsRefused checks that assets on another host, path, tag or scheme are ignored.
+@Test(arguments: [
+    (
+        "https://github.com/dcadolph/moorings/releases/download/v1.15.1/",
+        "https://example.com/dcadolph/moorings/releases/download/v1.15.1/"
+    ),
+    (
+        "https://github.com/dcadolph/moorings/releases/download/v1.15.1/",
+        "https://github.com/evil/moorings/releases/download/v1.15.1/"
+    ),
+    (
+        "https://github.com/dcadolph/moorings/releases/download/v1.15.1/",
+        "https://github.com/dcadolph/moorings/releases/download/v1.15.0/"
+    ),
+    (
+        "https://github.com/dcadolph/moorings/releases/download/v1.15.1/",
+        "http://github.com/dcadolph/moorings/releases/download/v1.15.1/"
+    ),
+])
+func testUpdateAssetsRefused(pair: (String, String)) async throws {
+    let body = fixtureRelease.replacingOccurrences(of: pair.0, with: pair.1)
+    let client = HTTPClientFunc { _ in (Data(body.utf8), 200) }
+    let checker = UpdateChecker(client: client, current: try #require(ReleaseVersion("1.15.0")))
+    let got = try #require(try await checker.check())
+    #expect(got.zip == nil)
+    #expect(got.checksums == nil)
+}
+
+// testUpdateAssetsMissing checks that a release with no assets still reports the update.
+@Test func testUpdateAssetsMissing() async throws {
+    let client = HTTPClientFunc { _ in (Data(release(tag: "v1.15.1").utf8), 200) }
+    let checker = UpdateChecker(client: client, current: try #require(ReleaseVersion("1.15.0")))
+    let got = try #require(try await checker.check())
+    #expect(got.zip == nil)
+    #expect(got.checksums == nil)
+}
+
+// sampleHex is a SHA-256 digest used by the checksum tests.
+let sampleHex = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+// testChecksums checks parsing, hex case, a flipped digit and a missing name.
+@Test func testChecksums() {
+    let text = """
+        \(sampleHex)  moorings_v1.15.1_macos_universal.zip
+        \(sampleHex.uppercased()) *moorings_v1.15.1_macos_universal.dmg
+        not a checksum line
+        abc  short.zip
+
+        """
+    let sums = Checksums.parse(text)
+    #expect(sums.count == 2)
+    #expect(sums["moorings_v1.15.1_macos_universal.dmg"] == sampleHex)
+    let zip = "moorings_v1.15.1_macos_universal.zip"
+    #expect(Checksums.matches(sampleHex, name: zip, in: sums))
+    #expect(Checksums.matches(sampleHex.uppercased(), name: zip, in: sums))
+    let flipped = "f" + sampleHex.dropFirst()
+    #expect(!Checksums.matches(flipped, name: zip, in: sums))
+    #expect(!Checksums.matches(sampleHex, name: "missing.zip", in: sums))
+    #expect(!Checksums.matches(sampleHex, name: "MOORINGS_v1.15.1_macos_universal.zip", in: sums))
+}
+
+// testUpdateVerdictWords checks that each refusal step has its own word.
+@Test func testUpdateVerdictWords() {
+    #expect(UpdateVerdict.allCases.count == 9)
+    #expect(Set(UpdateVerdict.allCases.map(\.rawValue)).count == 9)
+}
+
 // testUpdateCheckerTransportError checks that a thrown transport error passes through.
 @Test func testUpdateCheckerTransportError() async throws {
     struct Down: Error {}
@@ -197,4 +283,14 @@ func updateStamp(_ text: String) -> Date {
     formatter.timeZone = TimeZone(identifier: "UTC")
     formatter.dateFormat = "yyyy-MM-dd HH:mm"
     return formatter.date(from: text)!
+}
+
+// testUpdateAssetTagRefused checks that a tag able to change the download path yields no asset.
+@Test(arguments: ["../../other/repo", "v1/x", ".hidden", ""])
+func testUpdateAssetTagRefused(tag: String) {
+    let name = "SHA256SUMS"
+    let url = "https://github.com/dcadolph/moorings/releases/download/\(tag)/\(name)"
+    let assets = [ReleaseInfo.Asset(name: name, url: url)]
+    #expect(ReleaseInfo.assetURL(tag: tag, name: name, in: assets) == nil)
+    #expect(ReleaseInfo.assetURL(tag: "v1.15.1", name: name, in: assets) == nil)
 }
