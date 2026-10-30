@@ -451,3 +451,15 @@ private func fillRig(_ edit: (inout Choices) -> Void = { _ in }) -> (EngineRig, 
     #expect(passes == 0)
     #expect(rig.scheduler.pendingAt == nil)
 }
+
+// An action that fills the channel with the front window claims Control-Left and Right at once, on
+// the window where it landed, with the one scan the action made to find it.
+@Test func testRunClaimsOnTheLandedWindow() {
+    let rig = EngineRig(features: .all)
+    rig.windows.focusedID = rig.pad
+    let from = rig.windows.calls.count
+    #expect(rig.engine.actions.run("maximize"))
+    #expect(rig.engine.channelCycle.claimed)
+    let scans = rig.windows.calls.dropFirst(from).filter { $0 == .scan(full: false) || $0 == .scan(full: true) }
+    #expect(scans.count == 1)
+}
