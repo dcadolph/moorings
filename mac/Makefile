@@ -27,7 +27,7 @@ INTENTS_OUT := .build/intents
 # a universal one.
 INTENTS_CONSTS_DIR := $(if $(ARCHS),.build/apple/Intermediates.noindex/Moorings.build/Release/Moorings.build,.build/$(shell uname -m)-apple-macosx/release/Moorings.build)
 
-.PHONY: build test app sandbox zip dmg notarize run clean
+.PHONY: build test bench app sandbox zip dmg notarize run clean
 
 build:
 	swift build
@@ -35,6 +35,9 @@ build:
 test:
 	swift test --package-path ../core
 	swift build
+
+bench:
+	scripts/bench.sh
 
 $(ICNS): ../app-icon.png
 	rm -rf $(ICONSET)
