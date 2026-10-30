@@ -56,3 +56,13 @@ import MooringsCore
     _ = windows.scan(screens, full: true)
     #expect(asked == 4)
 }
+
+// Asking the window server for one window gives what the full list shows for it, and nothing for a
+// window it does not list.
+@MainActor @Test func testOnScreenOneMatchesList() {
+    for w in Windows.onScreen() {
+        let got = Windows.onScreen(w.id)
+        #expect(got?.pid == w.pid && got?.frame == w.frame, "window \(w.id)")
+    }
+    #expect(Windows.onScreen(WindowID(UInt32.max)) == nil)
+}
