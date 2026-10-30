@@ -463,3 +463,18 @@ private func fillRig(_ edit: (inout Choices) -> Void = { _ in }) -> (EngineRig, 
     let scans = rig.windows.calls.dropFirst(from).filter { $0 == .scan(full: false) || $0 == .scan(full: true) }
     #expect(scans.count == 1)
 }
+
+// An action on the focused window reads it alone where the store can, with no scan, and scans when
+// the store cannot.
+@Test func testRunReadsTheFocusedWindowAlone() {
+    for answers in [true, false] {
+        let rig = EngineRig(features: .all)
+        rig.windows.focusedID = rig.pad
+        rig.windows.answersFocused = answers
+        let from = rig.windows.calls.count
+        #expect(rig.engine.actions.run("left-half"))
+        let scans = rig.windows.calls.dropFirst(from).filter { $0 == .scan(full: false) || $0 == .scan(full: true) }
+        #expect(scans.count == (answers ? 0 : 1), "answers \(answers)")
+        #expect(rig.windows.frame(rig.pad) != Frame(x: 1400, y: 300, w: 900, h: 700), "answers \(answers)")
+    }
+}

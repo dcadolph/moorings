@@ -6,6 +6,9 @@ public protocol WindowStore: AnyObject {
     // scan lists the windows on screens, front to back, with the focused one. full reads every
     // app; otherwise the adapter may read only the apps that changed since its last scan.
     func scan(_ screens: Screens, full: Bool) -> Scan
+    // focused reads the focused window alone, as a scan would describe it, nil when the store has no
+    // cheaper read than a scan or the window is not one a scan keeps; the caller then scans.
+    func focused(_ screens: Screens) -> WindowInfo?
     // frame returns the window's current frame, nil when it cannot be read.
     func frame(_ id: WindowID) -> Frame?
     // move places the window; from is its last read frame when known so an adapter can animate
@@ -38,6 +41,9 @@ public protocol WindowStore: AnyObject {
 }
 
 extension WindowStore {
+    // focused has no cheaper read than a scan, so the caller scans.
+    public func focused(_ screens: Screens) -> WindowInfo? { nil }
+
     // position moves the window to x, y at the size it has now, for a store with no cheaper way.
     public func position(_ id: WindowID, x: Double, y: Double) {
         guard let f = frame(id) else { return }
