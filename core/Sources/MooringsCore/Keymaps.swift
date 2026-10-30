@@ -626,6 +626,17 @@ public struct Bindings: Equatable, Sendable {
 
     // specs maps each custom size's action name to its spec.
     public var specs: [String: CustomSpec] {
+        Self.specs(sizes)
+    }
+
+    // specs maps each valid custom size in choices to its spec without working out the shortcuts,
+    // for the actions, which need the sizes on every press.
+    public static func specs(_ choices: Choices) -> [String: CustomSpec] {
+        specs(Keymaps.sizes(choices.sizes.map(\.entry)).sizes)
+    }
+
+    // specs maps each of sizes to its spec by action name.
+    private static func specs(_ sizes: [CustomSize]) -> [String: CustomSpec] {
         Dictionary(uniqueKeysWithValues: sizes.map { ($0.name, $0.spec) })
     }
 }

@@ -39,7 +39,7 @@ public final class ActionRunner {
         if name.hasPrefix(Chain.prefix) {
             return anchors.choices.chains.contains { $0.actionName == name }
         }
-        return Keymaps.known(name) || Bindings(anchors.choices).specs[name] != nil
+        return Keymaps.known(name) || Bindings.specs(anchors.choices)[name] != nil
     }
 
     // linkRefused returns the closing action a link may not run, close-window or close-others, asked
@@ -369,7 +369,7 @@ public final class ActionRunner {
         }
         return Actions.frame(
             name, cur: w.frame, target: target, gap: anchors.choices.gapPx,
-            sizes: Bindings(anchors.choices).specs, last: last[w.id],
+            sizes: Bindings.specs(anchors.choices), last: last[w.id],
             behavior: anchors.choices.behavior)
     }
 
