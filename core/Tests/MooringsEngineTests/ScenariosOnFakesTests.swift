@@ -110,3 +110,13 @@ final class ScenarioRig {
     #expect(Array(bytes.suffix(12)) == [0, 0, 0, 0, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82])
     #expect(bytes.count == 8 + 25 + (12 + 2 + 5 + 7 + 4) + 12)
 }
+
+// Test 7: An app's launch window still open when the rest scenario starts is waited out, so its busy
+// passes do not read as passes at rest.
+@Test func testScenariosRestWaitsOutLaunch() {
+    let rig = ScenarioRig()
+    rig.engine.passes.launching = rig.clock.now + Pace.launchSeconds
+    let result = Scenarios.run(rig.engine, host: rig.host, only: ["eventsWakeAndRestHolds"]).first
+    #expect(result?.passed == true, "\(result?.failures ?? [])")
+    #expect(result?.notes.contains { $0.hasPrefix("waited ") } == true)
+}
