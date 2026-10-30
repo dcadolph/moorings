@@ -160,6 +160,7 @@ lists every action with its shortcut, so it doubles as a cheat sheet. The defaul
 | Restore                   | ⌃⌥⌫             | Control + Option + Delete                        |
 | Previous, next display    | ⌃⌥⌘← ⌃⌥⌘→       | Control + Option + Command + Left or Right Arrow |
 | Cycle slot windows        | ⌃⌥⌘↓ ⌃⌥⌘↑       | Control + Option + Command + Down or Up Arrow    |
+| Cycle channel windows     | ⌃← ⌃→           | Control + Left or Right, while a fill is up      |
 
 Window > Keymap switches to another preset, or to None to start from a blank slate. Fourths, sixths, eighths, ninths, twelfths,
 sixteenths, vertical thirds, sixths and eighths, corner thirds, almost maximize, center
@@ -396,6 +397,13 @@ closes or you click again. A free window's green button fills the channel, and a
 puts it back. Native fullscreen on the ultrawide fills the channel instead. On an anchored app it
 stays fullscreen, so a video can take the whole screen, and the app returns to its slot when it
 leaves fullscreen. The Lift folder has a switch for each.
+
+While a window fills the channel, Control-Left and Right walk the channel's windows, and each
+fills as it comes forward. Anywhere else those keys are macOS's own, and they return to macOS a
+moment after a fill ends. Up and Down walk a slot, Left and Right walk the channel. The same
+actions are in the Organize menu as Cycle channel windows and Cycle channel windows backward
+(cycle-channel-windows), and you can bind them to any shortcut. Turn the keys off in Settings >
+Lift.
 
 ### Guards
 
