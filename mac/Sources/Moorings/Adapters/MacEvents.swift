@@ -45,11 +45,22 @@ final class MacEvents: @preconcurrency EventSource {
     private var ids: [AXUIElement: WindowID] = [:]
     // tokens holds the notification center observers added by start.
     private var tokens: [(NotificationCenter, NSObjectProtocol)] = []
+    // listApps returns the processes of the running apps that can show windows.
+    private let listApps: @MainActor () -> Set<pid_t>
+    // apps holds the regular apps from the last listing, kept up to date by launches and quits.
+    private var apps: Set<pid_t> = []
+    // appsListed is when listApps last ran, nil before the first time.
+    private var appsListed: Double?
+    // listCount is how many times the source listed the running apps, for the tests.
+    private(set) var listCount = 0
 
-    // init builds a source that reads windows through store and keeps tap running while started.
-    init(store: Windows, tap: EventTap? = nil) {
+    // init builds a source that reads windows through store, keeps tap running while started, and
+    // lists the regular apps with listApps.
+    init(store: Windows, tap: EventTap? = nil, listApps: @escaping @MainActor () -> Set<pid_t> = MacEvents.regularApps)
+    {
         self.store = store
         self.tap = tap
+        self.listApps = listApps
     }
 
     // waiting reports whether an app is still in its eager tries to take its observer.
@@ -86,7 +97,8 @@ final class MacEvents: @preconcurrency EventSource {
             MainActor.assumeIsolated { self?.deliver?(.screensChanged) }
         }
         tokens.append((NotificationCenter.default, screens))
-        watcher.watch(Self.regularApps())
+        list(now: ProcessInfo.processInfo.systemUptime)
+        watcher.watch(apps)
         turned()
     }
 
@@ -107,17 +119,33 @@ final class MacEvents: @preconcurrency EventSource {
         tokens = []
         watcher.reset()
         ids = [:]
+        apps = []
+        appsListed = nil
+    }
+
+    // list asks every running app for its kind and keeps the regular ones. Reading an app's kind
+    // costs a system call per app on every read, so passes list only as often as
+    // PassPlan.refreshesApps allows and keep the set between.
+    private func list(now: Double) {
+        apps = listApps()
+        appsListed = now
+        listCount += 1
     }
 
     // watch re-arms the tap when macOS turned it off, observes every regular app and the apps of the
     // windows in scan, and the close of each of those windows, while started, so a source that
-    // delivers nothing takes no observers.
+    // delivers nothing takes no observers. The regular apps are listed again when
+    // PassPlan.refreshesApps says so, which catches an app that turned regular after launch.
     func watch(_ scan: Scan) {
         guard deliver != nil else { return }
         if let tap, !tap.running {
             _ = tap.start()
         }
-        var pids = Self.regularApps()
+        let now = ProcessInfo.processInfo.systemUptime
+        if PassPlan.refreshesApps(now: now, last: appsListed, waiting: watcher.waiting) {
+            list(now: now)
+        }
+        var pids = apps
         var elements: [WindowID: AXUIElement] = [:]
         for w in scan.windows {
             guard let pid = store.pid(w.id), let el = store.elements[w.id] else { continue }
@@ -186,9 +214,11 @@ final class MacEvents: @preconcurrency EventSource {
                 deliver?(.wake)
                 return
             }
+            apps.insert(pid)
             watcher.watch([pid])
             deliver?(.appLaunched(bundle))
         } else {
+            apps.remove(pid)
             store.forget(pid)
             watcher.forget(pid)
             deliver?(.appQuit(bundle))
@@ -196,7 +226,7 @@ final class MacEvents: @preconcurrency EventSource {
     }
 
     // regularApps returns the processes of the apps that can show windows, other than moorings.
-    private static func regularApps() -> Set<pid_t> {
+    static func regularApps() -> Set<pid_t> {
         let me = ProcessInfo.processInfo.processIdentifier
         return Set(
             NSWorkspace.shared.runningApplications.lazy
