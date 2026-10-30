@@ -79,6 +79,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var selftest = Selftest(app: self)
     // settings is the settings window.
     lazy var settings = SettingsWindow(app: self)
+    // saveFailureTold is whether this launch has already told the owner a save failed.
+    var saveFailureTold = false
     // snap follows drags and snaps the dragged window to the zone under the cursor.
     lazy var snap = MacDrag(app: self)
     // platform is what the engine reads and drives on the Mac. A save shows the choices the menu bar
@@ -152,6 +154,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
         events.turned = { [weak self] in self?.showMark() }
         engine.observers.passed = { [weak self] _, _ in self?.showMark() }
+        engine.observers.saveFailed = { [weak self] _ in self?.saveFailed() }
         showMark()
         if !windows.trusted, lost {
             logger.notice("Accessibility was lost across an update: windows will not move")
@@ -426,6 +429,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             "Anchor an app to an edge",
             "Click the app, then choose Anchor and its name near the top of the "
                 + "Moorings menu and pick a slot.")
+    }
+
+    // saveFailed tells the owner once per launch that the settings could not be written. A click opens
+    // the settings.
+    func saveFailed() {
+        guard !saveFailureTold else { return }
+        saveFailureTold = true
+        notify("Moorings could not save your settings", "Click to open the settings.") { [weak self] in
+            self?.settings.show()
+        }
     }
 
     // notify shows a banner in the harbor palette. A click on it runs action.

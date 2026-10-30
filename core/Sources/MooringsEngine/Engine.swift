@@ -90,6 +90,8 @@ public final class Engine {
         public var showed: (Frame, FootprintStyle) -> Void = { _, _ in }
         // dropped is told the window and what it dropped on at the end of each drag that moved one.
         public var dropped: (WindowID, SnapDrop?) -> Void = { _, _ in }
+        // saveFailed is told the message each time the store cannot write the choices.
+        public var saveFailed: (String) -> Void = { _ in }
 
         // init builds observers that watch nothing.
         public init() {}
@@ -223,6 +225,7 @@ public final class Engine {
             try platform.store.save(anchors.choices)
         } catch {
             platform.log.note(.choices, "choices not saved: \(error)")
+            observers.saveFailed("choices not saved: \(error)")
         }
         settle()
     }

@@ -478,3 +478,20 @@ private func fillRig(_ edit: (inout Choices) -> Void = { _ in }) -> (EngineRig, 
         #expect(rig.windows.frame(rig.pad) != Frame(x: 1400, y: 300, w: 900, h: 700), "answers \(answers)")
     }
 }
+
+// A store whose save throws tells saveFailed once for the save, and the choices stay in effect.
+@Test func testSaveFailureIsTold() {
+    let store = FakeStore(Choices(slots: [:]))
+    store.failing = true
+    let windows = FakeWindows()
+    let engine = newTestEngine(
+        newTestPlatform(
+            windows: windows, screens: FakeScreens.ultrawide(), clock: FakeClock(100), store: store,
+            log: FakeLog()),
+        features: .all)
+    var told: [String] = []
+    engine.observers.saveFailed = { told.append($0) }
+    engine.save()
+    #expect(told.count == 1)
+    #expect(told.first?.hasPrefix("choices not saved") == true)
+}
