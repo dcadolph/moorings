@@ -236,7 +236,8 @@ final class Installer {
 }
 
 // Relaunch starts a bundle once this process has exited. With a launch marker it also waits for the
-// new build to say it started and, when it never does, puts the previous bundle back and starts that.
+// new build to say it started and, when it never does, stops it, puts the previous bundle back and
+// starts that. A new build that is running but never wrote its pid is found by its path.
 enum Relaunch {
     // script is the detached helper. It takes the waited pid, the opener, the bundle, the previous
     // bundle, where to park a failed bundle, the marker, the build the marker must hold, the seconds
@@ -260,8 +261,12 @@ enum Relaunch {
         if [ -f "$marker.pid" ]; then
             b= p=
             read -r b p < "$marker.pid"
-            [ "$b" = "$build" ] && [ -n "$p" ] && /bin/kill "$p" 2>/dev/null && /bin/sleep 1
+            [ "$b" = "$build" ] && [ -n "$p" ] && /bin/kill "$p" 2>/dev/null
         fi
+        for p in $(/usr/bin/pgrep -f -- "$bundle"); do
+            [ "$p" = "$$" ] || /bin/kill "$p" 2>/dev/null
+        done
+        /bin/sleep 1
         /bin/mv "$bundle" "$failed" && /bin/mv "$previous" "$bundle" && exec "$opener" "$bundle"
         """
 
