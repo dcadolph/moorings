@@ -21,6 +21,22 @@ public enum PassPlan: Equatable, Sendable {
         return waiting || now - last >= appsSeconds
     }
 
+    // carries reports whether a pass may carry the last window server list instead of asking for a
+    // new one. It may when the pass is not forced and no full pass is due, an action placed a window
+    // since the last scan, every window placed since then was on that list, and no app sent a window
+    // event since. Such a pass was woken by the action's own move alone, so it has no drift to catch.
+    // placed maps each window an action placed to when it did.
+    public static func carries(
+        now: Double, forced: Bool, lastFull: Double, lastScan: Double, woke: [Int32: Double],
+        placed: [WindowID: Double], listed: Set<WindowID>
+    ) -> Bool {
+        if forced || now - lastFull >= fullSeconds {
+            return false
+        }
+        let since = placed.filter { $0.value > lastScan }.keys
+        return !since.isEmpty && since.allSatisfy(listed.contains) && !woke.values.contains { $0 > lastScan }
+    }
+
     // plan returns .full when forced, which a recent wake that named no app is, when a full pass is
     // overdue, or when no app was named by a recent wake and no action's move is still echoing, and otherwise the apps that woke recently,
     // the apps whose listed windows differ from the previous pass, and the front app. A slow app is

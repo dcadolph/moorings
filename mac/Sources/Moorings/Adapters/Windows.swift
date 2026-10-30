@@ -76,6 +76,22 @@ final class Windows {
     var echoes: [WindowID: (frame: Frame, at: Double)] = [:]
     // lastFull is when the last scan that read every app ran.
     private(set) var lastFull = -Double.infinity
+    // Listing is one window on the window server list: its id, its owner and its frame.
+    typealias Listing = (id: WindowID, pid: pid_t, frame: Frame)
+    // list asks the window server for its list, front-most first.
+    private let list: @MainActor () -> [Listing]
+    // listing is the list the last scan used, which a pass woken by an action's own move carries.
+    private var listing: [Listing] = []
+    // lastScan is when the last scan ran, by system uptime.
+    private var lastScan = -Double.infinity
+    // readBack holds where each window placed since the last scan read back, so a carried list puts
+    // it there.
+    private var readBack: [WindowID: Frame] = [:]
+
+    // init asks the window server for its list with list.
+    init(list: @escaping @MainActor () -> [Listing] = Windows.onScreen) {
+        self.list = list
+    }
 
     // front returns the front app, or the one before moorings when a link brought moorings forward.
     private var front: pid_t? {
@@ -90,15 +106,16 @@ final class Windows {
     // picks the apps read through Accessibility from the window server's frames by process now, at
     // the last scan, the slow processes and the front app. Any app not read before is always read,
     // and every other app is carried from the last scan at its window server frames. The front app
-    // is carried with its focus only when the last scan that read it saw it in front.
+    // is carried with its focus only when the last scan that read it saw it in front. carry uses the
+    // last window server list, with the windows placed since at their new frames, instead of a new one.
     func scan(
-        _ screens: Screens,
+        _ screens: Screens, carry: Bool = false,
         decide: (
             _ listed: [pid_t: [WindowID: Frame]], _ previous: [pid_t: [WindowID: Frame]], _ slow: Set<pid_t>,
             _ front: pid_t?
         ) -> PassPlan = { _, _, _, _ in .full }
     ) -> (windows: [WindowInfo], focused: WindowInfo?) {
-        let order = Self.onScreen()
+        let order = carry ? carried() : list()
         let rank = Dictionary(order.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { a, _ in a })
         let pids = Set(order.map(\.pid))
         var found: [WindowInfo] = []
@@ -114,6 +131,9 @@ final class Windows {
         }
         let plan = decide(now, listed, slow, front)
         listed = now
+        listing = order
+        lastScan = ProcessInfo.processInfo.systemUptime
+        readBack = [:]
         lastPlan = plan
         running = running.filter { pids.contains($0.key) }
         let me = ProcessInfo.processInfo.processIdentifier
@@ -198,7 +218,7 @@ final class Windows {
     // read describes window el with id of the app with pid as a scan would, and caches its element.
     // It returns nil when the app is hidden or has no bundle id, or when a scan would drop the window.
     private func read(_ el: AXUIElement, id: WindowID, pid: pid_t, screens: Screens) -> WindowInfo? {
-        guard Self.onScreen().contains(where: { $0.id == id && $0.pid == pid }) else { return nil }
+        guard list().contains(where: { $0.id == id && $0.pid == pid }) else { return nil }
         if running[pid] == nil, let app = NSRunningApplication(processIdentifier: pid) {
             running[pid] = RunningApp(app: app, bundle: app.bundleIdentifier, hidden: app.isHidden)
         }
@@ -213,7 +233,7 @@ final class Windows {
     // explain returns one line per app with on-screen windows saying what the scan reads from it,
     // and why each of its windows is kept or dropped.
     func explain(_ screens: Screens) -> [String] {
-        let order = Self.onScreen()
+        let order = list()
         let rank = Set(order.map(\.id))
         let pids = Set(order.map(\.pid))
         var out: [String] = []
@@ -335,9 +355,23 @@ final class Windows {
         AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid), enhancedUIKey, kCFBooleanFalse)
     }
 
-    // frame reads where the window with id is now, nil when it cannot be read.
+    // frame reads where the window with id is now, nil when it cannot be read. A window placed since
+    // the last scan keeps the frame read, for a carried list.
     func frame(_ id: WindowID) -> Frame? {
-        elements[id].flatMap { Self.frame($0) }
+        guard let f = elements[id].flatMap({ Self.frame($0) }) else { return nil }
+        if let e = echoes[id], e.at > lastScan {
+            readBack[id] = f
+        }
+        return f
+    }
+
+    // carried returns the last window server list with each window placed since the last scan where
+    // it read back, or where it was asked to go when it was not read.
+    private func carried() -> [Listing] {
+        listing.map { w in
+            guard let e = echoes[w.id], e.at > lastScan else { return w }
+            return (w.id, w.pid, readBack[w.id] ?? e.frame)
+        }
     }
 
     // close presses the close button of the window with id.
@@ -616,7 +650,7 @@ final class Windows {
 
     // onScreen returns the on-screen windows at the normal layer, front-most first, with their
     // owners and frames.
-    private static func onScreen() -> [(id: WindowID, pid: pid_t, frame: Frame)] {
+    static func onScreen() -> [Listing] {
         let list =
             CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]] ?? []
@@ -692,7 +726,10 @@ extension Windows: @preconcurrency WindowStore {
         appWoke = appWoke.filter { t - $0.value < Pace.settleSeconds }
         echoes = echoes.filter { t - $0.value.at < Pace.settleSeconds }
         let echoed = echoes.mapValues(\.frame)
-        let read = scan(screens) { [self] listed, previous, slow, front in
+        let carry = PassPlan.carries(
+            now: t, forced: full, lastFull: lastFull, lastScan: lastScan, woke: appWoke,
+            placed: echoes.mapValues(\.at), listed: Set(listing.map(\.id)))
+        let read = scan(screens, carry: carry) { [self] listed, previous, slow, front in
             PassPlan.plan(
                 now: t, forced: full, lastFull: lastFull, woke: appWoke,
                 listed: listed, previous: previous, slow: slow, front: front, echoes: echoed)
