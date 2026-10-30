@@ -1,7 +1,8 @@
 name: ci
 
 # Lint on macos-26, which carries the Xcode that ships swift-format 6.3.0, then run the core suite
-# and build the native app on macos-15, the release runner.
+# and build the native app on macos-15, the release runner, and test the stated macOS 14 floor on a
+# macos-14 job.
 on:
   push:
     branches: [main]
@@ -61,3 +62,30 @@ jobs:
 
       - name: Bundle with Shortcuts metadata
         run: make app ARCHS="arm64 x86_64"
+
+  mac14:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: mac
+    steps:
+      - uses: actions/checkout@v5
+
+      # The packages need swift-tools-version 6.0, so select the newest Xcode on the image.
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          app="$(printf '%s\n' /Applications/Xcode*.app | sort -V | tail -n 1)"
+          echo "Selecting $app"
+          sudo xcode-select -s "$app/Contents/Developer"
+          swift --version
+
+      - name: Core tests
+        run: swift test -Xswiftc -warnings-as-errors
+        working-directory: core
+
+      - name: Build
+        run: swift build -Xswiftc -warnings-as-errors
+
+      - name: Mac tests without live contracts
+        run: swift test -Xswiftc -warnings-as-errors
