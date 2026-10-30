@@ -192,18 +192,22 @@ Divvy costs $13.99 and Mosaic 14.99 GBP. The Lasso price is on a separate page a
 
 ## Energy
 
-Measured with mac/scripts/energy.sh on an M1 Max, macOS 26.6.1, on 2026-10-26 with Moorings at 47aeb60, Rectangle 2.0.4 and Loop 1.4.2, each with Accessibility granted. Idle ran all three side by side for ten minutes, 120 samples each, so they shared one stretch of light use: browsing and typing, no window dragged. Churn ran each app alone for two minutes while the app itself moved a TextEdit window between halves every two seconds through its own links (`energy.sh -c`), so the work measured is the app's. Before each churn run a check confirmed that the app's links moved the window. top's energy impact equals the CPU percent in every sample for all three apps, so one row per mode is shown.
+Measured with `make bench` in mac/ (mac/scripts/bench.sh) on an M1 Max, macOS 26.6.1, on 2026-10-30 with Moorings 1.15.0 build 54, Rectangle 2.0.4 and Loop 1.4.2, all three running side by side with Accessibility granted. Idle is two minutes at rest. Active sends 100 alternating left and right half actions to one TextEdit window through each app's own links, one app at a time. Paused is the CPU Moorings spends, paused, while Rectangle moves that window 100 times. Memory is each app's footprint at the end of the run.
 
-| Measure                | Moorings | Rectangle | Loop |
-| ---------------------- | -------- | --------- | ---- |
-| Idle mean CPU percent  | 0.10     | 0.00      | 0.02 |
-| Churn mean CPU percent | 1.83     | 0.04      | 0.69 |
+| Measure                                | Moorings | Rectangle    | Loop         |
+| -------------------------------------- | -------- | ------------ | ------------ |
+| Memory                                 | 20 MB    | 20 MB        | 48 MB        |
+| Idle CPU over 120 s                    | 0.00 s   | 0.00 s       | 0.00 s       |
+| Active CPU per action                  | 5.1 ms   | 2.8 ms       | 20 ms        |
+| Paused CPU per move another app makes  | 0.2 ms   | not measured | not measured |
 
-mac/scripts/bench.sh is the gate for memory, idle, active and paused cost against Rectangle and Loop, and `make bench` in mac/ runs it and exits 1 on any miss.
+The gate holds Moorings to at most 1.5 times Rectangle's memory and no more than Loop's, at most 0.03 s of CPU and no pass at rest, at most 2.0 times Rectangle's CPU per action and no more than Loop's, and at most 1 ms per move while paused. `make bench` exits 1 on any miss, and no release is tagged until it passes on the build that ships. Moorings stays within two times Rectangle per action, with the pass that keeps the channel included.
 
-Moorings does more than either app between shortcuts: it holds anchored apps in their slots and keeps free windows in the channel, so it reads windows whenever they change. On the same desk earlier that day, before two fixes, Moorings read 1.37 idle beside Rectangle's 0.00 and Loop's 0.12, and 8.88 under churn on 2026-10-25. A debug log traced the idle cost to Safari, whose previews and popovers fire moved, resized and created events many times a minute. Each one started two seconds of passes four times a second, and each pass reads every window of every app. Now a move, resize or birth wakes the passes only for a window a scan keeps, and a pass that reads the same windows as the one before it and moves nothing ends the polling at once, so an app switch costs one pass. Passes over ten minutes of light use fell from about 700 to 16. testPaceWakes and testPaceNext cover both rules, each with a negative control that fails. Under churn every move still costs a few full passes, while Rectangle sets one window and stops. A pass that reads only the app whose window moved is the next step.
+Moorings does more than either app between shortcuts. It holds anchored apps in their slots and keeps free windows in the channel, so it watches every app's windows and runs one pass after each action to keep the channel, where Rectangle sets one window and stops. At rest no pass runs until a window changes, and a paused Moorings runs no passes at all.
 
 No layout timer fires at rest. A one-minute timer runs for the update check and sends a request only when a check is due. The stack badge, when on, reads the pointer four times a second. While something is stashed, mouse-moved and mouse-up events wake the stash, plus one check when the pointer has rested long enough to slide a window out.
+
+mac/scripts/energy.sh stays as the long-sample tool, reading top's CPU and energy impact for each app over minutes.
 
 ## Compatibility
 
