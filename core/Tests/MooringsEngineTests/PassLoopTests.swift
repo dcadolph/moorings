@@ -183,6 +183,14 @@ final class SpellingKeys: Keys {
     // ungrab does nothing.
     func ungrab() {}
 
+    // claim takes nothing.
+    func claim(_ keys: [GrabKey], _ handler: @escaping (String) -> Void) -> Int {
+        0
+    }
+
+    // unclaim does nothing.
+    func unclaim() {}
+
     // spell writes the key in angle brackets.
     func spell(_ s: Shortcut) -> String {
         "<\(s.key)>"

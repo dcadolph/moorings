@@ -173,6 +173,16 @@ final class StickyKeys: Keys {
         inner.ungrab()
     }
 
+    // claim claims on the inner keys.
+    func claim(_ keys: [GrabKey], _ handler: @escaping (String) -> Void) -> Int {
+        inner.claim(keys, handler)
+    }
+
+    // unclaim lets the inner claim go.
+    func unclaim() {
+        inner.unclaim()
+    }
+
     // spell spells through the inner keys.
     func spell(_ s: Shortcut) -> String {
         inner.spell(s)

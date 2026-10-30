@@ -233,3 +233,18 @@ func near(_ a: Frame?, _ b: Frame?) -> Bool {
     store.add(bundle: "a", frame: Frame(x: 0, y: 0, w: 400, h: 300))
     #expect(got == [.shown(id), .moved(id), .focused(id), .destroyed(id)])
 }
+
+@Test func testFakeKeysClaim() {
+    let keys = FakeKeys()
+    let up = GrabKey(key: "up", modifiers: [], tag: "claim-up")
+    var tags: [String] = []
+    #expect(keys.claim([up]) { tags.append($0) } == 1)
+    _ = keys.grab([]) { _ in }
+    keys.ungrab()
+    keys.bind([:])
+    keys.press(up)
+    #expect(tags == ["claim-up"] && keys.claims == 1)
+    keys.unclaim()
+    keys.press(up)
+    #expect(tags == ["claim-up"] && keys.unclaims == 1 && keys.claimed.isEmpty)
+}

@@ -32,6 +32,17 @@ final class WinKeys: Keys {
         hotkeys.ungrab()
     }
 
+    // claim registers keys until unclaim and delivers each press to handler by tag.
+    @discardableResult
+    func claim(_ keys: [GrabKey], _ handler: @escaping (String) -> Void) -> Int {
+        hotkeys.claim(keys, handler)
+    }
+
+    // unclaim lets the claimed keys go.
+    func unclaim() {
+        hotkeys.unclaim()
+    }
+
     // spell writes a shortcut the way Windows does, such as Ctrl+Alt+Left.
     func spell(_ s: Shortcut) -> String {
         WinHotkeys.spelled(s)
