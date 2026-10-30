@@ -115,6 +115,22 @@ final class ActionRig {
     #expect(rig.frame(rig.free).x == ch.x)
 }
 
+// A link refuses the closing actions, directly or as a chain step, and nothing else.
+@Test func testRunnerLinkRefusesClosing() {
+    let rig = ActionRig {
+        $0.chains = [
+            Chain(name: "Shut", steps: ["left-half", "close-others"]),
+            Chain(name: "Halves", steps: ["left-half", "right-half"]),
+        ]
+    }
+    #expect(rig.runner.linkRefused("close-window") == "close-window")
+    #expect(rig.runner.linkRefused("close-others") == "close-others")
+    #expect(rig.runner.linkRefused("chain:Shut") == "close-others")
+    #expect(rig.runner.linkRefused("left-half") == nil)
+    #expect(rig.runner.linkRefused("minimize-others") == nil)
+    #expect(rig.runner.linkRefused("chain:Halves") == nil)
+}
+
 // Move cursor warps the pointer to the center of the window an action moved.
 @Test func testRunnerMoveCursorWarps() {
     let pointer = FakePointer()

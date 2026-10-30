@@ -687,6 +687,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             logger.notice("a moorings link asked for unknown action \(name ?? "none", privacy: .public)")
             return
         }
+        if let refused = engine.actions.linkRefused(name) {
+            logger.notice(
+                "a moorings link asked for \(refused, privacy: .public): closing actions run only from shortcuts and the menu"
+            )
+            notify("Moorings", "A link asked to \(refused). Closing actions run only from shortcuts and the menu.")
+            return
+        }
         engine.actions.run(name)
     }
 

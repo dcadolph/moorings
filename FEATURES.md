@@ -25,7 +25,7 @@ each part.
 - Your own sizes, as shares of the screen, each with its own shortcut.
 - A gap around and between the windows an action places.
 - Any action from a link such as `moorings://action?name=left-half`, so a script, a launcher or a
-  Stream Deck can run it.
+  Stream Deck can run it, except `close-window` and `close-others`.
 - Any action from Shortcuts: Run Moorings Action takes an action name and offers the list, so a
   shortcut, Spotlight or Siri can run it.
 - Extra mouse buttons bound to actions.
