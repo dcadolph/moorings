@@ -324,8 +324,8 @@ struct HelperRig {
     }
 }
 
-// A new build that writes the marker keeps the swap, and one that exits without it is swapped back
-// and the old build runs again.
+// A new build that writes the marker keeps the swap, and one that exits or hangs without it is
+// swapped back, a hung one is stopped, and the old build runs again.
 @Test func testRelaunchHelper() throws {
     let started = try HelperRig(newBody: "echo 42 > \"$(dirname \"$0\")/launched\"\n")
     try started.run()
@@ -338,6 +338,17 @@ struct HelperRig {
     #expect(try String(contentsOf: crashed.bundle, encoding: .utf8).contains("echo old"))
     #expect(try String(contentsOf: crashed.failed, encoding: .utf8) == "exit 1\n")
     #expect(FileManager.default.fileExists(atPath: crashed.oldRan.path))
+
+    let hung = try HelperRig(newBody: "/bin/sleep 60\n")
+    try hung.run()
+    #expect(try String(contentsOf: hung.bundle, encoding: .utf8).contains("echo old"))
+    #expect(FileManager.default.fileExists(atPath: hung.oldRan.path))
+    let left = Process()
+    left.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+    left.arguments = ["-f", "--", hung.dir.path]
+    try left.run()
+    left.waitUntilExit()
+    #expect(left.terminationStatus == 1, "a hung build is still running")
 }
 
 // The marker tells a launch whether the last run of its build ended without Quit, and finish clears
