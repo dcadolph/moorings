@@ -135,9 +135,12 @@ enum CodeTrust {
         return lines.contains { $0.hasSuffix(": accepted") } && lines.contains(notarizedSource)
     }
 
-    // plistMatches reports whether the bundle's Info.plist names Moorings at the expected version
-    // and that version is newer than current.
-    static func plistMatches(_ bundle: URL, version: String, current: ReleaseVersion) -> Bool {
+    // plistMatches reports whether the bundle's Info.plist names Moorings at the expected version,
+    // that version is newer than current, and the bundle runs on os.
+    static func plistMatches(
+        _ bundle: URL, version: String, current: ReleaseVersion,
+        os: OperatingSystemVersion = ProcessInfo.processInfo.operatingSystemVersion
+    ) -> Bool {
         let url = bundle.appendingPathComponent("Contents/Info.plist")
         guard let data = try? Data(contentsOf: url),
             let plist = try? PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
@@ -147,6 +150,21 @@ enum CodeTrust {
         else {
             return false
         }
-        return got > current
+        return got > current && runs(minimum: plist["LSMinimumSystemVersion"] as? String, on: os)
+    }
+
+    // runs reports whether a bundle that needs minimum runs on os. A bundle that names no minimum
+    // runs anywhere, and one whose minimum cannot be read runs nowhere.
+    static func runs(minimum: String?, on os: OperatingSystemVersion) -> Bool {
+        guard let minimum else {
+            return true
+        }
+        let parts = minimum.split(separator: ".").map { Int($0) }
+        guard !parts.isEmpty, parts.count <= 3, !parts.contains(nil) else {
+            return false
+        }
+        let need = parts.compactMap { $0 } + Array(repeating: 0, count: 3 - parts.count)
+        let have = [os.majorVersion, os.minorVersion, os.patchVersion]
+        return !have.lexicographicallyPrecedes(need)
     }
 }
