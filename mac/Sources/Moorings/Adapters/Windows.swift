@@ -344,8 +344,9 @@ final class Windows {
             AXUIElementSetAttributeValue(app, Self.enhancedUIKey, kCFBooleanFalse)
         }
         move(id, to: frame, from: current)
+        guard on else { return }
         let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
-        if on, Behavior.restoresEnhancedUI(mode, bundle: bundle, assistive: NSWorkspace.shared.isVoiceOverEnabled) {
+        if Behavior.restoresEnhancedUI(mode, bundle: bundle, assistive: NSWorkspace.shared.isVoiceOverEnabled) {
             AXUIElementSetAttributeValue(app, Self.enhancedUIKey, kCFBooleanTrue)
         }
     }
