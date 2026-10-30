@@ -14,6 +14,11 @@ public final class ActionRunner {
     private var last: [WindowID: LastPress] = [:]
     // chainPress records the last chain run, the window it ran on and its zero-based press count.
     private var chainPress: (name: String, window: WindowID?, press: Int)?
+    // placed is the window the running action placed and where it landed, nil when it placed none.
+    private var placed: (WindowInfo, Frame)?
+    // readsToSync reports whether the running action leaves the channel cycle to read the windows
+    // afresh, as the routed and front-app actions do.
+    private var readsToSync = true
 
     // init builds a runner on engine's platform and anchors.
     public init(engine: Engine, platform: Platform, anchors: Anchors) {
@@ -55,7 +60,9 @@ public final class ActionRunner {
     // cycle's claim follows the front window.
     @discardableResult
     public func run(_ name: String, window: WindowID? = nil) -> Bool {
-        defer { engine.channelCycle.sync() }
+        placed = nil
+        readsToSync = true
+        defer { syncChannel() }
         if name == Keymaps.menuName || name == Keymaps.stripsName {
             return engine.route(name, window: window)
         }
@@ -99,6 +106,7 @@ public final class ActionRunner {
             return frontApp(name)
         }
         let screens = platform.screens.current()
+        readsToSync = false
         guard let w = subject(window, screens: screens), !platform.windows.refused.contains(w.id) else {
             log("\(name): no focused window Moorings can move")
             return false
@@ -108,6 +116,20 @@ public final class ActionRunner {
             platform.pointer.warp(Point(x: f.x + f.w / 2, y: f.y + f.h / 2))
         }
         return true
+    }
+
+    // syncChannel lets the channel cycle's claim follow the front window after an action. A window
+    // the action placed is the front one, so the claim follows it where it landed without reading
+    // the windows again; an action on the subject that placed nothing either moved nothing or woke a
+    // pass, which syncs; the routed and front-app actions read the windows afresh.
+    private func syncChannel() {
+        if let (w, frame) = placed {
+            var front = w
+            front.frame = frame
+            engine.channelCycle.sync(Scan(windows: [front], focused: front), screens: platform.screens.current())
+        } else if readsToSync {
+            engine.channelCycle.sync()
+        }
     }
 
     // log writes why an action did nothing.
@@ -292,6 +314,7 @@ public final class ActionRunner {
         anchors.save(w)
         platform.windows.move(w.id, to: frame, from: w.frame, behavior: anchors.choices.behavior)
         let landed = platform.windows.frame(w.id) ?? frame
+        placed = (w, landed)
         last[w.id] = LastPress(name: name, press: press, frame: landed)
         engine.landed(w.id, at: landed)
         return true
