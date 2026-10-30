@@ -340,6 +340,7 @@ public enum Scenarios {
         ("chainsRun", [], chainsRun),
         ("reloadOnFileChange", [], reloadOnFileChange),
         ("organize", .organize, organize),
+        ("channelCycle", .organize, channelCycle),
         ("badgeCounts", .badge, badgeCounts),
         ("workspaceRecall", .workspaces, workspaceRecall),
     ]

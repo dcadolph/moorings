@@ -39,7 +39,7 @@ final class ScenarioRig {
     for r in results {
         print("scenario \(r.name): \(r.notes.joined(separator: "; "))")
     }
-    #expect(report.summary == "scenarios: 18 run, 0 failed")
+    #expect(report.summary == "scenarios: 19 run, 0 failed")
     #expect(report.failures.isEmpty, "\(report.failures)")
     #expect(Set(results.map(\.name)) == Set(Scenarios.all.map(\.name)))
 }
@@ -61,9 +61,12 @@ final class ScenarioRig {
     let rig = ScenarioRig(features: [])
     let results = Scenarios.run(rig.engine, host: rig.host)
     let skipped = results.filter { $0.skipped != nil }
-    #expect(skipped.map(\.name) == ["quitRestoresStash", "organize", "badgeCounts", "workspaceRecall"])
-    #expect(skipped.map(\.skipped) == ["needs stash", "needs organize", "needs badge", "needs workspaces"])
-    #expect(ScenarioReport(host: "fakes", results: results).summary == "scenarios: 14 run, 4 skipped, 0 failed")
+    #expect(skipped.map(\.name) == ["quitRestoresStash", "organize", "channelCycle", "badgeCounts", "workspaceRecall"])
+    #expect(
+        skipped.map(\.skipped) == [
+            "needs stash", "needs organize", "needs organize", "needs badge", "needs workspaces",
+        ])
+    #expect(ScenarioReport(host: "fakes", results: results).summary == "scenarios: 14 run, 5 skipped, 0 failed")
 }
 
 // Test 2: The run puts back the engine's choices and stops its passes.

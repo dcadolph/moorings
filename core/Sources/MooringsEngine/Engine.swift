@@ -141,6 +141,8 @@ public final class Engine {
         engine: self, platform: platform, anchors: anchors, workspaces: workspaces)
     // badge counts the stacked windows under a resting pointer.
     public private(set) lazy var badge = StackBadge(engine: self, platform: platform, anchors: anchors)
+    // channelCycle claims Control-Left and Control-Right while the front window fills the channel.
+    public private(set) lazy var channelCycle = ChannelCycle(engine: self, platform: platform, anchors: anchors)
 
     // init builds every engine object on platform, in the order above, with the routed actions in
     // features and the platform's own actions in platformActions. The throw draws on throwViews,
@@ -168,6 +170,7 @@ public final class Engine {
         _ = drag
         _ = passes
         _ = badge
+        _ = channelCycle
     }
 
     // start marks the launch, starts the events when the window store can act, binds the shortcuts,
@@ -224,9 +227,11 @@ public final class Engine {
         settle()
     }
 
-    // shutdown puts every stashed window back and clears the pending pass. Both roots run it from Quit,
-    // so no window is left parked off screen.
+    // shutdown lets the claimed keys go, puts every stashed window back and clears the pending
+    // pass. Both roots run it from Quit, so no key stays claimed and no window is left parked off
+    // screen.
     public func shutdown() {
+        channelCycle.unclaim()
         stasher.unstashAll()
         passes.stop()
     }
@@ -270,6 +275,7 @@ public final class Engine {
             } else {
                 platform.log.note(.passes, "the window store cannot act: stopping the events")
                 platform.events.stop()
+                channelCycle.unclaim()
             }
         }
         if platform.store.changed() {
@@ -317,10 +323,12 @@ public final class Engine {
         platform.keys.bind(bindings.map.filter { actions.supports($0.key) })
     }
 
-    // passed runs the engine's part of each pass after the moves: the workspaces and the tiler.
+    // passed runs the engine's part of each pass after the moves: the workspaces, the tiler and the
+    // channel cycle's claim.
     public func passed(_ scan: Scan, _ screens: Screens, _ held: Bool) {
         workspaces.seen(scan.windows, screens: screens)
         tiler.pass(scan.windows, screens: screens, mouseHeld: held)
+        channelCycle.sync(scan, screens: screens)
     }
 
     // prune forgets the windows that are gone: the actions' last presses and the stashes.

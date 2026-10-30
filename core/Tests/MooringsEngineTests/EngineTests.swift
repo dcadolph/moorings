@@ -321,3 +321,48 @@ final class EngineRig {
     engine.start()
     #expect(!log.lines.contains { $0.text.hasPrefix("choices fell back") })
 }
+
+// fillRig returns an engine rig with a second free window and the focused one filling the channel,
+// after a pass, and its fake keys.
+private func fillRig(_ edit: (inout Choices) -> Void = { _ in }) -> (EngineRig, FakeKeys, WindowID) {
+    let rig = EngineRig(features: .all, edit)
+    let other = rig.windows.add(bundle: "com.example.pad", frame: Frame(x: 1500, y: 350, w: 700, h: 500))
+    rig.windows.focusedID = rig.pad
+    let s = rig.screens.current()
+    let w = rig.windows.scan(s, full: true).windows.first { $0.id == rig.pad }!
+    #expect(rig.engine.actions.fill(w, screens: s))
+    rig.engine.moor()
+    return (rig, rig.engine.platform.keys as! FakeKeys, other)
+}
+
+// Test 17: A pass with the focused window filling the channel claims Control-Left and Right, and
+// with the switch off it never claims.
+@Test func testEngineChannelCycleClaims() {
+    let (rig, keys, _) = fillRig()
+    #expect(rig.engine.channelCycle.claimed)
+    #expect(keys.claimed == ChannelCycle.keys && keys.claims == 1)
+    rig.engine.moor()
+    #expect(keys.claims == 1, "a pass with nothing changed does not claim again")
+    let (off, offKeys, _) = fillRig { $0.channelCycle = false }
+    #expect(!off.engine.channelCycle.claimed && offKeys.claims == 0)
+}
+
+// Test 18: Shutdown lets the claimed keys go.
+@Test func testEngineChannelCycleShutdown() {
+    let (rig, keys, _) = fillRig()
+    rig.engine.shutdown()
+    #expect(!rig.engine.channelCycle.claimed && keys.claimed.isEmpty && keys.unclaims == 1)
+}
+
+// Test 19: A grab and an ungrab, as the throw overlay makes while its trigger key is held, leave the
+// claim standing, and Control-Right then fills the channel with the other window and focuses it.
+@Test func testEngineChannelCycleSurvivesGrab() {
+    let (rig, keys, other) = fillRig()
+    _ = keys.grab([GrabKey(key: "left", modifiers: [], tag: "throw-left")]) { _ in }
+    keys.ungrab()
+    #expect(keys.claimed == ChannelCycle.keys)
+    let fill = rig.windows.frame(rig.pad)!
+    keys.press(GrabKey(key: "right", modifiers: .control, tag: ""))
+    #expect(rig.windows.focusedID == other)
+    #expect(Actions.near(rig.windows.frame(other)!, fill, tolerance: 1))
+}
