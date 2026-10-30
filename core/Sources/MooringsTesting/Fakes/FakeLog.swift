@@ -18,6 +18,8 @@ public final class FakeLog: Log {
 
     // lines lists every noted line in order.
     public private(set) var lines: [Line] = []
+    // traces lists every traced line in order, apart from the noted ones.
+    public private(set) var traces: [Line] = []
 
     // init builds an empty log.
     public init() {}
@@ -25,5 +27,10 @@ public final class FakeLog: Log {
     // note keeps the line.
     public func note(_ category: LogCategory, _ line: String) {
         lines.append(Line(category, line))
+    }
+
+    // trace keeps the line apart from the noted ones.
+    public func trace(_ category: LogCategory, _ line: String) {
+        traces.append(Line(category, line))
     }
 }

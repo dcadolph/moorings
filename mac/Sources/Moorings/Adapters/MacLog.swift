@@ -27,4 +27,9 @@ final class MacLog: Log {
     func note(_ category: LogCategory, _ line: String) {
         loggers[category]?.notice("\(line, privacy: .public)")
     }
+
+    // trace writes line at debug level under category, kept only while a stream reads it.
+    func trace(_ category: LogCategory, _ line: String) {
+        loggers[category]?.debug("\(line, privacy: .public)")
+    }
 }
