@@ -94,6 +94,9 @@ public struct Choices: Equatable, Sendable, Codable {
     public var workspaces: [String: Workspace] = [:]
     // checkUpdates reports whether moorings looks for a new release every few hours.
     public var checkUpdates: Bool = true
+    // installUpdates reports whether moorings downloads, verifies and installs a newer release on its
+    // own. It takes effect only while checkUpdates is on.
+    public var installUpdates: Bool = true
     // mouseButtons maps an extra mouse button, numbered from 2, to the action it runs.
     public var mouseButtons: [String: String] = [:]
     // buttonClicks maps a title bar button and modifier, such as red+option, to the action a click
@@ -143,7 +146,7 @@ public struct Choices: Equatable, Sendable, Codable {
     private enum CodingKeys: String, CodingKey {
         case slots, widths, heights, widthPresets, paused, fullscreenFills, pinFullscreenFills, keymap, shortcuts,
             sizes, gapPx
-        case ignores, snap, workspaces, checkUpdates, mouseButtons, behavior, snapping, stacking
+        case ignores, snap, workspaces, checkUpdates, installUpdates, mouseButtons, behavior, snapping, stacking
         case chains, menu, appRules, buttonClicks, profiles, activeProfile, overlay, tiling, slotStacks
         case channelCycle
     }
@@ -167,6 +170,7 @@ public struct Choices: Equatable, Sendable, Codable {
         snap = (try? c.decodeIfPresent(Bool.self, forKey: .snap)) ?? true
         workspaces = (try? c.decodeIfPresent([String: Workspace].self, forKey: .workspaces)) ?? [:]
         checkUpdates = (try? c.decodeIfPresent(Bool.self, forKey: .checkUpdates)) ?? true
+        installUpdates = (try? c.decodeIfPresent(Bool.self, forKey: .installUpdates)) ?? true
         mouseButtons = (try? c.decodeIfPresent([String: String].self, forKey: .mouseButtons)) ?? [:]
         buttonClicks = (try? c.decodeIfPresent([String: String].self, forKey: .buttonClicks)) ?? [:]
         behavior = (try? c.decodeIfPresent(Behaviors.self, forKey: .behavior)) ?? Behaviors()
@@ -201,6 +205,7 @@ public struct Choices: Equatable, Sendable, Codable {
         try c.encode(snap, forKey: .snap)
         try c.encode(workspaces, forKey: .workspaces)
         try c.encode(checkUpdates, forKey: .checkUpdates)
+        try c.encode(installUpdates, forKey: .installUpdates)
         try c.encode(mouseButtons, forKey: .mouseButtons)
         try c.encode(buttonClicks, forKey: .buttonClicks)
         try c.encode(behavior, forKey: .behavior)

@@ -177,6 +177,7 @@ import Testing
     c.gapPx = 8
     c.snap = false
     c.checkUpdates = false
+    c.installUpdates = false
     c.mouseButtons = ["3": "maximize"]
     c.buttonClicks = ["red+option": "left-half"]
     c.snapping.footprint.color = "#ff0000"
@@ -280,11 +281,13 @@ private func choicesFixture() throws -> Data {
     #expect(got.fallback == nil, "\(got.fallback ?? "")")
     #expect(got.choices != Choices())
     #expect(got.choices.gapPx == 8 && got.choices.activeProfile == "Work" && got.choices.tiling.mode == .bsp)
-    #expect(got.choices.channelCycle)
-    let added = #""channelCycle":true,"#
-    let saved = String(decoding: try Choices.encode(got.choices), as: UTF8.self)
-    #expect(saved.components(separatedBy: added).count == 2, "\(saved)")
-    #expect(saved.replacingOccurrences(of: added, with: "") == String(decoding: data, as: UTF8.self))
+    #expect(got.choices.channelCycle && got.choices.installUpdates)
+    var saved = String(decoding: try Choices.encode(got.choices), as: UTF8.self)
+    for added in [#""channelCycle":true,"#, #""installUpdates":true,"#] {
+        #expect(saved.components(separatedBy: added).count == 2, "\(saved)")
+        saved = saved.replacingOccurrences(of: added, with: "")
+    }
+    #expect(saved == String(decoding: data, as: UTF8.self))
 }
 
 // Swift only: choices saved without channelCycle load with it on, and it round trips.
@@ -293,4 +296,17 @@ private func choicesFixture() throws -> Data {
     var c = Choices()
     c.channelCycle = false
     #expect(Choices.decode(try Choices.encode(c)).choices.channelCycle == false)
+}
+
+// Swift only: a choices file written before installUpdates existed loads with it on, and a saved
+// false survives a round trip.
+@Test func testChoicesInstallUpdates() throws {
+    let old = Data(#"{"slots":{},"checkUpdates":false}"#.utf8)
+    let c = Choices.decode(old).choices
+    #expect(c.installUpdates)
+    #expect(!c.checkUpdates)
+    var off = Choices()
+    off.installUpdates = false
+    let back = Choices.decode(try JSONEncoder().encode(off)).choices
+    #expect(!back.installUpdates)
 }

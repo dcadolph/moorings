@@ -149,17 +149,9 @@ final class Installer {
     // relaunch starts the installed copy once this process has exited, handing it the image to eject,
     // and quits.
     private func relaunch(_ image: MountedImage?) {
-        let script =
-            "pid=$1; shift; while /bin/kill -0 \"$pid\" 2>/dev/null; do /bin/sleep 0.2; done; exec /usr/bin/open \"$@\""
-        var args = ["-c", script, "sh", String(ProcessInfo.processInfo.processIdentifier), Self.destination.path]
-        if let image {
-            args += ["--args", Self.installedFromFlag, image.image]
-        }
-        let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
-        task.arguments = args
+        let extra = image.map { ["--args", Self.installedFromFlag, $0.image] } ?? []
         do {
-            try task.run()
+            try Relaunch.start(Relaunch.Plan(bundle: Self.destination), extra: extra)
         } catch {
             logger.error("relaunch failed: \(error.localizedDescription, privacy: .public)")
             NSWorkspace.shared.activateFileViewerSelecting([Self.destination])
@@ -240,5 +232,76 @@ final class Installer {
         guard (try? task.run()) != nil else { return -1 }
         task.waitUntilExit()
         return task.terminationStatus
+    }
+}
+
+// Relaunch starts a bundle once this process has exited. With a launch marker it also waits for the
+// new build to say it started and, when it never does, puts the previous bundle back and starts that.
+enum Relaunch {
+    // script is the detached helper. It takes the waited pid, the opener, the bundle, the previous
+    // bundle, where to park a failed bundle, the marker, the build the marker must hold, the seconds
+    // to wait, then the opener's extra arguments. An empty marker skips the wait and the rollback.
+    static let script = """
+        pid=$1 opener=$2 bundle=$3 previous=$4 failed=$5 marker=$6 build=$7 wait=$8
+        shift 8
+        while /bin/kill -0 "$pid" 2>/dev/null; do /bin/sleep 0.2; done
+        "$opener" "$bundle" "$@" &
+        [ -n "$marker" ] || exit 0
+        n=$((wait * 5))
+        while [ "$n" -gt 0 ]; do
+            if [ -f "$marker" ]; then
+                got=
+                read -r got < "$marker"
+                [ "$got" = "$build" ] && exit 0
+            fi
+            /bin/sleep 0.2
+            n=$((n - 1))
+        done
+        if [ -f "$marker.pid" ]; then
+            b= p=
+            read -r b p < "$marker.pid"
+            [ "$b" = "$build" ] && [ -n "$p" ] && /bin/kill "$p" 2>/dev/null && /bin/sleep 1
+        fi
+        /bin/mv "$bundle" "$failed" && /bin/mv "$previous" "$bundle" && exec "$opener" "$bundle"
+        """
+
+    // Plan names what the helper starts and how it rolls back.
+    struct Plan {
+        // bundle is what the helper starts.
+        var bundle: URL
+        // previous is the bundle put back when the new one never writes the marker.
+        var previous: URL?
+        // failed is where a bundle that never wrote the marker is parked.
+        var failed: URL?
+        // marker is the file the new build writes its build number to once it has started.
+        var marker: URL?
+        // build is the build number the marker must hold.
+        var build = ""
+        // wait is how many seconds the helper waits for the marker.
+        var wait = 30
+        // opener starts the bundle. /usr/bin/open in the app, a shell in tests.
+        var opener = "/usr/bin/open"
+        // pid is the process the helper waits on before it starts the bundle.
+        var pid = ProcessInfo.processInfo.processIdentifier
+    }
+
+    // arguments returns the helper's command line for the plan.
+    static func arguments(_ plan: Plan, extra: [String] = []) -> [String] {
+        [
+            "-c", script, "sh", String(plan.pid), plan.opener, plan.bundle.path, plan.previous?.path ?? "",
+            plan.failed?.path ?? "", plan.marker?.path ?? "", plan.build, String(plan.wait),
+        ] + extra
+    }
+
+    // start runs the helper detached and returns at once.
+    @discardableResult
+    static func start(_ plan: Plan, extra: [String] = []) throws -> Process {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.arguments = arguments(plan, extra: extra)
+        task.standardOutput = FileHandle.nullDevice
+        task.standardError = FileHandle.nullDevice
+        try task.run()
+        return task
     }
 }

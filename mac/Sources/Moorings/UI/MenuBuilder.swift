@@ -3,17 +3,22 @@ import AppKit
 import MooringsCore
 import MooringsEngine
 
-// ActionItem is a menu item that runs a closure when chosen.
+// ActionItem is a menu item that runs a closure when chosen. It answers the menu's validation with
+// the enabled flag it was built with, since a menu that enables its items itself would otherwise turn
+// on every item whose target answers the action.
 @MainActor
-final class ActionItem: NSMenuItem {
+final class ActionItem: NSMenuItem, NSMenuItemValidation {
     // run is what choosing the item does.
     private let run: @MainActor () -> Void
+    // allowed is whether the item can be chosen.
+    let allowed: Bool
 
     // init builds an item with a title, a hover hint and an action.
     init(
         _ title: String, tip: String, checked: Bool = false, enabled: Bool = true, run: @escaping @MainActor () -> Void
     ) {
         self.run = run
+        allowed = enabled
         super.init(title: title, action: #selector(fire), keyEquivalent: "")
         target = self
         toolTip = tip
@@ -24,6 +29,11 @@ final class ActionItem: NSMenuItem {
     // init is unused: items are built in code.
     required init(coder: NSCoder) {
         fatalError("ActionItem is built in code")
+    }
+
+    // validateMenuItem keeps the item enabled only when it was built enabled.
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        allowed
     }
 
     // fire runs the item's action.
@@ -48,14 +58,59 @@ struct MenuBuilder {
     // anchors is the layout the menu shows and changes.
     private var anchors: Anchors { app.engine.anchors }
 
+    // updateLine returns the line the top of the menu shows for an update, nil when there is none: the
+    // download under way, the staged update, the step that refused one, or a newer release to open.
+    static func updateLine(_ state: UpdateState, release: ReleaseInfo?) -> NSMenuItem? {
+        let page = release?.page ?? AppDelegate.releasesPage
+        switch state {
+        case .downloading(let tag):
+            return ActionItem(
+                "Downloading \(tag)", tip: "Moorings is fetching and verifying the update.", enabled: false
+            ) {}
+        case .verified(let tag):
+            return ActionItem(
+                "\(tag) ready, installs when you pause",
+                tip: "Moorings restarts into the update after half a minute without input.", enabled: false
+            ) {}
+        case .installing(let tag):
+            return ActionItem("Installing \(tag)", tip: "Moorings is restarting into the update.", enabled: false) {}
+        case .refused(let step, let tag):
+            return ActionItem(
+                "\(tag) could not be verified (\(step.rawValue))",
+                tip: "Moorings did not install it. Open the release page to download it yourself."
+            ) {
+                NSWorkspace.shared.open(page)
+            }
+        case .idle:
+            guard let release else { return nil }
+            return ActionItem("Update available: \(release.tag)", tip: "Open the release page to download it.") {
+                NSWorkspace.shared.open(release.page)
+            }
+        }
+    }
+
+    // updateChoices returns the two update checkboxes. Installing on its own needs the automatic
+    // check, so its box is disabled while the check is off.
+    static func updateChoices(
+        check: Bool, install: Bool, toggleCheck: @escaping @MainActor () -> Void,
+        toggleInstall: @escaping @MainActor () -> Void
+    ) -> [NSMenuItem] {
+        [
+            ActionItem(
+                "Check for updates automatically",
+                tip: "Look for a new release every few hours and offer it here.", checked: check, run: toggleCheck),
+            ActionItem(
+                "Install updates automatically",
+                tip: "Download a new release, verify its Apple signature and notarization, and restart into it "
+                    + "when you pause.", checked: check && install, enabled: check, run: toggleInstall),
+        ]
+    }
+
     // items returns the top-level entries.
     func items() -> [NSMenuItem] {
         var out: [NSMenuItem] = []
-        if let update = app.update {
-            out.append(
-                ActionItem("Update available: \(update.tag)", tip: "Open the release page to download it.") {
-                    NSWorkspace.shared.open(update.page)
-                })
+        if let line = Self.updateLine(app.updater.state, release: app.updater.release) {
+            out.append(line)
             out.append(.separator())
         }
         if !app.windows.trusted {
@@ -142,13 +197,14 @@ struct MenuBuilder {
             ActionItem("Check for updates now", tip: "Ask GitHub for the latest release right away.") {
                 app.checkUpdateNow()
             })
-        out.append(
-            ActionItem(
-                "Check for updates automatically",
-                tip: "Look for a new release every few hours and offer it here.",
-                checked: anchors.choices.checkUpdates
-            ) {
+        out += Self.updateChoices(
+            check: anchors.choices.checkUpdates, install: anchors.choices.installUpdates,
+            toggleCheck: {
                 anchors.choices.checkUpdates.toggle()
+                app.engine.save()
+            },
+            toggleInstall: {
+                anchors.choices.installUpdates.toggle()
                 app.engine.save()
             })
         out.append(.separator())
