@@ -43,6 +43,14 @@ jobs:
         run: swift test -Xswiftc -warnings-as-errors
         working-directory: core
 
+      - name: Core tests under the thread sanitizer
+        run: swift test --sanitize=thread -Xswiftc -warnings-as-errors
+        working-directory: core
+
+      - name: Core tests under the address sanitizer
+        run: swift test --sanitize=address -Xswiftc -warnings-as-errors
+        working-directory: core
+
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 
