@@ -366,3 +366,88 @@ private func fillRig(_ edit: (inout Choices) -> Void = { _ in }) -> (EngineRig, 
     #expect(rig.windows.focusedID == other)
     #expect(Actions.near(rig.windows.frame(other)!, fill, tolerance: 1))
 }
+
+// A pin moved by hand while paused stays where the owner put it, and goes back to its slot on
+// resume, as Selftest's pause and resume checks expect.
+@Test func testPausedPinMovedByHandGoesBackOnResume() {
+    let rig = PassRig()
+    rig.engine.listen()
+    let id = rig.windows.add(bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 800, h: 600), focus: true)
+    rig.passes.wake()
+    rig.clock.advance(by: 3)
+    #expect(near(rig.windows.frame(id), rig.slot))
+    rig.anchors.choices.paused = true
+    rig.engine.save()
+    let moved = Frame(x: 900, y: 200, w: 700, h: 600)
+    rig.windows.nudge(id, to: moved)
+    rig.clock.advance(by: 3)
+    #expect(rig.windows.frame(id) == moved)
+    rig.anchors.choices.paused = false
+    rig.engine.save()
+    rig.clock.advance(by: 3)
+    #expect(near(rig.windows.frame(id), rig.slot))
+}
+
+// A paused engine runs no pass for window events or the clock, and the first event after resume
+// wakes passes again.
+@Test func testPausedEngineRunsNoPasses() {
+    let rig = PassRig()
+    rig.engine.listen()
+    var passes = 0
+    rig.engine.observers.passed = { _, _ in passes += 1 }
+    let id = rig.windows.add(bundle: "com.example.pad", frame: Frame(x: 1500, y: 200, w: 800, h: 600), focus: true)
+    rig.passes.wake()
+    rig.clock.advance(by: 3)
+    rig.anchors.choices.paused = true
+    rig.engine.save()
+    passes = 0
+    for i in 0..<5 {
+        rig.windows.nudge(id, to: Frame(x: 1500 + Double(i) * 40, y: 200, w: 800, h: 600))
+        rig.clock.advance(by: 0.5)
+    }
+    rig.clock.advance(by: 30)
+    #expect(passes == 0)
+    #expect(rig.scheduler.pendingAt == nil)
+    rig.anchors.choices.paused = false
+    rig.engine.save()
+    passes = 0
+    rig.windows.nudge(id, to: Frame(x: 1700, y: 200, w: 800, h: 600))
+    rig.clock.advance(by: 1)
+    #expect(passes > 0)
+}
+
+// A paused engine still reads choices another program saved when an event comes, so a resume
+// written to the store wakes the passes.
+@Test func testPausedEventReadsChoicesSavedElsewhere() {
+    let rig = PassRig()
+    rig.engine.listen()
+    let store = rig.engine.platform.store as! FakeStore
+    let id = rig.windows.add(bundle: PassRig.slackID, frame: Frame(x: 1500, y: 200, w: 800, h: 600), focus: true)
+    rig.anchors.choices.paused = true
+    rig.engine.save()
+    rig.windows.nudge(id, to: Frame(x: 1400, y: 200, w: 800, h: 600))
+    rig.clock.advance(by: 3)
+    #expect(!near(rig.windows.frame(id), rig.slot))
+    var resumed = rig.anchors.choices
+    resumed.paused = false
+    store.rewrite(resumed)
+    rig.windows.nudge(id, to: Frame(x: 1300, y: 200, w: 800, h: 600))
+    rig.clock.advance(by: 3)
+    #expect(!rig.anchors.choices.paused)
+    #expect(near(rig.windows.frame(id), rig.slot))
+}
+
+// Pausing while an app launches, when passes run every Pace.busySeconds, still leaves no pass set.
+@Test func testPausedWhileBusySetsNoPass() {
+    let rig = PassRig()
+    rig.engine.listen()
+    var passes = 0
+    rig.engine.observers.passed = { _, _ in passes += 1 }
+    rig.engine.handle(.appLaunched("com.example.new"))
+    rig.anchors.choices.paused = true
+    rig.engine.save()
+    passes = 0
+    rig.clock.advance(by: Pace.launchSeconds / 2)
+    #expect(passes == 0)
+    #expect(rig.scheduler.pendingAt == nil)
+}

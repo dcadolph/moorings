@@ -253,7 +253,9 @@ public final class Engine {
         platform.log.note(.choices, "choices reloaded")
     }
 
-    // settle follows a change of the choices: the shortcuts, the badge and a pass.
+    // settle follows a change of the choices: the shortcuts, the badge and a pass. The pass runs even
+    // when the change paused Moorings: it lets the pins go, the claimed keys go and the menu bar mark
+    // show the pause, and it is the last pass until resume.
     private func settle() {
         bind()
         badge.sync()
@@ -294,10 +296,15 @@ public final class Engine {
 
     // handle wakes the passes for one window event and keeps what the event changes: the displays,
     // and the launch window that reads every app while a new app shows its first window. An event
-    // that names its window wakes narrow, since the source marked that window's app.
+    // that names its window wakes narrow, since the source marked that window's app. While paused
+    // nothing wakes, and an event only looks for choices another program saved, since no pass runs
+    // to read them.
     public func handle(_ event: WindowEvent) {
         let t = platform.clock.now
         observers.noticed(event, t)
+        if anchors.choices.paused, platform.store.changed() {
+            reload()
+        }
         switch event {
         case .moved, .shown, .destroyed, .focused:
             passes.wake(full: false)

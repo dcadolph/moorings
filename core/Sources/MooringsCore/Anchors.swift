@@ -929,6 +929,14 @@ public final class Anchors {
         return place(w, want)
     }
 
+    // weigh lets go of what the pins hold: their placements and the windows they held in the last
+    // pass. The pass that pauses Moorings calls it, so resume places every pin afresh.
+    public func weigh() {
+        placed = [:]
+        held = [:]
+        holdAreas = [:]
+    }
+
     // moor returns the moves that put every pin in its slot, or over the channel while lifted, and
     // every free window on the ultrawide in the channel. An anchored app's other windows are free
     // windows, and an open or save panel is never moved. A pin the owner moved by hand is released
@@ -938,9 +946,7 @@ public final class Anchors {
     public func moor(_ scene: Scene) -> [Move] {
         justReleased = []
         if choices.paused {
-            placed = [:]
-            held = [:]
-            holdAreas = [:]
+            weigh()
             return []
         }
         if scene.mouseHeld {
