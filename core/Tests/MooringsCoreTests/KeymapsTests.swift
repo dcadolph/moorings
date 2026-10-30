@@ -284,3 +284,15 @@ private func has(_ problems: [String], _ text: String) -> Bool {
         #expect(t["cycle-slot-windows-backward"] == Shortcut(mods: [.ctrl, .alt, .cmd], key: "up"))
     }
 }
+
+// No Lua case: The channel cycles are known organize actions and no keymap binds them.
+@Test func testChannelCycleUnbound() {
+    for name in ["cycle-channel-windows", "cycle-channel-windows-backward"] {
+        #expect(Keymaps.known(name) && Keymaps.organizeNames.contains(name) && Tile.handles(name), "\(name)")
+        for keymap in Keymap.allCases {
+            #expect(keymap.table[name] == nil, "\(keymap) binds \(name)")
+        }
+    }
+    #expect(Keymaps.label("cycle-channel-windows") == "Cycle channel windows")
+    #expect(Keymaps.label("cycle-channel-windows-backward") == "Cycle channel windows backward")
+}
