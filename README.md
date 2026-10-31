@@ -36,8 +36,8 @@ setting your window widths, organizing your windows, snap shortcuts, and more. H
 Todo zone just doesn't cut it. For many people optimizing what they have on screen, both sides
 of the ultrawide typically need to be parked apps or they go to waste.
 
-Long story short, I created moorings because I wanted for free what Rectangle wanted to charge
-me, I wanted more flexibility, and I wanted the customization and the ability to tailor things
+Long story short, I created moorings because one Todo zone left half my ultrawide empty, I
+wanted more flexibility, and I wanted the customization and the ability to tailor things
 to my ultrawide way of working.
 
 ## Contents
