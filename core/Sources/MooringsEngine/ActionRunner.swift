@@ -241,8 +241,7 @@ public final class ActionRunner {
             last[w.id] = nil
             guard let f = anchors.restore(w.id) else { return false }
             anchors.history.record(w.id, from: w.frame)
-            move(w.id, to: f)
-            engine.wake()
+            land(w, at: f, screens: screens)
             return true
         }
         if name == "undo-move" || name == "redo-move" {
@@ -255,8 +254,7 @@ public final class ActionRunner {
                 log("\(name): nothing to step to for this window")
                 return false
             }
-            move(w.id, to: f)
-            engine.wake()
+            land(w, at: f, screens: screens)
             return true
         }
         if Actions.arrowNames.contains(name) {
@@ -336,6 +334,22 @@ public final class ActionRunner {
         last[w.id] = LastPress(name: name, press: press, frame: landed)
         engine.landed(w.id, at: landed)
         return true
+    }
+
+    // land moves w to frame, as a restore or a step through its history does, and records where it
+    // landed. It wakes a pass only when the window landed on the ultrawide outside the channel, so the
+    // pass keeps it in the channel as it would a window moved by hand; otherwise no pass follows.
+    private func land(_ w: WindowInfo, at frame: Frame, screens: Screens) {
+        platform.windows.move(w.id, to: frame, from: w.frame, behavior: anchors.choices.behavior)
+        let landed = platform.windows.frame(w.id) ?? frame
+        placed = (w, landed)
+        engine.landed(w.id, at: landed)
+        if let u = screens.ultrawide, screens.index(landed) == u {
+            let ch = anchors.channel(screens.usable[u])
+            if !Actions.near(Geometry.clamp(landed, ch), landed, tolerance: Anchors.tolerance) {
+                engine.wake()
+            }
+        }
     }
 
     // target returns the screens an action on w may use, with w on the screen at index, its own
