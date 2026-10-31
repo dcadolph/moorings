@@ -71,10 +71,10 @@ final class Windows {
     private(set) var refusedIDs: Set<WindowID> = []
     // appWoke holds when each app last sent a window event or had a window moved by an action.
     var appWoke: [pid_t: Double] = [:]
-    // echoes holds the frame a placement asked for each window, with when it did, so the window's
-    // own move events and the pass after read nothing the placement already read. move sets it for
-    // a move from a known frame, which only placements make.
-    var echoes: [WindowID: (frame: Frame, at: Double)] = [:]
+    // echoes holds the frame a placement asked for each window, with when it did and where it read
+    // back, so the window's own move events and the pass after read nothing the placement already
+    // read. move sets it for a move from a known frame, which only placements make.
+    var echoes: [WindowID: (frame: Frame, at: Double, read: Frame?)] = [:]
     // lastFull is when the last scan that read every app ran.
     private(set) var lastFull = -Double.infinity
     // Listing is one window on the window server list: its id, its owner and its frame.
@@ -368,6 +368,7 @@ final class Windows {
     // the last scan keeps the frame read, for a carried list.
     func frame(_ id: WindowID) -> Frame? {
         guard let f = elements[id].flatMap({ Self.frame($0) }) else { return nil }
+        echoes[id]?.read = f
         if let e = echoes[id], e.at > lastScan {
             readBack[id] = f
         }
@@ -721,7 +722,7 @@ final class Windows {
     }
 
     // frame returns el's position and size in global top-left coordinates.
-    private static func frame(_ el: AXUIElement) -> Frame? {
+    static func frame(_ el: AXUIElement) -> Frame? {
         frame(position: value(el, kAXPositionAttribute), size: value(el, kAXSizeAttribute))
     }
 
@@ -773,7 +774,7 @@ extension Windows: @preconcurrency WindowStore {
             move(id, to: frame)
             return
         }
-        echoes[id] = (frame, ProcessInfo.processInfo.systemUptime)
+        echoes[id] = (frame, ProcessInfo.processInfo.systemUptime, nil)
         if behavior.animate {
             slide(id, from: from, to: frame, enhancedUI: behavior.enhancedUI)
         } else {
