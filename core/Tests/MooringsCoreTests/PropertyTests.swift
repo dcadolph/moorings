@@ -83,13 +83,13 @@ let relativeNames = [
 }
 
 // Property: a drop anywhere on a display that is not the ultrawide lands on a zone whose frame lies
-// inside that display.
+// inside that display. Half the drops fall in the edge band, so every seed lands some.
 @Test func testPropertyDropInsideScreen() {
     var g = Gen.seeded()
     var landed = 0
     for i in 0..<Gen.cases {
         let f = g.area()
-        let p = g.point(in: f)
+        let p = g.bool() ? g.edgePoint(in: f, band: Snap.margin) : g.point(in: f)
         guard case let .zone(name)? = Snap.drop(SnapPoint(p.x, p.y), f) else { continue }
         guard let frame = Geometry.position(name, f) else {
             Issue.record("\(g.label(i)): drop at \(p) on \(f) named \(name), which has no frame")
