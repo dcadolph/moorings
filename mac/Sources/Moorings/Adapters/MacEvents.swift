@@ -166,8 +166,9 @@ final class MacEvents: @preconcurrency EventSource {
 
     // axEvent turns one Accessibility notification into a window event. The move, resize or birth of
     // a window no scan keeps is dropped, asking the window's kind only when the last scan did not
-    // keep it. A window's own move within Pace.settleSeconds of a placement marks nothing, since the
-    // placement read it; any other event marks its app as woken. A window that appears has its close
+    // keep it. A window's own move within Pace.settleSeconds of a placement is dropped while the
+    // window reads where the placement read it back, and marks nothing when it reads elsewhere or
+    // was not read back; any other event marks its app as woken. A window that appears has its close
     // observed at once.
     private func axEvent(_ el: AXUIElement, _ note: String) {
         guard let deliver else { return }
@@ -183,7 +184,14 @@ final class MacEvents: @preconcurrency EventSource {
         let echo =
             Self.echoNotes.contains(note)
             && id.flatMap { store.echoes[$0] }.map { now - $0.at < Pace.settleSeconds } == true
-        if !echo, let pid = Windows.pid(el) {
+        if echo, let read = id.flatMap({ store.echoes[$0]?.read }) {
+            if let f = Windows.frame(el), Actions.near(f, read) {
+                return
+            }
+            if let pid = Windows.pid(el) {
+                store.appWoke[pid] = now
+            }
+        } else if !echo, let pid = Windows.pid(el) {
             store.appWoke[pid] = now
         }
         guard let id else {

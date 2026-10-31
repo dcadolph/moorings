@@ -40,19 +40,19 @@ import MooringsCore
     _ = windows.scan(screens, full: false)
     #expect(asked == 1)
     // Test 0: An action placed window 1 and no app sent an event, so the scan carries the list.
-    windows.echoes[1] = (moved, ProcessInfo.processInfo.systemUptime)
+    windows.echoes[1] = (moved, ProcessInfo.processInfo.systemUptime, nil)
     _ = windows.scan(screens, full: false)
     #expect(asked == 1)
     // Test 1: Nothing placed since the last scan, so the scan asks.
     _ = windows.scan(screens, full: false)
     #expect(asked == 2)
     // Test 2: A placement and an app's event since the last scan, so the scan asks.
-    windows.echoes[1] = (moved, ProcessInfo.processInfo.systemUptime)
+    windows.echoes[1] = (moved, ProcessInfo.processInfo.systemUptime, nil)
     windows.appWoke[999_999] = ProcessInfo.processInfo.systemUptime
     _ = windows.scan(screens, full: false)
     #expect(asked == 3)
     // Test 3: A forced scan asks even right after a placement.
-    windows.echoes[1] = (moved, ProcessInfo.processInfo.systemUptime)
+    windows.echoes[1] = (moved, ProcessInfo.processInfo.systemUptime, nil)
     _ = windows.scan(screens, full: true)
     #expect(asked == 4)
 }

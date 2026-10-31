@@ -179,13 +179,16 @@ final class EngineRig {
     #expect(keys.bound == Bindings(c).map.filter { engine.actions.supports($0.key) })
 }
 
-// Test 9: A full wake makes the next pass read every app, and a landed action wakes narrow.
+// Test 9: A full wake makes the next pass read every app, a landed action wakes nothing, and a
+// moved event after it wakes narrow.
 @Test func testEngineWakesFullAndNarrow() {
     let rig = EngineRig(features: .all)
     rig.engine.moor()
     rig.clock.advance(by: Pace.settleSeconds + 1)
     rig.engine.passes.stop()
     rig.engine.landed(rig.pad, at: Frame(x: 1400, y: 300, w: 900, h: 700))
+    #expect(rig.engine.passes.due == nil)
+    rig.engine.handle(.moved(rig.pad))
     #expect(rig.engine.passes.due != nil)
     var from = rig.windows.calls.count
     rig.engine.moor()
