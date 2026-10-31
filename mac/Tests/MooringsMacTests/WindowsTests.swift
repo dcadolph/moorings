@@ -66,3 +66,30 @@ import MooringsCore
     }
     #expect(Windows.onScreen(WindowID(UInt32.max)) == nil)
 }
+
+// A press over a stalled app's window is named from the window server list without asking the app,
+// and the stall lapses after stallSeconds so the app is asked again.
+@MainActor @Test func testHitNamesAStalledAppsWindowFromTheList() {
+    let pid: pid_t = 999_999
+    let id = WindowID(UInt32.max - 1)
+    let windows = Windows { [(id: id, pid: pid, frame: Frame(x: -90_000, y: -90_000, w: 100, h: 100))] }
+    let p = Point(x: -89_950, y: -89_950)
+    let now = ProcessInfo.processInfo.systemUptime
+    // Test 0: Not stalled, so the system-wide ask runs and finds no such window.
+    #expect(!windows.stalled(pid))
+    #expect(windows.hit(p) != id)
+    // Test 1: Stalled, so the listing names the window.
+    windows.stall(pid, at: now)
+    #expect(windows.stalled(pid))
+    #expect(windows.stalledCount == 1)
+    #expect(windows.hit(p) == id)
+    #expect(windows.hit(CGPoint(x: p.x, y: p.y)) == nil)
+    // Test 2: A stall older than stallSeconds has lapsed.
+    windows.stall(pid, at: now - Windows.stallSeconds - 0.1)
+    #expect(!windows.stalled(pid))
+    #expect(windows.stalledCount == 0)
+    // Test 3: A quit app's stall is forgotten.
+    windows.stall(pid, at: now)
+    windows.forget(pid)
+    #expect(windows.stalls[pid] == nil)
+}

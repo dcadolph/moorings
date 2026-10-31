@@ -4,11 +4,17 @@ import AppKit
 // windows are plain titled windows with no document behind them, so it never asks to save, never
 // reopens a window from before, and always quits when asked. It opens one window at launch, another
 // on Command-N, on a Dock reopen with no window showing, or on the new-window distributed
-// notification, and an open panel on Command-O.
+// notification, and an open panel on Command-O. The hang distributed notification sleeps its main
+// thread, so the selftest can check that a hung app does not stall Moorings.
 @MainActor
 final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // newWindow is the distributed notification that asks the probe for another window.
     static let newWindow = Notification.Name("com.dcadolph.moorings.probe.new-window")
+    // hang is the distributed notification that sleeps the main thread for its seconds entry. With a
+    // pid entry only the probe with that process identifier hangs.
+    static let hang = Notification.Name("com.dcadolph.moorings.probe.hang")
+    // hangSeconds is how long a hang lasts when the request names no seconds.
+    static let hangSeconds = 6.0
     // size is the frame size each new window opens at.
     static let size = NSSize(width: 500, height: 350)
     // minimum is the smallest frame size a window may take.
@@ -31,6 +37,8 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(requested), name: Self.newWindow, object: nil,
             suspensionBehavior: .deliverImmediately)
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(hung), name: Self.hang, object: nil, suspensionBehavior: .deliverImmediately)
         newWindow(nil)
         NSApp.activate()
     }
@@ -58,6 +66,16 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // requested opens a window for a distributed new-window request.
     @objc private func requested(_ note: Notification) {
         newWindow(nil)
+    }
+
+    // hung sleeps the main thread, so the probe answers no event and no accessibility request until
+    // the hang ends.
+    @objc private func hung(_ note: Notification) {
+        if let pid = note.userInfo?["pid"] as? String, pid != String(ProcessInfo.processInfo.processIdentifier) {
+            return
+        }
+        let asked = (note.userInfo?["seconds"] as? String).flatMap(Double.init) ?? Self.hangSeconds
+        Thread.sleep(forTimeInterval: min(max(asked, 0), 30))
     }
 
     // newWindow opens another window below and right of the last one and brings it forward.

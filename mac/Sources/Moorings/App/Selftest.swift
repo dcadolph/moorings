@@ -25,6 +25,12 @@ final class Selftest {
     static let openSeconds = 10.0
     // stepSeconds is how often a wait checks again.
     static let stepSeconds = 0.1
+    // hang is the distributed notification that sleeps the probe's main thread.
+    static let hang = Notification.Name("com.dcadolph.moorings.probe.hang")
+    // hangSeconds is how long the probe hangs for the hung app check.
+    static let hangSeconds = 6.0
+    // hungSeconds is the most one call may take while an app is hung: two Accessibility timeouts.
+    static let hungSeconds = 0.6
 
     // Check is one result.
     struct Check {
@@ -418,6 +424,88 @@ final class Selftest {
         app.engine.save()
         let e = try await newDocument()
         check(ruleName, await settled { self.at(e, target) })
+        anchors.choices.appRules = []
+        app.engine.save()
+
+        try await hungApp(e)
+    }
+
+    // hungApp hangs the probe while it is in front and times a pass, a focused read, a left half on a
+    // second probe's window and a hit on the hung window. Each must finish within hungSeconds, the
+    // probe must be marked stalled, the tap must stay on, and the probe must be read again once the
+    // hang ends.
+    private func hungApp(_ id: WindowID) async throws {
+        let name = "a hung app does not stall moorings"
+        guard let p = probe(), let f = app.windows.frame(id) else { throw Stop(reason: "lost the window") }
+        let other = try await secondProbe()
+        p.activate()
+        try await Task.sleep(for: .seconds(0.5))
+        let disabled = app.tap.disabled
+        let pid = p.processIdentifier
+        DistributedNotificationCenter.default().postNotificationName(
+            Self.hang, object: nil, userInfo: ["pid": String(pid), "seconds": String(Self.hangSeconds)],
+            deliverImmediately: true)
+        try await Task.sleep(for: .seconds(0.5))
+        let screens = Screens.current()
+        let center = Point(x: f.x + f.w / 2, y: f.y + f.h / 2)
+        let times: [(String, Double)] = [
+            ("moor", timed { self.app.engine.moor() }),
+            ("focused", timed { _ = self.app.windows.focused(screens) }),
+            ("left half", timed { self.app.engine.actions.run("left-half", window: other.window) }),
+            ("hit", timed { _ = self.app.windows.hit(center) }),
+        ]
+        let stalled = app.windows.stalled(pid)
+        let detail = times.map { String(format: "%@ %.3f s", $0.0, $0.1) }.joined(separator: ", ")
+        logger.notice("hung app: \(detail, privacy: .public), stalled=\(stalled)")
+        var result = (true, detail)
+        if let slow = times.first(where: { $0.1 >= Self.hungSeconds }) {
+            result = (false, "\(slow.0) took \(String(format: "%.3f", slow.1)) s: \(detail)")
+        } else if !stalled {
+            result = (false, "the probe was not marked stalled: \(detail)")
+        } else if app.tap.disabled != disabled || !app.tap.running {
+            result = (false, "the tap was turned off during the hang")
+        } else {
+            let back = await settled(
+                {
+                    let read = self.app.windows.stalls[pid] == nil && self.app.windows.scanned.contains(pid)
+                    return (read, "the probe was not read again after the hang")
+                }, Self.hangSeconds + Self.landSeconds)
+            result = back.0 ? result : back
+        }
+        check(name, result)
+        other.app.terminate()
+        if !(await settled({ (other.app.isTerminated, "") }).0) {
+            other.app.forceTerminate()
+        }
+    }
+
+    // timed runs f and returns how long it took in seconds.
+    private func timed(_ f: () -> Void) -> Double {
+        let start = ProcessInfo.processInfo.systemUptime
+        f()
+        return ProcessInfo.processInfo.systemUptime - start
+    }
+
+    // secondProbe opens another probe process and returns it with the window it opens at launch.
+    private func secondProbe() async throws -> (app: NSRunningApplication, window: WindowID) {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundle) else {
+            throw Stop(reason: "the probe is not installed")
+        }
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = true
+        config.activates = false
+        let other = try await NSWorkspace.shared.openApplication(at: url, configuration: config)
+        var found: WindowID?
+        _ = await settled(
+            {
+                found = self.windows(panels: false).first { self.app.windows.pid($0.id) == other.processIdentifier }?.id
+                return (found != nil, "")
+            }, Self.openSeconds)
+        guard let found else {
+            other.terminate()
+            throw Stop(reason: "the second probe's window did not show")
+        }
+        return (other, found)
     }
 
     // check records one result and logs it.
