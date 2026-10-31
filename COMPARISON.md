@@ -192,16 +192,16 @@ Divvy costs $13.99 and Mosaic 14.99 GBP. The Lasso price is on a separate page a
 
 ## Energy
 
-Measured with `make bench` in mac/ (mac/scripts/bench.sh) on an M1 Max, macOS 26.6.1, on 2026-10-31 with a Moorings 1.16.2 candidate (build 98), Rectangle 2.0.4 and Loop 1.4.2, all three running side by side with Accessibility granted. Idle is two minutes at rest. Active sends 100 alternating left and right half actions to one window of the bench's own probe app through each app's own links, one app at a time, in three rounds that take turns between the apps. The table shows the median round. Paused is the CPU Moorings spends, paused, while Rectangle moves that window 100 times. Memory is each app's footprint at the end of the run.
+Measured with `make bench` in mac/ (mac/scripts/bench.sh) on an M1 Max, macOS 26.6.1, on 2026-10-31 with a Moorings 1.17.1 candidate (build 40), Rectangle 2.0.4 and Loop 1.4.2, all three running side by side with Accessibility granted. Idle is two minutes at rest. Active sends 100 alternating left and right half actions to one window of the bench's own probe app through each app's own links, one app at a time, in three rounds that take turns between the apps. The table shows the median round. Paused is the CPU Moorings spends, paused, while Rectangle moves that window 100 times. Memory is each app's footprint at the end of the run.
 
 | Measure                                | Moorings | Rectangle    | Loop         |
 | -------------------------------------- | -------- | ------------ | ------------ |
-| Memory                                 | 20 MB    | 22 MB        | 49 MB        |
-| Idle CPU over 120 s                    | 0.00 s   | 0.00 s       | 0.01 s       |
-| Active CPU per action                  | 3.2 ms   | 3.1 ms       | 23 ms        |
-| Paused CPU per move another app makes  | 0.3 ms   | not measured | not measured |
+| Memory                                 | 21 MB    | 22 MB        | 50 MB        |
+| Idle CPU over 120 s                    | 0.01 s   | 0.00 s       | 0.01 s       |
+| Active CPU per action                  | 2.8 ms   | 2.8 ms       | 25 ms        |
+| Paused CPU per move another app makes  | 0.2 ms   | not measured | not measured |
 
-The gate holds Moorings to at most 1.5 times Rectangle's memory and no more than Loop's, at most 0.03 s of CPU and no pass at rest, at most 1.0 times Rectangle's median CPU per action and no more than Loop's, and at most 1 ms per move while paused. `make bench` exits 1 on any miss, and no release is tagged until it passes on the build that ships. Moorings lands within a tenth of a millisecond of Rectangle per action, with the work that keeps the channel included.
+The gate holds Moorings to at most 1.5 times Rectangle's memory and no more than Loop's, at most 0.03 s of CPU and no pass at rest, at most 1.0 times Rectangle's median CPU per action and no more than Loop's, and at most 1 ms per move while paused. `make bench` exits 1 on any miss, and no release is tagged until it passes on the build that ships. Moorings matches Rectangle's median per action, with the work that keeps the channel included.
 
 Moorings does more than either app between shortcuts. It holds anchored apps in their slots and keeps free windows in the channel, so it watches every app's windows and keeps each action's frame inside the channel, where Rectangle sets one window and stops. At rest no pass runs until a window changes, and a paused Moorings runs no passes at all.
 
