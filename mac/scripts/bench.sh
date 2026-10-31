@@ -6,6 +6,8 @@
 # Environment:
 #   N     Actions per active phase (default 100).
 #   IDLE  Seconds of the idle window (default 120).
+#   ROUNDS  Active phases per app, interleaved by round (default 3).
+#   MOORINGS_ACTIVE_BOUND  Multiple of Rectangle's per-action CPU that Moorings may use (default 2.0).
 #
 # Every bound is computed from Rectangle and Loop measured in the same run.
 #
@@ -14,11 +16,13 @@
 #   Idle    Moorings at most 0.03 s of CPU over the idle window with both rivals running beside it,
 #           and zero "pass" lines (one per pass, at debug level) in the log stream of the Moorings
 #           subsystem during that window. CPU is the ps cputime delta.
-#   Active  Moorings CPU per action at most 2.0 times Rectangle's and at most Loop's. Per action is
-#           the cputime delta over an app's own active phase divided by N. Each phase sends N
-#           alternating left and right half actions to one Probe window.
-#   Paused  Moorings at most 1 ms of CPU per foreign move (0.10 s over 100 moves). It is the
-#           Moorings cputime delta during the Rectangle active phase, while Moorings is paused,
+#   Active  Moorings CPU per action at most 2.0 times Rectangle's and at most Loop's, each the
+#           median over ROUNDS active phases. Per action is the cputime delta over an app's own
+#           active phase divided by N. Each phase sends N alternating left and right half actions to
+#           one Probe window. A round runs Moorings, Rectangle and Loop in turn, so a slow minute
+#           lands on every app rather than on one.
+#   Paused  Moorings at most 1 ms of CPU per foreign move (0.10 s over 100 moves). It is the median
+#           Moorings cputime delta during the Rectangle active phases, while Moorings is paused,
 #           divided by N. The Loop phase figure is shown in the table only.
 #
 # The probe opens its window before the idle window and the bench waits out the 30 s in which
@@ -33,6 +37,8 @@ set -u
 
 N=${N:-100}
 IDLE=${IDLE:-120}
+ROUNDS=${ROUNDS:-3}
+BOUND=${MOORINGS_ACTIVE_BOUND:-2.0}
 apps="Moorings Rectangle Loop"
 subsystem="com.dcadolph.moorings"
 probe="com.dcadolph.moorings.probe"
@@ -61,6 +67,18 @@ megabytes() {
 		else if ($0 ~ /[Bb]$/ && $0 !~ /[Mm][Bb]/) v /= 1048576
 		printf "%.2f", v
 	}'
+}
+
+# median prints the middle of its numeric arguments, the lower middle for an even count.
+median() { printf '%s\n' "$@" | sort -n | awk '{ a[NR] = $1 } END { print a[int((NR + 1) / 2)] }'; }
+
+# phases prints the stored deltas of one app over every round of a phase, divided by N.
+phases() {
+	r=1
+	while [ "$r" -le "$ROUNDS" ]; do
+		eval "echo \$D_active_${1}_${r}_$2 $N" | awk '{ printf "%.4f\n", $1 / $2 }'
+		r=$((r + 1))
+	done
 }
 
 # pidof_app prints the pid recorded for an app.
@@ -122,11 +140,13 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-# run sends N alternating actions to the probe through one app's links and reports the phase.
+# run sends N alternating actions to the probe through one app's links and reports the phase as
+# round $4.
 run() {
 	who=$1
 	l=$2
 	r=$3
+	round=$4
 	open -b "$probe"
 	sleep 3
 	snap
@@ -138,7 +158,7 @@ run() {
 		i=$((i + 1))
 	done
 	sleep 2
-	report "active:$who" $(($(date +%s) - t0))
+	report "active:$who:$round" $(($(date +%s) - t0))
 }
 
 # check prints a verdict line and records a failure.
@@ -195,35 +215,43 @@ passes=$(grep -c '^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]' "$tmp/stream.log"
 report idle "$IDLE"
 echo "idle             Moorings   debug-stream pass lines $passes"
 
-run Moorings "moorings://action?name=left-half" "moorings://action?name=right-half"
-pause Pause
-paused=1
-sleep 1
-run Rectangle "rectangle://execute-action?name=left-half" "rectangle://execute-action?name=right-half"
-run Loop "loop://direction/leftHalf" "loop://direction/rightHalf"
-pause Resume
-paused=0
+round=1
+while [ "$round" -le "$ROUNDS" ]; do
+	run Moorings "moorings://action?name=left-half" "moorings://action?name=right-half" "$round"
+	pause Pause
+	paused=1
+	sleep 1
+	run Rectangle "rectangle://execute-action?name=left-half" "rectangle://execute-action?name=right-half" "$round"
+	run Loop "loop://direction/leftHalf" "loop://direction/rightHalf" "$round"
+	pause Resume
+	paused=0
+	round=$((round + 1))
+done
 osascript -e "tell application id \"$probe\" to quit" >/dev/null
 
 mem_m=$(megabytes "$(mem "$P_Moorings")")
 mem_r=$(megabytes "$(mem "$P_Rectangle")")
 mem_l=$(megabytes "$(mem "$P_Loop")")
-act_m=$(echo "$D_active_Moorings_Moorings $N" | awk '{ printf "%.4f", $1 / $2 }')
-act_r=$(echo "$D_active_Rectangle_Rectangle $N" | awk '{ printf "%.4f", $1 / $2 }')
-act_l=$(echo "$D_active_Loop_Loop $N" | awk '{ printf "%.4f", $1 / $2 }')
-pau_m=$(echo "$D_active_Rectangle_Moorings $N" | awk '{ printf "%.4f", $1 / $2 }')
-pau_l=$(echo "$D_active_Loop_Moorings $N" | awk '{ printf "%.4f", $1 / $2 }')
+all_m=$(phases Moorings Moorings | tr '\n' ' ')
+all_r=$(phases Rectangle Rectangle | tr '\n' ' ')
+all_l=$(phases Loop Loop | tr '\n' ' ')
+act_m=$(median $all_m)
+act_r=$(median $all_r)
+act_l=$(median $all_l)
+pau_m=$(median $(phases Rectangle Moorings))
+pau_l=$(median $(phases Loop Moorings))
 
 echo
-echo "paused           Moorings   cpu per foreign move: Rectangle phase $pau_m s, Loop phase $pau_l s"
+echo "active           per action over $ROUNDS rounds: Moorings ${all_m}s, Rectangle ${all_r}s, Loop ${all_l}s"
+echo "paused           Moorings   median cpu per foreign move: Rectangle phases $pau_m s, Loop phases $pau_l s"
 echo
 echo "verdict"
 ok=$(echo "$mem_m $mem_r $mem_l" | awk '{ print ($1 <= 1.5 * $2 && $1 <= $3) ? 1 : 0 }')
 check Memory "$ok" "measured ${mem_m}MB, bound min(1.5 x Rectangle ${mem_r}MB, Loop ${mem_l}MB)"
 ok=$(echo "$D_idle_Moorings $passes" | awk '{ print ($1 <= 0.03 && $2 == 0) ? 1 : 0 }')
 check Idle "$ok" "measured ${D_idle_Moorings} s and $passes pass lines, bound 0.03 s and 0 pass lines"
-ok=$(echo "$act_m $act_r $act_l" | awk '{ print ($1 <= 2.0 * $2 && $1 <= $3) ? 1 : 0 }')
-check Active "$ok" "measured ${act_m} s per action, bound min(2.0 x Rectangle ${act_r}, Loop ${act_l})"
+ok=$(echo "$act_m $act_r $act_l $BOUND" | awk '{ print ($1 <= $4 * $2 && $1 <= $3) ? 1 : 0 }')
+check Active "$ok" "median ${act_m} s per action, bound min(${BOUND} x Rectangle ${act_r}, Loop ${act_l})"
 ok=$(echo "$pau_m" | awk '{ print ($1 <= 0.001) ? 1 : 0 }')
 check Paused "$ok" "measured ${pau_m} s per foreign move, bound 0.001 s"
 
