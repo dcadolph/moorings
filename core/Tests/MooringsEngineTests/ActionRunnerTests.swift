@@ -187,6 +187,46 @@ final class ActionRig {
     #expect(near(rig.frame(rig.free), moved))
 }
 
+// Undo and redo land through the read back with no full wake, and redo keeps the history, so a
+// second undo still steps back.
+@Test func testRunnerUndoRedoLandsWithoutWake() {
+    let rig = ActionRig()
+    let start = rig.frame(rig.free)
+    #expect(rig.runner.run("left-half"))
+    let moved = rig.frame(rig.free)
+    let woke = rig.engine.passes.fullWoke
+    #expect(rig.runner.run("undo-move"))
+    #expect(near(rig.frame(rig.free), start))
+    #expect(rig.runner.run("redo-move"))
+    #expect(near(rig.frame(rig.free), moved))
+    #expect(rig.engine.passes.fullWoke == woke)
+    #expect(rig.runner.run("undo-move"))
+    #expect(near(rig.frame(rig.free), start))
+}
+
+// Restore inside the channel wakes no pass, and a restore that lands outside the channel wakes
+// one, which keeps the window in the channel.
+@Test func testRunnerRestoreWakesOnlyOutsideChannel() {
+    let rig = ActionRig()
+    let ch = rig.anchors.channel(rig.screens.screens.usable[0])
+    #expect(rig.runner.run("maximize"))
+    var woke = rig.engine.passes.fullWoke
+    #expect(rig.runner.run("restore"))
+    #expect(rig.engine.passes.fullWoke == woke)
+
+    let outside = Frame(x: ch.x + ch.w - 300, y: 300, w: 900, h: 700)
+    rig.windows.nudge(rig.free, to: outside)
+    #expect(rig.runner.run("left-half"))
+    woke = rig.engine.passes.fullWoke
+    rig.clock.advance(by: 1)
+    #expect(rig.runner.run("restore"))
+    #expect(near(rig.frame(rig.free), outside))
+    #expect(rig.engine.passes.fullWoke > woke)
+    rig.pass()
+    let f = rig.frame(rig.free)
+    #expect(f.x + f.w <= ch.x + ch.w + Anchors.tolerance)
+}
+
 // The routed actions go through the engine: supports follows the features the engine declares and
 // what the platform's actions handle, and a menu name runs on the platform.
 @Test func testRunnerRoutesThroughEngine() {
