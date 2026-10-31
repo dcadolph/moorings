@@ -31,6 +31,9 @@ final class Selftest {
     static let hangSeconds = 6.0
     // hungSeconds is the most one call may take while an app is hung: two Accessibility timeouts.
     static let hungSeconds = 0.6
+    // stallSeconds is how long the stall check blocks the main thread. The system turns a tap off when
+    // its callback has not answered an event for about a second.
+    static let stallSeconds = 2.0
 
     // Check is one result.
     struct Check {
@@ -428,6 +431,7 @@ final class Selftest {
         app.engine.save()
 
         try await hungApp(e)
+        try await stalledTap(e)
     }
 
     // hungApp hangs the probe while it is in front and times a pass, a focused read, a left half on a
@@ -479,6 +483,11 @@ final class Selftest {
         }
     }
 
+    // block sleeps the calling thread for seconds, which on the main thread stalls the tap's callback.
+    private static func block(_ seconds: Double) {
+        Thread.sleep(forTimeInterval: seconds)
+    }
+
     // timed runs f and returns how long it took in seconds.
     private func timed(_ f: () -> Void) -> Double {
         let start = ProcessInfo.processInfo.systemUptime
@@ -506,6 +515,54 @@ final class Selftest {
             throw Stop(reason: "the second probe's window did not show")
         }
         return (other, found)
+    }
+
+    // stalledTap anchors the probe's window, blocks the main thread for stallSeconds while a
+    // background thread posts events the tap listens for, and expects the system to turn the tap off
+    // once, moorings to turn it back on, and a title bar drag to release the window after.
+    private func stalledTap(_ id: WindowID) async throws {
+        let name = "clicks work after a stalled main thread"
+        anchors.assign(slot, Self.bundle)
+        app.engine.save()
+        guard await settled({ self.landed(id) }).0 else {
+            check(name, (false, "the window did not take the slot"))
+            return
+        }
+        try await Task.sleep(for: .seconds(Self.graceSeconds))
+        let disabled = app.tap.disabled
+        let events = Int((Self.stallSeconds + 0.5) * 20)
+        let poster = Thread {
+            for _ in 0..<events {
+                let e = CGEvent(source: nil)
+                e?.type = .flagsChanged
+                e?.flags = []
+                e?.post(tap: .cghidEventTap)
+                Thread.sleep(forTimeInterval: 0.05)
+            }
+        }
+        poster.start()
+        Self.block(Self.stallSeconds)
+        try await Task.sleep(for: .seconds(1))
+        let turnedOff = app.tap.disabled - disabled
+        guard turnedOff == 1, app.tap.running else {
+            check(name, (false, "the tap was turned off \(turnedOff) times, running=\(app.tap.running)"))
+            return
+        }
+        guard let wide = Screens.current().wide, let pinned = app.windows.frame(id) else {
+            throw Stop(reason: "lost the window")
+        }
+        let ch = anchors.channel(wide)
+        await drag(
+            from: CGPoint(x: pinned.x + pinned.w / 2, y: pinned.y + 12),
+            to: CGPoint(x: ch.x + ch.w / 2, y: ch.y + ch.h / 3))
+        check(
+            name,
+            await settled {
+                (
+                    self.anchors.isReleased(id),
+                    "not released after the tap came back, at \(self.app.windows.frame(id) ?? pinned)"
+                )
+            })
     }
 
     // check records one result and logs it.
