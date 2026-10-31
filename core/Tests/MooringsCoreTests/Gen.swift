@@ -71,6 +71,19 @@ struct Gen {
         Point(x: area.x + double(0...(area.w - 1)), y: area.y + double(0...(area.h - 1)))
     }
 
+    // edgePoint returns a point of area that lies within band points of one of its four edges.
+    mutating func edgePoint(in area: Frame, band: Double) -> Point {
+        var p = point(in: area)
+        let inset = double(0...(band - 1))
+        switch int(0...3) {
+        case 0: p.x = area.x + inset
+        case 1: p.x = area.x + area.w - 1 - inset
+        case 2: p.y = area.y + inset
+        default: p.y = area.y + area.h - 1 - inset
+        }
+        return p
+    }
+
     // label names the seed and case for a failure, so the run replays with MOORINGS_SEED.
     func label(_ i: Int) -> String {
         "MOORINGS_SEED=\(seed) case \(i)"
