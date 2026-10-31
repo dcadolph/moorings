@@ -7,7 +7,7 @@
 #   N     Actions per active phase (default 100).
 #   IDLE  Seconds of the idle window (default 120).
 #   ROUNDS  Active phases per app, interleaved by round (default 3).
-#   MOORINGS_ACTIVE_BOUND  Multiple of Rectangle's per-action CPU that Moorings may use (default 2.0).
+#   MOORINGS_ACTIVE_BOUND  Multiple of Rectangle's per-action CPU that Moorings may use (default 1.0).
 #
 # Every bound is computed from Rectangle and Loop measured in the same run.
 #
@@ -16,7 +16,7 @@
 #   Idle    Moorings at most 0.03 s of CPU over the idle window with both rivals running beside it,
 #           and zero "pass" lines (one per pass, at debug level) in the log stream of the Moorings
 #           subsystem during that window. CPU is the ps cputime delta.
-#   Active  Moorings CPU per action at most 2.0 times Rectangle's and at most Loop's, each the
+#   Active  Moorings CPU per action at most 1.0 times Rectangle's and at most Loop's, each the
 #           median over ROUNDS active phases. Per action is the cputime delta over an app's own
 #           active phase divided by N. Each phase sends N alternating left and right half actions to
 #           one Probe window. A round runs Moorings, Rectangle and Loop in turn, so a slow minute
@@ -38,7 +38,7 @@ set -u
 N=${N:-100}
 IDLE=${IDLE:-120}
 ROUNDS=${ROUNDS:-3}
-BOUND=${MOORINGS_ACTIVE_BOUND:-2.0}
+BOUND=${MOORINGS_ACTIVE_BOUND:-1.0}
 apps="Moorings Rectangle Loop"
 subsystem="com.dcadolph.moorings"
 probe="com.dcadolph.moorings.probe"
