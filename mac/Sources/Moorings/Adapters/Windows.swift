@@ -867,13 +867,46 @@ extension Windows: @preconcurrency WindowStore {
 // MacScreens is the Mac ScreenSource: the attached displays plus the notch and Stage Manager reads.
 @MainActor
 final class MacScreens: @preconcurrency ScreenSource {
+    // ttl is how long a quirks read is reused for the same screens, so one burst of actions reads
+    // the system once.
+    static let ttl: Duration = .seconds(2)
+
+    // read reads the quirks for the given screens.
+    private let read: (Screens) -> ScreenQuirks
+    // now reads the clock that ages a cached read.
+    private let now: () -> ContinuousClock.Instant
+    // cached holds the last read, the frames it was read for, and when.
+    private var cached: (full: [Frame], at: ContinuousClock.Instant, quirks: ScreenQuirks)?
+
+    // init builds a MacScreens that reads the system.
+    convenience init() {
+        self.init(read: MacScreens.system, now: { .now })
+    }
+
+    // init builds a MacScreens with the given reader and clock.
+    init(read: @escaping (Screens) -> ScreenQuirks, now: @escaping () -> ContinuousClock.Instant) {
+        self.read = read
+        self.now = now
+    }
+
     // current reads the attached screens.
     func current() -> Screens {
         Screens.current()
     }
 
-    // quirks reads the notched screens, the screens showing the Stage Manager strip and its side.
+    // quirks returns the last read while the screens match and it is under ttl old, else reads again.
     func quirks(_ screens: Screens) -> ScreenQuirks {
+        let t = now()
+        if let c = cached, c.full == screens.full, c.at.duration(to: t) < Self.ttl {
+            return c.quirks
+        }
+        let q = read(screens)
+        cached = (screens.full, t, q)
+        return q
+    }
+
+    // system reads the notched screens, the screens showing the Stage Manager strip and its side.
+    private static func system(_ screens: Screens) -> ScreenQuirks {
         let right = Self.stageOnRight()
         let notched = Set(NSScreen.screens.indices.filter { NSScreen.screens[$0].safeAreaInsets.top > 0 })
         return ScreenQuirks(notched: notched, staged: Self.staged(screens.full, right: right), stageOnRight: right)
