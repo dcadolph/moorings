@@ -323,8 +323,9 @@ off. Tiling actions have no keys until you record them.
 
 Workspaces > Save workspace stores the slots, widths, heights and the frame of every free window
 under a name. Recall puts it back, matching windows by app and title. A window saved on a display
-that is no longer attached comes back on the main screen, in proportion to where it sat. Recall with these displays
-ties a workspace to the displays attached now, and plugging into that set recalls it.
+that is no longer attached comes back on the main screen, in proportion to where it sat. Recall
+with these displays ties a workspace to the displays attached now, and plugging into that set
+recalls it.
 
 Settings > Workspaces has two switches per workspace. Open missing apps makes a recall open the
 apps it names that are not running and place their windows once they show. Recall on any display
