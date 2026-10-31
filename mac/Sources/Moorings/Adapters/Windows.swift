@@ -813,15 +813,20 @@ final class MacScreens: @preconcurrency ScreenSource {
         return ScreenQuirks(notched: notched, staged: Self.staged(screens.full, right: right), stageOnRight: right)
     }
 
+    // windowManagerDefaults holds the WindowManager defaults, kept so a read does not build them.
+    private static let windowManagerDefaults = UserDefaults(suiteName: "com.apple.WindowManager")
+    // dockDefaults holds the Dock defaults, kept so a read does not build them.
+    private static let dockDefaults = UserDefaults(suiteName: "com.apple.dock")
+
     // windowManager reads a Stage Manager setting from the WindowManager defaults.
     private static func windowManager(_ key: String) -> Bool? {
-        UserDefaults(suiteName: "com.apple.WindowManager")?.object(forKey: key) as? Bool
+        windowManagerDefaults?.object(forKey: key) as? Bool
     }
 
     // stageOnRight reports whether the Stage Manager strip sits on the right: with the Dock on the
     // left, or with the Dock at the bottom in a right-to-left language.
     private static func stageOnRight() -> Bool {
-        switch UserDefaults(suiteName: "com.apple.dock")?.string(forKey: "orientation") {
+        switch dockDefaults?.string(forKey: "orientation") {
         case "left": true
         case "right": false
         default: Locale.current.language.characterDirection == .rightToLeft
