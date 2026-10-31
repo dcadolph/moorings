@@ -138,6 +138,8 @@ final class Updater {
     var changed: () -> Void = {}
     // quiet reports whether now is a good moment to relaunch.
     var quiet: () -> Bool = { false }
+    // allowed reports whether the owner currently wants staged updates installed on their own.
+    var allowed: () -> Bool = { true }
     // install swaps the staged bundle of the tag in and relaunches.
     var install: (URL, String) -> Void = { _, _ in }
 
@@ -252,10 +254,22 @@ final class Updater {
 
     // tick installs the staged update when now is quiet.
     func tick() {
-        guard case .verified = state, quiet() else {
+        guard case .verified = state, allowed(), quiet() else {
             return
         }
         installNow()
+    }
+
+    // discardStaged drops a verified update that is waiting for a quiet moment. It does nothing in
+    // any other state.
+    func discardStaged() {
+        guard case .verified(let tag) = state else {
+            return
+        }
+        stopWaiting()
+        staged = nil
+        log("discarded \(tag)")
+        set(.idle)
     }
 
     // installNow hands the staged update to install without waiting for a quiet moment.

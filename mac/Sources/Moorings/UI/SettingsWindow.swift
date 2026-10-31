@@ -24,6 +24,7 @@ final class SettingsModel: ObservableObject {
     func change(_ edit: (inout Choices) -> Void) {
         edit(&app.engine.anchors.choices)
         app.engine.save()
+        app.updateChoicesChanged()
         choices = app.engine.anchors.choices
     }
 
