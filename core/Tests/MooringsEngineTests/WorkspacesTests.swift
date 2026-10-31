@@ -73,6 +73,25 @@ final class KeeperRig {
     #expect(rig.saves == 2)
 }
 
+// Test 0b: A recall untied from the displays puts a window whose display is gone on the main screen
+// where it sat in the saved setup, instead of counting it missed.
+@Test func testKeeperRecallRemapsAGoneDisplay() {
+    let rig = KeeperRig()
+    let saved = rig.screens.current().full
+    rig.keeper.saveWorkspace("desk")
+    #expect(rig.anchors.choices.workspaces["desk"]?.displays == saved)
+    let laptop = Frame(x: 0, y: 25, w: 1200, h: 775)
+    rig.screens.screens = Screens(full: [Frame(x: 0, y: 0, w: 1200, h: 800)], usable: [laptop], ultrawide: nil)
+    rig.windows.nudge(rig.pads[1], to: Frame(x: 100, y: 100, w: 500, h: 300))
+    #expect(rig.keeper.recall("desk"))
+    #expect(rig.notifier.notes.last?.body == "Recalled.")
+    let got = rig.frame(rig.pads[1])
+    let b = saved[0]
+    #expect(abs(got.x - (laptop.x + (1700 - b.x) * laptop.w / b.w)) < 1)
+    #expect(got.x >= laptop.x && got.x + got.w <= laptop.x + laptop.w)
+    #expect(got.y >= laptop.y && got.y + got.h <= laptop.y + laptop.h)
+}
+
 // Test 1: A recall of a name never saved does nothing.
 @Test func testKeeperRecallUnknown() {
     let rig = KeeperRig()

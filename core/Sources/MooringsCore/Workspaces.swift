@@ -100,13 +100,16 @@ public struct Workspace: Equatable, Sendable, Codable {
     public var windows: [SavedWindow]
     // setup is the display signature the workspace comes back for, nil when untied.
     public var setup: String?
+    // displays lists the full frames of the screens attached when the workspace was saved, empty for a
+    // workspace saved before they were kept.
+    public var displays: [Frame]
     // recallOnDisplayChange reports whether the workspace comes back on any display change, tied or not.
     public var recallOnDisplayChange: Bool
 
     // init builds a workspace.
     public init(
         name: String, slots: [SlotKey: String] = [:], widths: Widths? = nil, heights: Heights? = nil,
-        windows: [SavedWindow] = [], setup: String? = nil,
+        windows: [SavedWindow] = [], setup: String? = nil, displays: [Frame] = [],
         recallOnDisplayChange: Bool = false
     ) {
         self.name = name
@@ -115,12 +118,13 @@ public struct Workspace: Equatable, Sendable, Codable {
         self.heights = heights
         self.windows = windows
         self.setup = setup
+        self.displays = displays
         self.recallOnDisplayChange = recallOnDisplayChange
     }
 
     // CodingKeys names the saved fields.
     private enum CodingKeys: String, CodingKey {
-        case name, slots, widths, heights, windows, setup, recallOnDisplayChange
+        case name, slots, widths, heights, windows, setup, displays, recallOnDisplayChange
     }
 
     // init decodes a workspace, reading slots keyed by slot name and skipping unknown slots.
@@ -133,10 +137,12 @@ public struct Workspace: Equatable, Sendable, Codable {
         heights = try? c.decodeIfPresent(Heights.self, forKey: .heights)
         windows = (try? c.decodeIfPresent([SavedWindow].self, forKey: .windows)) ?? []
         setup = try? c.decodeIfPresent(String.self, forKey: .setup)
+        displays = (try? c.decodeIfPresent([Frame].self, forKey: .displays)) ?? []
         recallOnDisplayChange = (try? c.decodeIfPresent(Bool.self, forKey: .recallOnDisplayChange)) ?? false
     }
 
-    // encode writes the workspace with slots keyed by slot name.
+    // encode writes the workspace with slots keyed by slot name, and its displays only when it has
+    // any, so a file saved before they were kept reads back the same.
     public func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(name, forKey: .name)
@@ -145,6 +151,9 @@ public struct Workspace: Equatable, Sendable, Codable {
         try c.encodeIfPresent(heights, forKey: .heights)
         try c.encode(windows, forKey: .windows)
         try c.encodeIfPresent(setup, forKey: .setup)
+        if !displays.isEmpty {
+            try c.encode(displays, forKey: .displays)
+        }
         try c.encode(recallOnDisplayChange, forKey: .recallOnDisplayChange)
     }
 }
@@ -191,16 +200,38 @@ public enum Workspaces {
         return out
     }
 
-    // fit returns f clamped into the area of the screen holding its center, or nil when no screen
-    // holds it.
-    public static func fit(_ f: Frame, _ screens: [ScreenAreas]) -> Frame? {
+    // fit returns f clamped into the area of the screen holding its center. When no screen holds it,
+    // f is mapped from bounds, the frame the saved setup spanned, onto the area of the first screen,
+    // the main one, in proportion, and clamped there. It returns nil when no screen holds f and bounds
+    // is nil or empty.
+    public static func fit(_ f: Frame, _ screens: [ScreenAreas], from bounds: Frame? = nil) -> Frame? {
         let cx = f.x + f.w / 2
         let cy = f.y + f.h / 2
         for s in screens
         where cx >= s.full.x && cx < s.full.x + s.full.w && cy >= s.full.y && cy < s.full.y + s.full.h {
             return Geometry.clamp(f, s.area)
         }
-        return nil
+        guard let b = bounds, b.w > 0, b.h > 0, let a = screens.first?.area else { return nil }
+        let mapped = Frame(x: a.x + (f.x - b.x) * a.w / b.w, y: a.y + (f.y - b.y) * a.h / b.h, w: f.w, h: f.h)
+        return Geometry.clamp(mapped, a)
+    }
+
+    // bounds returns the frame ws spanned when saved: the union of its displays, else of its windows'
+    // frames, nil when it holds neither.
+    public static func bounds(_ ws: Workspace) -> Frame? {
+        let frames = ws.displays.isEmpty ? ws.windows.map(\.frame) : ws.displays
+        guard let first = frames.first else { return nil }
+        var minX = first.x
+        var minY = first.y
+        var maxX = first.x + first.w
+        var maxY = first.y + first.h
+        for f in frames.dropFirst() {
+            minX = min(minX, f.x)
+            minY = min(minY, f.y)
+            maxX = max(maxX, f.x + f.w)
+            maxY = max(maxY, f.y + f.h)
+        }
+        return Frame(x: minX, y: minY, w: maxX - minX, h: maxY - minY)
     }
 
     // launches returns the apps to launch for a workspace: each entry with a launch bundle that no
