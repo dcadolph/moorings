@@ -260,6 +260,31 @@ struct UpdateRig {
     #expect(installed == [updateTag])
 }
 
+// A staged update waits while automatic install is off, discardStaged drops it, and turning install
+// back on lets a quiet moment install it.
+@Test @MainActor func testUpdaterAllowed() async throws {
+    let rig = try UpdateRig()
+    let u = rig.updater(downloader: rig.downloader())
+    var installed: [String] = []
+    u.quiet = { true }
+    u.allowed = { false }
+    u.install = { _, tag in installed.append(tag) }
+    try await u.check(automatic: true, install: true)
+    #expect(u.state == .verified(updateTag))
+    u.tick()
+    #expect(installed.isEmpty)
+    #expect(u.state == .verified(updateTag))
+    u.discardStaged()
+    #expect(u.state == .idle)
+    let again = rig.updater(downloader: rig.downloader())
+    again.quiet = { true }
+    again.allowed = { true }
+    again.install = { _, tag in installed.append(tag) }
+    try await again.check(automatic: true, install: true)
+    again.tick()
+    #expect(installed == [updateTag])
+}
+
 // swap puts the staged bundle in place and keeps the old one at previous.
 @Test func testUpdaterSwap() throws {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swap-\(UUID().uuidString)")

@@ -202,10 +202,12 @@ struct MenuBuilder {
             toggleCheck: {
                 anchors.choices.checkUpdates.toggle()
                 app.engine.save()
+                app.updateChoicesChanged()
             },
             toggleInstall: {
                 anchors.choices.installUpdates.toggle()
                 app.engine.save()
+                app.updateChoicesChanged()
             })
         out.append(.separator())
         if let tip = AppDelegate.supportURL {

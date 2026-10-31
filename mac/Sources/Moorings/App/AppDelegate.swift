@@ -553,6 +553,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    // updateChoicesChanged drops a staged update when automatic install is no longer on.
+    func updateChoicesChanged() {
+        let choices = engine.anchors.choices
+        guard !(choices.checkUpdates && choices.installUpdates) else { return }
+        updater.discardStaged()
+        UserDefaults.standard.removeObject(forKey: Self.stagedKey)
+    }
+
     // makeUpdater builds the updater for the running bundle, skipping tags that failed to start.
     private func makeUpdater() -> Updater {
         let current = ReleaseVersion(Self.version) ?? ReleaseVersion("0.0.0")!
@@ -571,6 +579,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
         }
         u.quiet = { [weak self] in self?.quietMoment() ?? false }
+        u.allowed = { [weak self] in
+            guard let self else { return false }
+            let choices = self.engine.anchors.choices
+            return choices.checkUpdates && choices.installUpdates
+        }
         u.install = { [weak self] staged, tag in self?.installUpdate(staged, tag: tag) }
         return u
     }
