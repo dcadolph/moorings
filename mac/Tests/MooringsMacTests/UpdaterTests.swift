@@ -285,6 +285,40 @@ struct UpdateRig {
     #expect(installed == [updateTag])
 }
 
+// unswap puts the old bundle back at the bundle path.
+@Test func testUpdaterUnswap() throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("unswap-\(UUID().uuidString)")
+    let files = FileManager.default
+    let bundle = dir.appendingPathComponent("Applications/Moorings.app")
+    let staged = dir.appendingPathComponent("cache/unpacked/Moorings.app")
+    let previous = dir.appendingPathComponent("support/previous/Moorings.app")
+    for (app, text) in [(bundle, "old"), (staged, "new")] {
+        try files.createDirectory(at: app, withIntermediateDirectories: true)
+        try Data(text.utf8).write(to: app.appendingPathComponent("which"))
+    }
+    let backup = try Updater.swap(bundle: bundle, staged: staged, previous: previous)
+    try Updater.unswap(bundle: bundle, backup: backup)
+    #expect(try String(contentsOf: bundle.appendingPathComponent("which"), encoding: .utf8) == "old")
+}
+
+// A shell that does not exist makes Relaunch.start throw, and the default shell does not.
+@Test func testRelaunchStartFailure() throws {
+    let gone = Process()
+    gone.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+    try gone.run()
+    gone.waitUntilExit()
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("start-\(UUID().uuidString)")
+    var plan = Relaunch.Plan(bundle: dir.appendingPathComponent("Moorings.app"))
+    plan.wait = 1
+    plan.opener = "/usr/bin/true"
+    plan.pid = gone.processIdentifier
+    plan.shell = "/nonexistent/sh"
+    #expect(throws: (any Error).self) { try Relaunch.start(plan) }
+    plan.shell = "/bin/sh"
+    let task = try Relaunch.start(plan)
+    task.waitUntilExit()
+}
+
 // swap puts the staged bundle in place and keeps the old one at previous.
 @Test func testUpdaterSwap() throws {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent("swap-\(UUID().uuidString)")

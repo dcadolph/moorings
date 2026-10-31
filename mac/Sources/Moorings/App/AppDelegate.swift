@@ -627,6 +627,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             try Relaunch.start(plan)
         } catch {
             logger.error("update: relaunch failed: \(error.localizedDescription, privacy: .public)")
+            defaults.removeObject(forKey: Self.attemptKey)
+            updater.refuse(.location, tag)
+            do {
+                try Updater.unswap(bundle: bundle, backup: backup)
+                notify("Update could not relaunch", "Moorings put the previous version back and kept running.")
+            } catch {
+                logger.error("update: rollback failed: \(error.localizedDescription, privacy: .public)")
+                notify("Update could not relaunch", "Moorings kept running. Quit and open it to start \(tag).")
+            }
+            return
         }
         logger.notice("update: relaunch into \(tag, privacy: .public) build \(build, privacy: .public)")
         NSApp.terminate(nil)
