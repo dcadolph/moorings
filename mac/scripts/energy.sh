@@ -5,7 +5,7 @@
 #
 #   -m  Minutes to sample (default 10).
 #   -i  Seconds between samples (default 5).
-#   -c  Churn: the app itself moves TextEdit between halves every 2 seconds.
+#   -c  Churn: the app itself moves a Probe window between halves every 2 seconds.
 #   -u  Churn links for an app with no built-in route (Moorings, Rectangle and Loop have one).
 #   -p  Also sample with powermetrics (needs sudo).
 #
@@ -82,9 +82,8 @@ if [ "$churn" -eq 1 ]; then
 	fi
 	left=${urls%%,*}
 	right=${urls#*,}
-	open -a TextEdit
+	open -b com.dcadolph.moorings.probe
 	sleep 2
-	osascript -e 'tell application "TextEdit" to if (count of documents) is 0 then make new document'
 	(
 		url=$left
 		while :; do

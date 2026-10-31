@@ -4,25 +4,25 @@ import os
 
 import MooringsCore
 
-// Selftest drives real TextEdit windows through the layout on the ultrawide and logs PASS or FAIL
-// per check, then puts the owner's slots and anchor back and quits TextEdit. It runs from the
+// Selftest drives real Probe windows through the layout on the ultrawide and logs PASS or FAIL per
+// check, then puts the owner's slots and anchor back and quits the probe. It runs from the
 // moorings://selftest link. With apps=, a comma-separated list of bundle ids, it instead moves,
 // resizes, snaps and restores a window of each named app and logs PASS or FAIL per app and case,
 // or MIN when the app keeps a minimum size above the one asked.
 @MainActor
 final class Selftest {
-    // bundle is the app the run makes throwaway documents in.
-    static let bundle = "com.apple.TextEdit"
+    // bundle is the probe, the app the run makes throwaway windows in. make probe in mac/ builds it.
+    static let bundle = "com.dcadolph.moorings.probe"
+    // newWindow is the distributed notification that asks the probe for another window.
+    static let newWindow = Notification.Name("com.dcadolph.moorings.probe.new-window")
     // landSeconds is how long a window may take to land.
     static let landSeconds = 3.0
     // holdSeconds is how long a window must stay put to count as steady.
     static let holdSeconds = 1.5
     // graceSeconds is how long after placing a pin before a move counts as by hand.
     static let graceSeconds = 2.5
-    // openSeconds is how long TextEdit may take to show a window.
+    // openSeconds is how long the probe may take to show a window.
     static let openSeconds = 10.0
-    // restoreSeconds is how long TextEdit may take to reopen documents from before once it shows.
-    static let restoreSeconds = 1.5
     // stepSeconds is how often a wait checks again.
     static let stepSeconds = 0.1
 
@@ -54,13 +54,10 @@ final class Selftest {
     private var checks: [Check] = []
     // made lists the windows the run opened.
     private var made: [WindowID] = []
-    // slot is the slot TextEdit borrows.
+    // slot is the slot the probe borrows.
     private var slot: SlotKey = .leftTop
-    // emptySide reports whether TextEdit's side has no other app.
+    // emptySide reports whether the probe's side has no other app.
     private var emptySide = false
-    // foreign reports whether TextEdit reopened a document the run did not make, so the run leaves
-    // TextEdit open rather than risk closing unsaved work.
-    private var foreign = false
 
     // init builds a selftest for app.
     init(app: AppDelegate) {
@@ -200,7 +197,6 @@ final class Selftest {
     private func run() async {
         checks = []
         made = []
-        foreign = false
         if let why = prepare() {
             logger.notice("selftest not run: \(why, privacy: .public)")
             app.notify("Selftest not run", why + ".")
@@ -223,9 +219,7 @@ final class Selftest {
         anchors.choices.appRules = saved.appRules
         anchors.choices.slotStacks = saved.slotStacks
         app.engine.save()
-        if !foreign {
-            await quitTextEdit()
-        }
+        await quitProbe()
         let failed = checks.filter { $0.ok == false }.count
         let summary = "\(checks.count) checks, \(failed) failed" + (stopped.map { ", stopped: \($0)" } ?? "")
         logger.notice("selftest: \(summary, privacy: .public)")
@@ -234,7 +228,7 @@ final class Selftest {
         )
     }
 
-    // prepare picks the slot TextEdit borrows, preferring one on a side with no other app, and
+    // prepare picks the slot the probe borrows, preferring one on a side with no other app, and
     // returns why the run cannot start, nil when it can.
     private func prepare() -> String? {
         guard app.windows.trusted else { return "Accessibility is not granted" }
@@ -242,12 +236,12 @@ final class Selftest {
         if let why = Self.held(CGEventSource.flagsState(.combinedSessionState)) {
             return why
         }
-        if textEdit() != nil {
-            return "TextEdit is open. Quit it first, since the run makes throwaway documents in it"
+        guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundle) != nil else {
+            return "the probe is not installed. Run make probe in mac/ first"
         }
         let picks = anchors.assignments()
         if picks.values.contains(Self.bundle) {
-            return "TextEdit is anchored. Take it out of Anchored apps first"
+            return "the probe is anchored. Take it out of Anchored apps first"
         }
         for wantEmpty in [true, false] {
             for key in SlotKey.allCases {
@@ -280,9 +274,7 @@ final class Selftest {
         anchors.choices.paused = false
         anchors.assign(slot, Self.bundle)
         app.engine.save()
-        try await launch()
-        let a = try await newDocument()
-        try await dismissPanels()
+        let a = try await launch()
         check("anchored window lands in its slot", await settled { self.landed(a) })
 
         let stacks = anchors.choices.slotStacks
@@ -317,9 +309,9 @@ final class Selftest {
         }
 
         let picker = "open picker is not held"
-        if let te = textEdit() {
-            te.activate()
-            key(kVK_ANSI_O, [.maskCommand], te.processIdentifier)
+        if let p = probe() {
+            p.activate()
+            key(kVK_ANSI_O, [.maskCommand], p.processIdentifier)
             var panel: WindowInfo?
             if await settled(
                 {
@@ -403,7 +395,7 @@ final class Selftest {
                     return (got == want, "focused \(got.map(String.init) ?? "nothing"), want \(want)")
                 })
         } else {
-            check(focusName, (false, "TextEdit shows one window"))
+            check(focusName, (false, "the probe shows one window"))
         }
 
         let ruleName = "an app rule places the app's first window"
@@ -414,7 +406,7 @@ final class Selftest {
         }
         made = []
         let empty = await settled(
-            { (self.windows(panels: false).isEmpty, "TextEdit still shows a window") },
+            { (self.windows(panels: false).isEmpty, "the probe still shows a window") },
             Self.openSeconds)
         guard empty.0 else {
             check(ruleName, empty)
@@ -474,7 +466,7 @@ final class Selftest {
         app.windows.scan(Screens.current()).windows.first { $0.id == id }
     }
 
-    // windows returns TextEdit's document windows, or its open panels when panels is true.
+    // windows returns the probe's windows, or its open panels when panels is true.
     private func windows(panels: Bool) -> [WindowInfo] {
         app.windows.scan(Screens.current()).windows.filter { $0.bundle == Self.bundle && $0.isFilePanel == panels }
     }
@@ -513,88 +505,91 @@ final class Selftest {
         return (Actions.near(got, f), "moved to \(got) from \(f)")
     }
 
-    // textEdit returns the running TextEdit, nil when it is not open.
-    private func textEdit() -> NSRunningApplication? {
+    // probe returns the running probe, nil when it is not open.
+    private func probe() -> NSRunningApplication? {
         NSRunningApplication.runningApplications(withBundleIdentifier: Self.bundle).first
     }
 
-    // launch opens TextEdit and closes the open panel it shows at launch. A document window at this
-    // point is one TextEdit reopened from before, possibly with unsaved changes, so the run stops
-    // and leaves it alone.
-    private func launch() async throws {
+    // launch quits a probe left open, opens a fresh one and returns the window it opens at launch.
+    private func launch() async throws -> WindowID {
+        await quitProbe()
         app.open(Self.bundle, background: false)
+        var found: WindowID?
         _ = await settled(
             {
-                (!self.windows(panels: true).isEmpty || !self.windows(panels: false).isEmpty, "")
+                found = self.windows(panels: false).first?.id
+                return (found != nil, "")
             }, Self.openSeconds)
-        try await Task.sleep(for: .seconds(Self.restoreSeconds))
-        if !windows(panels: false).isEmpty {
-            foreign = true
-            throw Stop(
-                reason: "TextEdit reopened a document from before. Save or close it, quit TextEdit, and run again")
-        }
-        try await dismissPanels()
+        guard let found else { throw Stop(reason: "the probe's launch window did not show") }
+        made.append(found)
+        return found
     }
 
-    // newDocument makes a throwaway TextEdit document and returns its window once it shows.
+    // newDocument asks the probe for another window and returns it once it shows.
     private func newDocument() async throws -> WindowID {
         let before = Set(windows(panels: false).map(\.id))
-        if let te = textEdit() {
-            te.activate()
-            key(kVK_ANSI_N, [.maskCommand], te.processIdentifier)
+        if let p = probe() {
+            p.activate()
+            askWindow()
         } else {
             app.open(Self.bundle, background: false)
         }
         var found: WindowID?
-        var asked = textEdit() != nil
+        var asked = probe() != nil
         let started = Date()
         _ = await settled(
             {
                 found = self.windows(panels: false).first { !before.contains($0.id) }?.id
-                if found == nil, !asked, Date().timeIntervalSince(started) > 2, let te = self.textEdit() {
+                if found == nil, !asked, Date().timeIntervalSince(started) > 2, self.probe() != nil {
                     asked = true
-                    self.key(kVK_ANSI_N, [.maskCommand], te.processIdentifier)
+                    self.askWindow()
                 }
                 return (found != nil, "")
             }, Self.openSeconds)
-        guard let found else { throw Stop(reason: "the new TextEdit document did not show") }
+        guard let found else { throw Stop(reason: "the new probe window did not show") }
         made.append(found)
         return found
+    }
+
+    // askWindow posts the probe's new-window request.
+    private func askWindow() {
+        DistributedNotificationCenter.default().postNotificationName(
+            Self.newWindow, object: nil, userInfo: nil, deliverImmediately: true)
     }
 
     // close closes window id and waits for it to go.
     private func close(_ id: WindowID) async throws {
         app.windows.close(id)
         guard await settled({ (self.info(id) == nil, "") }).0 else {
-            throw Stop(reason: "a TextEdit document would not close")
+            throw Stop(reason: "a probe window would not close")
         }
         made.removeAll { $0 == id }
     }
 
-    // dismissPanels presses Cancel in each open panel TextEdit shows, or Escape when a panel has no
+    // dismissPanels presses Cancel in each open panel the probe shows, or Escape when a panel has no
     // Cancel button.
     private func dismissPanels() async throws {
         for p in windows(panels: true) where !app.windows.cancel(p.id) {
             app.windows.raise(p.id)
             try await Task.sleep(for: .seconds(0.3))
-            if let te = textEdit() {
-                key(kVK_Escape, [], te.processIdentifier)
+            if let running = probe() {
+                key(kVK_Escape, [], running.processIdentifier)
             }
         }
         guard await settled({ (self.windows(panels: true).isEmpty, "") }).0 else {
-            throw Stop(reason: "the TextEdit open panel would not close")
+            throw Stop(reason: "the probe's open panel would not close")
         }
     }
 
-    // quitTextEdit quits TextEdit, forcing it when it ignores the request. Every window it has is
-    // one the run made, since a run starts only while TextEdit is closed.
-    private func quitTextEdit() async {
-        guard let te = textEdit() else { return }
-        te.terminate()
-        if await settled({ (self.textEdit() == nil, "") }).0 {
+    // quitProbe quits the probe, forcing it when it ignores the request. The probe holds no work, so
+    // quitting it loses nothing.
+    private func quitProbe() async {
+        guard let p = probe() else { return }
+        p.terminate()
+        if await settled({ (self.probe() == nil, "") }).0 {
             return
         }
-        te.forceTerminate()
+        p.forceTerminate()
     }
 
     // key presses the key with code and flags in the process pid.

@@ -1,4 +1,6 @@
 APP := .build/Moorings.app
+PROBE := .build/MooringsProbe.app
+LSREGISTER := /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 SANDBOX_APP := .build/sandbox/Moorings.app
 SIGN_ID ?= -
 ENTITLEMENTS ?=
@@ -27,7 +29,7 @@ INTENTS_OUT := .build/intents
 # a universal one.
 INTENTS_CONSTS_DIR := $(if $(ARCHS),.build/apple/Intermediates.noindex/Moorings.build/Release/Moorings.build,.build/$(shell uname -m)-apple-macosx/release/Moorings.build)
 
-.PHONY: build test bench app sandbox zip dmg notarize run clean
+.PHONY: build test bench probe app sandbox zip dmg notarize run clean
 
 build:
 	swift build
@@ -36,8 +38,19 @@ test:
 	swift test --package-path ../core
 	swift build
 
-bench:
+bench: probe
 	scripts/bench.sh
+
+# probe bundles the window app the selftest, the Mac contracts and the bench move, and registers it so
+# the selftest finds it by bundle id.
+probe:
+	swift build -c release --product MooringsProbe
+	rm -rf $(PROBE)
+	mkdir -p $(PROBE)/Contents/MacOS
+	cp "$$(swift build -c release --show-bin-path)/MooringsProbe" $(PROBE)/Contents/MacOS/MooringsProbe
+	cp Sources/MooringsProbe/Info.plist $(PROBE)/Contents/Info.plist
+	codesign --force --sign "$(SIGN_ID)" $(SIGN_FLAGS) $(PROBE)
+	$(LSREGISTER) -f $(PROBE)
 
 $(ICNS): ../app-icon.png
 	rm -rf $(ICONSET)

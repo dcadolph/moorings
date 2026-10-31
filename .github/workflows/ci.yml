@@ -54,6 +54,9 @@ jobs:
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 
+      - name: Probe
+        run: make probe
+
       - name: Mac contracts
         run: swift test -Xswiftc -warnings-as-errors
         env:

@@ -78,7 +78,7 @@ extension MacHost: @preconcurrency ScenarioHost {
     }
 }
 
-// The Mac engine shows every scenario's behavior on TextEdit windows. It moves real windows on an
+// The Mac engine shows every scenario's behavior on Probe windows. It moves real windows on an
 // ultrawide, so it runs only when MOORINGS_LIVE_SCENARIOS is 1 on the owner's go; otherwise, or
 // without Accessibility access, the test prints why and passes. It fails when the run leaves the
 // system reading a modifier key as held.
@@ -89,6 +89,10 @@ extension MacHost: @preconcurrency ScenarioHost {
     }
     guard AXIsProcessTrusted() else {
         print("Mac scenarios skipped: this test host has no Accessibility access")
+        return
+    }
+    guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: MacHost.probe) != nil else {
+        Issue.record("the probe is not installed. Run make probe in mac/ first")
         return
     }
     _ = NSApplication.shared

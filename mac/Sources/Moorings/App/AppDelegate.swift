@@ -75,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var updateTimer: Timer?
     // tap watches the primary mouse button for green button clicks and drags.
     let tap = EventTap()
-    // selftest drives TextEdit windows through the layout from the moorings://selftest link.
+    // selftest drives Probe windows through the layout from the moorings://selftest link.
     lazy var selftest = Selftest(app: self)
     // settings is the settings window.
     lazy var settings = SettingsWindow(app: self)

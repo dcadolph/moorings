@@ -16,7 +16,10 @@ var targets: [Target] = []
             exclude: ["Info.plist"]
         )
     )
-    // MooringsMacTests runs the engine's contract suites on the Mac adapters against real TextEdit
+    // MooringsProbe is the plain window app the selftest, the Mac contracts and the bench move.
+    // make probe bundles it as .build/MooringsProbe.app. It never ships inside Moorings.
+    targets.append(.executableTarget(name: "MooringsProbe", exclude: ["Info.plist"]))
+    // MooringsMacTests runs the engine's contract suites on the Mac adapters against real Probe
     // windows. It skips without Accessibility access; GitHub's macOS runner has it.
     targets.append(
         .testTarget(

@@ -16,18 +16,18 @@
 #           subsystem during that window. CPU is the ps cputime delta.
 #   Active  Moorings CPU per action at most 2.0 times Rectangle's and at most Loop's. Per action is
 #           the cputime delta over an app's own active phase divided by N. Each phase sends N
-#           alternating left and right half actions to one TextEdit window.
+#           alternating left and right half actions to one Probe window.
 #   Paused  Moorings at most 1 ms of CPU per foreign move (0.10 s over 100 moves). It is the
 #           Moorings cputime delta during the Rectangle active phase, while Moorings is paused,
 #           divided by N. The Loop phase figure is shown in the table only.
 #
-# TextEdit opens its document before the idle window and the bench waits out the 30 s in which
+# The probe opens its window before the idle window and the bench waits out the 30 s in which
 # Moorings reads every app for a launched app's first window, and each active phase starts 3 s after
-# TextEdit comes forward, past the 2 s of passes that activation wakes, so every app's phase
+# the probe comes forward, past the 2 s of passes that activation wakes, so every app's phase
 # measures the same settled desk.
 #
-# Needs Moorings, Rectangle and Loop running from /Applications, and Accessibility trusted for
-# Moorings. Exits 2 when one is missing, 1 on any FAIL, 0 when every threshold passes.
+# Needs Moorings, Rectangle and Loop running from /Applications, Accessibility trusted for Moorings,
+# and the probe registered by make probe. Exits 2 when one is missing, 1 on any FAIL, 0 when every threshold passes.
 # Moorings is the only app paused or resumed, and it is resumed again on exit.
 set -u
 
@@ -35,6 +35,7 @@ N=${N:-100}
 IDLE=${IDLE:-120}
 apps="Moorings Rectangle Loop"
 subsystem="com.dcadolph.moorings"
+probe="com.dcadolph.moorings.probe"
 tmp=$(mktemp -d)
 paused=0
 streampid=""
@@ -121,12 +122,12 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-# run sends N alternating actions to TextEdit through one app's links and reports the phase.
+# run sends N alternating actions to the probe through one app's links and reports the phase.
 run() {
 	who=$1
 	l=$2
 	r=$3
-	osascript -e 'tell application "TextEdit" to activate' >/dev/null
+	open -b "$probe"
 	sleep 3
 	snap
 	t0=$(date +%s)
@@ -164,6 +165,10 @@ if [ -n "$missing" ]; then
 	echo "bench: no running process for:$missing" >&2
 	exit 2
 fi
+if [ ! -d "$(dirname "$0")/../.build/MooringsProbe.app" ]; then
+	echo "bench: no probe, run make probe in mac/" >&2
+	exit 2
+fi
 open -g moorings://status
 sleep 2
 if ! /usr/bin/log show --last 10s --predicate "subsystem == \"$subsystem\"" 2>/dev/null |
@@ -172,7 +177,9 @@ if ! /usr/bin/log show --last 10s --predicate "subsystem == \"$subsystem\"" 2>/d
 	exit 2
 fi
 
-osascript -e 'tell application "TextEdit" to make new document' >/dev/null
+osascript -e "tell application id \"$probe\" to quit" >/dev/null 2>&1
+sleep 1
+open -b "$probe"
 sleep 35
 echo "idle ${IDLE}s, all three running, Moorings holding the layout"
 /usr/bin/log stream --level debug \
@@ -196,8 +203,7 @@ run Rectangle "rectangle://execute-action?name=left-half" "rectangle://execute-a
 run Loop "loop://direction/leftHalf" "loop://direction/rightHalf"
 pause Resume
 paused=0
-osascript -e 'tell application "TextEdit" to close every document saving no' \
-	-e 'tell application "TextEdit" to quit' >/dev/null
+osascript -e "tell application id \"$probe\" to quit" >/dev/null
 
 mem_m=$(megabytes "$(mem "$P_Moorings")")
 mem_r=$(megabytes "$(mem "$P_Rectangle")")

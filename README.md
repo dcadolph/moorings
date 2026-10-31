@@ -420,10 +420,11 @@ and when displays change. No layout timer runs while nothing moves.
 
 ### Selftest
 
-Quit TextEdit, leave a slot empty, keep your hands off the mouse, and open
-`moorings://selftest`. Moorings anchors TextEdit in the empty slot, opens throwaway documents,
-checks each layout rule against them, then puts your slots back and quits TextEdit. Each check
-logs PASS or FAIL, and a banner gives the total.
+Run `make probe` in `mac/` once to build and register the probe, a plain window app made for
+testing. Then leave a slot empty, keep your hands off the mouse, and open `moorings://selftest`.
+Moorings anchors the probe in the empty slot, opens throwaway windows, checks each layout rule
+against them, then puts your slots back and quits the probe. Each check logs PASS or FAIL, and a
+banner gives the total.
 
 `moorings://selftest?apps=com.tinyspeck.slackmacgap,org.videolan.vlc` checks other apps instead:
 it moves, resizes, snaps and restores the front window of each, logs PASS or FAIL per case with
@@ -460,8 +461,8 @@ Run `swift test` in `core/` for the core tests, the engine tests on the fakes an
 suites on the fakes. Run `swift build` in `mac/` to build the app, and `make app` or `make zip` to
 bundle it.
 
-Run `swift test` in `mac/` for the contract suites on the Mac adapters against real TextEdit
-windows. The shell or test host needs Accessibility access (System Settings, Privacy and Security,
+Run `make probe`, then `swift test` in `mac/` for the contract suites on the Mac adapters against
+real probe windows. The shell or test host needs Accessibility access (System Settings, Privacy and Security,
 Accessibility). Without it the suites skip and print a line saying so. The suites move real windows
 while they run, so do not use the Mac until they finish. GitHub's macOS runner has the grant, so CI
 runs them too.

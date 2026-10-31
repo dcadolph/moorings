@@ -9,16 +9,13 @@ import MooringsTesting
 
 @testable import Moorings
 
-// MacHost is the Mac ContractHost: each window is a TextEdit document opened from a throwaway file,
-// and waiting runs the main run loop.
+// MacHost is the Mac ContractHost: each window is a Probe window, and waiting runs the main run loop.
 @MainActor
 final class MacHost: @preconcurrency ContractHost {
-    // textEdit is TextEdit's bundle id.
-    static let textEdit = "com.apple.TextEdit"
+    // probe is the probe's bundle id. make probe in mac/ builds and registers it.
+    static let probe = Selftest.bundle
     // store reads the windows the host opens.
     let store: Windows
-    // files lists the throwaway files the host opened.
-    private var files: [URL] = []
     // opened lists the windows the host opened.
     private var opened: [WindowID] = []
     // defaults is the store spoilChoices writes under, nil when the host spoils none.
@@ -31,8 +28,8 @@ final class MacHost: @preconcurrency ContractHost {
         self.store = store
     }
 
-    // minimum is nil: Accessibility does not say how small a TextEdit window may get.
-    var minimum: (w: Double, h: Double)? { nil }
+    // minimum is the smallest frame the probe's windows take.
+    var minimum: (w: Double, h: Double)? { (240, 160) }
 
     // now is the system uptime in seconds, the clock the Mac adapters use.
     var now: Double { ProcessInfo.processInfo.systemUptime }
@@ -42,22 +39,25 @@ final class MacHost: @preconcurrency ContractHost {
         Screens.current()
     }
 
-    // open opens a throwaway text file in TextEdit and returns its window once it shows.
+    // open asks the probe for a window, launching it when it is not running, and returns the window
+    // once it shows.
     func open() -> WindowID? {
-        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.textEdit) else { return nil }
         let before = Set(store.scan(screens(), full: true).windows.map(\.id))
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(
-            "moorings-contract-\(UUID().uuidString).txt")
-        guard (try? Data("Moorings contract window.\n".utf8).write(to: url)) != nil else { return nil }
-        files.append(url)
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = true
-        NSWorkspace.shared.open([url], withApplicationAt: app, configuration: config, completionHandler: nil)
+        if let running = NSRunningApplication.runningApplications(withBundleIdentifier: Self.probe).first {
+            running.activate()
+            DistributedNotificationCenter.default().postNotificationName(
+                Selftest.newWindow, object: nil, userInfo: nil, deliverImmediately: true)
+        } else {
+            guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.probe) else { return nil }
+            let config = NSWorkspace.OpenConfiguration()
+            config.activates = true
+            NSWorkspace.shared.openApplication(at: app, configuration: config, completionHandler: nil)
+        }
         var found: WindowID?
         _ = wait(until: now + 10) {
             found =
                 store.scan(screens(), full: true).windows.first {
-                    $0.bundle == Self.textEdit && !before.contains($0.id)
+                    $0.bundle == Self.probe && !before.contains($0.id)
                 }?.id
             return found != nil
         }
@@ -72,8 +72,8 @@ final class MacHost: @preconcurrency ContractHost {
         nil
     }
 
-    // knownApp is TextEdit, the app the host opens its windows in.
-    var knownApp: String? { Self.textEdit }
+    // knownApp is the probe, the app the host opens its windows in.
+    var knownApp: String? { Self.probe }
 
     // nudge moves the window with id 8 points right and down through the store, which posts the
     // window's moved notification as a drag would.
@@ -92,17 +92,13 @@ final class MacHost: @preconcurrency ContractHost {
         return true
     }
 
-    // finish closes every window the host opened and removes the throwaway files.
+    // finish closes every window the host opened.
     func finish() {
         _ = store.scan(screens(), full: true)
         for id in opened {
             store.close(id)
         }
         opened = []
-        for url in files {
-            try? FileManager.default.removeItem(at: url)
-        }
-        files = []
     }
 
     // spoilChoices writes payload under the defaults store's key, when the host has one.
@@ -118,7 +114,7 @@ final class MacHost: @preconcurrency ContractHost {
     }
 }
 
-// The Mac adapters keep every contract rule. The suite opens and moves real TextEdit windows, so it
+// The Mac adapters keep every contract rule. The suite opens and moves real Probe windows, so it
 // runs only when MOORINGS_LIVE_CONTRACTS is 1: on GitHub's macOS runner, and locally on the owner's
 // go. Otherwise, or without Accessibility access, it prints why and passes.
 @Test @MainActor func testMacContracts() {
@@ -128,6 +124,10 @@ final class MacHost: @preconcurrency ContractHost {
     }
     guard AXIsProcessTrusted() else {
         print("Mac contracts skipped: this test host has no Accessibility access")
+        return
+    }
+    guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: MacHost.probe) != nil else {
+        Issue.record("the probe is not installed. Run make probe in mac/ first")
         return
     }
     _ = NSApplication.shared
