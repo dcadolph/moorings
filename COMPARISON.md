@@ -201,7 +201,7 @@ Measured with `make bench` in mac/ (mac/scripts/bench.sh) on an M1 Max, macOS 26
 | Active CPU per action                  | 3.2 ms   | 3.1 ms       | 23 ms        |
 | Paused CPU per move another app makes  | 0.3 ms   | not measured | not measured |
 
-The gate holds Moorings to at most 1.5 times Rectangle's memory and no more than Loop's, at most 0.03 s of CPU and no pass at rest, at most 2.0 times Rectangle's median CPU per action and no more than Loop's, and at most 1 ms per move while paused. `make bench` exits 1 on any miss, and no release is tagged until it passes on the build that ships. Moorings lands within a tenth of a millisecond of Rectangle per action, with the work that keeps the channel included.
+The gate holds Moorings to at most 1.5 times Rectangle's memory and no more than Loop's, at most 0.03 s of CPU and no pass at rest, at most 1.0 times Rectangle's median CPU per action and no more than Loop's, and at most 1 ms per move while paused. `make bench` exits 1 on any miss, and no release is tagged until it passes on the build that ships. Moorings lands within a tenth of a millisecond of Rectangle per action, with the work that keeps the channel included.
 
 Moorings does more than either app between shortcuts. It holds anchored apps in their slots and keeps free windows in the channel, so it watches every app's windows and keeps each action's frame inside the channel, where Rectangle sets one window and stops. At rest no pass runs until a window changes, and a paused Moorings runs no passes at all.
 
