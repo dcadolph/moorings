@@ -6,7 +6,7 @@ extension Scenarios {
     // proves the move arrives as an event within 1 s, wakes 1 to 3 passes, and that no pass runs more
     // than 1 s after the event that caused it, or 1.5 s after the start before any event. An app's
     // launch holds the passes at Pace.busySeconds for Pace.launchSeconds by design, so it first
-    // waits out a launch window still open, such as the one TextEdit's launch opens on a live host.
+    // waits out a launch window still open, such as the one the probe opens at launch on a live host.
     static func eventsWakeAndRestHolds(_ s: Stage) {
         s.choose { _ in }
         guard let pad = s.open("window") else { return }

@@ -191,7 +191,7 @@ each part.
 - Installs with `brew install --cask dcadolph/tap/moorings`, or from the signed and notarized dmg
   on each release. The release's `SHA256SUMS` is signed through Sigstore and every file carries a
   build attestation, so `gh attestation verify` or `cosign verify-blob` checks a download.
-- `moorings://selftest` checks the layout against real TextEdit windows, then puts your slots back.
+- `moorings://selftest` checks the layout against real probe windows, then puts your slots back.
 - `moorings://selftest?apps=<bundle ids>` checks move, resize, snap and restore on other apps' windows.
   A resize the app holds at its own minimum size reads MIN instead of FAIL.
 - The layout is checked when a window opens, closes or moves, when an app launches or hides, and
