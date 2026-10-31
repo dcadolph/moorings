@@ -17,16 +17,17 @@ func releaseVersion(_ bundle: URL) -> String? {
         as? String
 }
 
-// notarizedRelease returns the installed release when it is a notarized Moorings, and prints why
-// the test skips otherwise.
-func notarizedRelease() -> URL? {
-    guard FileManager.default.fileExists(atPath: releaseApp.path),
-        CodeTrust.notarized(CodeTrust.assess(releaseApp))
-    else {
-        print("skip: no notarized Moorings release in /Applications")
-        return nil
-    }
-    return releaseApp
+// hasNotarizedRelease reports whether the installed release is a notarized Moorings.
+func hasNotarizedRelease() -> Bool {
+    FileManager.default.fileExists(atPath: releaseApp.path) && CodeTrust.notarized(CodeTrust.assess(releaseApp))
+}
+
+// thirdPartyApps lists the installed Developer ID apps from other teams.
+let thirdPartyApps = ["/Applications/Rectangle.app", "/Applications/Loop.app"]
+
+// hasThirdPartyDeveloperIDApp reports whether any app for the wrong-team case is installed.
+func hasThirdPartyDeveloperIDApp() -> Bool {
+    thirdPartyApps.contains { FileManager.default.fileExists(atPath: $0) }
 }
 
 // releaseCopy copies the installed release into a fresh temporary folder.
@@ -52,10 +53,9 @@ func run(_ tool: String, _ args: String...) throws -> Int32 {
 }
 
 // The installed notarized release passes every check against its own designated requirement.
-@Test func testCodeTrustRelease() throws {
-    guard let release = notarizedRelease() else {
-        return
-    }
+@Test(.enabled(if: hasNotarizedRelease(), "no notarized Moorings release in /Applications"))
+func testCodeTrustRelease() throws {
+    let release = releaseApp
     let version = try #require(releaseVersion(release))
     let running = CodeTrust.designatedRequirement(of: release)
     #expect(CodeTrust.verify(bundle: release, version: version, current: oldVersion, running: running) == nil)
@@ -63,10 +63,9 @@ func run(_ tool: String, _ args: String...) throws -> Int32 {
 
 // A release fails at plist when its version is not the tag's or not newer than the running one,
 // and at requirement when the running app's designated requirement differs or is missing.
-@Test func testCodeTrustPlistAndRequirement() throws {
-    guard let release = notarizedRelease() else {
-        return
-    }
+@Test(.enabled(if: hasNotarizedRelease(), "no notarized Moorings release in /Applications"))
+func testCodeTrustPlistAndRequirement() throws {
+    let release = releaseApp
     let version = try #require(releaseVersion(release))
     let running = CodeTrust.designatedRequirement(of: release)
     let tests: [(version: String, current: ReleaseVersion, running: String?, want: UpdateVerdict)] = [
@@ -86,18 +85,16 @@ func run(_ tool: String, _ args: String...) throws -> Int32 {
 }
 
 // Bundles signed by another team, ad hoc, or changed after signing fail at signature.
-@Test func testCodeTrustRefusesSignature() throws {
-    guard let release = notarizedRelease() else {
-        return
-    }
+@Test(
+    .enabled(if: hasNotarizedRelease(), "no notarized Moorings release in /Applications"),
+    .enabled(if: hasThirdPartyDeveloperIDApp(), "no third-party Developer ID app for the wrong-team case")
+)
+func testCodeTrustRefusesSignature() throws {
+    let release = releaseApp
     let running = CodeTrust.designatedRequirement(of: release)
     var bundles: [(name: String, url: URL)] = []
-    for other in ["/Applications/Rectangle.app", "/Applications/Loop.app"]
-    where FileManager.default.fileExists(atPath: other) {
+    for other in thirdPartyApps where FileManager.default.fileExists(atPath: other) {
         bundles.append((other, URL(fileURLWithPath: other)))
-    }
-    if bundles.isEmpty {
-        print("skip: no third-party Developer ID app for the wrong-team case")
     }
 
     let adhoc = try releaseCopy(release)
@@ -125,11 +122,12 @@ func run(_ tool: String, _ args: String...) throws -> Int32 {
 
 // A validly signed bundle named by MOORINGS_UNNOTARIZED_APP, a local Developer ID build that was
 // never notarized, fails at notarization.
-@Test func testCodeTrustRefusesUnnotarized() throws {
-    guard let path = ProcessInfo.processInfo.environment["MOORINGS_UNNOTARIZED_APP"] else {
-        print("skip: MOORINGS_UNNOTARIZED_APP is not set")
-        return
-    }
+@Test(
+    .enabled(
+        if: ProcessInfo.processInfo.environment["MOORINGS_UNNOTARIZED_APP"] != nil,
+        "MOORINGS_UNNOTARIZED_APP is not set"))
+func testCodeTrustRefusesUnnotarized() throws {
+    let path = try #require(ProcessInfo.processInfo.environment["MOORINGS_UNNOTARIZED_APP"])
     let bundle = URL(fileURLWithPath: path)
     let version = try #require(releaseVersion(bundle))
     let running = CodeTrust.designatedRequirement(of: bundle)

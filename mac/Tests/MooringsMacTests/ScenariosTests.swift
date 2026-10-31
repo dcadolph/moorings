@@ -80,17 +80,14 @@ extension MacHost: @preconcurrency ScenarioHost {
 
 // The Mac engine shows every scenario's behavior on Probe windows. It moves real windows on an
 // ultrawide, so it runs only when MOORINGS_LIVE_SCENARIOS is 1 on the owner's go; otherwise, or
-// without Accessibility access, the test prints why and passes. It fails when the run leaves the
+// without Accessibility access, the test is skipped. It fails when the run leaves the
 // system reading a modifier key as held.
-@Test @MainActor func testMacScenarios() {
-    guard ProcessInfo.processInfo.environment["MOORINGS_LIVE_SCENARIOS"] == "1" else {
-        print("Mac scenarios skipped: MOORINGS_LIVE_SCENARIOS is not 1")
-        return
-    }
-    guard AXIsProcessTrusted() else {
-        print("Mac scenarios skipped: this test host has no Accessibility access")
-        return
-    }
+@Test(
+    .enabled(
+        if: ProcessInfo.processInfo.environment["MOORINGS_LIVE_SCENARIOS"] == "1",
+        "MOORINGS_LIVE_SCENARIOS is not 1"),
+    .enabled(if: AXIsProcessTrusted(), "this test host has no Accessibility access")
+) @MainActor func testMacScenarios() {
     guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: MacHost.probe) != nil else {
         Issue.record("the probe is not installed. Run make probe in mac/ first")
         return

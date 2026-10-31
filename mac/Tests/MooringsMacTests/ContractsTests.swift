@@ -116,16 +116,13 @@ final class MacHost: @preconcurrency ContractHost {
 
 // The Mac adapters keep every contract rule. The suite opens and moves real Probe windows, so it
 // runs only when MOORINGS_LIVE_CONTRACTS is 1: on GitHub's macOS runner, and locally on the owner's
-// go. Otherwise, or without Accessibility access, it prints why and passes.
-@Test @MainActor func testMacContracts() {
-    guard ProcessInfo.processInfo.environment["MOORINGS_LIVE_CONTRACTS"] == "1" else {
-        print("Mac contracts skipped: MOORINGS_LIVE_CONTRACTS is not 1")
-        return
-    }
-    guard AXIsProcessTrusted() else {
-        print("Mac contracts skipped: this test host has no Accessibility access")
-        return
-    }
+// go. Otherwise, or without Accessibility access, it is skipped.
+@Test(
+    .enabled(
+        if: ProcessInfo.processInfo.environment["MOORINGS_LIVE_CONTRACTS"] == "1",
+        "MOORINGS_LIVE_CONTRACTS is not 1"),
+    .enabled(if: AXIsProcessTrusted(), "this test host has no Accessibility access")
+) @MainActor func testMacContracts() {
     guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: MacHost.probe) != nil else {
         Issue.record("the probe is not installed. Run make probe in mac/ first")
         return
