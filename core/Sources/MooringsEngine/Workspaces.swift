@@ -93,20 +93,21 @@ public final class WorkspaceKeeper {
     // saveWorkspace stores the layout in effect under name, keeping the display tie of a workspace
     // it replaces.
     public func saveWorkspace(_ name: String) {
-        let windows = freeWindows(platform.screens.current()).map {
+        let screens = platform.screens.current()
+        let windows = freeWindows(screens).map {
             SavedWindow(bundle: $0.bundle, title: title($0.id), frame: $0.frame)
         }
         let c = anchors.choices
         anchors.choices.workspaces[name] = Workspace(
             name: name, slots: c.slots, widths: anchors.widths,
             heights: anchors.heights, windows: windows,
-            setup: c.workspaces[name]?.setup)
+            setup: c.workspaces[name]?.setup, displays: screens.full)
         engine.save()
     }
 
     // recall puts back the workspace saved as name and reports whether it existed. Apps it opens get
-    // their windows placed once they show. Other windows whose app is not running, or whose display is
-    // gone, stay where they are.
+    // their windows placed once they show. Other windows whose app is not running stay where they are,
+    // and a window whose display is gone lands on the main screen where it sat in the saved setup.
     @discardableResult
     public func recall(_ name: String) -> Bool {
         guard let (missed, opened) = place(name) else { return false }
@@ -139,13 +140,14 @@ public final class WorkspaceKeeper {
         let live = freeWindows(screens)
         let info = live.map { WorkspaceWindow(id: $0.id, bundle: $0.bundle, title: title($0.id), frame: $0.frame) }
         let areas = areas(screens)
+        let bounds = Workspaces.bounds(ws)
         let matched = Workspaces.match(ws.windows, info)
         var missed = 0
         var waits = 0
         var opened: Set<String> = []
         for (i, saved) in ws.windows.enumerated() {
             if matched[i] == nil, let b = saved.launchBundle, !b.isEmpty,
-                let target = Workspaces.fit(saved.frame, areas)
+                let target = Workspaces.fit(saved.frame, areas, from: bounds)
             {
                 if opened.insert(b + "\u{0}" + (saved.openTarget ?? "")).inserted,
                     !platform.apps.open(b, background: true, target: saved.openTarget)
@@ -159,7 +161,7 @@ public final class WorkspaceKeeper {
                 waits += 1
                 continue
             }
-            guard let j = matched[i], let target = Workspaces.fit(saved.frame, areas) else {
+            guard let j = matched[i], let target = Workspaces.fit(saved.frame, areas, from: bounds) else {
                 missed += 1
                 continue
             }

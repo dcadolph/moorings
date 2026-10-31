@@ -104,3 +104,31 @@ import Testing
     ]
     #expect(Workspaces.recalling(all).map(\.name) == ["A", "Z"])
 }
+
+// A window whose center no screen holds is mapped from the saved setup onto the main screen in
+// proportion, and a workspace saved before displays were kept falls back to its windows' span.
+@Test func testWorkspacesFitRemapsAGoneDisplay() throws {
+    let laptop = ScreenAreas(full: F(0, 0, 1728, 1117), area: F(0, 25, 1728, 1080))
+    let wide = F(0, 0, 5120, 1440)
+    // Test 0: x 4000 on a 5120 wide setup maps to 1350 on 1728, then the width clamps it.
+    #expect(Workspaces.fit(F(4000, 100, 800, 600), [laptop], from: wide) == F(928, 100, 800, 600))
+    // Test 1: A narrow window keeps its proportional x.
+    #expect(Workspaces.fit(F(4000, 0, 200, 200), [laptop], from: wide) == F(1350, 25, 200, 200))
+    // Test 2: A center on a current screen is unchanged by the bounds.
+    #expect(Workspaces.fit(F(100, 100, 300, 300), [laptop], from: wide) == F(100, 100, 300, 300))
+    // Test 3: No bounds, or empty bounds, leaves it unplaced.
+    #expect(Workspaces.fit(F(4000, 100, 800, 600), [laptop]) == nil)
+    #expect(Workspaces.fit(F(4000, 100, 800, 600), [laptop], from: F(0, 0, 0, 0)) == nil)
+    // Test 4: bounds is the union of the displays, else of the windows.
+    let ws = Workspace(
+        name: "d", windows: [SavedWindow(bundle: "a", title: "", frame: F(4000, 100, 800, 600))],
+        displays: [F(0, 0, 3440, 1440), F(3440, 200, 1920, 1080)])
+    #expect(Workspaces.bounds(ws) == F(0, 0, 5360, 1440))
+    #expect(Workspaces.bounds(Workspace(name: "d", windows: ws.windows)) == F(4000, 100, 800, 600))
+    #expect(Workspaces.bounds(Workspace(name: "d")) == nil)
+    // Test 5: displays survive a round trip, and a file without them decodes empty.
+    let back = try JSONDecoder().decode(Workspace.self, from: JSONEncoder().encode(ws))
+    #expect(back.displays == ws.displays)
+    let old = try JSONDecoder().decode(Workspace.self, from: Data(#"{"name":"d"}"#.utf8))
+    #expect(old.displays.isEmpty)
+}
