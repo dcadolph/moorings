@@ -105,6 +105,8 @@ each part.
   name, then recall it from the menu, a shortcut or a link.
 - Tie a workspace to a set of displays, and plugging into that setup recalls it. Mark one to come
   back on any display change.
+- A window saved on a display that is no longer attached comes back on the main screen, placed in
+  proportion to where it sat on the saved setup.
 - Open missing apps: a recall opens the apps a workspace names that are not running, with the file
   or URL an imported settings file names, and places their windows once they show.
 - App rules: name an app and an action, and its first window goes there when it appears.
