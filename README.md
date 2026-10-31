@@ -128,6 +128,21 @@ first run.
 3. Drag a window to a screen edge. A footprint shows where it lands. Let go to snap it.
 4. Click an anchored window's green button to lift it over the channel. Click again to lower it.
 
+## Light on your Mac
+
+As light as Rectangle: 2.8 ms of CPU per action, 21 MB of memory, and no layout work at rest.
+Measured side by side with Rectangle 2.0.4 and Loop 1.4.2 on an M1 Max:
+
+| Measure        | Moorings | Rectangle | Loop    |
+| -------------- | -------- | --------- | ------- |
+| CPU per action | 2.8 ms   | 2.8 ms    | 25 ms   |
+| Memory         | 21 MB    | 22 MB     | 50 MB   |
+| Idle, 2 min    | 0.01 s   | 0.00 s    | 0.01 s  |
+
+Moorings holds anchored apps and the channel on every action and still matches Rectangle. No
+release ships unless it stays at or under Rectangle's CPU per action. Method in
+[COMPARISON.md](COMPARISON.md#energy).
+
 ## Docs
 
 How Moorings compares with every other Mac window manager, row by row with a check for each: [COMPARISON.md](COMPARISON.md).
