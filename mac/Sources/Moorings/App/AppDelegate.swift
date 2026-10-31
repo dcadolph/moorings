@@ -306,7 +306,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
         DispatchQueue.main.async { [self] in
-            guard let hit = Windows.hit(p),
+            guard let hit = windows.hit(p),
                 Behavior.onTitleBar(Point(x: p.x, y: p.y), window: hit.frame, button: hit.button, role: hit.role)
             else { return }
             let screens = Screens.current()
@@ -359,7 +359,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let front = Windows.front()
         let under = { (f: Frame) in p.x >= f.x && p.x < f.x + f.w && p.y >= f.y && p.y < f.y + f.h }
         guard let top = front.first(where: { under($0.frame) }), ButtonClicks.near(point, top.frame),
-            let hit = Windows.button(p), hit.id == top.id, let button = WindowButton(subrole: hit.subrole),
+            let hit = windows.button(p, top: top.id), hit.id == top.id, let button = WindowButton(subrole: hit.subrole),
             let name = ButtonClicks.action(
                 choices.buttonClicks, button, modifier,
                 sizes: Set(Bindings(choices).sizes.map(\.name)))
@@ -748,7 +748,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         logger.notice("status: update=\(self.updater.state.status, privacy: .public)")
         logger.notice(
-            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) observed=\(self.events.observed) hotkeys=\(self.hotkeys.enabled)"
+            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) slow=\(self.windows.stalledCount) observed=\(self.events.observed) hotkeys=\(self.hotkeys.enabled)"
         )
         for (key, bundle) in engine.anchors.assignments().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let held = engine.anchors.slotWindows(key).map(String.init).joined(separator: ",")

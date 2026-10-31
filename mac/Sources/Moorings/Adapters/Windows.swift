@@ -58,6 +58,9 @@ final class Windows {
     private var listed: [pid_t: [WindowID: Frame]] = [:]
     // slow holds the processes whose last window read could not complete.
     private var slow: Set<pid_t> = []
+    // stalls holds when each process last failed to answer an Accessibility call in time, by system
+    // uptime, cleared when a scan reads it again.
+    private(set) var stalls: [pid_t: Double] = [:]
     // lastPlan is which apps the last scan read.
     private(set) var lastPlan: PassPlan = .full
     // focus is the front app and its focused window at the last scan that read the front app, so a
@@ -171,6 +174,7 @@ final class Windows {
             var raw: CFTypeRef?
             if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw) == .cannotComplete {
                 slow.insert(pid)
+                stall(pid)
                 let carried = WindowInfo.carrying(last[pid] ?? [], frames: frames)
                 for w in carried {
                     seen[w.id] = elements[w.id]
@@ -180,6 +184,7 @@ final class Windows {
                 continue
             }
             slow.remove(pid)
+            stalls[pid] = nil
             let main = Self.element(app, kAXMainWindowAttribute).flatMap { Self.id($0) }
             for el in raw as? [AXUIElement] ?? [] {
                 guard let id = Self.id(el), rank[id] != nil,
@@ -207,11 +212,11 @@ final class Windows {
     }
 
     // focused reads the front app's focused window alone, without a scan, and caches its element so
-    // it can be moved. It returns nil when the window is not one a scan would keep or anything
-    // cannot be read, and the caller then scans.
+    // it can be moved. It returns nil when the window is not one a scan would keep, anything cannot be
+    // read, or the front app is stalled, and the caller then scans.
     func focused(_ screens: Screens) -> WindowInfo? {
-        guard let pid = front, pid != ProcessInfo.processInfo.processIdentifier,
-            let el = Self.element(appElement(pid), kAXFocusedWindowAttribute), let id = Self.id(el)
+        guard let pid = front, pid != ProcessInfo.processInfo.processIdentifier, !stalled(pid),
+            let el = ask(appElement(pid), kAXFocusedWindowAttribute, pid: pid), let id = Self.id(el)
         else { return nil }
         return read(el, id: id, pid: pid, screens: screens)
     }
@@ -224,15 +229,17 @@ final class Windows {
     }
 
     // read describes window el with id of the app with pid as a scan would, and caches its element.
-    // It returns nil when the app is hidden or has no bundle id, or when a scan would drop the window.
+    // It returns nil when the app is hidden, stalled or has no bundle id, or when a scan would drop the
+    // window.
     private func read(_ el: AXUIElement, id: WindowID, pid: pid_t, screens: Screens) -> WindowInfo? {
-        guard lookup(id)?.pid == pid else { return nil }
+        guard !stalled(pid), lookup(id)?.pid == pid else { return nil }
         if running[pid] == nil, let app = NSRunningApplication(processIdentifier: pid) {
             running[pid] = RunningApp(app: app, bundle: app.bundleIdentifier, hidden: app.isHidden)
         }
         guard let cached = running[pid], let bundle = cached.bundle, !cached.hidden else { return nil }
-        let main = Self.element(appElement(pid), kAXMainWindowAttribute).flatMap { Self.id($0) }
-        guard let info = info(el, id: id, bundle: bundle, isMain: id == main, screens: screens) else { return nil }
+        let main = ask(appElement(pid), kAXMainWindowAttribute, pid: pid).flatMap { Self.id($0) }
+        guard !stalled(pid), let info = info(el, id: id, bundle: bundle, isMain: id == main, screens: screens)
+        else { return nil }
         elements[id] = el
         kept.insert(id)
         return info
@@ -427,9 +434,13 @@ final class Windows {
         elements[id].flatMap { Self.string($0, kAXTitleAttribute) }.flatMap { $0.isEmpty ? nil : $0 }
     }
 
-    // hit returns the window under p, in top-left coordinates, nil when no window is there.
+    // hit returns the window under p, in top-left coordinates, nil when no window is there. The window
+    // of a stalled app is named from the window server list without asking the app.
     func hit(_ p: Point) -> WindowID? {
-        Self.hit(CGPoint(x: p.x, y: p.y))?.id
+        if let top = top(at: CGPoint(x: p.x, y: p.y)), stalled(top.pid) {
+            return top.id
+        }
+        return hit(CGPoint(x: p.x, y: p.y))?.id
     }
 
     // exitFullScreen asks the window with id to leave native fullscreen.
@@ -454,30 +465,81 @@ final class Windows {
     }
 
     // hit reads the element at p and the window it belongs to: the window's id, frame and green button
-    // and the element's role. It returns nil when no window is there.
-    static func hit(_ p: CGPoint) -> (id: WindowID, frame: Frame, button: Frame?, role: String?)? {
-        let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, timeout)
-        var found: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(system, Float(p.x), Float(p.y), &found) == .success, let el = found
+    // and the element's role. It returns nil when no window is there or the app whose window is on top
+    // at p is stalled.
+    func hit(_ p: CGPoint) -> (id: WindowID, frame: Frame, button: Frame?, role: String?)? {
+        guard let el = element(at: p, owner: top(at: p)?.pid) else { return nil }
+        let role = Self.string(el, kAXRoleAttribute)
+        guard let win = role == kAXWindowRole ? el : Self.element(el, kAXWindowAttribute), let id = Self.id(win),
+            let frame = Self.frame(win)
         else { return nil }
-        let role = string(el, kAXRoleAttribute)
-        guard let win = role == kAXWindowRole ? el : element(el, kAXWindowAttribute), let id = id(win),
-            let frame = frame(win)
-        else { return nil }
-        return (id, frame, element(win, kAXZoomButtonAttribute).flatMap { Self.frame($0) }, role)
+        return (id, frame, Self.element(win, kAXZoomButtonAttribute).flatMap { Self.frame($0) }, role)
     }
 
     // button reads the element at p and returns its window's id and the element's subrole, which names
-    // a title bar button. It returns nil when no window is there.
-    static func button(_ p: CGPoint) -> (id: WindowID, subrole: String?)? {
-        let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, timeout)
-        var found: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(system, Float(p.x), Float(p.y), &found) == .success, let el = found,
-            let win = element(el, kAXWindowAttribute), let id = id(win)
+    // a title bar button. top is the window on top at p. It returns nil when no window is there or
+    // top's app is stalled.
+    func button(_ p: CGPoint, top: WindowID) -> (id: WindowID, subrole: String?)? {
+        guard let el = element(at: p, owner: lookup(top)?.pid), let win = Self.element(el, kAXWindowAttribute),
+            let id = Self.id(win)
         else { return nil }
-        return (id, string(el, kAXSubroleAttribute))
+        return (id, Self.string(el, kAXSubroleAttribute))
+    }
+
+    // element asks for the element at p through the system-wide element, unless owner, the app whose
+    // window is on top at p, is stalled. An owner that cannot answer in time is marked stalled.
+    private func element(at p: CGPoint, owner: pid_t?) -> AXUIElement? {
+        if let owner, stalled(owner) {
+            return nil
+        }
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, Self.timeout)
+        var found: AXUIElement?
+        let err = AXUIElementCopyElementAtPosition(system, Float(p.x), Float(p.y), &found)
+        if err == .cannotComplete, let owner {
+            stall(owner)
+        }
+        return err == .success ? found : nil
+    }
+
+    // top returns the window on top at p on the window server list, nil when none is there.
+    private func top(at p: CGPoint) -> Listing? {
+        list().first {
+            p.x >= $0.frame.x && p.x < $0.frame.x + $0.frame.w && p.y >= $0.frame.y && p.y < $0.frame.y + $0.frame.h
+        }
+    }
+
+    // stallSeconds is how long a process that failed to answer in time is not asked again outside a
+    // scan.
+    static let stallSeconds = Pace.busySeconds
+
+    // stalled reports whether the process with pid failed to answer an Accessibility call in time
+    // within the last stallSeconds. focused, read, hit and button do not ask it, so a hung app costs
+    // one timeout per pass, the scan's, instead of one per call.
+    func stalled(_ pid: pid_t) -> Bool {
+        stalls[pid].map { ProcessInfo.processInfo.systemUptime - $0 < Self.stallSeconds } ?? false
+    }
+
+    // stalledCount is how many processes are stalled now.
+    var stalledCount: Int {
+        stalls.keys.filter { stalled($0) }.count
+    }
+
+    // stall marks the process with pid as failing to answer in time at uptime at.
+    func stall(_ pid: pid_t, at: Double = ProcessInfo.processInfo.systemUptime) {
+        stalls[pid] = at
+    }
+
+    // ask returns an element attribute of el, which belongs to the process with pid, and marks the
+    // process stalled when it cannot answer in time.
+    private func ask(_ el: AXUIElement, _ attribute: String, pid: pid_t) -> AXUIElement? {
+        var v: CFTypeRef?
+        let err = AXUIElementCopyAttributeValue(el, attribute as CFString, &v)
+        if err == .cannotComplete {
+            stall(pid)
+        }
+        guard err == .success, let v, CFGetTypeID(v) == AXUIElementGetTypeID() else { return nil }
+        return unsafeDowncast(v, to: AXUIElement.self)
     }
 
     // raiseSettle is how long in seconds raise waits after activating an app before it raises the
@@ -540,6 +602,7 @@ final class Windows {
         last[pid] = nil
         listed[pid] = nil
         slow.remove(pid)
+        stalls[pid] = nil
     }
 
     // pid returns the process that owns the window with id, nil when the store holds no element for it.
@@ -620,14 +683,16 @@ final class Windows {
 
     // traits reads what decides whether el may be moved, and its zoom button, in one Accessibility
     // call. An attribute el lacks comes back as an error in its place and counts as missing. When the
-    // app rejects the call as a whole, each attribute is asked on its own.
+    // app rejects the call as a whole, each attribute is asked on its own, unless it could not answer in
+    // time, when every attribute counts as missing rather than wait out one timeout each.
     static func traits(_ el: AXUIElement) -> (traits: WindowTraits, zoomButton: AXUIElement?) {
         var raw: CFArray?
         let values: [CFTypeRef?]
-        if AXUIElementCopyMultipleAttributeValues(el, traitNames as CFArray, [], &raw) == .success,
-            let list = raw as [AnyObject]?, list.count == traitNames.count
-        {
+        let err = AXUIElementCopyMultipleAttributeValues(el, traitNames as CFArray, [], &raw)
+        if err == .success, let list = raw as [AnyObject]?, list.count == traitNames.count {
             values = list.map { present($0) }
+        } else if err == .cannotComplete {
+            values = traitNames.map { _ in nil }
         } else {
             values = traitNames.map { value(el, $0) }
         }
