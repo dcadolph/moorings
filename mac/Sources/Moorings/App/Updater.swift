@@ -392,6 +392,11 @@ final class Updater {
             return beside
         }
     }
+
+    // unswap puts the backup back at the bundle path and removes the bundle the swap installed.
+    nonisolated static func unswap(bundle: URL, backup: URL) throws {
+        _ = try FileManager.default.replaceItemAt(bundle, withItemAt: backup)
+    }
 }
 
 // LaunchMarker is how a build says it started, and how the next launch learns the last one ended

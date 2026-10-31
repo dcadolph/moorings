@@ -286,6 +286,8 @@ enum Relaunch {
         var wait = 30
         // opener starts the bundle. /usr/bin/open in the app, a shell in tests.
         var opener = "/usr/bin/open"
+        // shell runs the helper script. /bin/sh in the app, a missing path in tests that expect failure.
+        var shell = "/bin/sh"
         // pid is the process the helper waits on before it starts the bundle.
         var pid = ProcessInfo.processInfo.processIdentifier
     }
@@ -302,7 +304,7 @@ enum Relaunch {
     @discardableResult
     static func start(_ plan: Plan, extra: [String] = []) throws -> Process {
         let task = Process()
-        task.executableURL = URL(fileURLWithPath: "/bin/sh")
+        task.executableURL = URL(fileURLWithPath: plan.shell)
         task.arguments = arguments(plan, extra: extra)
         task.standardOutput = FileHandle.nullDevice
         task.standardError = FileHandle.nullDevice
