@@ -15,15 +15,16 @@
 #           footprint -p at the end of the run.
 #   Idle    Moorings at most 0.03 s of CPU over the idle window with both rivals running beside it,
 #           and zero "pass" lines (one per pass, at debug level) in the log stream of the Moorings
-#           subsystem during that window. CPU is the ps cputime delta.
+#           subsystem during that window. CPU is the delta of the user plus system time the probe
+#           reads in microseconds with proc_pid_rusage.
 #   Active  Moorings CPU per action at most 1.0 times Rectangle's and at most Loop's, each the
-#           median over ROUNDS active phases. Per action is the cputime delta over an app's own
-#           active phase divided by N. Each phase sends N alternating left and right half actions to
-#           one Probe window. A round runs Moorings, Rectangle and Loop in turn, so a slow minute
+#           median over ROUNDS active phases. Per action is the CPU time delta, read in
+#           microseconds, over an app's own active phase divided by N. Each phase sends N
+#           alternating left and right half actions to one Probe window. A round runs Moorings, Rectangle and Loop in turn, so a slow minute
 #           lands on every app rather than on one.
 #   Paused  Moorings at most 1 ms of CPU per foreign move (0.10 s over 100 moves). It is the median
-#           Moorings cputime delta during the Rectangle active phases, while Moorings is paused,
-#           divided by N. The Loop phase figure is shown in the table only.
+#           Moorings CPU time delta, read in microseconds, during the Rectangle active phases, while
+#           Moorings is paused, divided by N. The Loop phase figure is shown in the table only.
 #
 # The probe opens its window before the idle window and the bench waits out the 30 s in which
 # Moorings reads every app for a launched app's first window, and each active phase starts 3 s after
@@ -49,8 +50,8 @@ streampid=""
 # pid prints the first pid of the named app's binary under /Applications.
 pid() { pgrep -f "/Applications/$1.app/Contents/MacOS/$1" | head -1; }
 
-# cpu prints the cumulative CPU seconds of a pid.
-cpu() { ps -o time= -p "$1" | awk -F'[:.]' '{ printf "%.2f", $1*60 + $2 + $3/100 }'; }
+# cpu prints the cumulative CPU seconds of a pid, to the microsecond, as the probe reads them.
+cpu() { "$(dirname "$0")/../.build/MooringsProbe.app/Contents/MacOS/MooringsProbe" --cpu "$1"; }
 
 # mem prints phys_footprint of a pid in the unit footprint reports.
 mem() { footprint -p "$1" 2>/dev/null | awk '/phys_footprint:/ { print $2 $3 }' | head -1; }
@@ -95,7 +96,7 @@ snap() {
 delta() {
 	eval "base=\$C0_$1"
 	now=$(cpu "$(pidof_app "$1")")
-	echo "$now $base" | awk '{ printf "%.2f", $1 - $2 }'
+	echo "$now $base" | awk '{ printf "%.4f", $1 - $2 }'
 }
 
 # report prints one table line per app and stores the deltas as D_<label>_<app>, with every
@@ -108,7 +109,7 @@ report() {
 		d=$(delta "$a")
 		eval "D_${key}_$a=$d"
 		p=$(pidof_app "$a")
-		printf "%-16s %-10s cpu %6.2f s over %4s s (%5.2f%%)  mem %s  peak %s\n" "$label" "$a" "$d" \
+		printf "%-16s %-10s cpu %8.4f s over %4s s (%5.2f%%)  mem %s  peak %s\n" "$label" "$a" "$d" \
 			"$secs" "$(echo "$d $secs" | awk '{ printf "%.4f", $1 * 100 / $2 }')" "$(mem "$p")" "$(peak "$p")"
 	done
 }

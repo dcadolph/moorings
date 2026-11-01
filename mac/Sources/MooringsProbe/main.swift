@@ -122,6 +122,30 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 }
 
+// cpuSeconds returns the user plus system CPU seconds of the process with pid, nil when it cannot be
+// read. rusage_info_v4 counts in Mach absolute time units, which are not nanoseconds on Apple silicon.
+func cpuSeconds(_ pid: pid_t) -> Double? {
+    var info = rusage_info_v4()
+    let err = withUnsafeMutablePointer(to: &info) {
+        $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V4, $0) }
+    }
+    guard err == 0 else { return nil }
+    var base = mach_timebase_info_data_t()
+    mach_timebase_info(&base)
+    return Double(info.ri_user_time + info.ri_system_time) * Double(base.numer) / Double(base.denom) / 1e9
+}
+
+// The --cpu mode prints a process's CPU seconds for the bench and exits without opening a window.
+let args = CommandLine.arguments
+if args.count == 3, args[1] == "--cpu" {
+    guard let pid = pid_t(args[2]), let secs = cpuSeconds(pid) else {
+        FileHandle.standardError.write(Data("probe: cannot read the CPU time of pid \(args[2])\n".utf8))
+        exit(1)
+    }
+    print(String(format: "%.6f", secs))
+    exit(0)
+}
+
 MainActor.assumeIsolated {
     let probe = Probe()
     NSApplication.shared.delegate = probe
