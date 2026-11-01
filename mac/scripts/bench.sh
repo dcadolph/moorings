@@ -3,6 +3,8 @@
 #
 # Usage: bench.sh
 #
+# Release bench: ROUNDS=5 make bench
+#
 # Environment:
 #   N     Actions per active phase (default 100).
 #   IDLE  Seconds of the idle window (default 120).
@@ -244,6 +246,14 @@ pau_l=$(median $(phases Loop Moorings))
 
 echo
 echo "active           per action over $ROUNDS rounds: Moorings ${all_m}s, Rectangle ${all_r}s, Loop ${all_l}s"
+echo "$act_m $act_r|$all_m|$all_r" | awk -F'|' '{
+	split($1, med, " ")
+	n = split($2, m, " ")
+	split($3, r, " ")
+	rounds = ""
+	for (i = 1; i <= n; i++) rounds = rounds sprintf(" %.2f", m[i] / r[i])
+	printf "active ratio Moorings/Rectangle: %.2f (rounds%s)\n", med[1] / med[2], rounds
+}'
 echo "paused           Moorings   median cpu per foreign move: Rectangle phases $pau_m s, Loop phases $pau_l s"
 echo
 echo "verdict"
@@ -252,7 +262,7 @@ check Memory "$ok" "measured ${mem_m}MB, bound min(1.5 x Rectangle ${mem_r}MB, L
 ok=$(echo "$D_idle_Moorings $passes" | awk '{ print ($1 <= 0.03 && $2 == 0) ? 1 : 0 }')
 check Idle "$ok" "measured ${D_idle_Moorings} s and $passes pass lines, bound 0.03 s and 0 pass lines"
 ok=$(echo "$act_m $act_r $act_l $BOUND" | awk '{ print ($1 <= $4 * $2 && $1 <= $3) ? 1 : 0 }')
-check Active "$ok" "median ${act_m} s per action, bound min(${BOUND} x Rectangle ${act_r}, Loop ${act_l})"
+check Active "$ok" "median ${act_m} s per action, ratio $(echo "$act_m $act_r" | awk '{ printf "%.2f", $1 / $2 }'), bound min(${BOUND} x Rectangle ${act_r}, Loop ${act_l})"
 ok=$(echo "$pau_m" | awk '{ print ($1 <= 0.001) ? 1 : 0 }')
 check Paused "$ok" "measured ${pau_m} s per foreign move, bound 0.001 s"
 
