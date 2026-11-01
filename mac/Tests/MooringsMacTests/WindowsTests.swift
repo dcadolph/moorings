@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 
@@ -92,4 +93,50 @@ import MooringsCore
     windows.stall(pid, at: now)
     windows.forget(pid)
     #expect(windows.stalls[pid] == nil)
+}
+
+// focused asks the window server for a window once, trusts that confirmation for PassPlan.fullSeconds
+// and asks again after it, so a window its app floats is refused within the bound, while window always
+// asks. It opens a real Probe window, so it runs only when MOORINGS_LIVE_CONTRACTS is 1, with
+// Accessibility access.
+@Test(
+    .enabled(
+        if: ProcessInfo.processInfo.environment["MOORINGS_LIVE_CONTRACTS"] == "1",
+        "MOORINGS_LIVE_CONTRACTS is not 1"),
+    .enabled(if: AXIsProcessTrusted(), "this test host has no Accessibility access")
+) @MainActor func testFocusedTrustsARecentConfirmation() {
+    guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: MacHost.probe) != nil else {
+        Issue.record("the probe is not installed. Run make probe in mac/ first")
+        return
+    }
+    _ = NSApplication.shared
+    let host = MacHost(store: Windows())
+    defer { host.finish() }
+    guard let id = host.open() else {
+        Issue.record("the probe opened no window")
+        return
+    }
+    let screens = Screens.current()
+    guard host.wait(until: host.now + 5, { host.store.focused(screens)?.id == id }) else {
+        Issue.record("the probe window \(id) never had focus")
+        return
+    }
+    var asked = 0
+    let windows = Windows(lookup: { id in
+        asked += 1
+        return Windows.onScreen(id)
+    })
+    // Test 0: The first read asks, since nothing has confirmed the window yet.
+    #expect(windows.focused(screens)?.id == id)
+    #expect(asked == 1)
+    // Test 1: The second read trusts the confirmation the first one made.
+    #expect(windows.focused(screens)?.id == id)
+    #expect(asked == 1)
+    // Test 2: A confirmation older than fullSeconds is not trusted, so the read asks again.
+    windows.backdate(id, by: PassPlan.fullSeconds + 1)
+    #expect(windows.focused(screens)?.id == id)
+    #expect(asked == 2)
+    // Test 3: Reading the window by id always asks, however recent its confirmation.
+    #expect(windows.window(id, screens: screens)?.id == id)
+    #expect(asked == 3)
 }

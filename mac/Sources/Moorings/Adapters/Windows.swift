@@ -29,8 +29,15 @@ final class Windows {
     // elements maps each window a scan or read has seen to its element, kept until the window is gone
     // or its app quits, so a minimized window or one on another Space can still be acted on.
     private(set) var elements: [WindowID: AXUIElement] = [:]
-    // kept lists the windows the last scan kept, plus any read alone since.
-    private var kept: Set<WindowID> = []
+    // confirmed holds each window the last scan kept, plus any read alone since, with the system
+    // uptime at which the window server last showed it at the normal layer and owned by its app. An
+    // app can move its own window off that layer (Float on Top) with no Accessibility notification,
+    // so focused trusts a confirmation only for PassPlan.fullSeconds, the same gap the pass plan
+    // allows between full reads, and asks the window server again after it.
+    private var confirmed: [WindowID: Double] = [:]
+    // listedAt is when the window server gave the list the last scan used, by system uptime, which a
+    // scan that carries the list keeps.
+    private var listedAt = -Double.infinity
     // zooms caches each window's green button rect with the frame it was read at, so it is asked
     // for again only when the window moves.
     private var zooms: [WindowID: (frame: Frame, rect: Frame?)] = [:]
@@ -144,6 +151,9 @@ final class Windows {
         listed = now
         listing = order
         lastScan = ProcessInfo.processInfo.systemUptime
+        if !carry {
+            listedAt = lastScan
+        }
         readBack = [:]
         lastPlan = plan
         running = running.filter { pids.contains($0.key) }
@@ -202,7 +212,7 @@ final class Windows {
         found = WindowInfo.promotingLone(found)
         last = byPid
         elements.merge(seen) { _, new in new }
-        kept = Set(seen.keys)
+        confirmed = Dictionary(uniqueKeysWithValues: seen.keys.map { ($0, max(confirmed[$0] ?? listedAt, listedAt)) })
         zooms = zooms.filter { seen[$0.key] != nil }
         found.sort { rank[$0.id, default: .max] < rank[$1.id, default: .max] }
         if let focusedID, let i = found.firstIndex(where: { $0.id == focusedID }) {
@@ -213,16 +223,21 @@ final class Windows {
 
     // focused reads the front app's focused window alone, without a scan, and caches its element so
     // it can be moved. It returns nil when the window is not one a scan would keep, anything cannot be
-    // read, or the front app is stalled, and the caller then scans.
+    // read, or the front app is stalled, and the caller then scans. It skips the window server lookup
+    // for a window confirmed within PassPlan.fullSeconds: the element came from the front app, so the
+    // owner matches, and only the layer can have changed since, which an app does with no notification.
     func focused(_ screens: Screens) -> WindowInfo? {
         guard let pid = front, pid != ProcessInfo.processInfo.processIdentifier, !stalled(pid),
             let el = ask(appElement(pid), kAXFocusedWindowAttribute, pid: pid), let id = Self.id(el)
         else { return nil }
-        return read(el, id: id, pid: pid, screens: screens)
+        let at = confirmed[id] ?? -.infinity
+        let trusted = ProcessInfo.processInfo.systemUptime - at < PassPlan.fullSeconds
+        return read(el, id: id, pid: pid, screens: screens, trusted: trusted)
     }
 
     // window reads the window with id alone, without a scan, when the store holds its element, and
-    // returns nil otherwise or when it cannot be read.
+    // returns nil otherwise or when it cannot be read. It always asks the window server, since menus
+    // and clicks name a window they chose and a window a scan dropped may be named there.
     func window(_ id: WindowID, screens: Screens) -> WindowInfo? {
         guard let el = elements[id], let pid = Self.pid(el) else { return nil }
         return read(el, id: id, pid: pid, screens: screens)
@@ -230,9 +245,14 @@ final class Windows {
 
     // read describes window el with id of the app with pid as a scan would, and caches its element.
     // It returns nil when the app is hidden, stalled or has no bundle id, or when a scan would drop the
-    // window.
-    private func read(_ el: AXUIElement, id: WindowID, pid: pid_t, screens: Screens) -> WindowInfo? {
-        guard !stalled(pid), lookup(id)?.pid == pid else { return nil }
+    // window. trusted skips asking the window server whether the window is on screen at the normal
+    // layer and owned by pid, which focused passes only inside the confirmation bound. A lookup that
+    // passes confirms the window again.
+    private func read(_ el: AXUIElement, id: WindowID, pid: pid_t, screens: Screens, trusted: Bool = false)
+        -> WindowInfo?
+    {
+        let looked = ProcessInfo.processInfo.systemUptime
+        guard !stalled(pid), trusted || lookup(id)?.pid == pid else { return nil }
         if running[pid] == nil, let app = NSRunningApplication(processIdentifier: pid) {
             running[pid] = RunningApp(app: app, bundle: app.bundleIdentifier, hidden: app.isHidden)
         }
@@ -241,7 +261,9 @@ final class Windows {
         guard !stalled(pid), let info = info(el, id: id, bundle: bundle, isMain: id == main, screens: screens)
         else { return nil }
         elements[id] = el
-        kept.insert(id)
+        if !trusted {
+            confirmed[id] = looked
+        }
         return info
     }
 
@@ -654,7 +676,13 @@ final class Windows {
 
     // keeps reports whether the last scan kept the window with id.
     func keeps(_ id: WindowID?) -> Bool {
-        id.map { kept.contains($0) } ?? false
+        id.map { confirmed[$0] != nil } ?? false
+    }
+
+    // backdate moves the confirmation of the window with id seconds into the past, so a test can
+    // reach the end of the bound without waiting for it.
+    func backdate(_ id: WindowID, by seconds: Double) {
+        confirmed[id]? -= seconds
     }
 
     // eligible reports whether a scan would keep el by its kind: a document window or a file panel.
