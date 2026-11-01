@@ -27,11 +27,12 @@ public final class ChannelCycle {
         self.anchors = anchors
     }
 
-    // wanted reports whether the keys belong to the channel for scan on screens: the switch is on,
-    // nothing is paused, the shortcuts are on, the organize actions run here, an ultrawide is attached
-    // and the focused window fills the channel.
+    // wanted reports whether the keys belong to the channel for scan on screens: the root declares
+    // the channel cycle, the switch is on, nothing is paused, the shortcuts are on, the organize
+    // actions run here, an ultrawide is attached and the focused window fills the channel.
     func wanted(_ scan: Scan, screens: Screens) -> Bool {
-        guard anchors.choices.channelCycle, !anchors.choices.paused, platform.keys.shortcutsOn,
+        guard engine.features.contains(.channelCycle), anchors.choices.channelCycle, !anchors.choices.paused,
+            platform.keys.shortcutsOn,
             engine.offers(Self.keys[1].tag), screens.ultrawide != nil, let w = scan.focused
         else { return false }
         return engine.actions.fills(w, screens: screens)
