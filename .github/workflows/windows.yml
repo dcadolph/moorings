@@ -1,19 +1,21 @@
 name: windows
 
-# Build the package, run its Swift suite, and probe the Windows app on Windows. A push to a
-# spike/ branch runs the same checks as a trial: the job may fail there without failing the run,
-# so a Windows experiment is read from the job's result instead of a red run on the PR.
+# Build the package, run its Swift suite, and probe the Windows app on Windows. A push to
+# windows-parity or a spike/ branch is a read: the job may fail there without failing the run, so
+# the work in progress is read from the job's result. A pull request to main that touches windows/
+# and a manual dispatch are the gate: the job's result is the run's result.
 on:
   push:
-    branches: [main, "spike/**"]
+    branches: [windows-parity, "spike/**"]
   pull_request:
     branches: [main]
+    paths: ["windows/**", ".github/workflows/windows.yml"]
   workflow_dispatch:
 
 jobs:
   core:
     runs-on: windows-latest
-    continue-on-error: ${{ startsWith(github.ref, 'refs/heads/spike/') }}
+    continue-on-error: ${{ github.event_name == 'push' }}
     defaults:
       run:
         working-directory: windows
