@@ -33,6 +33,7 @@ func probeScenarios(_ opts: ProbeOptions) -> Int32 {
     }
     let app = App(store: Store(url: file), minAspect: opts.minAspect)
     app.windows.corrects = !opts.noDelta
+    WinDrag.verbose = true
     app.notify = { title, body in print("notice: \(title): \(body)") }
     let host = WinHost(minAspect: opts.minAspect)
     host.timers = { app.timers.fire($0) || app.mouse.tick($0) }

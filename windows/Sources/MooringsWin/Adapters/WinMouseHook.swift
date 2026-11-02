@@ -85,6 +85,9 @@ final class WinMouseHook {
         let x = Int32(truncatingIfNeeded: msg.lParam >> 32), y = Int32(truncatingIfNeeded: msg.lParam)
         let p = SnapPoint(Double(x), Double(y))
         point = p
+        if msg.wParam == WPARAM(WM_LBUTTONDOWN) {
+            WinDrag.classify(POINT(x: x, y: y), at: Self.press?.tick ?? GetTickCount64())
+        }
         handler(UINT(msg.wParam), p)
         return true
     }
@@ -126,40 +129,56 @@ final class WinDrag {
         self.app = app
     }
 
-    // began starts following hwnd, which the owner started moving or sizing. The caption moves and a
-    // border sizes; with no answer the follower decides from the first frame change. When Windows
-    // drags an outline the window stays put until the drop, so the hit test reads the point where the
-    // button went down on hwnd: by the time a busy loop hears the start, the cursor can have left the
-    // caption. A full-window drag carries the caption under the cursor, so it reads the cursor.
+    // began starts following hwnd, which the owner started moving or sizing. The press was classified
+    // when the button went down, before the window under it could move: a press on hwnd within
+    // pressMillis that hwnd answered HTCAPTION moves it, any other answer sizes it. With no such
+    // press, or no answer, the follower decides from the first frame change. The cursor is never
+    // read here, since a full-window drag has carried the window off the press point by now and a
+    // window in its move loop can answer its own caption as client.
     func began(_ hwnd: HWND) {
-        let press = Self.press(on: hwnd)
-        var cursor = POINT()
-        let point = (Self.fullDrag ? nil : press) ?? (GetCursorPos(&cursor) ? cursor : nil)
-        app.engine.drag.began(
-            window: WinWindows.id(hwnd), moving: point.flatMap { Self.hit(hwnd, at: $0) }.map { $0 == Self.caption },
-            at: press.map { Point(x: Double($0.x), y: Double($0.y)) })
+        let last = Self.lastPress
+        let press = last.flatMap { GetTickCount64() &- $0.tick <= Self.pressMillis && $0.root == hwnd ? $0 : nil }
+        let moving = press.flatMap { p in p.answer.map { $0 == Self.caption } }
+        let id = WinWindows.id(hwnd)
+        if Self.verbose {
+            let age = last.map { "\(GetTickCount64() &- $0.tick)" } ?? "none"
+            let root = last?.root.map(WinWindows.className) ?? "none"
+            print(
+                "drag: began \(hex(id)) press \(last.map { "\($0.x) \($0.y)" } ?? "none") age \(age) ms",
+                "root \(root) hit \(last?.answer.map { "\($0)" } ?? "none") moving \(moving.map { "\($0)" } ?? "nil")")
+        }
+        app.engine.drag.began(window: id, moving: moving, at: press.map { Point(x: Double($0.x), y: Double($0.y)) })
+    }
+
+    // Press is a left button press as the loop thread classified it when the hook delivered it.
+    struct Press {
+        // x is the press's horizontal position on the virtual desktop.
+        var x: Int32
+        // y is the press's vertical position on the virtual desktop.
+        var y: Int32
+        // tick is when the button went down, by GetTickCount64.
+        var tick: UInt64
+        // root is the top-level window under the press, nil over none.
+        var root: HWND?
+        // answer is root's WM_NCHITTEST answer at the press, nil when it gave none in time.
+        var answer: DWORD_PTR?
     }
 
     // caption is HTCAPTION.
     static let caption: DWORD_PTR = 2
-    // pressMillis is how long after the press a move or size may start and still be judged at the
-    // press point, the longest Windows waits on a low-level hook.
+    // pressMillis is how long after the press a move or size may start and still be judged by the
+    // press, the longest Windows waits on a low-level hook.
     static let pressMillis: UInt64 = 1000
+    // lastPress is the last left button press, classified on the loop thread.
+    nonisolated(unsafe) static var lastPress: Press?
+    // verbose prints a drag line on each start, for the scenarios probe. The app never sets it.
+    nonisolated(unsafe) static var verbose = false
 
-    // press returns where the left button last went down when that was on hwnd within pressMillis,
-    // nil otherwise.
-    static func press(on hwnd: HWND) -> POINT? {
-        guard let p = WinMouseHook.press, GetTickCount64() &- p.tick <= pressMillis else { return nil }
-        let point = POINT(x: p.x, y: p.y)
-        guard let child = WindowFromPoint(point), GetAncestor(child, WinWatcher.root) == hwnd else { return nil }
-        return point
-    }
-
-    // fullDrag reports whether Windows moves the whole window during a drag rather than an outline.
-    static var fullDrag: Bool {
-        var full: WindowsBool = false
-        _ = SystemParametersInfoW(UINT(SPI_GETDRAGFULLWINDOWS), 0, &full, 0)
-        return full.boolValue
+    // classify records the press at p, made at tick, with the top-level window under it and that
+    // window's hit test answer there.
+    static func classify(_ p: POINT, at tick: UInt64) {
+        let root = WindowFromPoint(p).flatMap { GetAncestor($0, WinWatcher.root) }
+        lastPress = Press(x: p.x, y: p.y, tick: tick, root: root, answer: root.flatMap { hit($0, at: p) })
     }
 
     // hit returns hwnd's answer to WM_NCHITTEST at p, nil when the window gives no answer inside 100 ms.
