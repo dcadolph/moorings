@@ -149,7 +149,7 @@ struct ProbeOptions {
                 seconds = n
             case "--minutes":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
-                guard let n = Int(value), (1...300).contains(n) else { throw ProbeError.badValue(flag, value) }
+                guard let n = Int(value), (1...340).contains(n) else { throw ProbeError.badValue(flag, value) }
                 minutes = n
             case "--pid":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
