@@ -97,6 +97,13 @@ final class WinHost: ContractHost {
     private let minAspect: Double
     // stands lists the stand-in processes the host started.
     private var stands: [Process] = []
+    // standIn is the lowercased path of the browser open launches in place of the stand probe, nil for
+    // the stand probe's window.
+    var standIn: String?
+    // browsers lists the processes that own the browser windows the host opened.
+    var browsers: [DWORD] = []
+    // profiles lists the fresh browser profile folders the host made.
+    var profiles: [URL] = []
     // first is the first stand-in window the host opened, whose border the minimum leaves out.
     private var first: HWND?
 
@@ -121,8 +128,16 @@ final class WinHost: ContractHost {
         Screens.current(minAspect: minAspect)
     }
 
-    // open starts a stand-in process and returns its window once it shows.
+    // open starts a stand-in process, or the stand-in browser when there is one, and returns its window
+    // once it shows.
     func open() -> WindowID? {
+        if let standIn {
+            let found = openBrowser(standIn)
+            if first == nil {
+                first = found
+            }
+            return found.map(WinWindows.id)
+        }
         let p = Process()
         p.executableURL = URL(fileURLWithPath: LoginItem.executable)
         p.arguments = ["--probe", "stand", "--seconds", "120"]
@@ -152,8 +167,12 @@ final class WinHost: ContractHost {
         nil
     }
 
-    // knownApp is Notepad's image path, the identity the store gives its windows.
+    // knownApp is the stand-in browser's image path, else Notepad's, the identity the store gives
+    // their windows.
     var knownApp: String? {
+        if let standIn {
+            return standIn
+        }
         let root = ProcessInfo.processInfo.environment["SystemRoot"] ?? "C:\\Windows"
         return (root + "\\System32\\notepad.exe").lowercased()
     }
@@ -220,12 +239,13 @@ final class WinHost: ContractHost {
         return true
     }
 
-    // finish ends every stand-in process.
+    // finish ends every stand-in process and every browser the host opened.
     func finish() {
         for p in stands where p.isRunning {
             p.terminate()
         }
         stands = []
+        closeBrowsers()
         first = nil
     }
 }
