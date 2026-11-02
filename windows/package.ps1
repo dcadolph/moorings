@@ -60,8 +60,12 @@ What it does
 - Pause stops everything until you choose it again. Launch at login starts Moorings when
   you sign in.
 
-This build is checked on GitHub's Windows runner and in a Windows 11 virtual machine at
-3440x1440, not yet on a physical ultrawide.
+This build is checked on GitHub's Windows runner, not yet on a physical ultrawide.
+
+Moorings keeps a log in %LOCALAPPDATA%\Moorings\moorings.log, with one older file beside
+it, so the two never pass 2 MB. Save a report in the tray menu writes one text file to
+your desktop with the version, your monitors, your settings and the end of the log, and
+opens the folder with the file selected. That file is the one to send back.
 
 Settings live in %APPDATA%\Moorings\choices.json. Open settings file in the tray menu
 opens it, and Moorings reads it again when it changes or on Reload settings. To quit,

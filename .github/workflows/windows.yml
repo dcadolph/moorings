@@ -585,6 +585,64 @@ jobs:
           if ($code -ne 0 -or -not ($out -match '^contracts: 13 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
           Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Notifier, Scheduler, Pointer, Keys, Log, Timers, EventSource, Apps, ScreenSource, ChoicesStore and Clock rule"
 
+      - name: Report
+        timeout-minutes: 5
+        run: |
+          $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
+          $log = Join-Path $env:LOCALAPPDATA 'Moorings\moorings.log'
+          $n = if (Test-Path $log) { @(Get-Content $log).Count } else { 0 }
+          if ($n -lt 1) { throw "the probes wrote no line to $log" }
+          Write-Host "  check: the probes so far wrote $n lines to $log"
+
+          $menu = @(& $exe --probe menu)
+          if (-not ($menu -match '^menu \[ \] Save a report$')) { throw "the tray menu has no Save a report" }
+          Write-Host "  check: the tray menu offers Save a report"
+
+          $dir = Join-Path $env:RUNNER_TEMP 'report'
+          $out = @(& $exe --probe report --report $dir)
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host "  $_" }
+          if ($code -ne 0) { throw "the report probe exited $code" }
+          $files = @(Get-ChildItem -Path $dir -Filter 'Moorings report *.txt')
+          if ($files.Count -ne 1) { throw "want one report in $dir, got $($files.Count)" }
+          $text = @(Get-Content $files[0].FullName)
+          $text | Select-Object -First 16 | ForEach-Object { Write-Host "  | $_" }
+          if (-not ($text -match '^version: ')) { throw "the report has no version line" }
+          $monitors = @($text -match '^monitor: ').Count
+          if ($monitors -lt 1) { throw "the report has no monitor line" }
+          if (-not ($text -match '^log: ')) { throw "the report has no log section" }
+          Write-Host "  check: the report names the version, $monitors monitor(s) and the log"
+
+          Write-Host "report negative control: LOCALAPPDATA unset"
+          $saved = $env:LOCALAPPDATA
+          Remove-Item Env:LOCALAPPDATA
+          $out = @(& $exe --probe report --report $dir)
+          $code = $LASTEXITCODE
+          $env:LOCALAPPDATA = $saved
+          $global:LASTEXITCODE = 0
+          $out | ForEach-Object { Write-Host "  $_" }
+          if ($code -eq 0 -or -not ($out -match '^report: no LOCALAPPDATA$')) { throw "the report ran with no LOCALAPPDATA ($code)" }
+          Write-Host "  check: with no LOCALAPPDATA the report refuses and names why"
+
+          Write-Host "log rotation: a log past 1 MB moves aside on the next line"
+          $roll = Join-Path $env:RUNNER_TEMP 'logroll'
+          New-Item -ItemType Directory -Force -Path (Join-Path $roll 'Moorings') | Out-Null
+          $fill = Join-Path $roll 'Moorings\moorings.log'
+          $line = ('x' * 99) + "`n"
+          [IO.File]::WriteAllText($fill, ($line * 10486) + $line)
+          $before = (Get-Item $fill).Length
+          $env:LOCALAPPDATA = $roll
+          $out = @(& $exe --probe report --report (Join-Path $env:RUNNER_TEMP 'report-roll'))
+          $code = $LASTEXITCODE
+          $env:LOCALAPPDATA = $saved
+          $out | ForEach-Object { Write-Host "  $_" }
+          if ($code -ne 0) { throw "the rotation report exited $code" }
+          $older = Join-Path $roll 'Moorings\moorings.log.1'
+          if (-not (Test-Path $older) -or (Get-Item $older).Length -ne $before) { throw "the $before byte log did not move to moorings.log.1" }
+          $fresh = @(Get-Content $fill)
+          if ($fresh.Count -lt 1 -or (Get-Item $fill).Length -ge 4096) { throw "the new moorings.log holds $((Get-Item $fill).Length) bytes, not the one new line" }
+          Write-Host "  check: the $before byte log moved to moorings.log.1 and moorings.log started over with $($fresh.Count) line(s)"
+
       - name: Scenarios
         timeout-minutes: 20
         run: |

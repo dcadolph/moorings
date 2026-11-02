@@ -11,6 +11,7 @@ enum Command: Equatable {
     case openSettings
     case reloadSettings
     case atLogin
+    case saveReport
     case about
     case openRelease(URL)
     case quit
@@ -119,6 +120,7 @@ final class Tray {
             MenuItem(title: "Reload settings", command: .reloadSettings),
             MenuItem(title: "Launch at login", checked: atLogin, command: .atLogin),
             .separator,
+            MenuItem(title: "Save a report", command: .saveReport),
             MenuItem(title: "About Moorings", command: .about),
             MenuItem(title: "Quit Moorings", command: .quit),
         ]
@@ -332,6 +334,9 @@ final class Tray {
         case .atLogin:
             LoginItem.enabled.toggle()
             return
+        case .saveReport:
+            saveReport()
+            return
         case .about:
             let text = "Moorings \(version)\nHolds apps in the side strips of an ultrawide."
             _ = MessageBoxW(window, wide(text), wide("About Moorings"), UINT(MB_OK | MB_ICONINFORMATION))
@@ -348,6 +353,24 @@ final class Tray {
             return
         }
         app.engine.save()
+    }
+
+    // saveReport writes a report to the desktop, or beside the program when Windows names no
+    // desktop, and opens its folder in Explorer with the file selected.
+    private func saveReport() {
+        let exe = LoginItem.executable
+        let folder = Report.desktop() ?? String(exe[..<(exe.lastIndex(of: "\\") ?? exe.endIndex)])
+        do {
+            let file = try Report.save(app, in: folder)
+            let result = ShellExecuteW(
+                window, wide("open"), wide("explorer.exe"), wide("/select,\"\(file)\""), nil, SW_SHOWNORMAL)
+            if Int(bitPattern: result) <= 32 {
+                FileHandle.standardError.write(
+                    Data("tray: report folder not opened: \(Int(bitPattern: result))\n".utf8))
+            }
+        } catch {
+            FileHandle.standardError.write(Data("tray: report not saved: \(error)\n".utf8))
+        }
     }
 
     // openSettings opens the choices file with its default program, writing it first with the
