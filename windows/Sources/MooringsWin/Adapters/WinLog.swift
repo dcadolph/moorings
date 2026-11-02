@@ -31,6 +31,11 @@ final class LogFile: @unchecked Sendable {
     let older: URL
     // lock keeps the lines of two threads whole and in order.
     private let lock = NSLock()
+    // handle stays open between lines, since opening and closing the file for each line costs more
+    // than a note may take. It is nil before the first line and after a tail.
+    private var handle: FileHandle?
+    // size is the log's length in bytes as of the last write.
+    private var size: UInt64 = 0
 
     // init names the log files in folder. Nothing is written until the first line.
     init(folder: URL) {
@@ -44,43 +49,57 @@ final class LogFile: @unchecked Sendable {
         return URL(fileURLWithPath: base).appendingPathComponent("Moorings")
     }
 
-    // append writes text at the end of the log, creating the folder and the file on the first line
-    // and moving a log at limit aside first. A line the disk refuses is dropped from the file only,
-    // since it is already on stderr and there is nowhere else to say so.
+    // append writes text at the end of the log, opening it on the first line and moving a log at
+    // limit aside first. A line the disk refuses is dropped from the file only, since it is already
+    // on stderr and there is nowhere else to say so.
     func append(_ text: String) {
         lock.lock()
         defer { lock.unlock() }
-        guard var handle = open() else { return }
-        if let end = try? handle.seekToEnd(), end >= Self.limit {
-            try? handle.close()
+        if handle == nil {
+            handle = open()
+        }
+        if handle != nil, size >= Self.limit {
+            close()
             try? FileManager.default.removeItem(at: older)
             try? FileManager.default.moveItem(at: url, to: older)
-            guard let fresh = open() else { return }
-            handle = fresh
+            handle = open()
         }
-        try? handle.write(contentsOf: Data(text.utf8))
-        try? handle.close()
+        guard let handle else { return }
+        let data = Data(text.utf8)
+        do {
+            try handle.write(contentsOf: data)
+            size += UInt64(data.count)
+        } catch {
+            close()
+        }
     }
 
     // tail returns the last n lines of the older file and the log read together, oldest first.
     func tail(_ n: Int) -> [String] {
         lock.lock()
         defer { lock.unlock() }
+        close()
         let read = { (u: URL) in (try? String(contentsOf: u, encoding: .utf8)) ?? "" }
         let lines = (read(older) + read(url)).split(separator: "\n").map(String.init)
         return Array(lines.suffix(n))
     }
 
-    // open returns a handle at the end of the log, creating the folder and the file when missing,
-    // nil when the disk refuses either.
+    // open returns a handle at the end of the log and records its size, creating the folder and the
+    // file when missing, nil when the disk refuses either.
     private func open() -> FileHandle? {
         let files = FileManager.default
         if !files.fileExists(atPath: url.path) {
             try? files.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             guard files.createFile(atPath: url.path, contents: nil) else { return nil }
         }
-        guard let handle = try? FileHandle(forWritingTo: url) else { return nil }
-        _ = try? handle.seekToEnd()
+        guard let handle = try? FileHandle(forWritingTo: url), let end = try? handle.seekToEnd() else { return nil }
+        size = end
         return handle
+    }
+
+    // close closes the open handle, if any, so the next line opens the file again.
+    private func close() {
+        try? handle?.close()
+        handle = nil
     }
 }
