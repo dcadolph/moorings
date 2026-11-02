@@ -595,6 +595,10 @@ jobs:
             $code = $LASTEXITCODE
             $global:LASTEXITCODE = 0
             $out | ForEach-Object { Write-Host "  $_" }
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            $sum = @($out -match '^scenarios: ')[0]
+            if (-not $sum) { $sum = 'scenarios: no summary' }
+            Set-Content -Path (Join-Path $dir 'result.txt') -Value @("exit $code", $sum) -Encoding utf8
             [pscustomobject]@{ Lines = $out; Code = $code; Dir = $dir }
           }
           function Written($run) {
@@ -650,6 +654,51 @@ jobs:
           }
           if ($failed -ne 0) { throw "$failed of $n SIM runs failed" }
           Write-Host "  check: $n SIM runs in a row passed every scenario with the hook never put back"
+
+      - name: Scenario index
+        if: always()
+        timeout-minutes: 2
+        run: |
+          $root = Join-Path $env:RUNNER_TEMP 'scenarios'
+          $runs = @(Get-ChildItem $root -Directory -ErrorAction SilentlyContinue | Sort-Object Name)
+          $rows = foreach ($r in $runs) {
+            $file = Join-Path $r.FullName 'result.txt'
+            $summary = 'no result'
+            $exit = 'none'
+            if (Test-Path $file) {
+              $lines = @(Get-Content $file)
+              $exit = ($lines[0] -replace '^exit ', '')
+              $summary = $lines[1]
+            }
+            $pngs = @(Get-ChildItem (Join-Path $r.FullName '*.png') -ErrorAction SilentlyContinue).Count
+            $ok = $false
+            if ($r.Name -eq 'skew') {
+              if ($exit -ne 'none' -and $exit -ne '0') { $ok = $true; $verdict = 'failed, as the negative control must' }
+              else { $verdict = 'PASSED, the negative control is broken' }
+            } else {
+              if ($exit -eq '0') { $ok = $true; $verdict = 'passed' }
+              else { $verdict = 'FAILED' }
+            }
+            $state = if ($ok) { 'pass' } else { 'fail' }
+            $n = [System.Net.WebUtility]::HtmlEncode($r.Name)
+            $link = [System.Net.WebUtility]::HtmlEncode("$($r.Name)/report.html")
+            $sm = [System.Net.WebUtility]::HtmlEncode($summary)
+            $ex = [System.Net.WebUtility]::HtmlEncode($exit)
+            $vd = [System.Net.WebUtility]::HtmlEncode($verdict)
+            "<tr data-run=`"$n`" data-verdict=`"$state`"><td><a href=`"$link`">$n</a></td><td>$sm</td><td>$ex</td><td>$pngs</td><td>$vd</td></tr>"
+          }
+          $page = @('<!doctype html>', '<html><head><meta charset="utf-8"><title>Moorings scenarios</title></head><body>', '<h1>Moorings scenarios</h1>',
+            '<table border="1" cellpadding="6"><tr><th>Run</th><th>Summary</th><th>Exit</th><th>Pictures</th><th>Verdict</th></tr>') + @($rows) + @('</table>', '</body></html>')
+          Set-Content -Path (Join-Path $root 'index.html') -Value $page -Encoding utf8
+          $back = @(Get-Content (Join-Path $root 'index.html'))
+          $listed = @($back -match '<tr data-run=')
+          if ($listed.Count -ne $runs.Count) { throw "index.html lists $($listed.Count) rows for $($runs.Count) run folders" }
+          $bad = @($listed -match 'data-verdict="fail"')
+          if ($bad.Count -ne 0) {
+            $bad | ForEach-Object { Write-Host "  $_" }
+            throw "$($bad.Count) runs in index.html did not end as expected"
+          }
+          Write-Host "  check: index.html lists $($listed.Count) runs, every verdict as expected"
 
       - name: Scenario report
         if: always()
