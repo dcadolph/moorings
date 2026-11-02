@@ -71,8 +71,13 @@ public final class Engine {
         public static let profiles = Features(rawValue: 1 << 5)
         // badge is the stack badge: the platform's BadgeView draws.
         public static let badge = Features(rawValue: 1 << 6)
+        // channelCycle is the Control-Left and Control-Right walk of the channel's windows: the
+        // platform's Keys claims them.
+        public static let channelCycle = Features(rawValue: 1 << 7)
         // all is every feature, what the Mac declares.
-        public static let all: Features = [.grid, .stash, .organize, .tiling, .workspaces, .profiles, .badge]
+        public static let all: Features = [
+            .grid, .stash, .organize, .tiling, .workspaces, .profiles, .badge, .channelCycle,
+        ]
     }
 
     // Observers is what the tests, the probes and the selftest watch. Every field defaults to

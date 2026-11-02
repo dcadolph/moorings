@@ -25,18 +25,17 @@ extension MacHost: @preconcurrency ScenarioHost {
         (.shift, 56), (.control, 59), (.option, 58), (.command, 55), (.function, 63),
     ]
 
-    // drag raises the window and waits up to 1 s for it to be the window under its title bar, presses
-    // there with a posted event, moves the pointer by offset in 20 steps 15 ms apart with held down
-    // and lets go, and feeds drag each point the way the app's event tap feeds MacDrag, since a test
+    // drag raises the window and waits up to 1 s for it to be the window under from, presses there
+    // with a posted event, moves the pointer to to in 20 steps 15 ms apart with held down and lets
+    // go, and feeds drag each point the way the app's event tap feeds MacDrag, since a test
     // host runs no tap. A press before the raise lands goes to another window, so it reports false
     // when the window never comes up under the press. It presses the held keys before the press and
     // releases them after the release, as a person does, since mouse events that carry a key's flag
     // leave the system reading that key as held until a flags-changed event clears it.
-    func drag(_ id: WindowID, by offset: Point, held: Modifiers) -> Bool {
-        guard let drag, let f = store.frame(id) else { return false }
+    func drag(_ id: WindowID, from: Point, to: Point, held: Modifiers) -> Bool {
+        guard let drag, store.frame(id) != nil else { return false }
         store.raise(id)
-        let grab = Scenarios.grab(f)
-        guard wait(until: now + 1, { store.hit(grab) == id }) else { return false }
+        guard wait(until: now + 1, { store.hit(from) == id }) else { return false }
         let pressed = Modifiers.sideFree.filter { held.contains($0.0) }
         let flags = CGEventFlags(rawValue: pressed.reduce(0) { $0 | $1.1 })
         var bits: UInt64 = 0
@@ -58,17 +57,17 @@ extension MacHost: @preconcurrency ScenarioHost {
             e?.flags = flags
             e?.post(tap: .cghidEventTap)
         }
-        post(.leftMouseDown, grab)
-        drag.began(at: grab)
+        post(.leftMouseDown, from)
+        drag.began(at: from)
         _ = wait(until: now + 0.1) { false }
         for i in 1...20 {
-            let p = Point(x: grab.x + offset.x * Double(i) / 20, y: grab.y + offset.y * Double(i) / 20)
+            let p = Point(x: from.x + (to.x - from.x) * Double(i) / 20, y: from.y + (to.y - from.y) * Double(i) / 20)
             post(.leftMouseDragged, p)
             _ = wait(until: now + 0.015) { false }
             drag.moved(p, held: held)
         }
         _ = wait(until: now + 0.2) { false }
-        post(.leftMouseUp, Point(x: grab.x + offset.x, y: grab.y + offset.y))
+        post(.leftMouseUp, to)
         for (k, bit) in pressed.reversed() {
             bits &= ~bit
             key(k, down: false)

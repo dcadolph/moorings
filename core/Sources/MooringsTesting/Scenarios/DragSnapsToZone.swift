@@ -2,13 +2,14 @@ import MooringsCore
 import MooringsEngine
 
 extension Stage {
-    // dragged opens a window with the default choices, places it 200 by 150 points into wide at 500 by
-    // 350, and returns it with the channel's left half, the frame a drop at the left edge gives it.
-    // It returns nil when any of that failed.
+    // dragged opens a window with the default choices, places it at the start frame 200 by 150 points
+    // into wide, and returns it with the channel's left half, the frame a drop at the left edge gives
+    // it. It returns nil when any of that failed.
     func dragged(_ wide: Frame) -> (pad: WindowInfo, half: Frame)? {
         choose { _ in }
         guard let pad = open("dragged window") else { return nil }
-        let start = Frame(x: wide.x + 200, y: wide.y + 150, w: 500, h: 350)
+        let start = self.start(wide)
+        note("start", start)
         guard place(pad.id, at: start, "dragged window") else { return nil }
         guard host.wait(until: host.now + 1, { Contract.near(frame(pad.id), start) }) else {
             fail("the dragged window reads back where the host placed it within 1 s", "start \(start)")

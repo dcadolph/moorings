@@ -325,10 +325,12 @@ final class EngineRig {
     #expect(!log.lines.contains { $0.text.hasPrefix("choices fell back") })
 }
 
-// fillRig returns an engine rig with a second free window and the focused one filling the channel,
-// after a pass, and its fake keys.
-private func fillRig(_ edit: (inout Choices) -> Void = { _ in }) -> (EngineRig, FakeKeys, WindowID) {
-    let rig = EngineRig(features: .all, edit)
+// fillRig returns an engine rig declaring features with a second free window and the focused one
+// filling the channel, after a pass, and its fake keys.
+private func fillRig(
+    features: Engine.Features = .all, _ edit: (inout Choices) -> Void = { _ in }
+) -> (EngineRig, FakeKeys, WindowID) {
+    let rig = EngineRig(features: features, edit)
     let other = rig.windows.add(bundle: "com.example.pad", frame: Frame(x: 1500, y: 350, w: 700, h: 500))
     rig.windows.focusedID = rig.pad
     let s = rig.screens.current()
@@ -368,6 +370,16 @@ private func fillRig(_ edit: (inout Choices) -> Void = { _ in }) -> (EngineRig, 
     keys.press(GrabKey(key: "right", modifiers: .control, tag: ""))
     #expect(rig.windows.focusedID == other)
     #expect(Actions.near(rig.windows.frame(other)!, fill, tolerance: 1))
+}
+
+// Test 20: A root that does not declare the channel cycle never has its keys claimed, with the switch
+// on and the focused window filling the channel.
+@Test func testEngineChannelCycleNeedsFeature() {
+    var features = Engine.Features.all
+    features.remove(.channelCycle)
+    let (rig, keys, _) = fillRig(features: features) { $0.channelCycle = true }
+    #expect(!rig.engine.channelCycle.claimed)
+    #expect(keys.claimed.isEmpty && keys.claims == 0)
 }
 
 // A pin moved by hand while paused stays where the owner put it, and goes back to its slot on

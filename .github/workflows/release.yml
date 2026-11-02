@@ -2,7 +2,8 @@ name: release
 
 # On a published release, build the universal app, sign it with Developer ID, notarize and staple
 # it, wrap it in a signed, notarized disk image, attach the zip and the disk image, write the cask into dcadolph/homebrew-tap in place of the old formula, then
-# install from the tap on macOS and check it the way a user would get it.
+# install from the tap on macOS and check it the way a user would get it. The Windows zip is built
+# on Windows with the tag's version and attached beside them, covered by the same signed checksums.
 on:
   release:
     types: [published]
@@ -15,7 +16,57 @@ permissions:
   attestations: write
 
 jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    env:
+      TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - uses: compnerd/gha-setup-swift@9ff1ee4c44888c5817fc14d1b257ac8cabb4935f # v0.5.1
+        with:
+          swift-version: swift-6.3.3-release
+          swift-build: 6.3.3-RELEASE
+
+      - uses: actions/checkout@v5
+
+      - name: Test
+        run: swift test -Xswiftc -warnings-as-errors
+        working-directory: core
+
+      - name: Package
+        id: package
+        run: ./package.ps1 -Name Moorings -Version $env:TAG.TrimStart('v')
+
+      # The exe must run from the folder alone, with the toolchain off PATH, and say the tag's version.
+      - name: Check the packaged exe
+        timeout-minutes: 5
+        run: |
+          $dir = '${{ steps.package.outputs.dir }}'
+          $env:Path = "$env:SystemRoot\System32;$env:SystemRoot"
+          if (Get-Command swift -ErrorAction SilentlyContinue) { throw "the toolchain is still on PATH" }
+          $log = Join-Path $env:RUNNER_TEMP 'version.txt'
+          $p = Start-Process (Join-Path $dir 'MooringsWin.exe') -ArgumentList @('--probe', 'version') -RedirectStandardOutput $log -NoNewWindow -PassThru
+          $null = $p.Handle
+          if (-not $p.WaitForExit(30000)) { Stop-Process -Id $p.Id -Force; throw "the packaged exe hung" }
+          Get-Content $log | ForEach-Object { Write-Host "  $_" }
+          $want = "version: $($env:TAG.TrimStart('v'))"
+          if ($p.ExitCode -ne 0 -or -not (@(Get-Content $log) -contains $want)) { throw "the packaged exe did not say $want" }
+
+      - name: Zip
+        run: |
+          New-Item -ItemType Directory -Path ../dist | Out-Null
+          Compress-Archive -Path '${{ steps.package.outputs.dir }}' -DestinationPath "../dist/moorings_$($env:TAG)_windows_x64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: dist/moorings_${{ github.event.release.tag_name }}_windows_x64.zip
+          if-no-files-found: error
+
   build:
+    needs: windows
     runs-on: macos-15
     defaults:
       run:
@@ -126,6 +177,11 @@ jobs:
             sleep 30
           done
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-zip
+          path: dist
+
       - name: Verify as a user would
         env:
           TAG: ${{ github.event.release.tag_name }}
@@ -160,6 +216,7 @@ jobs:
           # Fixed names let releases/latest/download/moorings_macos_universal.{zip,dmg} always work.
           cp -- "moorings_${TAG}_macos_universal.zip" moorings_macos_universal.zip
           cp -- "moorings_${TAG}_macos_universal.dmg" moorings_macos_universal.dmg
+          cp -- "moorings_${TAG}_windows_x64.zip" moorings_windows_x64.zip
           shasum -a 256 -- *.zip *.dmg > SHA256SUMS
 
       - name: Remove signing keychain

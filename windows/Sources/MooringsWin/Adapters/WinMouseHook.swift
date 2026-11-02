@@ -5,8 +5,8 @@ import MooringsCore
 import MooringsEngine
 
 // WinMouseHook delivers the pointer through a low-level mouse hook on the loop thread. The hook
-// callback only posts the point and the button message to the thread, so it stays far under the
-// time Windows allows before it removes a slow hook.
+// callback only posts the point and the button message to the thread and notes where the left button
+// went down, so it stays far under the time Windows allows before it removes a slow hook.
 final class WinMouseHook {
     // message is the private thread message the callback posts, with the mouse message in wParam
     // and the point packed in lParam. The tray icon has WM_APP + 1.
@@ -35,6 +35,9 @@ final class WinMouseHook {
     nonisolated(unsafe) static var thread: DWORD = 0
     // delivered counts the messages the callback posted.
     nonisolated(unsafe) static var delivered = 0
+    // press is where the left button last went down on the virtual desktop and when, by
+    // GetTickCount64. The callback writes it, so it is set before the window under the press hears it.
+    nonisolated(unsafe) static var press: (x: Int32, y: Int32, tick: UInt64)?
 
     // start installs the hook for the calling thread and starts the heartbeat.
     func start() {
@@ -65,6 +68,9 @@ final class WinMouseHook {
                 if code >= 0, let info = UnsafePointer<MSLLHOOKSTRUCT>(bitPattern: Int(lParam)) {
                     WinMouseHook.delivered &+= 1
                     let p = info.pointee.pt
+                    if wParam == WPARAM(WM_LBUTTONDOWN) {
+                        WinMouseHook.press = (p.x, p.y, GetTickCount64())
+                    }
                     let packed = LPARAM(Int(p.x) << 32 | Int(UInt32(bitPattern: p.y)))
                     _ = PostThreadMessageW(WinMouseHook.thread, WinMouseHook.message, wParam, packed)
                 }
@@ -79,6 +85,9 @@ final class WinMouseHook {
         let x = Int32(truncatingIfNeeded: msg.lParam >> 32), y = Int32(truncatingIfNeeded: msg.lParam)
         let p = SnapPoint(Double(x), Double(y))
         point = p
+        if msg.wParam == WPARAM(WM_LBUTTONDOWN) {
+            WinDrag.classify(POINT(x: x, y: y), at: Self.press?.tick ?? GetTickCount64())
+        }
         handler(UINT(msg.wParam), p)
         return true
     }
@@ -120,20 +129,60 @@ final class WinDrag {
         self.app = app
     }
 
-    // began starts following hwnd, which the owner started moving or sizing. The caption moves and a
-    // border sizes; with no answer the follower decides from the first frame change.
+    // began starts following hwnd, which the owner started moving or sizing. The press was classified
+    // when the button went down, before the window under it could move: a press on hwnd within
+    // pressMillis that hwnd answered HTCAPTION moves it, any other answer sizes it. With no such
+    // press, or no answer, the follower decides from the first frame change. The cursor is never
+    // read here, since a full-window drag has carried the window off the press point by now and a
+    // window in its move loop can answer its own caption as client.
     func began(_ hwnd: HWND) {
-        app.engine.drag.began(window: WinWindows.id(hwnd), moving: Self.hit(hwnd).map { $0 == Self.caption })
+        let last = Self.lastPress
+        let press = last.flatMap { GetTickCount64() &- $0.tick <= Self.pressMillis && $0.root == hwnd ? $0 : nil }
+        let moving = press.flatMap { p in p.answer.map { $0 == Self.caption } }
+        let id = WinWindows.id(hwnd)
+        if Self.verbose {
+            let age = last.map { "\(GetTickCount64() &- $0.tick)" } ?? "none"
+            let root = last?.root.map(WinWindows.className) ?? "none"
+            print(
+                "drag: began \(hex(id)) press \(last.map { "\($0.x) \($0.y)" } ?? "none") age \(age) ms",
+                "root \(root) hit \(last?.answer.map { "\($0)" } ?? "none") moving \(moving.map { "\($0)" } ?? "nil")")
+        }
+        app.engine.drag.began(window: id, moving: moving, at: press.map { Point(x: Double($0.x), y: Double($0.y)) })
+    }
+
+    // Press is a left button press as the loop thread classified it when the hook delivered it.
+    struct Press {
+        // x is the press's horizontal position on the virtual desktop.
+        var x: Int32
+        // y is the press's vertical position on the virtual desktop.
+        var y: Int32
+        // tick is when the button went down, by GetTickCount64.
+        var tick: UInt64
+        // root is the top-level window under the press, nil over none.
+        var root: HWND?
+        // answer is root's WM_NCHITTEST answer at the press, nil when it gave none in time.
+        var answer: DWORD_PTR?
     }
 
     // caption is HTCAPTION.
     static let caption: DWORD_PTR = 2
+    // pressMillis is how long after the press a move or size may start and still be judged by the
+    // press, the longest Windows waits on a low-level hook.
+    static let pressMillis: UInt64 = 1000
+    // lastPress is the last left button press, classified on the loop thread.
+    nonisolated(unsafe) static var lastPress: Press?
+    // verbose prints a drag line on each start, for the scenarios probe. The app never sets it.
+    nonisolated(unsafe) static var verbose = false
 
-    // hit returns hwnd's answer to WM_NCHITTEST at the cursor, nil when the cursor cannot be read or
-    // the window gives no answer inside 100 ms.
-    static func hit(_ hwnd: HWND) -> DWORD_PTR? {
-        var p = POINT()
-        guard GetCursorPos(&p) else { return nil }
+    // classify records the press at p, made at tick, with the top-level window under it and that
+    // window's hit test answer there.
+    static func classify(_ p: POINT, at tick: UInt64) {
+        let root = WindowFromPoint(p).flatMap { GetAncestor($0, WinWatcher.root) }
+        lastPress = Press(x: p.x, y: p.y, tick: tick, root: root, answer: root.flatMap { hit($0, at: p) })
+    }
+
+    // hit returns hwnd's answer to WM_NCHITTEST at p, nil when the window gives no answer inside 100 ms.
+    static func hit(_ hwnd: HWND, at p: POINT) -> DWORD_PTR? {
         let x = UInt32(UInt16(truncatingIfNeeded: p.x)), y = UInt32(UInt16(truncatingIfNeeded: p.y))
         var result: DWORD_PTR = 0
         guard

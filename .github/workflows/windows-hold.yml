@@ -4,7 +4,10 @@ name: windows-hold
 # objects. The soak runs the release build's loop once on the runner's 1920x1080 screen at
 # --min-aspect 1.0, since the runner lists no wider mode and Notepad and Edge cannot be sized past
 # the desktop. With paused set it is the negative control: the soak pauses through the engine once
-# its pins land, so the first nudge is never released and the run must exit 1 at minute 2.
+# its pins land, so the first nudge is never released and the run must exit 1 at minute 2. With
+# leak set it is the bounds' negative control: the soak opens 60 handles a minute and never closes
+# them, so the handle bound must trip. The bounds start at minute 8, after the first full cycle of
+# perturbations, since the first second Notepad warms up the shell and COM in the probe once.
 on:
   workflow_dispatch:
     inputs:
@@ -14,6 +17,10 @@ on:
         default: 60
       paused:
         description: Pause after the pins land, the negative control that must fail at minute 2.
+        type: boolean
+        default: false
+      leak:
+        description: Leak 60 handles a minute, the negative control that must trip the handle bound.
         type: boolean
         default: false
 
@@ -40,10 +47,13 @@ jobs:
         env:
           SOAK_MINUTES: ${{ inputs.minutes }}
           SOAK_PAUSED: ${{ inputs.paused }}
+          SOAK_LEAK: ${{ inputs.leak }}
         run: |
           $minutes = [int]$env:SOAK_MINUTES
           if ($minutes -lt 1 -or $minutes -gt 300) { throw "minutes is $minutes, not 1 to 300" }
           $paused = $env:SOAK_PAUSED -eq 'true'
+          $leak = $env:SOAK_LEAK -eq 'true'
+          if ($leak -and ($paused -or $minutes -lt 10)) { throw "leak needs paused false and at least 10 minutes" }
           $exe = Join-Path (swift build -c release -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
           $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $edge) { throw "no Edge on the runner" }
@@ -67,6 +77,7 @@ jobs:
             Start-Sleep -Seconds 10
             $soakArgs = @('--probe', 'soak', '--minutes', "$minutes", '--min-aspect', '1.0')
             if ($paused) { $soakArgs += '--paused' }
+            if ($leak) { $soakArgs += '--leak' }
             & $exe @soakArgs | Tee-Object -FilePath $log | ForEach-Object { Write-Host "  $_" }
             $code = $LASTEXITCODE
             $global:LASTEXITCODE = 0
@@ -93,20 +104,36 @@ jobs:
           if ($short.Count -gt 0) { throw "pins not held 2/2 at minute $($short[0].M)" }
           if (@($rows | Where-Object { $_.Hook -ne 0 }).Count -gt 0) { throw "the mouse hook was put back during the soak" }
           Write-Host "check: $minutes minutes, every line held 2/2, hook reinstalled 0"
-          if ($minutes -ge 5) {
-            $base = $rows[4]
+          if ($minutes -ge 10) {
+            $base = $rows[7]
             $last = $rows[-1]
-            Write-Host "bounds from minute 5: private $($base.Private) to $($last.Private) MB, handles $($base.Handles) to $($last.Handles), gdi $($base.Gdi) to $($last.Gdi)"
-            if ($last.Private -ge $base.Private + 20) { throw "private bytes climbed $($last.Private - $base.Private) MB since minute 5" }
-            if ($last.Handles -ge $base.Handles + 50) { throw "handles climbed $($last.Handles - $base.Handles) since minute 5" }
-            if ($last.Gdi -ge $base.Gdi + 50) { throw "GDI objects climbed $($last.Gdi - $base.Gdi) since minute 5" }
-            Write-Host "check: private bytes under minute 5 plus 20 MB, handles and GDI objects under minute 5 plus 50"
+            $tail = @($rows | Select-Object -Skip 7 | Select-Object -Last 30)
+            $spread = { param($f) ($tail | Measure-Object -Property $f -Maximum -Minimum) | ForEach-Object { $_.Maximum - $_.Minimum } }
+            $sp = & $spread 'Private'
+            $sh = & $spread 'Handles'
+            $sg = & $spread 'Gdi'
+            Write-Host "bounds from minute 8: private $($base.Private) to $($last.Private) MB, handles $($base.Handles) to $($last.Handles), gdi $($base.Gdi) to $($last.Gdi)"
+            Write-Host "spread over the last $($tail.Count) lines: private $sp MB, handles $sh, gdi $sg"
+            $trip = $null
+            if ($last.Private -ge $base.Private + 20) { $trip = "private bytes climbed $($last.Private - $base.Private) MB since minute 8" }
+            elseif ($last.Handles -ge $base.Handles + 50) { $trip = "handles climbed $($last.Handles - $base.Handles) since minute 8" }
+            elseif ($last.Gdi -ge $base.Gdi + 50) { $trip = "GDI objects climbed $($last.Gdi - $base.Gdi) since minute 8" }
+            elseif ($sp -ge 10) { $trip = "private bytes spread $sp MB over the last $($tail.Count) lines" }
+            elseif ($sh -ge 20) { $trip = "handles spread $sh over the last $($tail.Count) lines" }
+            elseif ($sg -ge 20) { $trip = "GDI objects spread $sg over the last $($tail.Count) lines" }
+            if ($leak) {
+              if (-not $trip -or -not $trip.StartsWith('handles climbed')) { throw "the leaking soak did not trip the handle bound: $trip" }
+              Write-Host "check: the leaking soak tripped the handle bound: $trip"
+              exit 0
+            }
+            if ($trip) { throw $trip }
+            Write-Host "check: private bytes under minute 8 plus 20 MB, handles and GDI objects under minute 8 plus 50, last $($tail.Count) lines spread under 10 MB, 20 handles and 20 GDI objects"
           }
 
       - name: Soak log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: soak-${{ github.sha }}-${{ inputs.minutes }}m${{ inputs.paused && '-paused' || '' }}
+          name: soak-${{ github.sha }}-${{ inputs.minutes }}m${{ inputs.paused && '-paused' || '' }}${{ inputs.leak && '-leak' || '' }}
           path: ${{ runner.temp }}/soak.txt
           if-no-files-found: warn

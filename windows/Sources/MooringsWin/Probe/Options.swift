@@ -31,8 +31,13 @@ struct ProbeOptions {
     var noDelta = false
     // seconds is how long the moor probe runs its loop.
     var seconds = 10.0
-    // paused writes a paused choices file, the moor probe's negative control.
+    // minutes is how long the soak probe holds its pins.
+    var minutes = 60
+    // paused writes a paused choices file, the moor probe's negative control, and pauses the soak
+    // probe through the engine once its pins have landed.
     var paused = false
+    // leak makes the soak probe leak handles every minute, the negative control for its bounds.
+    var leak = false
     // noFilter keeps every hooked event, the events probe's negative control.
     var noFilter = false
     // noApps builds the menu with no running apps, the menu probe's negative control.
@@ -64,6 +69,13 @@ struct ProbeOptions {
     var report = "scenarios"
     // skew widens the strip the scenarios expect by this many pixels, their negative control.
     var skew = 0.0
+    // url is the release record the update probe asks for in place of GitHub's.
+    var url: URL?
+    // current is the version the update probe checks as, in place of the build's.
+    var current: String?
+    // standIn is the lowercased path of a browser the scenarios open in place of the stand probe's
+    // window, nil for the stand probe.
+    var standIn: String?
 
     // init parses args, the command line without the program name.
     init(_ args: [String]) throws {
@@ -90,10 +102,24 @@ struct ProbeOptions {
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }
                 minAspect = n
+            case "--url":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard let u = URL(string: value), u.scheme != nil else { throw ProbeError.badValue(flag, value) }
+                url = u
+            case "--current":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard ReleaseVersion(value) != nil else { throw ProbeError.badValue(flag, value) }
+                current = value
+            case "--stand-in":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard FileManager.default.fileExists(atPath: value) else { throw ProbeError.badValue(flag, value) }
+                standIn = value.lowercased()
             case "--no-delta":
                 noDelta = true
             case "--paused":
                 paused = true
+            case "--leak":
+                leak = true
             case "--no-filter":
                 noFilter = true
             case "--no-apps":
@@ -121,6 +147,10 @@ struct ProbeOptions {
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }
                 seconds = n
+            case "--minutes":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard let n = Int(value), (1...300).contains(n) else { throw ProbeError.badValue(flag, value) }
+                minutes = n
             case "--pid":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = DWORD(value) else { throw ProbeError.badValue(flag, value) }

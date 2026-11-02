@@ -5,8 +5,10 @@ import MooringsCore
 import MooringsEngine
 import MooringsTesting
 
-// dragInput presses the keys down, presses the left button at from, moves to to in 20 steps 15 ms
-// apart, lets go there, and lets the keys up half a second later, all with SendInput.
+// dragInput presses the keys down, presses the left button at from, nudges 2 px along the
+// caption 50 ms later, moves to to in 20 steps 15 ms apart, lets go there, and lets the keys up
+// half a second later, all with SendInput. The nudge is the small first move a hand makes: a
+// Chromium window holds a caption press until the next mouse move and starts its move loop then.
 func dragInput(from: (x: Int32, y: Int32), to: (x: Int32, y: Int32), keys: [WORD]) {
     for k in keys {
         sendKey(k, up: false)
@@ -14,7 +16,9 @@ func dragInput(from: (x: Int32, y: Int32), to: (x: Int32, y: Int32), keys: [WORD
     sendMouse(from.x, from.y, 0)
     Sleep(100)
     sendMouse(from.x, from.y, 0x0002)
-    Sleep(100)
+    Sleep(50)
+    sendMouse(from.x + 2, from.y, 0)
+    Sleep(50)
     for i in 1...20 {
         let x = from.x + (to.x - from.x) * Int32(i) / 20, y = from.y + (to.y - from.y) * Int32(i) / 20
         sendMouse(x, y, 0)

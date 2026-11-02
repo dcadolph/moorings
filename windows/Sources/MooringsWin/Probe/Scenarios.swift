@@ -6,10 +6,11 @@ import MooringsEngine
 import MooringsTesting
 
 // probeScenarios runs the shared scenarios named after --scenarios, every one when none is named, on
-// the Win32 adapters against stand-in windows from this exe's stand probe, with the mouse hook
-// feeding drags to the engine as the app's loop does. It writes report.json, report.html and one PNG
-// per scenario into the report folder, prints each number, frame and broken rule, and ends with the
-// summary line the workflow checks.
+// the Win32 adapters against stand-in windows from this exe's stand probe or the browser --stand-in
+// names, with the mouse hook feeding drags to the engine as the app's loop does. Under --no-delta the
+// engine places without the border correction, the negative control. It writes report.json,
+// report.html and one PNG per scenario into the report folder, prints each number, frame and broken
+// rule, and ends with the summary line the workflow checks.
 func probeScenarios(_ opts: ProbeOptions) -> Int32 {
     let only = Set(opts.scenarios)
     let unknown = Scenarios.unknown(only)
@@ -31,6 +32,8 @@ func probeScenarios(_ opts: ProbeOptions) -> Int32 {
         try? FileManager.default.removeItem(at: Store(url: file).aside)
     }
     let app = App(store: Store(url: file), minAspect: opts.minAspect)
+    app.windows.corrects = !opts.noDelta
+    WinDrag.verbose = true
     app.notify = { title, body in print("notice: \(title): \(body)") }
     let host = WinHost(minAspect: opts.minAspect)
     host.timers = { app.timers.fire($0) || app.mouse.tick($0) }
@@ -38,6 +41,10 @@ func probeScenarios(_ opts: ProbeOptions) -> Int32 {
     host.mouse = { app.mouse.deliver($0) }
     host.shots = dir
     host.choices = file
+    host.standIn = opts.standIn
+    if opts.standIn != nil {
+        host.measureStandIn()
+    }
     app.mouse.handler = { message, p in
         if message == UINT(WM_MOUSEMOVE) {
             app.drag.pointer(p)
@@ -82,24 +89,99 @@ extension WinHost: ScenarioHost {
         return true
     }
 
-    // drag brings the window forward, then from another thread presses on its title bar with
-    // SendInput, holds the keys in held, moves the pointer by offset in 20 steps and lets go, while
-    // this thread pumps the messages the mouse hook and the window events arrive by. It reports
-    // whether the window was there and the input finished within 5 s.
-    func drag(_ id: WindowID, by offset: Point, held: Modifiers) -> Bool {
-        guard let hwnd = WinWindows.hwnd(id), let f = WinWindows().frame(id) else { return false }
+    // grabRow is how far below the frame's top the grab walks for a caption, Scenarios.grab's row.
+    static let grabRow = 15.0
+    // grabStep is how far apart the walk hit-tests the row.
+    static let grabStep = 4
+    // grabRun is the narrowest run of caption answers the walk takes as a grab.
+    static let grabRun = 12
+
+    // grab returns where a person would press to drag the window with id and frame f by its title
+    // bar. It brings the window forward, since the press lands on the front window, and hit-tests
+    // Scenarios.grab of f: when the window answers HTCAPTION there, that is the grab. Otherwise it walks
+    // the same row from the right edge to the left in grabStep px steps and returns the middle of the
+    // longest run of HTCAPTION answers at least grabRun px wide, nil when the row has none. A hit test
+    // that times out counts as not caption. It prints one grab line per call.
+    func grab(_ id: WindowID, frame f: Frame) -> Point? {
+        guard let hwnd = WinWindows.hwnd(id) else { return nil }
         _ = bringForward(hwnd)
-        let grab = Scenarios.grab(f)
-        let from = (x: Int32(grab.x.rounded()), y: Int32(grab.y.rounded()))
-        let to = (x: Int32((grab.x + offset.x).rounded()), y: Int32((grab.y + offset.y).rounded()))
+        func hit(_ x: Int32, _ y: Int32) -> DWORD_PTR? {
+            WinDrag.hit(hwnd, at: POINT(x: x, y: y))
+        }
+        func name(_ answer: DWORD_PTR?) -> String {
+            answer.map { "\($0)" } ?? "none"
+        }
+        let fallback = Scenarios.grab(f)
+        let dx = Int32(fallback.x.rounded()), dy = Int32(fallback.y.rounded())
+        let first = hit(dx, dy)
+        let head = "grab: default \(dx) \(dy) hit \(name(first))"
+        if first == WinDrag.caption {
+            print("\(head), chosen \(dx) \(dy) hit 2, at the default")
+            return fallback
+        }
+        let y = Int32((f.y + Self.grabRow).rounded())
+        let right = Int32((f.x + f.w).rounded()) - 1, left = Int32(f.x.rounded()) + 1
+        // runs holds each maximal run of equal answers along the row, right to left, with the x of its
+        // first and last sample.
+        var runs: [(answer: DWORD_PTR?, high: Int32, low: Int32, count: Int)] = []
+        for x in stride(from: right, through: left, by: -Self.grabStep) {
+            let answer = hit(x, y)
+            if let last = runs.last, last.answer == answer {
+                runs[runs.count - 1].low = x
+                runs[runs.count - 1].count += 1
+            } else {
+                runs.append((answer, x, x, 1))
+            }
+        }
+        let best = runs.filter { $0.answer == WinDrag.caption && $0.count * Self.grabStep >= Self.grabRun }
+            .max { $0.count < $1.count }
+        guard let best else {
+            let row = runs.map { "\(name($0.answer))x\($0.count * Self.grabStep)" }.joined(separator: " ")
+            print("\(head), no caption on the row y \(y): \(row)")
+            return nil
+        }
+        let cx = (best.high + best.low) / 2
+        print("\(head), chosen \(cx) \(y) hit 2, run \(best.count * Self.grabStep) px")
+        return Point(x: Double(cx), y: Double(y))
+    }
+
+    // drag brings the window forward, then from another thread presses on it at from with SendInput,
+    // holds the keys in held, moves the pointer to to in 20 steps and lets go, while this thread pumps
+    // the messages the mouse hook and the window events arrive by, then prints what the press saw.
+    // It reports whether the window was there and the input finished within 5 s.
+    func drag(_ id: WindowID, from: Point, to: Point, held: Modifiers) -> Bool {
+        guard let hwnd = WinWindows.hwnd(id) else { return false }
+        _ = bringForward(hwnd)
+        let start = (x: Int32(from.x.rounded()), y: Int32(from.y.rounded()))
+        let end = (x: Int32(to.x.rounded()), y: Int32(to.y.rounded()))
         let keys = Self.modifierKeys.filter { held.contains($0.0) }.map(\.1)
         let done = InputDone()
+        let seen = WinMouseHook.delivered
         Thread {
             Sleep(200)
-            dragInput(from: from, to: to, keys: keys)
+            dragInput(from: start, to: end, keys: keys)
             done.finish()
         }.start()
-        return wait(until: now + 5) { done.finished }
+        let finished = wait(until: now + 5) { done.finished }
+        describeInput(WinMouseHook.delivered &- seen, at: POINT(x: start.x, y: start.y))
+        return finished
+    }
+
+    // describeInput prints what a scripted drag's press saw: the messages the hook delivered over
+    // the drag, the press the loop thread classified, the foreground window, and the top-level
+    // window under the grab point p with its hit test there, so a drag that never started says why.
+    func describeInput(_ delivered: Int, at p: POINT) {
+        let last = WinDrag.lastPress
+        let press = last.map { "\($0.x) \($0.y)" } ?? "none"
+        let age = last.map { "\(GetTickCount64() &- $0.tick)" } ?? "none"
+        let root = last?.root.map(WinWindows.className) ?? "none"
+        let answer = last?.answer.map { "\($0)" } ?? "none"
+        let front = GetForegroundWindow().map(WinWindows.className) ?? "none"
+        let under = WindowFromPoint(p).flatMap { GetAncestor($0, WinWatcher.root) }
+        let hit = under.flatMap { WinDrag.hit($0, at: p) }.map { "\($0)" } ?? "none"
+        print(
+            "drag: input delivered \(delivered) press \(press) age \(age) ms root \(root) hit \(answer)",
+            "foreground \(front) under \(under.map(WinWindows.className) ?? "none") hit \(hit)")
     }
 
     // shot copies the virtual desktop with GDI into name.png in the report folder and returns the

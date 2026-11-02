@@ -22,6 +22,7 @@ guard let name = options.probe else {
     app.notify = { banner.show($0, $1) }
     let tray = Tray(app: app)
     tray.show()
+    tray.watchUpdates()
     app.engine.start()
     app.run()
     tray.hide()
