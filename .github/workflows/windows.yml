@@ -586,7 +586,7 @@ jobs:
           Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Notifier, Scheduler, Pointer, Keys, Log, Timers, EventSource, Apps, ScreenSource, ChoicesStore and Clock rule"
 
       - name: Scenarios
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
           function Scenarios([string] $name, [string[]] $more) {
@@ -632,6 +632,56 @@ jobs:
           if ($s.Code -eq 0 -or -not ($s.Lines -match '^scenario failed: pinPlacesOnStrip: a pinned window reads back at its strip within 2 s, 1 point: ')) { throw "a strip 2 px off passed, so the pin scenario cannot fail" }
           Write-Host "  check: a strip expected 2 px wider failed the pin scenario with its rule named"
 
+          Write-Host "browsers as stand-ins: pin, push to the channel and drag snap on custom-frame windows"
+          $paths = [ordered]@{
+            chrome = @("$env:ProgramFiles\Google\Chrome\Application\chrome.exe", "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe")
+            edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe")
+            firefox = @("$env:ProgramFiles\Mozilla Firefox\firefox.exe", "${env:ProgramFiles(x86)}\Mozilla Firefox\firefox.exe")
+          }
+          $browsers = [ordered]@{}
+          foreach ($b in $paths.Keys) {
+            $hit = @($paths[$b] | Where-Object { Test-Path $_ })[0]
+            if ($hit) { $browsers[$b] = (Get-Item $hit).FullName }
+          }
+          $browsers.GetEnumerator() | ForEach-Object { Write-Host "  browser on the runner: $($_.Key) $($_.Value)" }
+          if ($browsers.Count -eq 0) { throw "no Chrome, Edge or Firefox on the runner" }
+          New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' -Force | Out-Null
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' -Name HideFirstRunExperience -Value 1 -Type DWord
+          $modes = @(& $exe --probe modes)
+          $global:LASTEXITCODE = 0
+          $mode = if ($modes -match '^mode 1920x1080 ') { '1920x1080' } else { $null }
+          if ($mode) {
+            $m = @(& $exe --probe modes --mode $mode)
+            $global:LASTEXITCODE = 0
+            if (-not ($m -match '^switched to .*: done$')) { throw "the switch to $mode failed: $($m -join ' ')" }
+          }
+          Write-Host "  screen: $(@(& $exe --probe modes) -match '^current: ')"
+          $global:LASTEXITCODE = 0
+          $bad = @()
+          $controls = 0
+          try {
+            foreach ($b in $browsers.Keys) {
+              $s = Scenarios "browser-$b" @('pinPlacesOnStrip', 'secondWindowGoesToChannel', 'dragSnapsToZone', '--stand-in', $browsers[$b], '--min-aspect', '1.0')
+              Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $browsers[$b] } | Stop-Process -Force -ErrorAction SilentlyContinue
+              if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 3 run, 0 skipped, 0 failed$')) { $bad += "$b ($($s.Code))" }
+              $ins = [regex]::Match((@($s.Lines -match '^stand-in insets: ')[0] + ''), '^stand-in insets: (\d+) (\d+) (\d+) (\d+)$')
+              if (-not $ins.Success) { $bad += "$b printed no insets"; continue }
+              $sum = 0; 1..4 | ForEach-Object { $sum += [int]$ins.Groups[$_].Value }
+              if ($sum -eq 0) { Write-Host "  $b has no inset, so the border correction changes nothing on it"; continue }
+              $n = Scenarios "nodelta-$b" @('pinPlacesOnStrip', '--no-delta', '--stand-in', $browsers[$b], '--min-aspect', '1.0')
+              Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $browsers[$b] } | Stop-Process -Force -ErrorAction SilentlyContinue
+              if ($n.Code -eq 0 -or -not ($n.Lines -match '^scenario failed: pinPlacesOnStrip: a pinned window reads back at its strip within 2 s, 1 point: ')) { $bad += "$b without the correction passed" } else { $controls++ }
+            }
+          } finally {
+            if ($mode) {
+              $null = & $exe --probe modes --reset
+              $global:LASTEXITCODE = 0
+            }
+          }
+          if ($bad.Count -ne 0) { throw "browser stand-ins failed: $($bad -join ', ')" }
+          if ($controls -eq 0) { throw "no browser has an inset, so the border correction cannot fail on any" }
+          Write-Host "  check: $($browsers.Keys -join ', ') pinned, pushed and snapped within 1 px, and $controls without the border correction missed the strip"
+
       - name: SIM repeat
         if: github.event_name == 'workflow_dispatch' && inputs.sim_repeat > 1
         timeout-minutes: 45
@@ -672,7 +722,7 @@ jobs:
             }
             $pngs = @(Get-ChildItem (Join-Path $r.FullName '*.png') -ErrorAction SilentlyContinue).Count
             $ok = $false
-            if ($r.Name -eq 'skew') {
+            if ($r.Name -eq 'skew' -or $r.Name -like 'nodelta-*') {
               if ($exit -ne 'none' -and $exit -ne '0') { $ok = $true; $verdict = 'failed, as the negative control must' }
               else { $verdict = 'PASSED, the negative control is broken' }
             } else {

@@ -6,10 +6,11 @@ import MooringsEngine
 import MooringsTesting
 
 // probeScenarios runs the shared scenarios named after --scenarios, every one when none is named, on
-// the Win32 adapters against stand-in windows from this exe's stand probe, with the mouse hook
-// feeding drags to the engine as the app's loop does. It writes report.json, report.html and one PNG
-// per scenario into the report folder, prints each number, frame and broken rule, and ends with the
-// summary line the workflow checks.
+// the Win32 adapters against stand-in windows from this exe's stand probe or the browser --stand-in
+// names, with the mouse hook feeding drags to the engine as the app's loop does. Under --no-delta the
+// engine places without the border correction, the negative control. It writes report.json,
+// report.html and one PNG per scenario into the report folder, prints each number, frame and broken
+// rule, and ends with the summary line the workflow checks.
 func probeScenarios(_ opts: ProbeOptions) -> Int32 {
     let only = Set(opts.scenarios)
     let unknown = Scenarios.unknown(only)
@@ -31,6 +32,7 @@ func probeScenarios(_ opts: ProbeOptions) -> Int32 {
         try? FileManager.default.removeItem(at: Store(url: file).aside)
     }
     let app = App(store: Store(url: file), minAspect: opts.minAspect)
+    app.windows.corrects = !opts.noDelta
     app.notify = { title, body in print("notice: \(title): \(body)") }
     let host = WinHost(minAspect: opts.minAspect)
     host.timers = { app.timers.fire($0) || app.mouse.tick($0) }
@@ -38,6 +40,10 @@ func probeScenarios(_ opts: ProbeOptions) -> Int32 {
     host.mouse = { app.mouse.deliver($0) }
     host.shots = dir
     host.choices = file
+    host.standIn = opts.standIn
+    if opts.standIn != nil {
+        host.measureStandIn()
+    }
     app.mouse.handler = { message, p in
         if message == UINT(WM_MOUSEMOVE) {
             app.drag.pointer(p)

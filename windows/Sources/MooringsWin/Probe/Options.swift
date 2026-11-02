@@ -68,6 +68,9 @@ struct ProbeOptions {
     var url: URL?
     // current is the version the update probe checks as, in place of the build's.
     var current: String?
+    // standIn is the lowercased path of a browser the scenarios open in place of the stand probe's
+    // window, nil for the stand probe.
+    var standIn: String?
 
     // init parses args, the command line without the program name.
     init(_ args: [String]) throws {
@@ -102,6 +105,10 @@ struct ProbeOptions {
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard ReleaseVersion(value) != nil else { throw ProbeError.badValue(flag, value) }
                 current = value
+            case "--stand-in":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard FileManager.default.fileExists(atPath: value) else { throw ProbeError.badValue(flag, value) }
+                standIn = value.lowercased()
             case "--no-delta":
                 noDelta = true
             case "--paused":
