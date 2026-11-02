@@ -190,8 +190,9 @@ public struct UpdateChecker: Sendable {
     let endpoint: URL
 
     // init creates a checker for the running version of platform that asks endpoint.
-    public init(client: any HTTPClient, current: ReleaseVersion, platform: ReleasePlatform = .macos, endpoint: URL = api)
-    {
+    public init(
+        client: any HTTPClient, current: ReleaseVersion, platform: ReleasePlatform = .macos, endpoint: URL = api
+    ) {
         self.client = client
         self.current = current
         self.platform = platform

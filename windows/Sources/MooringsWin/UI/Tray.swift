@@ -107,7 +107,9 @@ final class Tray {
             widths.append(.separator)
             widths += owned.map(pair)
         }
-        let offer = update.map { [MenuItem(title: "Update available: \($0.tag)", command: .openRelease($0.page)), .separator] }
+        let offer = update.map {
+            [MenuItem(title: "Update available: \($0.tag)", command: .openRelease($0.page)), .separator]
+        }
         return (offer ?? []) + [
             MenuItem(title: "Slots", submenu: slots),
             MenuItem(title: "Widths", submenu: widths),

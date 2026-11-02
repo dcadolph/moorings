@@ -182,9 +182,10 @@ let fixtureRelease = """
 // was given, and that a Mac check of the same release never takes the Windows zip.
 @Test func testUpdateAssetsWindows() async throws {
     let base = "https://github.com/dcadolph/moorings/releases/download/v1.15.1/"
+    let zip = "moorings_v1.15.1_windows_x64.zip"
+    let asset = "{\"name\":\"\(zip)\",\"browser_download_url\":\"\(base)\(zip)\"},\n"
     let body = fixtureRelease.replacingOccurrences(
-        of: "{\"name\":\"SHA256SUMS\"",
-        with: "{\"name\":\"moorings_v1.15.1_windows_x64.zip\",\"browser_download_url\":\"\(base)moorings_v1.15.1_windows_x64.zip\"},\n{\"name\":\"SHA256SUMS\"")
+        of: "{\"name\":\"SHA256SUMS\"", with: asset + "{\"name\":\"SHA256SUMS\"")
     let endpoint = try #require(URL(string: "http://127.0.0.1:8765/newer.json"))
     let asked = Asked()
     let client = HTTPClientFunc { request in
