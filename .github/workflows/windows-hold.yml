@@ -1,6 +1,6 @@
 name: windows-hold
 
-# Hold two real pins on the runner for an hour and bound the app's own memory, handles and GDI
+# Hold two real pins on the runner for hours and bound the app's own memory, handles and GDI
 # objects. The soak runs the release build's loop once on the runner's 1920x1080 screen at
 # --min-aspect 1.0, since the runner lists no wider mode and Notepad and Edge cannot be sized past
 # the desktop. With paused set it is the negative control: the soak pauses through the engine once
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       minutes:
-        description: How long the soak holds its pins, 1 to 300 minutes.
+        description: How long the soak holds its pins, 1 to 340 minutes.
         type: number
         default: 60
       paused:
@@ -27,7 +27,7 @@ on:
 jobs:
   hold:
     runs-on: windows-latest
-    timeout-minutes: 330
+    timeout-minutes: 355
     defaults:
       run:
         working-directory: windows
@@ -43,14 +43,14 @@ jobs:
         run: swift build -c release -Xswiftc -warnings-as-errors
 
       - name: Soak
-        timeout-minutes: 310
+        timeout-minutes: 345
         env:
           SOAK_MINUTES: ${{ inputs.minutes }}
           SOAK_PAUSED: ${{ inputs.paused }}
           SOAK_LEAK: ${{ inputs.leak }}
         run: |
           $minutes = [int]$env:SOAK_MINUTES
-          if ($minutes -lt 1 -or $minutes -gt 300) { throw "minutes is $minutes, not 1 to 300" }
+          if ($minutes -lt 1 -or $minutes -gt 340) { throw "minutes is $minutes, not 1 to 340" }
           $paused = $env:SOAK_PAUSED -eq 'true'
           $leak = $env:SOAK_LEAK -eq 'true'
           if ($leak -and ($paused -or $minutes -lt 10)) { throw "leak needs paused false and at least 10 minutes" }
