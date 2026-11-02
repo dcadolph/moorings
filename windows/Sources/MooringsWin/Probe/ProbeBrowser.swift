@@ -15,8 +15,13 @@ let firefoxPrefs = """
     """
 
 extension WinHost {
+    // browserWait is how long openBrowser waits for a browser's window. A browser's first launch on a
+    // fresh machine creates its profile and is scanned, which can take well past 20 s; the wait ends
+    // the moment the window shows.
+    static let browserWait = 60.0
+
     // openBrowser starts the browser at path with a fresh profile and returns its new window once it
-    // shows and holds still, nil when none shows within 20 s. A browser may hand its window to another
+    // shows and holds still, nil when none shows within browserWait, and prints how long it took. A browser may hand its window to another
     // process, so the window is found by its image path among the windows that were not there before,
     // and it must be one the store reads, which passes over a captionless handoff dialog.
     func openBrowser(_ path: String) -> HWND? {
@@ -44,7 +49,8 @@ extension WinHost {
         guard let pid = launch(path, args) else { return nil }
         browsers.append(pid)
         var found: HWND?
-        _ = wait(until: now + 20) {
+        let launched = now
+        _ = wait(until: launched + Self.browserWait) {
             found = WinWindows.topLevel().first {
                 !before.contains($0) && IsWindowVisible($0) && GetWindow($0, UINT(GW_OWNER)) == nil
                     && WinWindows.image(WinWindows.processID($0)) == path
@@ -57,9 +63,10 @@ extension WinHost {
             where !before.contains(hwnd) && WinWindows.image(WinWindows.processID(hwnd)) == path {
                 describeStandIn(hwnd, "never read")
             }
-            print("scenarios: no \(path) window within 20 s")
+            print("scenarios: no \(path) window within \(Int(Self.browserWait)) s")
             return nil
         }
+        print("stand-in window shown after \(String(format: "%.1f", now - launched)) s")
         browsers.append(WinWindows.processID(found))
         settle(found)
         return found
