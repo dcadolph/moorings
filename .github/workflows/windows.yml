@@ -59,6 +59,42 @@ jobs:
           $v = Probe @('--probe', 'version')
           Expect $v '^dpi: per-monitor-v2$' 'per-monitor-v2 DPI awareness'
 
+          Write-Host "probe update against release records served from the runner"
+          $site = Join-Path $env:RUNNER_TEMP 'releases'
+          New-Item -ItemType Directory -Path $site | Out-Null
+          function Record([string] $tag) {
+            $dl = "https://github.com/dcadolph/moorings/releases/download/$tag"
+            $assets = @(
+              @{ name = "moorings_${tag}_macos_universal.zip"; browser_download_url = "$dl/moorings_${tag}_macos_universal.zip" },
+              @{ name = "moorings_${tag}_windows_x64.zip"; browser_download_url = "$dl/moorings_${tag}_windows_x64.zip" },
+              @{ name = 'SHA256SUMS'; browser_download_url = "$dl/SHA256SUMS" }
+            )
+            @{ tag_name = $tag; html_url = "https://github.com/dcadolph/moorings/releases/tag/$tag"; draft = $false; prerelease = $false; assets = $assets } | ConvertTo-Json -Depth 4
+          }
+          Set-Content -Path (Join-Path $site 'newer.json') -Value (Record 'v9.9.9') -Encoding ascii
+          Set-Content -Path (Join-Path $site 'older.json') -Value (Record 'v0.0.1') -Encoding ascii
+          $server = Start-Process python -ArgumentList @('-m', 'http.server', '8765', '--bind', '127.0.0.1', '--directory', $site) -PassThru -WindowStyle Hidden
+          try {
+            $up = $false
+            foreach ($i in 1..30) {
+              try { $null = Invoke-WebRequest -Uri 'http://127.0.0.1:8765/older.json' -UseBasicParsing -TimeoutSec 2; $up = $true; break } catch { Start-Sleep -Milliseconds 500 }
+            }
+            if (-not $up) { throw "the release record server did not start" }
+            $u = Probe @('--probe', 'update', '--url', 'http://127.0.0.1:8765/newer.json', '--current', '1.0.0')
+            Expect $u '^update 9\.9\.9 available zip moorings_v9\.9\.9_windows_x64\.zip$' 'a newer release offers the Windows zip'
+            Expect $u '^menu first: Update available: v9\.9\.9$' 'the tray menu leads with the update'
+            Expect $u '^due again: false$' 'no second check right after one'
+            $u = Probe @('--probe', 'update', '--url', 'http://127.0.0.1:8765/older.json', '--current', '1.0.0')
+            Expect $u '^up to date$' 'an older release is not offered'
+            if ($u -match '^update ') { throw "an older release was offered" }
+            $u = Probe @('--probe', 'update', '--url', 'http://127.0.0.1:8765/missing.json', '--current', '1.0.0')
+            Expect $u '^check failed: server\(status: 404\)$' 'a missing record fails the check'
+            Expect $u '^due again: false$' 'a failed check waits out the schedule'
+            if ($u -match '^(update |up to date)') { throw "a failed check reported a result" }
+          } finally {
+            Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
+          }
+
           Write-Host "probe monitors --min-aspect 1.0"
           $m = Probe @('--probe', 'monitors', '--min-aspect', '1.0')
           $primary = $m -match '^monitor \d+: full .* primary true$'
@@ -625,58 +661,8 @@ jobs:
       - name: Package
         id: package
         run: |
-          swift build -c release -Xswiftc -warnings-as-errors
-          if ($LASTEXITCODE -ne 0) { throw "release build failed" }
-          $bin = swift build -c release -Xswiftc -warnings-as-errors --show-bin-path
-          $runtime = Split-Path (where.exe swiftCore.dll | Select-Object -First 1)
           $short = '${{ github.event.pull_request.head.sha || github.sha }}'.Substring(0, 7)
-          $name = "moorings-windows-$short"
-          $dir = Join-Path $env:RUNNER_TEMP $name
-          New-Item -ItemType Directory -Path $dir | Out-Null
-          Copy-Item (Join-Path $bin 'MooringsWin.exe') $dir
-          Copy-Item (Join-Path $runtime '*.dll') $dir
-          foreach ($dll in 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll') {
-            $path = Join-Path $env:SystemRoot "System32\$dll"
-            if (Test-Path $path) { Copy-Item $path $dir }
-          }
-          Set-Content -Path (Join-Path $dir 'README-windows.txt') -Encoding utf8 -Value @'
-          Moorings for Windows, early build
-
-          Moorings holds apps in the side strips of an ultrawide monitor, 21:9 or wider, and keeps
-          every other window in the channel between them.
-
-          Run it
-
-          1. Unzip this folder anywhere, for example Documents\Moorings. Keep the files together:
-             MooringsWin.exe runs on the DLLs beside it.
-          2. Double-click MooringsWin.exe. This build is not signed yet, so Windows SmartScreen may
-             say it protected your PC. Click More info, then Run anyway. It asks once.
-          3. Moorings has no window. Its icon sits in the notification area at the right end of the
-             taskbar. Click the up arrow there if it is hidden, then click the icon for the menu.
-
-          What it does
-
-          - Slots: in the tray menu, choose an app for Left top, Left bottom, Right top or Right
-            bottom. Moorings holds its window in that strip.
-          - Any other window that lands on a strip is pushed back into the channel.
-          - Moving a held window by hand releases it. Ctrl+Alt+Backspace on it puts it back.
-          - Window shortcuts from Rectangle: Ctrl+Alt+Left and Right for halves, Ctrl+Alt+U, I, J
-            and K for quarters, Ctrl+Alt+D, F and G for thirds, Ctrl+Alt+Enter to maximize and
-            Ctrl+Alt+C to center, all inside the channel. On a held window Ctrl+Alt+Enter lifts it
-            over the channel, and pressing it again lowers it.
-          - Widths: pick the strip widths from the tray menu.
-          - Pause stops everything until you choose it again. Launch at login starts Moorings when
-            you sign in.
-
-          This build is checked on GitHub's Windows runner and in a Windows 11 virtual machine at
-          3440x1440, not yet on a physical ultrawide.
-
-          Settings live in %APPDATA%\Moorings\choices.json. Open settings file in the tray menu
-          opens it, and Moorings reads it again when it changes or on Reload settings. To quit,
-          choose Quit Moorings from the tray menu.
-          '@
-          "name=$name" >> $env:GITHUB_OUTPUT
-          "dir=$dir" >> $env:GITHUB_OUTPUT
+          ./package.ps1 -Name "moorings-windows-$short"
 
       - name: Package check
         timeout-minutes: 5
@@ -706,3 +692,27 @@ jobs:
         with:
           name: ${{ steps.package.outputs.name }}
           path: ${{ steps.package.outputs.dir }}
+
+      # The release workflow's windows job, run here with a made-up version so a release never runs
+      # it first: stamp, package as Moorings, the exe says the version with the toolchain off PATH,
+      # and the zip holds the Moorings folder. Last, since it rewrites Version.swift in the checkout.
+      - name: Release package
+        timeout-minutes: 20
+        run: |
+          ./package.ps1 -Name Moorings -Version 9.9.8
+          $dir = Join-Path $env:RUNNER_TEMP 'Moorings'
+          $zip = Join-Path $env:RUNNER_TEMP 'moorings_v9.9.8_windows_x64.zip'
+          Compress-Archive -Path $dir -DestinationPath $zip
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $entries = @([IO.Compression.ZipFile]::OpenRead($zip).Entries.FullName)
+          if (-not ($entries -match '^Moorings[\\/]MooringsWin\.exe$')) { throw "the zip does not hold Moorings\MooringsWin.exe: $($entries -join ', ')" }
+          $saved = $env:Path
+          $env:Path = "$env:SystemRoot\System32;$env:SystemRoot"
+          $log = Join-Path $env:RUNNER_TEMP 'release-version.txt'
+          $p = Start-Process (Join-Path $dir 'MooringsWin.exe') -ArgumentList @('--probe', 'version') -RedirectStandardOutput $log -NoNewWindow -PassThru
+          $null = $p.Handle
+          if (-not $p.WaitForExit(30000)) { Stop-Process -Id $p.Id -Force; throw "the release exe hung" }
+          $env:Path = $saved
+          Get-Content $log | ForEach-Object { Write-Host "  $_" }
+          if ($p.ExitCode -ne 0 -or -not (@(Get-Content $log) -contains 'version: 9.9.8')) { throw "the release exe did not say version: 9.9.8" }
+          Write-Host "  check: the stamped exe says 9.9.8 and the zip holds the Moorings folder"

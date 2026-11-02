@@ -12,6 +12,7 @@ enum Command: Equatable {
     case reloadSettings
     case atLogin
     case about
+    case openRelease(URL)
     case quit
 }
 
@@ -44,9 +45,19 @@ final class Tray {
     private var icon: HICON?
     // commands maps each open menu's item ids, from 1, to what they do.
     private var commands: [Command] = []
+    // update looks for a newer release, nil until watchUpdates and in a dev build.
+    private(set) var update: WinUpdate?
+    // updates runs the update tick on the message loop.
+    private var updates: WinScheduler?
+    // told is the tag of the release a banner already announced.
+    private var told: String?
 
     // callback is the message the icon sends on a click, WM_APP + 1.
     static let callback = UINT(WM_APP + 1)
+    // updated is the message an update check posts when it ends, WM_APP + 2.
+    static let updated = UINT(WM_APP + 2)
+    // updateTick is how often the tray asks whether an update check is due, in seconds.
+    static let updateTick = 60.0
     // iconID names the one icon this process adds.
     static let iconID = UINT(1)
     // className is the hidden window's class.
@@ -63,9 +74,10 @@ final class Tray {
     // added again.
     static let taskbarCreated = RegisterWindowMessageW(wide("TaskbarCreated"))
 
-    // menu builds the tray menu from the choices, the bundles of the running apps, and whether
-    // Moorings starts at login. It is pure so the menu probe can print it.
-    static func menu(choices: Choices, running: [String], atLogin: Bool) -> [MenuItem] {
+    // menu builds the tray menu from the choices, the bundles of the running apps, whether Moorings
+    // starts at login, and the newer release a check found, which comes first. It is pure so the
+    // menu and update probes can print it.
+    static func menu(choices: Choices, running: [String], atLogin: Bool, update: ReleaseInfo? = nil) -> [MenuItem] {
         let apps = Array(Set(running)).sorted { appName($0).lowercased() < appName($1).lowercased() }
         var slots: [MenuItem] = []
         for key in SlotKey.allCases {
@@ -95,7 +107,8 @@ final class Tray {
             widths.append(.separator)
             widths += owned.map(pair)
         }
-        return [
+        let offer = update.map { [MenuItem(title: "Update available: \($0.tag)", command: .openRelease($0.page)), .separator] }
+        return (offer ?? []) + [
             MenuItem(title: "Slots", submenu: slots),
             MenuItem(title: "Widths", submenu: widths),
             .separator,
@@ -144,8 +157,41 @@ final class Tray {
         return add()
     }
 
+    // watchUpdates starts the update tick: once a minute it starts a check when the choices allow
+    // one and the core's schedule says it is due. A dev build never checks. A check that ends posts
+    // updated to the hidden window, so its news reaches the menu and the banner on this thread.
+    func watchUpdates() {
+        guard update == nil, let window, let current = ReleaseVersion(version) else { return }
+        let bits = UInt(bitPattern: window)
+        update = WinUpdate(checker: UpdateChecker(client: URLSessionClient(), current: current, platform: .windows)) {
+            result in
+            if case .failure(let error) = result {
+                FileHandle.standardError.write(Data("update: check failed: \(error)\n".utf8))
+            }
+            _ = PostMessageW(HWND(bitPattern: bits), Tray.updated, 0, 0)
+        }
+        updates = app.timers.make()
+        tick()
+    }
+
+    // tick starts a check when one is due and schedules the next tick.
+    private func tick() {
+        if app.engine.anchors.choices.checkUpdates, let update, update.due() {
+            update.start()
+        }
+        updates?.schedule(at: App.now + Self.updateTick) { [weak self] in self?.tick() }
+    }
+
+    // announce shows a banner for a newer release the first time a check names it.
+    private func announce() {
+        guard let found = update?.found, found.tag != told else { return }
+        told = found.tag
+        app.notify("Moorings \(found.tag) is out", "Choose Update available in the tray menu to open the release page.")
+    }
+
     // hide removes the icon and the hidden window.
     func hide() {
+        updates?.cancel()
         guard let window else { return }
         var data = Self.notifyData(window)
         _ = Shell_NotifyIconW(DWORD(NIM_DELETE), &data)
@@ -208,6 +254,9 @@ final class Tray {
                 perform(commands[id - 1])
             }
             return 0
+        case Tray.updated:
+            announce()
+            return 0
         case Tray.taskbarCreated where Tray.taskbarCreated != 0:
             add()
             return 0
@@ -220,7 +269,8 @@ final class Tray {
     // when the owner clicks elsewhere.
     private func open(_ hwnd: HWND) {
         let running = WinWindows.scan(screens: .current(minAspect: app.minAspect)).windows.map(\.bundle)
-        let items = Tray.menu(choices: app.engine.anchors.choices, running: running, atLogin: LoginItem.enabled)
+        let items = Tray.menu(
+            choices: app.engine.anchors.choices, running: running, atLogin: LoginItem.enabled, update: update?.found)
         commands = []
         guard let menu = build(items) else { return }
         defer { _ = DestroyMenu(menu) }
@@ -283,6 +333,12 @@ final class Tray {
         case .about:
             let text = "Moorings \(version)\nHolds apps in the side strips of an ultrawide."
             _ = MessageBoxW(window, wide(text), wide("About Moorings"), UINT(MB_OK | MB_ICONINFORMATION))
+            return
+        case .openRelease(let page):
+            let result = ShellExecuteW(window, wide("open"), wide(page.absoluteString), nil, nil, SW_SHOWNORMAL)
+            if Int(bitPattern: result) <= 32 {
+                FileHandle.standardError.write(Data("tray: release page not opened: \(Int(bitPattern: result))\n".utf8))
+            }
             return
         case .quit:
             app.engine.shutdown()

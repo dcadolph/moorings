@@ -64,6 +64,10 @@ struct ProbeOptions {
     var report = "scenarios"
     // skew widens the strip the scenarios expect by this many pixels, their negative control.
     var skew = 0.0
+    // url is the release record the update probe asks for in place of GitHub's.
+    var url: URL?
+    // current is the version the update probe checks as, in place of the build's.
+    var current: String?
 
     // init parses args, the command line without the program name.
     init(_ args: [String]) throws {
@@ -90,6 +94,14 @@ struct ProbeOptions {
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }
                 minAspect = n
+            case "--url":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard let u = URL(string: value), u.scheme != nil else { throw ProbeError.badValue(flag, value) }
+                url = u
+            case "--current":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard ReleaseVersion(value) != nil else { throw ProbeError.badValue(flag, value) }
+                current = value
             case "--no-delta":
                 noDelta = true
             case "--paused":

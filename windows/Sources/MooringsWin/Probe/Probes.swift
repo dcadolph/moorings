@@ -5,9 +5,6 @@ import MooringsCore
 import MooringsEngine
 import MooringsTesting
 
-// version is the build's version, shown by the version probe and, later, the tray's About item.
-let version = "dev"
-
 // Probe runs one mechanism, prints lines the Windows workflow checks, and returns the exit code.
 typealias Probe = @Sendable (ProbeOptions) -> Int32
 
@@ -34,4 +31,5 @@ let probes: [String: Probe] = [
     "stand": probeStand,
     "contracts": probeContracts,
     "scenarios": probeScenarios,
+    "update": probeUpdate,
 ]
