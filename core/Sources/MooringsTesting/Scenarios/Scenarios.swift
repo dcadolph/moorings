@@ -158,6 +158,14 @@ public final class Stage {
         return wide
     }
 
+    // start returns the free frame a scenario places its window at: 200 by 150 points into wide, 500
+    // by 350 or the host's minimum when that is larger, so a host whose windows refuse to shrink to the
+    // fixed size still reads back where it was placed.
+    func start(_ wide: Frame) -> Frame {
+        let least = host.minimum
+        return Frame(x: wide.x + 200, y: wide.y + 150, w: max(500, least?.w ?? 0), h: max(350, least?.h ?? 0))
+    }
+
     // regions returns the strips and channel the pinned choices give on wide, the strip skew wider.
     func regions(_ wide: Frame) -> Regions {
         var r = Geometry.regions(wide, Scenarios.widths.left, Scenarios.widths.right)

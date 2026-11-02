@@ -130,6 +130,7 @@ extension WinHost {
         _ = wait(until: now + 0.5) { false }
         if let f = WinWindows().frame(id) {
             print("stand-in minimum: \(Int(f.w)) \(Int(f.h))")
+            standInMinimum = (f.w, f.h)
         }
         finish()
     }

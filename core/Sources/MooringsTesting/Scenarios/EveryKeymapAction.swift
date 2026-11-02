@@ -11,7 +11,7 @@ extension Scenarios {
     static func everyKeymapAction(_ s: Stage) {
         s.choose { _ in }
         guard let wide = s.wide(), let pad = s.open("window") else { return }
-        let start = Frame(x: wide.x + 200, y: wide.y + 150, w: 500, h: 350)
+        let start = s.start(wide)
         let move = { (f: Frame) in
             s.engine.platform.windows.move(pad.id, to: f, from: nil, behavior: Behaviors())
         }

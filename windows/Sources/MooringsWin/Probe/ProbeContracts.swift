@@ -106,15 +106,19 @@ final class WinHost: ContractHost {
     var profiles: [URL] = []
     // first is the first stand-in window the host opened, whose border the minimum leaves out.
     private var first: HWND?
+    // standInMinimum is the smallest visible frame measureStandIn read from the stand-in browser.
+    var standInMinimum: (w: Double, h: Double)?
 
     // init builds a host whose screens count a monitor at least minAspect wide as ultrawide.
     init(minAspect: Double) {
         self.minAspect = minAspect
     }
 
-    // minimum is the smallest visible frame a stand-in keeps: the smallest window Windows lets a
-    // person size, less the invisible border that rect includes and the store's frames leave out.
+    // minimum is the smallest visible frame a stand-in keeps. For a stand-in browser it is the frame
+    // measureStandIn read. For the stand probe it is the smallest window Windows lets a person size,
+    // less the invisible border that rect includes and the store's frames leave out.
     var minimum: (w: Double, h: Double)? {
+        if standIn != nil, let standInMinimum { return standInMinimum }
         let track = (w: Double(GetSystemMetrics(SM_CXMINTRACK)), h: Double(GetSystemMetrics(SM_CYMINTRACK)))
         guard let first, let d = WinWindows.insets(first) else { return track }
         return (track.w - d.left - d.right, track.h - d.top - d.bottom)

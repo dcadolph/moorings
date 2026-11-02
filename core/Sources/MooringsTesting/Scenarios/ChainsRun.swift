@@ -15,7 +15,7 @@ extension Scenarios {
             $0.chains = [halves, once]
         }
         guard let wide = s.wide(), let pad = s.open("window") else { return }
-        let start = Frame(x: wide.x + 200, y: wide.y + 150, w: 500, h: 350)
+        let start = s.start(wide)
         let screens = s.host.screens()
         let reset = { () -> WindowInfo? in
             s.engine.platform.windows.move(pad.id, to: start, from: nil, behavior: Behaviors())
