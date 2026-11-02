@@ -279,6 +279,8 @@ public enum Keymap: String, CaseIterable, Sendable {
         "next-display": sc([.ctrl, .alt, .cmd], "right"),
         "cycle-slot-windows": sc([.ctrl, .alt, .cmd], "down"),
         "cycle-slot-windows-backward": sc([.ctrl, .alt, .cmd], "up"),
+        Tile.fitName: sc([.ctrl, .alt, .cmd], "t"),
+        Tile.fillAllName: sc([.ctrl, .alt, .cmd], "return"),
     ]
 
     // magnetTable is Magnet's default set: the Control-Option keys Rectangle's alternate set ships for
@@ -351,11 +353,7 @@ public enum Keymaps {
     ]
 
     // organizeNames returns the organize actions in menu order.
-    public static let organizeNames = [
-        "tile-columns", "tile-rows", "tile-all", "tile-active-app", "cascade-all", "cascade-active-app",
-        "cycle-stacked-windows", "cycle-stacked-windows-backward", "cycle-slot-windows",
-        "cycle-slot-windows-backward", "cycle-channel-windows", "cycle-channel-windows-backward", "reverse-all",
-    ]
+    public static let organizeNames = Tile.names
 
     // windowNames lists the actions on the front app's windows that never move a frame, in menu order.
     public static let windowNames = [

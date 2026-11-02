@@ -1,7 +1,7 @@
 import MooringsCore
 
 // Organizer lays out several free windows at once: it tiles and cascades them, cycles the windows
-// of a stack or a slot, mirrors them, tidies the channel and undoes what it moved.
+// of a stack or a slot, mirrors them, fits, fills and tidies the channel and undoes what it moved.
 public final class Organizer {
     // tidyCounts lists how many front windows the Tidy entries line up.
     public static let tidyCounts = [2, 3]
@@ -37,10 +37,20 @@ public final class Organizer {
         return !list.isEmpty
     }
 
-    // organizable returns the windows on screen i that organize actions may move: not pinned and not
-    // fullscreen, front-most first.
+    // organizable returns the windows on screen i that organize actions may move, front-most first:
+    // not pinned, fullscreen, stashed, cast off or a file panel.
     private func organizable(_ windows: [WindowInfo], _ screens: Screens, _ i: Int) -> [WindowInfo] {
-        windows.filter { !anchors.pinned($0) && !$0.isFullScreen && screens.index($0.frame) == i }
+        windows.filter {
+            !anchors.pinned($0) && !$0.isFullScreen && !anchors.stashed.contains($0.id) && !anchors.isCastOff($0.id)
+                && !$0.isFilePanel && screens.index($0.frame) == i
+        }
+    }
+
+    // stage returns the screen the channel actions work on, the ultrawide while it is attached and
+    // the focused window's screen otherwise, with its organizable windows.
+    private func stage(_ scan: Scan, _ screens: Screens) -> (i: Int, list: [WindowInfo])? {
+        guard let i = screens.ultrawide ?? scan.focused.flatMap({ screens.index($0.frame) }) else { return nil }
+        return (i, organizable(scan.windows, screens, i))
     }
 
     // sorted returns list ordered by order on the tile inputs.
@@ -55,6 +65,12 @@ public final class Organizer {
         guard !anchors.choices.paused else { return false }
         let screens = platform.screens.current()
         let scan = platform.windows.scan(screens, full: true)
+        if name == Tile.fitName {
+            return fit(scan, screens)
+        }
+        if name == Tile.fillAllName {
+            return fillAll(scan, screens)
+        }
         guard let win = scan.focused, let i = screens.index(win.frame) else { return false }
         let a = area(screens, i)
         let gap = anchors.choices.gapPx
@@ -108,9 +124,7 @@ public final class Organizer {
             platform.log.note(.actions, "\(name): no ultrawide")
             return false
         }
-        let stage = organizable(scan.windows, screens, u)
-            .filter { !anchors.stashed.contains($0.id) && !anchors.isCastOff($0.id) && !$0.isFilePanel }
-            .sorted { $0.id < $1.id }
+        let stage = organizable(scan.windows, screens, u).sorted { $0.id < $1.id }
         guard stage.count > 1, let at = stage.firstIndex(where: { $0.id == win.id }) else {
             platform.log.note(.actions, "\(name): the front window is not one of two or more in the channel")
             return false
@@ -121,6 +135,43 @@ public final class Organizer {
             engine.actions.fill(next, screens: screens)
         }
         platform.windows.raise(next.id)
+        engine.wake()
+        return true
+    }
+
+    // fit lays every window on the channel's stage out with Tile.fit: the focused window, or the
+    // front-most when the focused one is off the stage, takes the main frame and the front-most of
+    // the rest fill the other cells in reading order. Windows past the channel's capacity, the
+    // back-most, wait behind the main window. A pass runs after, as after a tidy.
+    private func fit(_ scan: Scan, _ screens: Screens) -> Bool {
+        guard let (i, list) = stage(scan, screens), let first = list.first else {
+            platform.log.note(.actions, "\(Tile.fitName): no windows to fit")
+            return false
+        }
+        let a = area(screens, i)
+        let main = list.first { $0.id == scan.focused?.id } ?? first
+        let others = list.filter { $0.id != main.id }
+        let cells = min(others.count, Tile.fitCapacity(a) - 1)
+        let rest = sorted(Array(others.prefix(cells)), Tile.byY) + others.dropFirst(cells)
+        let moved = place([main] + rest, Tile.fit(a, list.count, gap: anchors.choices.gapPx))
+        engine.moor()
+        return moved
+    }
+
+    // fillAll fills the channel with every window on the ultrawide's stage, back-most first, and
+    // raises the focused window, or the front-most when the focused one is off the stage, so the
+    // channel keys walk them from there. A window that fills the channel already is not moved.
+    private func fillAll(_ scan: Scan, _ screens: Screens) -> Bool {
+        guard screens.ultrawide != nil, let (_, list) = stage(scan, screens), let first = list.first else {
+            platform.log.note(.actions, "\(Tile.fillAllName): no channel windows to fill")
+            return false
+        }
+        let front = list.first { $0.id == scan.focused?.id } ?? first
+        for w in list.reversed().filter({ $0.id != front.id }) + [front]
+        where !engine.actions.fills(w, screens: screens) {
+            _ = engine.actions.fill(w, screens: screens)
+        }
+        platform.windows.raise(front.id)
         engine.wake()
         return true
     }

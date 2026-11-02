@@ -104,11 +104,26 @@ public struct StackChoices: Equatable, Sendable, Codable {
 // is pure.
 public enum Tile {
     // names lists the organize actions in menu order.
-    public static let names = [
-        "tile-columns", "tile-rows", "tile-all", "tile-active-app", "cascade-all", "cascade-active-app",
-        "cycle-stacked-windows", "cycle-stacked-windows-backward", "cycle-slot-windows",
-        "cycle-slot-windows-backward", "cycle-channel-windows", "cycle-channel-windows-backward", "reverse-all",
+    public static let names =
+        [
+            "tile-columns", "tile-rows", "tile-all", "tile-active-app", "cascade-all", "cascade-active-app",
+            "cycle-stacked-windows", "cycle-stacked-windows-backward", "cycle-slot-windows",
+            "cycle-slot-windows-backward", "reverse-all",
+        ] + channelNames
+
+    // fitName is the action that lays every channel window out at once.
+    public static let fitName = "fit-channel"
+
+    // fillAllName is the action that fills the channel with every channel window.
+    public static let fillAllName = "fill-channel-with-all"
+
+    // channelNames lists the organize actions on the channel's windows, in menu order.
+    public static let channelNames = [
+        fitName, fillAllName, "cycle-channel-windows", "cycle-channel-windows-backward",
     ]
+
+    // fitAspect is the cell shape, width over height, fit aims for.
+    public static let fitAspect = 4.0 / 3.0
 
     // cascadeStep is how far in points each cascaded window sits from the last.
     public static let cascadeStep = 30.0
@@ -211,6 +226,67 @@ public enum Tile {
             let inRow = min(cols, n - r * cols)
             return Geometry.part(area, c, c + 1, inRow, r, r + 1, rows, gap: gap)
         }
+    }
+
+    // fitCell is the smallest cell, width and height in points, fit gives a window. Most apps go no
+    // smaller, so a grid of smaller cells overlaps.
+    public static let fitCell = (w: 640.0, h: 400.0)
+
+    // fitCapacity returns how many fitCell cells area holds, at least one.
+    public static func fitCapacity(_ area: Frame) -> Int {
+        max(1, Int(area.w / fitCell.w)) * max(1, Int(area.h / fitCell.h))
+    }
+
+    // fitShape returns the columns and rows fit lays n windows out in on area, n capped at
+    // fitCapacity: of the grids with cells no smaller than fitCell and no empty row, the one whose
+    // cells come closest to fitAspect, fewer rows winning a tie.
+    public static func fitShape(_ area: Frame, _ n: Int) -> (cols: Int, rows: Int) {
+        let n = min(n, fitCapacity(area))
+        guard n > 1, area.w > 0, area.h > 0 else { return (1, 1) }
+        let maxCols = max(1, Int(area.w / fitCell.w))
+        let maxRows = max(1, Int(area.h / fitCell.h))
+        let rows0 = (n + maxCols - 1) / maxCols
+        var best = (cols: (n + rows0 - 1) / rows0, rows: rows0)
+        var score = Double.infinity
+        for rows in 1...min(n, maxRows) {
+            let cols = (n + rows - 1) / rows
+            guard cols <= maxCols, cols * rows - n < cols else { continue }
+            let s = abs(log(area.w / Double(cols) / (area.h / Double(rows)) / fitAspect))
+            if s < score {
+                score = s
+                best = (cols, rows)
+            }
+        }
+        return best
+    }
+
+    // fit returns n frames on area, the first for the main window, the rest read left to right, top
+    // to bottom. Past fitCapacity the extra frames are the main window's, so those windows wait behind
+    // it. With one cell to spare the main window takes the middle column's top two cells, twice as
+    // tall as the others. With more to spare the rows split the windows as evenly as they can, the
+    // fuller rows on top, and each row's frames widen to fill it.
+    public static func fit(_ area: Frame, _ n: Int, gap: Double = 0) -> [Frame] {
+        guard n > 0 else { return [] }
+        let shown = min(n, fitCapacity(area))
+        let (cols, rows) = fitShape(area, shown)
+        var out: [Frame] = []
+        if cols * rows - shown == 1, rows > 1 {
+            let m = (cols - 1) / 2
+            out.append(Geometry.part(area, m, m + 1, cols, 0, 2, rows, gap: gap))
+            for r in 0..<rows {
+                for c in 0..<cols where c != m || r > 1 {
+                    out.append(Geometry.part(area, c, c + 1, cols, r, r + 1, rows, gap: gap))
+                }
+            }
+        } else {
+            for r in 0..<rows {
+                let inRow = shown / rows + (r < shown % rows ? 1 : 0)
+                for c in 0..<inRow {
+                    out.append(Geometry.part(area, c, c + 1, inRow, r, r + 1, rows, gap: gap))
+                }
+            }
+        }
+        return out + Array(repeating: out[0], count: n - shown)
     }
 
     // cascade returns frames for windows of the given frames, back-most first, each stepped down and

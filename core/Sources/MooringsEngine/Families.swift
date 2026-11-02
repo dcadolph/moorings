@@ -121,6 +121,26 @@ extension ActionRunner {
         "stash": "Park the front window at the nearest free screen edge, or bring it back if it is parked. "
             + "Rest the pointer on its edge to slide it out.",
         "unstash-all": "Bring every parked window back where it was.",
+        Tile.fitName: "Lay out every free window in the channel at once, sized by how many there are. The front "
+            + "window gets the biggest place. Press again with another window in front to give it that place.",
+        Tile.fillAllName: "Make every free window in the channel fill the channel, the front one on top. "
+            + "Control-Left and Right then walk them.",
+        "cycle-channel-windows": "Bring the next channel window forward, filling the channel with it.",
+        "cycle-channel-windows-backward": "Bring the previous channel window forward, filling the channel with it.",
+        "tile-columns": "Line up the free windows on the front window's display in equal columns, in the channel "
+            + "on the ultrawide.",
+        "tile-rows": "Stack the free windows on the front window's display in equal rows, in the channel on the "
+            + "ultrawide.",
+        "tile-all": "Lay the free windows on the front window's display out in an even grid, in the channel on "
+            + "the ultrawide.",
+        "tile-active-app": "Lay the front app's free windows out in an even grid.",
+        "cascade-all": "Cascade the free windows on the front window's display, the front one on top.",
+        "cascade-active-app": "Cascade the front app's free windows, the front one on top.",
+        "cycle-stacked-windows": "Bring the next window stacked at the front window's corner forward.",
+        "cycle-stacked-windows-backward": "Bring the previous window stacked at the front window's corner forward.",
+        "cycle-slot-windows": "Bring the next window of the front window's slot forward.",
+        "cycle-slot-windows-backward": "Bring the previous window of the front window's slot forward.",
+        "reverse-all": "Mirror the free windows on the front window's display left to right.",
         Tiling.cycleName: "Step to the next tiling layout.",
         "grow-main": "Give the main window more of the area in the tall and wide layouts.",
         "shrink-main": "Give the main window less of the area in the tall and wide layouts.",

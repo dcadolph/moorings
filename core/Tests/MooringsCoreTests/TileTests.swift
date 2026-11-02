@@ -75,7 +75,7 @@ func covered(_ frames: [Frame]) -> Double {
     for n in Tile.names {
         #expect(Tile.handles(n))
     }
-    #expect(Tile.names.count == 13)
+    #expect(Tile.names.count == 15 && Set(Tile.names).count == 15)
     #expect(!Tile.handles("left-half"))
 }
 
@@ -323,4 +323,81 @@ func testTilingLayout(test: TilingCase) {
     var c = Choices()
     c.tiling = TilingChoices(mode: .wide, ratio: 0.3)
     #expect(Choices.decode(try Choices.encode(c)).choices.tiling == c.tiling)
+}
+
+// Test 16: Fit picks the grid whose cells come closest to fitAspect: halves for two, two by two for
+// three and four, three by two for five and six on a wide channel, and stacked rows on a tall one.
+@Test func testTileFitShape() {
+    let wide = F(0, 0, 2064, 1440)
+    let shapes = (1...9).map { Tile.fitShape(wide, $0) }
+    let want = [(1, 1), (2, 1), (2, 2), (2, 2), (3, 2), (3, 2), (3, 3), (3, 3), (3, 3)]
+    #expect(shapes.map(\.cols) == want.map(\.0) && shapes.map(\.rows) == want.map(\.1), "\(shapes)")
+    let tall = F(0, 0, 1000, 1600)
+    #expect(Tile.fitShape(tall, 2) == (1, 2))
+    #expect(Tile.fitShape(tall, 3) == (1, 3))
+    #expect(Tile.fitShape(tall, 5) == (1, 4), "a 1000 point wide area holds one 640 point column")
+    #expect(Tile.fitShape(wide, 0) == (1, 1))
+}
+
+// Test 17: Fit fills the area with no overlap for every count up to its capacity, gives one window
+// the whole area, and none for zero.
+@Test func testTileFitCovers() {
+    #expect(Tile.fitCapacity(tileChannel) == 9)
+    for n in 1...Tile.fitCapacity(tileChannel) {
+        let f = Tile.fit(tileChannel, n)
+        #expect(f.count == n)
+        #expect(covered(f) == tileChannel.w * tileChannel.h, "n \(n): \(f)")
+        for a in 0..<n {
+            for b in (a + 1)..<n {
+                let x = min(f[a].x + f[a].w, f[b].x + f[b].w) - max(f[a].x, f[b].x)
+                let y = min(f[a].y + f[a].h, f[b].y + f[b].h) - max(f[a].y, f[b].y)
+                #expect(x <= 0 || y <= 0, "n \(n): \(f[a]) overlaps \(f[b])")
+            }
+        }
+    }
+    #expect(Tile.fit(tileChannel, 1) == [tileChannel])
+    #expect(Tile.fit(tileChannel, 0).isEmpty)
+}
+
+// Test 18: With one cell to spare, the main window takes the middle column at full height for five
+// and the left column for three, twice as tall as each of the others, which share one size.
+@Test func testTileFitMain() {
+    let five = Tile.fit(tileChannel, 5)
+    #expect(five[0] == F(1280, 25, 768, 1415), "\(five[0])")
+    #expect(five.dropFirst().allSatisfy { abs($0.w - 768) <= 1 && abs($0.h - 707.5) <= 1 }, "\(five)")
+    #expect(five[1].x == 512 && five[2].x == 2048 && five[3].y > five[1].y)
+    let three = Tile.fit(tileChannel, 3)
+    #expect(three[0] == F(512, 25, 1152, 1415), "\(three[0])")
+    #expect(three[1].x == 1664 && three[2].x == 1664 && three[2].y > three[1].y, "\(three)")
+}
+
+// Test 19: Fit with a gap leaves the gap between the main window and its neighbors.
+@Test func testTileFitGap() {
+    let f = Tile.fit(tileChannel, 5, gap: 10)
+    #expect(f[0].x - (f[1].x + f[1].w) == 10, "\(f)")
+    #expect(f[2].x - (f[0].x + f[0].w) == 10, "\(f)")
+}
+
+// Test 20: Past its capacity fit gives every cell no smaller than fitCell and stacks the extra windows
+// on the main frame. On a 1434 by 1410 channel, ten windows get two columns of three rows.
+@Test func testTileFitCapacity() {
+    let channel = F(1894, 30, 1434, 1410)
+    #expect(Tile.fitCapacity(channel) == 6)
+    let f = Tile.fit(channel, 10)
+    #expect(f.count == 10)
+    let cells = Array(f.prefix(6))
+    #expect(Set(cells.map { "\($0)" }).count == 6, "\(cells)")
+    #expect(covered(cells) == channel.w * channel.h)
+    #expect(cells.allSatisfy { $0.w >= Tile.fitCell.w && $0.h >= Tile.fitCell.h }, "\(cells)")
+    #expect(f.dropFirst(6).allSatisfy { $0 == f[0] }, "\(f)")
+    #expect(Tile.fit(F(0, 0, 500, 300), 3) == Array(repeating: F(0, 0, 500, 300), count: 3))
+}
+
+// Test 21: With two or more cells to spare the rows split the windows evenly, the fuller rows on top,
+// so no window has a row to itself.
+@Test func testTileFitBalancedRows() {
+    let f = Tile.fit(tileChannel, 7)
+    let rows = Dictionary(grouping: f, by: \.y).sorted { $0.key < $1.key }.map(\.value.count)
+    #expect(rows == [3, 2, 2], "\(f)")
+    #expect(covered(f) == tileChannel.w * tileChannel.h)
 }

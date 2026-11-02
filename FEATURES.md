@@ -88,12 +88,17 @@ each part.
 
 - Tile columns, tile rows, tile all or one app, cascade all or one app, cycle stacked windows,
   cycle slot windows, and reverse.
+- The Channel folder at the top of the menu: Fit channel (fit-channel, ⌃⌥⌘T) lays out every
+  channel window at once by how many there are, halves for two, a two by two grid for four, and
+  for three or five the front window gets a column twice as tall as the rest. Fill channel with
+  all (fill-channel-with-all, ⌃⌥⌘↩) makes every channel window fill the channel.
 - Cycle channel windows (cycle-channel-windows) walks the channel's windows, each filling as it
   comes forward. It is unbound by default, and Control-Left and Right do it while a window fills
   the channel.
 - An optional badge counts the windows stacked at a corner when the pointer rests there, and
   cycle stacked windows walks the same windows.
-- Tidy channel lines up the two or three front windows, and Undo tidy puts everything back.
+- Tidy lines up the two or three front windows, and Undo tidy puts everything back. Organize
+  and channel actions leave stashed and cast-off windows where they are.
 - Tiling keeps the free windows of each display in a tall, wide, columns, rows or BSP layout
   as windows open and close, in the channel on the ultrawide. A window you drag floats until you
   choose a layout again. Grow or shrink the main window, and focus or swap the window to the

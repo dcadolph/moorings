@@ -263,3 +263,92 @@ final class OrganizerRig {
     #expect(rig.windows.focusedID == rig.pads[2])
     #expect(!rig.moved.contains(rig.pads[1]))
 }
+
+// Test 17: Fit channel lays five windows out by Tile.fit with the focused one in the main frame,
+// twice as tall as the rest, and runs a pass.
+@Test func testOrganizerFitChannel() {
+    let rig = OrganizerRig(count: 5)
+    rig.windows.focusedID = rig.pads[1]
+    #expect(rig.organizer.run(Tile.fitName))
+    let want = Tile.fit(rig.channel, 5, gap: rig.anchors.choices.gapPx)
+    #expect(Actions.near(rig.frame(rig.pads[1]), want[0], tolerance: 1), "\(rig.frame(rig.pads[1])) vs \(want[0])")
+    let rest = [rig.pads[0], rig.pads[2], rig.pads[3], rig.pads[4]].map(rig.frame)
+    #expect(Set(rest.map { "\($0)" }) == Set(want.dropFirst().map { "\($0)" }), "\(rest)")
+    #expect(rest.allSatisfy { abs(rig.frame(rig.pads[1]).h - 2 * $0.h) <= 2 })
+    #expect(rig.moors == 1)
+}
+
+// Test 18: Fit channel with two windows gives each half the channel, and with none to fit does
+// nothing.
+@Test func testOrganizerFitChannelTwo() {
+    let rig = OrganizerRig(count: 2)
+    #expect(rig.organizer.run(Tile.fitName))
+    let c = rig.channel
+    let a = rig.frame(rig.pads[1]), b = rig.frame(rig.pads[0])
+    #expect(abs(a.w - b.w) <= 1 && abs(a.h - c.h) <= 1 && abs(b.h - c.h) <= 1, "\(a) \(b) in \(c)")
+    #expect(abs(a.x - c.x) <= 1 || abs(b.x - c.x) <= 1)
+    let empty = OrganizerRig(count: 0)
+    #expect(!empty.organizer.run(Tile.fitName))
+    #expect(empty.moved.isEmpty)
+}
+
+// Test 19: Fit channel and Tile all leave stashed and cast-off windows where they are.
+@Test func testOrganizerFitSkipsStashedAndCastOff() {
+    for name in [Tile.fitName, "tile-all"] {
+        let rig = OrganizerRig(count: 4)
+        let s = rig.screens.current()
+        let off = rig.windows.scan(s, full: true).windows.first { $0.id == rig.pads[2] }!
+        rig.anchors.stashed.insert(rig.pads[0])
+        #expect(rig.anchors.toggleCastOff(off, ultrawide: s.usable[0]))
+        let parked = rig.frame(rig.pads[0]), cast = rig.frame(rig.pads[2])
+        rig.windows.focusedID = rig.pads[3]
+        #expect(rig.organizer.run(name))
+        #expect(rig.frame(rig.pads[0]) == parked && rig.frame(rig.pads[2]) == cast, "\(name)")
+        #expect(Set(rig.moved) == [rig.pads[1], rig.pads[3]], "\(name): \(rig.moved)")
+    }
+}
+
+// Test 20: Fill channel with all makes every channel window fill the channel, raises the focused one
+// last, and Undo tidy puts them all back.
+@Test func testOrganizerFillAll() {
+    let rig = OrganizerRig()
+    let before = rig.pads.map(rig.frame)
+    rig.windows.focusedID = rig.pads[1]
+    #expect(rig.organizer.run(Tile.fillAllName))
+    #expect(rig.windows.calls.last == .raise(rig.pads[1]))
+    let s = rig.screens.current()
+    let scan = rig.windows.scan(s, full: true).windows
+    for id in rig.pads {
+        #expect(rig.engine.actions.fills(scan.first { $0.id == id }!, screens: s), "\(rig.frame(id))")
+    }
+    let moves = rig.moved.count
+    #expect(rig.organizer.run(Tile.fillAllName))
+    #expect(rig.moved.count == moves, "windows that fill already are not moved")
+    rig.organizer.undo()
+    #expect(rig.pads.map(rig.frame) == before)
+}
+
+// Test 21: Fill channel with all needs the ultrawide.
+@Test func testOrganizerFillAllNoUltrawide() {
+    let rig = OrganizerRig()
+    rig.screens.screens = Screens(
+        full: [Frame(x: 0, y: 0, w: 3440, h: 1440)], usable: [Frame(x: 0, y: 25, w: 3440, h: 1415)], ultrawide: nil)
+    #expect(!rig.organizer.run(Tile.fillAllName))
+    #expect(rig.moved.isEmpty)
+}
+
+// Test 22: Fit channel past the channel's capacity gives the focused window and the front-most of the
+// rest a cell each and stacks the back-most on the main frame.
+@Test func testOrganizerFitChannelPastCapacity() {
+    let cap = Tile.fitCapacity(OrganizerRig(count: 0).channel)
+    let n = cap + 3
+    let rig = OrganizerRig(count: n)
+    #expect(rig.organizer.run(Tile.fitName))
+    let main = rig.frame(rig.pads[n - 1])
+    let want = Tile.fit(rig.channel, n, gap: rig.anchors.choices.gapPx)
+    #expect(Actions.near(main, want[0], tolerance: 1), "\(main) vs \(want[0])")
+    let extra = rig.pads.prefix(3).map(rig.frame)
+    #expect(extra.allSatisfy { Actions.near($0, main, tolerance: 1) }, "\(extra)")
+    let shown = rig.pads.dropFirst(3).dropLast().map(rig.frame)
+    #expect(Set(shown.map { "\($0)" }) == Set(want[1..<cap].map { "\($0)" }), "\(shown)")
+}

@@ -181,6 +181,8 @@ lists every action with its shortcut, so it doubles as a cheat sheet. The defaul
 | Restore                   | ⌃⌥⌫             | Control + Option + Delete                        |
 | Previous, next display    | ⌃⌥⌘← ⌃⌥⌘→       | Control + Option + Command + Left or Right Arrow |
 | Cycle slot windows        | ⌃⌥⌘↓ ⌃⌥⌘↑       | Control + Option + Command + Down or Up Arrow    |
+| Fit channel               | ⌃⌥⌘T            | Control + Option + Command + T                   |
+| Fill channel with all     | ⌃⌥⌘↩            | Control + Option + Command + Return              |
 | Cycle channel windows     | ⌃← ⌃→           | Control + Left or Right, while a fill is up      |
 
 Window > Keymap switches to another preset, or to None to start from a blank slate. Fourths, sixths, eighths, ninths, twelfths,
@@ -322,11 +324,19 @@ when Moorings quits.
 
 ### Organize
 
+The Channel folder at the top of the menu arranges every free window in the channel at once.
+Fit channel (⌃⌥⌘T) lays them out by how many there are: one fills the channel, two take halves,
+three and five give the front window a column twice as tall as the others, four make a two by
+two grid, and more make a grid whose cells keep a window's shape. The front window always gets
+the biggest place, so click another window and press it again to give that one the place. Fill
+channel with all (⌃⌥⌘↩) makes every channel window fill the channel with the front one on top,
+and Control-Left and Right then walk them. Tidy 2 or 3 front windows lines up just the front
+two or three side by side. Stashed and cast-off windows stay where they are. Undo tidy puts back
+every window a fill, fit, tidy or action moved.
+
 Window > Organize tiles the free windows on the front window's display in columns, rows or a
 grid, tiles one app's windows in a grid, cascades them all or one app's, cycles the windows
-stacked at the front window's corner, and mirrors them left to right. Tidy channel lines up the
-two or three front windows side by side. Undo tidy puts back every window a fill, tidy or action
-moved. Windows are stacked when their top-left corners sit together, within one overlap offset
+stacked at the front window's corner, and mirrors them left to right. Windows are stacked when their top-left corners sit together, within one overlap offset
 step of each other, whatever their size. With Settings > Behavior > Show how many windows are
 stacked on, resting the pointer at a window's top-left corner shows the count at its top-right
 corner, and moving the pointer hides it.
@@ -427,7 +437,7 @@ leaves fullscreen. The Lift folder has a switch for each.
 While a window fills the channel, Control-Left and Right walk the channel's windows, and each
 fills as it comes forward. Anywhere else those keys are macOS's own, and they return to macOS a
 moment after a fill ends. Up and Down walk a slot, Left and Right walk the channel. The same
-actions are in the Organize menu as Cycle channel windows and Cycle channel windows backward
+actions are in the Channel folder as Cycle channel windows and Cycle channel windows backward
 (cycle-channel-windows), and you can bind them to any shortcut. Turn the keys off in Settings >
 Lift.
 

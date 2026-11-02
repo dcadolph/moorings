@@ -29,8 +29,11 @@ private func has(_ problems: [String], _ text: String) -> Bool {
 // Lua case 2: The keymap alone binds every Rectangle default with no problems.
 @Test func testRectangleDefaults() {
     let r = Keymaps.shortcuts()
-    #expect(r.map.count == 24)
+    #expect(r.map.count == 26)
     #expect(r.problems.isEmpty)
+    #expect(Set(r.map.values.map(\.text)).count == r.map.count, "no two actions share a key")
+    #expect(r.map[Tile.fitName]?.text == "⌃⌥⌘T")
+    #expect(r.map[Tile.fillAllName]?.text == "⌃⌥⌘↩")
     #expect(r.map["left-half"]?.text == "⌃⌥←")
     #expect(r.map["maximize-height"]?.text == "⌃⌥⇧↑")
     #expect(r.map["next-display"]?.text == "⌃⌥⌘→")

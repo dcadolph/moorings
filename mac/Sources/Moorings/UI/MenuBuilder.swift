@@ -174,6 +174,7 @@ struct MenuBuilder {
         }
         out.append(.separator())
         out.append(folder("Anchored apps", anchoredItems(shows: Set(scan.windows.map(\.bundle)))))
+        out.append(folder("Channel", channelItems()))
         out.append(folder("Window", windowItems()))
         out.append(folder("Lift", liftItems(pinned)))
         out.append(folder("Workspaces", workspaceItems()))
@@ -541,6 +542,48 @@ struct MenuBuilder {
         "Run the next step of this chain. Pressing it again on the same window runs the step "
         + "after."
 
+    // channelItems builds the Channel folder: fit and fill every channel window, walk them, line up
+    // the front two or three, and undo. Each entry shows its shortcut.
+    private func channelItems() -> [NSMenuItem] {
+        let bindings = Bindings(anchors.choices)
+        let paused = anchors.choices.paused
+        var out = anchors.choices.menu.visible(Tile.channelNames).map { name -> NSMenuItem in
+            var title = Keymaps.label(name)
+            if let sc = bindings.map[name] {
+                title += "  " + sc.text
+            }
+            return ActionItem(title, tip: ActionRunner.hints[name] ?? "", enabled: !paused) {
+                app.engine.actions.run(name)
+            }
+        }
+        out.append(.separator())
+        for n in Organizer.tidyCounts {
+            out.append(
+                ActionItem(
+                    "Tidy \(n) front windows",
+                    tip: "Line up the \(n) front-most free windows "
+                        + "side by side in the channel, keeping their order.", enabled: !paused
+                ) {
+                    app.engine.organizer.tidy(n)
+                })
+        }
+        out.append(.separator())
+        out.append(undoTidyItem())
+        return out
+    }
+
+    // undoTidyItem returns the entry that puts back every window a fill, fit, tidy or window action
+    // moved.
+    private func undoTidyItem() -> NSMenuItem {
+        ActionItem(
+            "Undo tidy",
+            tip: "Put back every window a fill, fit, tidy or window action moved, where it "
+                + "was before the first move.", enabled: !anchors.choices.paused && anchors.canUndo
+        ) {
+            app.engine.organizer.undo()
+        }
+    }
+
     // windowItems builds the Window folder: the pinned actions, a folder per action family, the custom
     // sizes, the chains, the keymap, the gap, and the switch that turns the shortcuts off in the front
     // app. Each entry shows its shortcut, so the menu doubles as the cheat sheet. Hidden actions are
@@ -593,26 +636,9 @@ struct MenuBuilder {
             chains = [label("No chains", tip: "Add chains in Settings, Menu tab, to list them here.")]
         }
         out.append(folder("Chains", chains))
-        var organize = entries(Tile.names, nil)
+        var organize = entries(Tile.names.filter { !Tile.channelNames.contains($0) }, nil)
         organize.append(.separator())
-        for n in Organizer.tidyCounts {
-            organize.append(
-                ActionItem(
-                    "Tidy channel: \(n) front windows",
-                    tip: "Line up the \(n) front-most free windows "
-                        + "side by side in the channel, keeping their order.", enabled: !paused
-                ) {
-                    app.engine.organizer.tidy(n)
-                })
-        }
-        organize.append(
-            ActionItem(
-                "Undo tidy",
-                tip: "Put back every window a fill, tidy or window action moved, where it "
-                    + "was before the first move.", enabled: !paused && anchors.canUndo
-            ) {
-                app.engine.organizer.undo()
-            })
+        organize.append(undoTidyItem())
         out.append(folder("Organize", organize))
         var tiling = entries(
             Tiling.modeNames,
