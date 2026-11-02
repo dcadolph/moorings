@@ -663,7 +663,7 @@ jobs:
             foreach ($b in $browsers.Keys) {
               $s = Scenarios "browser-$b" @('pinPlacesOnStrip', 'secondWindowGoesToChannel', 'dragSnapsToZone', '--stand-in', $browsers[$b], '--min-aspect', '1.0')
               Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $browsers[$b] } | Stop-Process -Force -ErrorAction SilentlyContinue
-              if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 3 run, 0 skipped, 0 failed$')) { $bad += "$b ($($s.Code))" }
+              if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 3 run, 0 failed$')) { $bad += "$b ($($s.Code))" }
               $ins = [regex]::Match((@($s.Lines -match '^stand-in insets: ')[0] + ''), '^stand-in insets: (\d+) (\d+) (\d+) (\d+)$')
               if (-not $ins.Success) { $bad += "$b printed no insets"; continue }
               $sum = 0; 1..4 | ForEach-Object { $sum += [int]$ins.Groups[$_].Value }
