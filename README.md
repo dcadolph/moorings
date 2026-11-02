@@ -130,18 +130,18 @@ first run.
 
 ## Light on your Mac
 
-As light as Rectangle: 2.8 ms of CPU per action, 21 MB of memory, and no layout work at rest.
+As light as Rectangle: 2.5 ms of CPU per action, 23 MB of memory, and no layout work at rest.
 Measured side by side with Rectangle 2.0.4 and Loop 1.4.2 on an M1 Max:
 
-| Measure        | Moorings | Rectangle | Loop    |
-| -------------- | -------- | --------- | ------- |
-| CPU per action | 2.8 ms   | 2.8 ms    | 25 ms   |
-| Memory         | 21 MB    | 22 MB     | 50 MB   |
-| Idle, 2 min    | 0.01 s   | 0.00 s    | 0.01 s  |
+| Measure        | Moorings | Rectangle | Loop     |
+| -------------- | -------- | --------- | -------- |
+| CPU per action | 2.5 ms   | 2.8 ms    | 24 ms    |
+| Memory         | 23 MB    | 25 MB     | 53 MB    |
+| Idle, 2 min    | 0.0021 s | 0.0002 s  | 0.0057 s |
 
-Moorings holds anchored apps and the channel on every action and still matches Rectangle. No
-release ships unless it stays at or under Rectangle's CPU per action. Method in
-[COMPARISON.md](COMPARISON.md#energy).
+Moorings holds anchored apps and the channel on every action and still uses less CPU per action
+than Rectangle. No release ships unless it stays at or under Rectangle's CPU per action. Method
+in [COMPARISON.md](COMPARISON.md#energy).
 
 ## Docs
 
