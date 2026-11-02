@@ -20,10 +20,17 @@ extension WinHost {
     // the moment the window shows.
     static let browserWait = 60.0
 
+    // settleWait is how long openBrowser waits for a shown browser window to answer its messages.
+    static let settleWait = 30.0
+    // settlePolls is how many answers in a row, 100 ms apart, count as settled: 2 s, longer than the
+    // 1.9 s a fresh Edge profile was seen stalling its UI thread after its window showed.
+    static let settlePolls = 20
+
     // openBrowser starts the browser at path with a fresh profile and returns its new window once it
-    // shows and holds still, nil when none shows within browserWait, and prints how long it took. A browser may hand its window to another
-    // process, so the window is found by its image path among the windows that were not there before,
-    // and it must be one the store reads, which passes over a captionless handoff dialog.
+    // shows, holds still and answers its messages, nil when it does not within browserWait and
+    // settleWait, and prints how long each took. A browser may hand its window to another process, so
+    // the window is found by its image path among the windows that were not there before, and it must
+    // be one the store reads, which passes over a captionless handoff dialog.
     func openBrowser(_ path: String) -> HWND? {
         let profile = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(
             "moorings-browser-\(UUID().uuidString)")
@@ -44,7 +51,8 @@ extension WinHost {
             ? ["-no-remote", "-new-instance", "-profile", profile.path, "about:blank"]
             : [
                 "--user-data-dir=\(profile.path)", "--no-first-run", "--no-default-browser-check",
-                "--disable-sync", "--new-window", "about:blank",
+                "--disable-sync", "--disable-background-networking", "--disable-component-update",
+                "--disable-extensions", "--new-window", "about:blank",
             ]
         guard let pid = launch(path, args) else { return nil }
         browsers.append(pid)
@@ -69,7 +77,30 @@ extension WinHost {
         print("stand-in window shown after \(String(format: "%.1f", now - launched)) s")
         browsers.append(WinWindows.processID(found))
         settle(found)
+        guard quiet(found, by: now + Self.settleWait) else {
+            print("scenarios: \(path) window never settled within \(Int(Self.settleWait)) s")
+            return nil
+        }
+        print("stand-in settled after \(String(format: "%.1f", now - launched)) s")
         return found
+    }
+
+    // quiet waits until hwnd answers settlePolls WM_NULL messages in a row, each within 100 ms and
+    // 100 ms apart, and reports whether it did by deadline. One unanswered message starts the count
+    // over. A fresh profile keeps a browser's UI thread busy after its window shows, and a scenario
+    // that presses the window then gets no answer to its hit test, which holds the window to the same
+    // 100 ms.
+    func quiet(_ hwnd: HWND, by deadline: Double) -> Bool {
+        var answered = 0
+        var next = now
+        return wait(until: deadline) {
+            guard now >= next else { return false }
+            var result: DWORD_PTR = 0
+            let ok = SendMessageTimeoutW(hwnd, UINT(WM_NULL), 0, 0, UINT(SMTO_ABORTIFHUNG), 100, &result) != 0
+            answered = ok ? answered + 1 : 0
+            next = now + 0.1
+            return answered >= Self.settlePolls
+        }
     }
 
     // launch starts path with args and no inherited handles, so a browser helper that outlives the
