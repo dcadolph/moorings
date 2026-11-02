@@ -207,7 +207,9 @@ final class Soak {
     // checks both pins are home.
     private func openSecond() {
         let before = Set(WinWindows.topLevel())
-        let result = ShellExecuteW(nil, wide("open"), wide("notepad.exe"), nil, nil, SW_SHOWNORMAL)
+        let verb = MooringsWin.wide("open")
+        let file = MooringsWin.wide("notepad.exe")
+        let result = ShellExecuteW(nil, verb, file, nil, nil, SW_SHOWNORMAL)
         guard Int(bitPattern: result) > 32 else {
             fail("soak \(minute): second Notepad not in the channel: not started, \(Int(bitPattern: result))")
             return
