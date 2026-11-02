@@ -29,6 +29,26 @@ import MooringsCore
     }
 }
 
+// Anchoring with no ultrawide attached explains why nothing moves, and says nothing with one.
+@Test @MainActor func testNoUltrawide() {
+    let tests: [(wide: Frame?, wantTitle: String?, wantBody: String?)] = [
+        // Test 0: No ultrawide.
+        (
+            nil, "Anchoring needs an ultrawide",
+            "Teams stays where it is. Anchored apps live in the side strips of an ultrawide, a display "
+                + "at least 2.2 times as wide as it is tall, and none is attached now. Choose Anchor "
+                + "anyway to have Teams take the slot the next time one is attached."
+        ),
+        // Test 1: An ultrawide is attached.
+        (Frame(x: 0, y: 25, w: 3440, h: 1415), nil, nil),
+    ]
+    for (i, test) in tests.enumerated() {
+        let got = MenuBuilder.noUltrawide("Teams", wide: test.wide)
+        #expect(got?.title == test.wantTitle, "test \(i)")
+        #expect(got?.body == test.wantBody, "test \(i)")
+    }
+}
+
 // The install box is disabled and unchecked while the automatic check is off, and both boxes show
 // their choices otherwise.
 @Test @MainActor func testUpdateChoices() {
