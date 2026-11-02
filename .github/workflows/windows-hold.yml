@@ -1,0 +1,112 @@
+name: windows-hold
+
+# Hold two real pins on the runner for an hour and bound the app's own memory, handles and GDI
+# objects. The soak runs the release build's loop once on the runner's 1920x1080 screen at
+# --min-aspect 1.0, since the runner lists no wider mode and Notepad and Edge cannot be sized past
+# the desktop. With paused set it is the negative control: the soak pauses through the engine once
+# its pins land, so the first nudge is never released and the run must exit 1 at minute 2.
+on:
+  workflow_dispatch:
+    inputs:
+      minutes:
+        description: How long the soak holds its pins, 1 to 300 minutes.
+        type: number
+        default: 60
+      paused:
+        description: Pause after the pins land, the negative control that must fail at minute 2.
+        type: boolean
+        default: false
+
+jobs:
+  hold:
+    runs-on: windows-latest
+    timeout-minutes: 330
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: compnerd/gha-setup-swift@9ff1ee4c44888c5817fc14d1b257ac8cabb4935f # v0.5.1
+        with:
+          swift-version: swift-6.3.3-release
+          swift-build: 6.3.3-RELEASE
+
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: swift build -c release -Xswiftc -warnings-as-errors
+
+      - name: Soak
+        timeout-minutes: 310
+        env:
+          SOAK_MINUTES: ${{ inputs.minutes }}
+          SOAK_PAUSED: ${{ inputs.paused }}
+        run: |
+          $minutes = [int]$env:SOAK_MINUTES
+          if ($minutes -lt 1 -or $minutes -gt 300) { throw "minutes is $minutes, not 1 to 300" }
+          $paused = $env:SOAK_PAUSED -eq 'true'
+          $exe = Join-Path (swift build -c release -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
+          $edge = @("${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe", "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $edge) { throw "no Edge on the runner" }
+          New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' -Force | Out-Null
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' -Name HideFirstRunExperience -Value 1 -Type DWord
+          $modes = @(& $exe --probe modes)
+          $global:LASTEXITCODE = 0
+          $mode = if ($modes -match '^mode 1920x1080 ') { '1920x1080' } else { $null }
+          $log = Join-Path $env:RUNNER_TEMP 'soak.txt'
+          try {
+            if ($mode) {
+              $m = @(& $exe --probe modes --mode $mode)
+              $global:LASTEXITCODE = 0
+              if (-not ($m -match '^switched to .*: done$')) { throw "the switch to $mode failed: $($m -join ' ')" }
+            }
+            Write-Host "screen: $(@(& $exe --probe modes) -match '^current: ')"
+            $global:LASTEXITCODE = 0
+            $null = Start-Process notepad -PassThru
+            $edgeProfile = Join-Path $env:RUNNER_TEMP 'edge-profile'
+            $null = Start-Process $edge -ArgumentList @("--user-data-dir=$edgeProfile", '--no-first-run', '--no-default-browser-check', '--disable-sync', '--new-window', 'about:blank') -PassThru
+            Start-Sleep -Seconds 10
+            $soakArgs = @('--probe', 'soak', '--minutes', "$minutes", '--min-aspect', '1.0')
+            if ($paused) { $soakArgs += '--paused' }
+            & $exe @soakArgs | Tee-Object -FilePath $log | ForEach-Object { Write-Host "  $_" }
+            $code = $LASTEXITCODE
+            $global:LASTEXITCODE = 0
+          } finally {
+            if ($mode) { $null = @(& $exe --probe modes --reset) }
+            $global:LASTEXITCODE = 0
+            Get-Process msedge, notepad -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          $lines = @(Get-Content $log)
+
+          if ($paused) {
+            if ($code -eq 0 -or -not ($lines -match '^soak 2: pin \w+ not back: released false')) { throw "the paused soak did not fail at the minute 2 nudge ($code)" }
+            Write-Host "check: paused after the pins landed, the minute 2 nudge was never released and the soak exited $code"
+            exit 0
+          }
+
+          if ($code -ne 0) { throw "the soak exited $code" }
+          $rows = @($lines | ForEach-Object {
+            $n = [regex]::Match($_, '^soak (\d+): pins held (\d+)/(\d+), private (\d+) MB, handles (\d+), gdi (\d+), hook reinstalled (\d+)$')
+            if ($n.Success) { [pscustomobject]@{ M = [int]$n.Groups[1].Value; Held = [int]$n.Groups[2].Value; Of = [int]$n.Groups[3].Value; Private = [int]$n.Groups[4].Value; Handles = [int]$n.Groups[5].Value; Gdi = [int]$n.Groups[6].Value; Hook = [int]$n.Groups[7].Value } }
+          })
+          if ($rows.Count -ne $minutes) { throw "want $minutes minute lines, got $($rows.Count)" }
+          $short = @($rows | Where-Object { $_.Held -ne 2 -or $_.Of -ne 2 })
+          if ($short.Count -gt 0) { throw "pins not held 2/2 at minute $($short[0].M)" }
+          if (@($rows | Where-Object { $_.Hook -ne 0 }).Count -gt 0) { throw "the mouse hook was put back during the soak" }
+          Write-Host "check: $minutes minutes, every line held 2/2, hook reinstalled 0"
+          if ($minutes -ge 5) {
+            $base = $rows[4]
+            $last = $rows[-1]
+            Write-Host "bounds from minute 5: private $($base.Private) to $($last.Private) MB, handles $($base.Handles) to $($last.Handles), gdi $($base.Gdi) to $($last.Gdi)"
+            if ($last.Private -ge $base.Private + 20) { throw "private bytes climbed $($last.Private - $base.Private) MB since minute 5" }
+            if ($last.Handles -ge $base.Handles + 50) { throw "handles climbed $($last.Handles - $base.Handles) since minute 5" }
+            if ($last.Gdi -ge $base.Gdi + 50) { throw "GDI objects climbed $($last.Gdi - $base.Gdi) since minute 5" }
+            Write-Host "check: private bytes under minute 5 plus 20 MB, handles and GDI objects under minute 5 plus 50"
+          }
+
+      - name: Soak log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-${{ github.sha }}-${{ inputs.minutes }}m${{ inputs.paused && '-paused' || '' }}
+          path: ${{ runner.temp }}/soak.txt
+          if-no-files-found: warn
