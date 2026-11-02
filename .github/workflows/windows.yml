@@ -615,24 +615,6 @@ jobs:
           if ($failed -ne 0) { throw "$failed of $n SIM runs failed" }
           Write-Host "  check: $n SIM runs in a row passed every scenario with the hook never put back"
 
-      - name: WX0 late start
-        run: |
-          $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
-          foreach ($late in @(200, 400)) {
-            foreach ($old in @('1', '0')) {
-              $env:MOORINGS_WX0_LATE_MS = "$late"
-              $env:MOORINGS_WX0_OLD_HIT = $old
-              $dir = Join-Path $env:RUNNER_TEMP "wx0\late-$late-old-$old"
-              $out = @(& $exe --scenarios footprintFollowsDrag dragSnapsToZone altDragParks --screen 3440x1440 --report $dir)
-              $code = $LASTEXITCODE
-              $global:LASTEXITCODE = 0
-              Write-Host "wx0 late $late old $old exit $code"
-              $out | ForEach-Object { Write-Host "  $_" }
-            }
-          }
-          Remove-Item Env:MOORINGS_WX0_LATE_MS
-          Remove-Item Env:MOORINGS_WX0_OLD_HIT
-
       - name: Scenario report
         if: always()
         uses: actions/upload-artifact@v4
