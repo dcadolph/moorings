@@ -10,6 +10,7 @@ import MooringsEngine
 // release and the Restore path must put back, a minimize and restore of the Notepad pin, and a
 // second Notepad that must land in the channel. It prints one line per minute and exits 1 on the
 // first failure. Under --paused it pauses through the engine once the minute 1 frames are read.
+// Under --leak it opens handles every minute and never closes them, so the bounds must trip.
 func probeSoak(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
     guard let wide = screens.wide else {
@@ -40,7 +41,9 @@ func probeSoak(_ opts: ProbeOptions) -> Int32 {
         return 1
     }
     let app = App(store: store, minAspect: opts.minAspect)
-    let soak = Soak(app: app, wide: wide, pins: [pad.id, edge.id], minutes: opts.minutes, pausing: opts.paused)
+    let soak = Soak(
+        app: app, wide: wide, pins: [pad.id, edge.id], minutes: opts.minutes, pausing: opts.paused,
+        leaking: opts.leak)
     print("soak: start, Notepad \(hex(pad.id)) left top, Edge \(hex(edge.id)) right top, \(opts.minutes) minutes")
     soak.begin()
     app.run(until: App.now + Double(opts.minutes) * 60 + 5)
@@ -61,6 +64,8 @@ final class Soak {
     // backSeconds is how soon a pin must be back after the Restore path, or a second Notepad in the
     // channel after it opens.
     static let backSeconds = 2.0
+    // leakPerMinute is how many handles a leaking soak opens each minute.
+    static let leakPerMinute = 60
 
     // app runs the loop and the engine.
     let app: App
@@ -72,6 +77,9 @@ final class Soak {
     let minutes: Int
     // pausing pauses the engine once the minute 1 frames are read, the negative control.
     let pausing: Bool
+    // leaking opens leakPerMinute handles every minute and never closes them, the bounds' negative
+    // control.
+    let leaking: Bool
     // ticks runs the per-minute read.
     private let ticks: WinScheduler
     // steps runs the waits inside a perturbation.
@@ -92,12 +100,13 @@ final class Soak {
     private(set) var failed = false
 
     // init builds a soak of pins on wide.
-    init(app: App, wide: Frame, pins: [WindowID], minutes: Int, pausing: Bool) {
+    init(app: App, wide: Frame, pins: [WindowID], minutes: Int, pausing: Bool, leaking: Bool) {
         self.app = app
         self.wide = wide
         self.pins = pins
         self.minutes = minutes
         self.pausing = pausing
+        self.leaking = leaking
         ticks = app.timers.make()
         steps = app.timers.make()
     }
@@ -117,6 +126,9 @@ final class Soak {
         minute += 1
         if minute == 1 && !baseline() {
             return
+        }
+        if leaking {
+            leak()
         }
         let held = pins.filter(holds).count
         let now = Counters.read()
@@ -140,6 +152,13 @@ final class Soak {
         case 0: nudge()
         case 1: minimize()
         default: openSecond()
+        }
+    }
+
+    // leak opens leakPerMinute unnamed events and drops them, so the process keeps every handle.
+    private func leak() {
+        for _ in 0..<Self.leakPerMinute {
+            _ = CreateEventW(nil, false, false, nil)
         }
     }
 

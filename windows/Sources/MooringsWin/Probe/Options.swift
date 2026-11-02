@@ -36,6 +36,8 @@ struct ProbeOptions {
     // paused writes a paused choices file, the moor probe's negative control, and pauses the soak
     // probe through the engine once its pins have landed.
     var paused = false
+    // leak makes the soak probe leak handles every minute, the negative control for its bounds.
+    var leak = false
     // noFilter keeps every hooked event, the events probe's negative control.
     var noFilter = false
     // noApps builds the menu with no running apps, the menu probe's negative control.
@@ -116,6 +118,8 @@ struct ProbeOptions {
                 noDelta = true
             case "--paused":
                 paused = true
+            case "--leak":
+                leak = true
             case "--no-filter":
                 noFilter = true
             case "--no-apps":
