@@ -32,4 +32,5 @@ let probes: [String: Probe] = [
     "contracts": probeContracts,
     "scenarios": probeScenarios,
     "update": probeUpdate,
+    "soak": probeSoak,
 ]

@@ -31,7 +31,10 @@ struct ProbeOptions {
     var noDelta = false
     // seconds is how long the moor probe runs its loop.
     var seconds = 10.0
-    // paused writes a paused choices file, the moor probe's negative control.
+    // minutes is how long the soak probe holds its pins.
+    var minutes = 60
+    // paused writes a paused choices file, the moor probe's negative control, and pauses the soak
+    // probe through the engine once its pins have landed.
     var paused = false
     // noFilter keeps every hooked event, the events probe's negative control.
     var noFilter = false
@@ -140,6 +143,10 @@ struct ProbeOptions {
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }
                 seconds = n
+            case "--minutes":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard let n = Int(value), (1...300).contains(n) else { throw ProbeError.badValue(flag, value) }
+                minutes = n
             case "--pid":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = DWORD(value) else { throw ProbeError.badValue(flag, value) }
