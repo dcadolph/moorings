@@ -111,12 +111,15 @@ Windows 11 with a monitor 21:9 or wider and lives in the notification area.
 - Settings live in `%APPDATA%\Moorings\choices.json`. Open settings file in the tray menu opens
   it, and Moorings reads it again when it changes or on Reload settings, so shortcuts and chains
   edited there take hold without a restart.
+- Moorings keeps a log in `%LOCALAPPDATA%\Moorings\moorings.log`. Save a report in the tray menu
+  writes one text file to the desktop with the version, the monitors, the settings and the end
+  of the log.
+- When a newer release is out, the tray menu offers it at the top.
 
-Each green run of the
-[windows workflow](https://github.com/dcadolph/moorings/actions/workflows/windows.yml) attaches
-a `moorings-windows-<commit>` zip, which needs a GitHub sign-in to download. Unzip it, keep the
-files together, and run `MooringsWin.exe`. The `README-windows.txt` inside walks through the
-first run.
+Download `moorings_windows_x64.zip` from the
+[latest release](https://github.com/dcadolph/moorings/releases/latest). Unzip it, keep the files
+together, and run `MooringsWin.exe`. The build is not signed yet, so SmartScreen may ask once:
+click More info, then Run anyway. The `README-windows.txt` inside walks through the first run.
 
 ## Quickstart
 
