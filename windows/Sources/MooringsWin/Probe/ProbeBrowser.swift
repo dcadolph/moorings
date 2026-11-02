@@ -33,22 +33,15 @@ extension WinHost {
         }
         profiles.append(profile)
         let before = Set(WinWindows.topLevel())
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: path)
-        p.arguments =
+        let args =
             firefox
             ? ["-no-remote", "-new-instance", "-profile", profile.path, "about:blank"]
             : [
                 "--user-data-dir=\(profile.path)", "--no-first-run", "--no-default-browser-check",
                 "--disable-sync", "--new-window", "about:blank",
             ]
-        do {
-            try p.run()
-        } catch {
-            print("scenarios: \(path) did not start: \(error)")
-            return nil
-        }
-        browsers.append(DWORD(p.processIdentifier))
+        guard let pid = launch(path, args) else { return nil }
+        browsers.append(pid)
         var found: HWND?
         _ = wait(until: now + 20) {
             found = WinWindows.topLevel().first {
@@ -64,6 +57,26 @@ extension WinHost {
         browsers.append(WinWindows.processID(found))
         settle(found)
         return found
+    }
+
+    // launch starts path with args and no inherited handles, so a browser helper that outlives the
+    // probe cannot hold the probe's output pipe open, and returns the process id, nil when it fails.
+    func launch(_ path: String, _ args: [String]) -> DWORD? {
+        let line = ([path] + args).map { $0.contains(" ") ? "\"\($0)\"" : $0 }.joined(separator: " ")
+        var command = Array(line.utf16) + [0]
+        var startup = STARTUPINFOW()
+        startup.cb = DWORD(MemoryLayout<STARTUPINFOW>.size)
+        var info = PROCESS_INFORMATION()
+        let started = command.withUnsafeMutableBufferPointer { buffer in
+            CreateProcessW(nil, buffer.baseAddress, nil, nil, false, 0, nil, nil, &startup, &info)
+        }
+        guard started else {
+            print("scenarios: \(path) did not start: error \(GetLastError())")
+            return nil
+        }
+        _ = CloseHandle(info.hThread)
+        _ = CloseHandle(info.hProcess)
+        return info.dwProcessId
     }
 
     // settle waits up to 5 s for hwnd's frame to hold for 1 s, since a browser sizes its first window
@@ -110,11 +123,29 @@ extension WinHost {
         if let d = WinWindows.insets(hwnd) {
             print("stand-in insets: \(Int(d.left)) \(Int(d.top)) \(Int(d.right)) \(Int(d.bottom))")
         }
+        describeStandIn(hwnd, "at once")
+        _ = wait(until: now + 2) { false }
+        describeStandIn(hwnd, "after 2 s")
         WinWindows().move(id, to: Frame(x: 50, y: 50, w: 100, h: 100))
         _ = wait(until: now + 0.5) { false }
         if let f = WinWindows().frame(id) {
             print("stand-in minimum: \(Int(f.w)) \(Int(f.h))")
         }
         finish()
+    }
+
+    // describeStandIn prints the bits the store reads to decide whether hwnd is a movable window, and
+    // whether it is one, so a browser the store never reads names its reason in the log.
+    func describeStandIn(_ hwnd: HWND, _ when: String) {
+        let style = GetWindowLongPtrW(hwnd, GWL_STYLE)
+        let exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE)
+        let caption = style & LONG_PTR(WS_CAPTION) == LONG_PTR(WS_CAPTION)
+        let tool = exStyle & LONG_PTR(WS_EX_TOOLWINDOW) != 0
+        let framed = WinWindows.bounds(hwnd) != nil
+        let read = WinWindows.describe(hwnd, screens: screens()) != nil
+        print(
+            "stand-in window \(when): class \(WinWindows.className(hwnd)) caption \(caption) tool \(tool)"
+                + " cloaked \(WinWindows.cloaked(hwnd)) iconic \(IsIconic(hwnd)) bounds \(framed)"
+                + " app \(WinWindows.bundle(hwnd) ?? "none") read \(read)")
     }
 }
