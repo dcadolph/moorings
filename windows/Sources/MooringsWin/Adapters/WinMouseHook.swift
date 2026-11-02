@@ -5,8 +5,8 @@ import MooringsCore
 import MooringsEngine
 
 // WinMouseHook delivers the pointer through a low-level mouse hook on the loop thread. The hook
-// callback only posts the point and the button message to the thread, so it stays far under the
-// time Windows allows before it removes a slow hook.
+// callback only posts the point and the button message to the thread and notes where the left button
+// went down, so it stays far under the time Windows allows before it removes a slow hook.
 final class WinMouseHook {
     // message is the private thread message the callback posts, with the mouse message in wParam
     // and the point packed in lParam. The tray icon has WM_APP + 1.
@@ -35,6 +35,9 @@ final class WinMouseHook {
     nonisolated(unsafe) static var thread: DWORD = 0
     // delivered counts the messages the callback posted.
     nonisolated(unsafe) static var delivered = 0
+    // press is where the left button last went down on the virtual desktop and when, by
+    // GetTickCount64. The callback writes it, so it is set before the window under the press hears it.
+    nonisolated(unsafe) static var press: (x: Int32, y: Int32, tick: UInt64)?
 
     // start installs the hook for the calling thread and starts the heartbeat.
     func start() {
@@ -65,6 +68,9 @@ final class WinMouseHook {
                 if code >= 0, let info = UnsafePointer<MSLLHOOKSTRUCT>(bitPattern: Int(lParam)) {
                     WinMouseHook.delivered &+= 1
                     let p = info.pointee.pt
+                    if wParam == WPARAM(WM_LBUTTONDOWN) {
+                        WinMouseHook.press = (p.x, p.y, GetTickCount64())
+                    }
                     let packed = LPARAM(Int(p.x) << 32 | Int(UInt32(bitPattern: p.y)))
                     _ = PostThreadMessageW(WinMouseHook.thread, WinMouseHook.message, wParam, packed)
                 }
@@ -121,19 +127,43 @@ final class WinDrag {
     }
 
     // began starts following hwnd, which the owner started moving or sizing. The caption moves and a
-    // border sizes; with no answer the follower decides from the first frame change.
+    // border sizes; with no answer the follower decides from the first frame change. When Windows
+    // drags an outline the window stays put until the drop, so the hit test reads the point where the
+    // button went down on hwnd: by the time a busy loop hears the start, the cursor can have left the
+    // caption. A full-window drag carries the caption under the cursor, so it reads the cursor.
     func began(_ hwnd: HWND) {
-        app.engine.drag.began(window: WinWindows.id(hwnd), moving: Self.hit(hwnd).map { $0 == Self.caption })
+        let press = Self.press(on: hwnd)
+        var cursor = POINT()
+        let point = (Self.fullDrag ? nil : press) ?? (GetCursorPos(&cursor) ? cursor : nil)
+        app.engine.drag.began(
+            window: WinWindows.id(hwnd), moving: point.flatMap { Self.hit(hwnd, at: $0) }.map { $0 == Self.caption },
+            at: press.map { Point(x: Double($0.x), y: Double($0.y)) })
     }
 
     // caption is HTCAPTION.
     static let caption: DWORD_PTR = 2
+    // pressMillis is how long after the press a move or size may start and still be judged at the
+    // press point, the longest Windows waits on a low-level hook.
+    static let pressMillis: UInt64 = 1000
 
-    // hit returns hwnd's answer to WM_NCHITTEST at the cursor, nil when the cursor cannot be read or
-    // the window gives no answer inside 100 ms.
-    static func hit(_ hwnd: HWND) -> DWORD_PTR? {
-        var p = POINT()
-        guard GetCursorPos(&p) else { return nil }
+    // press returns where the left button last went down when that was on hwnd within pressMillis,
+    // nil otherwise.
+    static func press(on hwnd: HWND) -> POINT? {
+        guard let p = WinMouseHook.press, GetTickCount64() &- p.tick <= pressMillis else { return nil }
+        let point = POINT(x: p.x, y: p.y)
+        guard let child = WindowFromPoint(point), GetAncestor(child, WinWatcher.root) == hwnd else { return nil }
+        return point
+    }
+
+    // fullDrag reports whether Windows moves the whole window during a drag rather than an outline.
+    static var fullDrag: Bool {
+        var full: WindowsBool = false
+        _ = SystemParametersInfoW(UINT(SPI_GETDRAGFULLWINDOWS), 0, &full, 0)
+        return full.boolValue
+    }
+
+    // hit returns hwnd's answer to WM_NCHITTEST at p, nil when the window gives no answer inside 100 ms.
+    static func hit(_ hwnd: HWND, at p: POINT) -> DWORD_PTR? {
         let x = UInt32(UInt16(truncatingIfNeeded: p.x)), y = UInt32(UInt16(truncatingIfNeeded: p.y))
         var result: DWORD_PTR = 0
         guard

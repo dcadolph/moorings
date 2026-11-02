@@ -11,6 +11,11 @@ on:
     branches: [main]
     paths: ["windows/**", ".github/workflows/windows.yml"]
   workflow_dispatch:
+    inputs:
+      sim_repeat:
+        description: Run the SIM scenarios this many more times after the gate, each one required.
+        type: number
+        default: 1
 
 jobs:
   core:
@@ -586,6 +591,47 @@ jobs:
           $s = Scenarios 'skew' @('pinPlacesOnStrip', '--skew', '2', '--min-aspect', '1.0')
           if ($s.Code -eq 0 -or -not ($s.Lines -match '^scenario failed: pinPlacesOnStrip: a pinned window reads back at its strip within 2 s, 1 point: ')) { throw "a strip 2 px off passed, so the pin scenario cannot fail" }
           Write-Host "  check: a strip expected 2 px wider failed the pin scenario with its rule named"
+
+      - name: SIM repeat
+        if: github.event_name == 'workflow_dispatch' && inputs.sim_repeat > 1
+        timeout-minutes: 45
+        env:
+          SIM_REPEAT: ${{ inputs.sim_repeat }}
+        run: |
+          $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
+          $n = [int]$env:SIM_REPEAT
+          $failed = 0
+          for ($i = 1; $i -le $n; $i++) {
+            $dir = Join-Path $env:RUNNER_TEMP "sim-repeat\$i"
+            $out = @(& $exe --scenarios --screen 3440x1440 --report $dir)
+            $code = $LASTEXITCODE
+            $global:LASTEXITCODE = 0
+            $sum = @($out -match '^scenarios: ')[0]
+            $hook = @($out -match '^hook reinstalled: ')[0]
+            Write-Host "  SIM run $i of ${n}: $sum, $hook, exit $code"
+            $out -match '^scenario failed: ' | ForEach-Object { Write-Host "    $_" }
+            if ($code -ne 0 -or $sum -ne 'scenarios: 13 run, 6 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
+          }
+          if ($failed -ne 0) { throw "$failed of $n SIM runs failed" }
+          Write-Host "  check: $n SIM runs in a row passed every scenario with the hook never put back"
+
+      - name: WX0 late start
+        run: |
+          $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
+          foreach ($late in @(200, 400)) {
+            foreach ($old in @('1', '0')) {
+              $env:MOORINGS_WX0_LATE_MS = "$late"
+              $env:MOORINGS_WX0_OLD_HIT = $old
+              $dir = Join-Path $env:RUNNER_TEMP "wx0\late-$late-old-$old"
+              $out = @(& $exe --scenarios footprintFollowsDrag dragSnapsToZone altDragParks --screen 3440x1440 --report $dir)
+              $code = $LASTEXITCODE
+              $global:LASTEXITCODE = 0
+              Write-Host "wx0 late $late old $old exit $code"
+              $out | ForEach-Object { Write-Host "  $_" }
+            }
+          }
+          Remove-Item Env:MOORINGS_WX0_LATE_MS
+          Remove-Item Env:MOORINGS_WX0_OLD_HIT
 
       - name: Scenario report
         if: always()
