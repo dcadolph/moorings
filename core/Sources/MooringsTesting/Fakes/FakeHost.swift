@@ -116,13 +116,14 @@ extension FakeHost: ScenarioHost {
     // dragSteps is how many pointer moves a fake drag makes.
     static let dragSteps = 20
 
-    // drag moves the window by offset the way a person drags it by the title bar: the follower hears
-    // the press, then at each step the window and the pointer move together, the clock advances a
-    // thirtieth of a second, and the follower hears the point with held; then it hears the release.
-    public func drag(_ id: WindowID, by offset: Point, held: Modifiers) -> Bool {
+    // drag moves the window by to minus from the way a person drags it by the title bar: the follower
+    // hears the press at from, then at each step the window and the pointer move together, the clock
+    // advances a thirtieth of a second, and the follower hears the point with held; then it hears the
+    // release.
+    public func drag(_ id: WindowID, from: Point, to: Point, held: Modifiers) -> Bool {
         guard let drag, let start = windows.frame(id) else { return false }
-        let grab = Scenarios.grab(start)
-        drag.began(window: id, moving: true, at: grab)
+        let offset = Point(x: to.x - from.x, y: to.y - from.y)
+        drag.began(window: id, moving: true, at: from)
         for i in 1...Self.dragSteps {
             let t = Double(i) / Double(Self.dragSteps)
             var f = start
@@ -130,7 +131,7 @@ extension FakeHost: ScenarioHost {
             f.y += offset.y * t
             windows.nudge(id, to: f)
             clock.advance(by: 1.0 / 30)
-            drag.moved(Point(x: grab.x + offset.x * t, y: grab.y + offset.y * t), held: held)
+            drag.moved(Point(x: from.x + offset.x * t, y: from.y + offset.y * t), held: held)
         }
         drag.ended(held: held)
         return true

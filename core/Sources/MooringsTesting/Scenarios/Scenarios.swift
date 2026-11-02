@@ -286,18 +286,22 @@ public final class Stage {
             fail("the store reads the \(label) before the drag", "window \(w.id) gone")
             return false
         }
-        let grab = Scenarios.grab(f)
+        guard let grab = host.grab(w.id, frame: f) else {
+            fail("the host finds a grab on the \(label)", "window \(w.id) at \(f)")
+            return false
+        }
         let before = drops.count
-        guard host.drag(w.id, by: Point(x: p.x - grab.x, y: p.y - grab.y), held: held) else {
+        guard host.drag(w.id, from: grab, to: p, held: held) else {
             fail("the host drags the \(label)", "window \(w.id) from \(grab) to \(p) not dragged")
             return false
         }
         let dropped = host.wait(until: host.now + Scenarios.dropSeconds) { drops.count > before }
         if !dropped {
+            let now = frame(w.id).map { "\($0)" } ?? "gone"
             fail(
                 "a drag of the \(label) ends in a drop within \(Int(Scenarios.dropSeconds)) s",
                 "no drop after the drag from \(grab) to \(p), dragged \(w.id), follower: "
-                    + engine.drag.trace.joined(separator: "; "))
+                    + engine.drag.trace.joined(separator: "; ") + ", window now \(now)")
         }
         return dropped
     }
@@ -319,7 +323,7 @@ public enum Scenarios {
     static let dropSeconds = 2.0
 
     // grab is where a drag presses on a window with frame f: half way across, 15 points down, on the
-    // title bar.
+    // title bar. It is the default grab; a host that can ask the window overrides grab.
     public static func grab(_ f: Frame) -> Point {
         Point(x: f.x + f.w / 2, y: f.y + 15)
     }

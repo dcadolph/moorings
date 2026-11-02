@@ -88,21 +88,20 @@ extension WinHost: ScenarioHost {
         return true
     }
 
-    // drag brings the window forward, then from another thread presses on its title bar with
-    // SendInput, holds the keys in held, moves the pointer by offset in 20 steps and lets go, while
-    // this thread pumps the messages the mouse hook and the window events arrive by. It reports
-    // whether the window was there and the input finished within 5 s.
-    func drag(_ id: WindowID, by offset: Point, held: Modifiers) -> Bool {
-        guard let hwnd = WinWindows.hwnd(id), let f = WinWindows().frame(id) else { return false }
+    // drag brings the window forward, then from another thread presses on it at from with SendInput,
+    // holds the keys in held, moves the pointer to to in 20 steps and lets go, while this thread pumps
+    // the messages the mouse hook and the window events arrive by. It reports whether the window was
+    // there and the input finished within 5 s.
+    func drag(_ id: WindowID, from: Point, to: Point, held: Modifiers) -> Bool {
+        guard let hwnd = WinWindows.hwnd(id) else { return false }
         _ = bringForward(hwnd)
-        let grab = Scenarios.grab(f)
-        let from = (x: Int32(grab.x.rounded()), y: Int32(grab.y.rounded()))
-        let to = (x: Int32((grab.x + offset.x).rounded()), y: Int32((grab.y + offset.y).rounded()))
+        let start = (x: Int32(from.x.rounded()), y: Int32(from.y.rounded()))
+        let end = (x: Int32(to.x.rounded()), y: Int32(to.y.rounded()))
         let keys = Self.modifierKeys.filter { held.contains($0.0) }.map(\.1)
         let done = InputDone()
         Thread {
             Sleep(200)
-            dragInput(from: from, to: to, keys: keys)
+            dragInput(from: start, to: end, keys: keys)
             done.finish()
         }.start()
         return wait(until: now + 5) { done.finished }
