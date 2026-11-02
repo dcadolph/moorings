@@ -307,3 +307,25 @@ footer a { color: var(--muted); } footer a:hover { color: var(--accent); }
   .appicon { width: 64px; height: 64px; }
 }
 @media (max-width: 880px) { .hero h1 br.wide { display: none; } }
+
+/* Compare page: one list per app, a mark per feature. */
+.mark { display: inline-block; flex: none; font: 700 12px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase;
+  padding: 6px 10px; border-radius: 999px; border: 1px solid currentColor; }
+.mark.yes { color: var(--palm); background: color-mix(in srgb, var(--palm) 14%, transparent); }
+.mark.partial { color: var(--sand); background: color-mix(in srgb, var(--sand) 14%, transparent); }
+.mark.planned { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.mark.no { color: var(--muted); background: transparent; }
+.doc .cmp-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; color: var(--muted); font-size: 15px; }
+.cmp-key { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.doc .cmp-intro { color: var(--muted); }
+.doc .cmp-list { list-style: none; padding: 0; margin: 18px 0 0; border-top: 1px solid var(--line); }
+.doc .cmp-row { margin: 0; padding: 14px 0; border-bottom: 1px solid var(--line); color: var(--text); }
+.cmp-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.cmp-feature { font-weight: 600; font-size: 17px; }
+.cmp-meta { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; font-size: 15px; color: var(--muted); }
+.cmp-who { font-size: 14px; }
+#what-only-moorings-has .cmp-list { border-top-color: color-mix(in srgb, var(--palm) 45%, transparent); }
+.doc .cmp-source { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; }
+@media (max-width: 560px) { .cmp-top { align-items: flex-start; } .cmp-feature { font-size: 16px; } }
+@media print { header.top, .toc { display: none; } .cmp-row { break-inside: avoid; } }
+@media (min-width: 640px) { .doc .cmp-toc { columns: 2; column-gap: 32px; } .doc .cmp-toc li { break-inside: avoid; } }
