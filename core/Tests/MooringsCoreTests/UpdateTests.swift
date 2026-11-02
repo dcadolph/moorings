@@ -178,6 +178,41 @@ let fixtureRelease = """
     #expect(got.checksums?.absoluteString == base + "SHA256SUMS")
 }
 
+// testUpdateAssetsWindows checks that a Windows check reads the Windows zip and asks the endpoint it
+// was given, and that a Mac check of the same release never takes the Windows zip.
+@Test func testUpdateAssetsWindows() async throws {
+    let base = "https://github.com/dcadolph/moorings/releases/download/v1.15.1/"
+    let body = fixtureRelease.replacingOccurrences(
+        of: "{\"name\":\"SHA256SUMS\"",
+        with: "{\"name\":\"moorings_v1.15.1_windows_x64.zip\",\"browser_download_url\":\"\(base)moorings_v1.15.1_windows_x64.zip\"},\n{\"name\":\"SHA256SUMS\"")
+    let endpoint = try #require(URL(string: "http://127.0.0.1:8765/newer.json"))
+    let asked = Asked()
+    let client = HTTPClientFunc { request in
+        await asked.set(request.url)
+        return (Data(body.utf8), 200)
+    }
+    let current = try #require(ReleaseVersion("1.15.0"))
+    let windows = try #require(
+        try await UpdateChecker(client: client, current: current, platform: .windows, endpoint: endpoint).check())
+    #expect(windows.zip?.absoluteString == base + "moorings_v1.15.1_windows_x64.zip")
+    #expect(windows.checksums?.absoluteString == base + "SHA256SUMS")
+    #expect(await asked.url == endpoint)
+    let mac = try #require(try await UpdateChecker(client: client, current: current).check())
+    #expect(mac.zip?.absoluteString == base + "moorings_v1.15.1_macos_universal.zip")
+    #expect(await asked.url == UpdateChecker.api)
+}
+
+// Asked records the last URL a test client was asked for.
+actor Asked {
+    // url is the last URL asked for.
+    var url: URL?
+
+    // set records url.
+    func set(_ url: URL?) {
+        self.url = url
+    }
+}
+
 // testUpdateAssetsRefused checks that assets on another host, path, tag or scheme are ignored.
 @Test(arguments: [
     (

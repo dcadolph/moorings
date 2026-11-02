@@ -50,7 +50,8 @@ public struct ReleaseInfo: Sendable, Equatable {
     public let tag: String
     // Page is the release page the user is sent to.
     public let page: URL
-    // Zip is the universal macOS zip asset, or nil when the release lacks a trusted one.
+    // Zip is the zip asset of the platform the checker asked for, or nil when the release lacks a
+    // trusted one.
     public let zip: URL?
     // Checksums is the SHA256SUMS asset, or nil when the release lacks a trusted one.
     public let checksums: URL?
@@ -158,6 +159,22 @@ public enum Checksums {
     }
 }
 
+// ReleasePlatform names the build a release zip carries, which picks the zip asset a check reads.
+public enum ReleasePlatform: Sendable, Equatable {
+    // macos is the universal Mac app.
+    case macos
+    // windows is the x64 Windows app.
+    case windows
+
+    // zipName returns the name the release workflow gives this platform's zip for tag.
+    public func zipName(tag: String) -> String {
+        switch self {
+        case .macos: "moorings_\(tag)_macos_universal.zip"
+        case .windows: "moorings_\(tag)_windows_x64.zip"
+        }
+    }
+}
+
 // UpdateChecker asks GitHub whether a newer release exists.
 public struct UpdateChecker: Sendable {
     // api is the endpoint that names the latest release.
@@ -167,17 +184,24 @@ public struct UpdateChecker: Sendable {
     let client: any HTTPClient
     // current is the running version.
     let current: ReleaseVersion
+    // platform picks the zip asset the check reads.
+    let platform: ReleasePlatform
+    // endpoint is where the latest release is asked for: api, or a local file server in a probe.
+    let endpoint: URL
 
-    // init creates a checker for the running version.
-    public init(client: any HTTPClient, current: ReleaseVersion) {
+    // init creates a checker for the running version of platform that asks endpoint.
+    public init(client: any HTTPClient, current: ReleaseVersion, platform: ReleasePlatform = .macos, endpoint: URL = api)
+    {
         self.client = client
         self.current = current
+        self.platform = platform
+        self.endpoint = endpoint
     }
 
     // check returns the latest release when it is newer than the running version, and nil otherwise.
     // Drafts, prereleases, tags that do not parse and pages that are not https on github.com are never newer.
     public func check() async throws -> ReleaseInfo? {
-        var request = URLRequest(url: Self.api)
+        var request = URLRequest(url: endpoint)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.timeoutInterval = 15
         let (data, status) = try await client.send(request)
@@ -197,7 +221,7 @@ public struct UpdateChecker: Sendable {
         return ReleaseInfo(
             tag: release.tagName, page: page,
             zip: ReleaseInfo.assetURL(
-                tag: release.tagName, name: "moorings_\(release.tagName)_macos_universal.zip", in: assets),
+                tag: release.tagName, name: platform.zipName(tag: release.tagName), in: assets),
             checksums: ReleaseInfo.assetURL(tag: release.tagName, name: "SHA256SUMS", in: assets))
     }
 
