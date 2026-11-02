@@ -17,7 +17,8 @@ let firefoxPrefs = """
 extension WinHost {
     // openBrowser starts the browser at path with a fresh profile and returns its new window once it
     // shows and holds still, nil when none shows within 20 s. A browser may hand its window to another
-    // process, so the window is found by its image path among the windows that were not there before.
+    // process, so the window is found by its image path among the windows that were not there before,
+    // and it must be one the store reads, which passes over a captionless handoff dialog.
     func openBrowser(_ path: String) -> HWND? {
         let profile = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(
             "moorings-browser-\(UUID().uuidString)")
@@ -47,10 +48,15 @@ extension WinHost {
             found = WinWindows.topLevel().first {
                 !before.contains($0) && IsWindowVisible($0) && GetWindow($0, UINT(GW_OWNER)) == nil
                     && WinWindows.image(WinWindows.processID($0)) == path
+                    && WinWindows.describe($0, screens: screens()) != nil
             }
             return found != nil
         }
         guard let found else {
+            for hwnd in WinWindows.topLevel()
+            where !before.contains(hwnd) && WinWindows.image(WinWindows.processID(hwnd)) == path {
+                describeStandIn(hwnd, "never read")
+            }
             print("scenarios: no \(path) window within 20 s")
             return nil
         }
