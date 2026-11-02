@@ -74,14 +74,18 @@ extension WinHost {
             print("scenarios: no \(path) window within \(Int(Self.browserWait)) s")
             return nil
         }
-        print("stand-in window shown after \(String(format: "%.1f", now - launched)) s")
+        let shown = now - launched
+        print("stand-in window shown after \(String(format: "%.1f", shown)) s")
         browsers.append(WinWindows.processID(found))
         settle(found)
         guard quiet(found, by: now + Self.settleWait) else {
             print("scenarios: \(path) window never settled within \(Int(Self.settleWait)) s")
             return nil
         }
-        print("stand-in settled after \(String(format: "%.1f", now - launched)) s")
+        let settled = now - launched
+        print(
+            "stand-in settled after \(String(format: "%.1f", settled)) s,",
+            "\(String(format: "%.1f", settled - shown)) s after it showed")
         return found
     }
 

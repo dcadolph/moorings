@@ -147,8 +147,8 @@ extension WinHost: ScenarioHost {
 
     // drag brings the window forward, then from another thread presses on it at from with SendInput,
     // holds the keys in held, moves the pointer to to in 20 steps and lets go, while this thread pumps
-    // the messages the mouse hook and the window events arrive by. It reports whether the window was
-    // there and the input finished within 5 s.
+    // the messages the mouse hook and the window events arrive by, then prints what the press saw.
+    // It reports whether the window was there and the input finished within 5 s.
     func drag(_ id: WindowID, from: Point, to: Point, held: Modifiers) -> Bool {
         guard let hwnd = WinWindows.hwnd(id) else { return false }
         _ = bringForward(hwnd)
@@ -156,12 +156,32 @@ extension WinHost: ScenarioHost {
         let end = (x: Int32(to.x.rounded()), y: Int32(to.y.rounded()))
         let keys = Self.modifierKeys.filter { held.contains($0.0) }.map(\.1)
         let done = InputDone()
+        let seen = WinMouseHook.delivered
         Thread {
             Sleep(200)
             dragInput(from: start, to: end, keys: keys)
             done.finish()
         }.start()
-        return wait(until: now + 5) { done.finished }
+        let finished = wait(until: now + 5) { done.finished }
+        describeInput(WinMouseHook.delivered &- seen, at: POINT(x: start.x, y: start.y))
+        return finished
+    }
+
+    // describeInput prints what a scripted drag's press saw: the messages the hook delivered over
+    // the drag, the press the loop thread classified, the foreground window, and the top-level
+    // window under the grab point p with its hit test there, so a drag that never started says why.
+    func describeInput(_ delivered: Int, at p: POINT) {
+        let last = WinDrag.lastPress
+        let press = last.map { "\($0.x) \($0.y)" } ?? "none"
+        let age = last.map { "\(GetTickCount64() &- $0.tick)" } ?? "none"
+        let root = last?.root.map(WinWindows.className) ?? "none"
+        let answer = last?.answer.map { "\($0)" } ?? "none"
+        let front = GetForegroundWindow().map(WinWindows.className) ?? "none"
+        let under = WindowFromPoint(p).flatMap { GetAncestor($0, WinWatcher.root) }
+        let hit = under.flatMap { WinDrag.hit($0, at: p) }.map { "\($0)" } ?? "none"
+        print(
+            "drag: input delivered \(delivered) press \(press) age \(age) ms root \(root) hit \(answer)",
+            "foreground \(front) under \(under.map(WinWindows.className) ?? "none") hit \(hit)")
     }
 
     // shot copies the virtual desktop with GDI into name.png in the report folder and returns the
