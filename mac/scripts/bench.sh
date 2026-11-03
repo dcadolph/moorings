@@ -11,8 +11,9 @@
 #   ROUNDS  Active phases per app, interleaved by round (default 3).
 #   LAT   Actions per latency run (default 20).
 #   MOORINGS_ACTIVE_BOUND  Multiple of Rectangle's per-action CPU that Moorings may use (default 1.0).
+#   MOORINGS_TRIPS_BOUND   Round trips per action that Moorings may make (default TRIPS below).
 #
-# Every bound is computed from Rectangle and Loop measured in the same run.
+# Every bound but Trips is computed from Rectangle and Loop measured in the same run.
 #
 #   Memory  Moorings phys_footprint at most 1.5 times Rectangle's and at most Loop's, read with
 #           footprint -p at the end of the run.
@@ -35,6 +36,12 @@
 #           from the open to the window's last move before it holds still for 0.3 s. An action
 #           that moves nothing within 2 s is missed.
 #   Lat50   Moorings landed p50 at most Rectangle's p50 and at most Loop's p50, medians as above.
+#   Trips   Moorings Accessibility round trips per action at most TRIPS. A trips phase after the
+#           rounds, outside every CPU window, sends N alternating actions to the probe with the
+#           scan log streamed at debug level. Per action is the status line's trips= delta over the
+#           phase, less one status request's own trips (measured by two status reads in a row)
+#           and less the sum of the scans the log shows, divided by N, so it counts the action
+#           path alone and not the timed full pass that the actions keep awake.
 #
 # The probe opens its window before the idle window and the bench waits out the 30 s in which
 # Moorings reads every app for a launched app's first window, and each active phase starts 3 s after
@@ -46,11 +53,17 @@
 # Moorings is the only app paused or resumed, and it is resumed again on exit.
 set -u
 
+# TRIPS is the round trips per action bound, the first passing measurement after the cuts rounded
+# up to a whole number. It only ever goes down. Empty until then, which prints the measurement with
+# no verdict.
+TRIPS=""
+
 N=${N:-100}
 IDLE=${IDLE:-120}
 ROUNDS=${ROUNDS:-3}
 LAT=${LAT:-20}
 BOUND=${MOORINGS_ACTIVE_BOUND:-1.0}
+TRIPS_BOUND=${MOORINGS_TRIPS_BOUND:-$TRIPS}
 apps="Moorings Rectangle Loop"
 subsystem="com.dcadolph.moorings"
 probe="com.dcadolph.moorings.probe"
@@ -189,6 +202,46 @@ latency() {
 	eval "L50_${who}_$round=$2 L95_${who}_$round=$4 LM_${who}_$round=$6 LW_${who}_$round=$8"
 }
 
+# tripsphase sends N alternating Moorings actions to the probe with the scan log streamed and sets
+# TR_per to the round trips per action net of one status request and of the scans.
+tripsphase() {
+	open -b "$probe"
+	sleep 3
+	ta=$(trips)
+	tb=$(trips)
+	pred="subsystem == \"$subsystem\" AND category == \"windows\""
+	/usr/bin/log stream --level debug --predicate "$pred AND eventMessage BEGINSWITH \"scan \"" \
+		>"$tmp/scans.log" 2>/dev/null &
+	streampid=$!
+	sleep 2
+	tc=$(trips)
+	i=1
+	while [ "$i" -le "$N" ]; do
+		if [ $((i % 2)) -eq 1 ]; then
+			open -g "moorings://action?name=left-half"
+		else
+			open -g "moorings://action?name=right-half"
+		fi
+		sleep 0.25
+		i=$((i + 1))
+	done
+	sleep 2
+	td=$(trips)
+	sleep 1
+	kill "$streampid" 2>/dev/null
+	streampid=""
+	if [ -z "$ta" ] || [ -z "$tb" ] || [ -z "$tc" ] || [ -z "$td" ]; then
+		echo "bench: Moorings sent no trips= status line" >&2
+		exit 2
+	fi
+	scans=$(grep -c 'scan .* trips [0-9]' "$tmp/scans.log")
+	scansum=$(grep -o 'trips [0-9]*' "$tmp/scans.log" | awk '{ s += $2 } END { print s + 0 }')
+	status=$((tb - ta))
+	TR_per=$(echo "$td $tc $status $scansum $N" | awk '{ printf "%.2f", ($1 - $2 - $3 - $4) / $5 }')
+	echo "trips            Moorings   $((td - tc)) over $N actions, status alone $status," \
+		"$scans scans $scansum, per action $TR_per"
+}
+
 # lat prints one latency field of an app over every round, one per line.
 lat() {
 	r=1
@@ -267,6 +320,7 @@ while [ "$round" -le "$ROUNDS" ]; do
 	paused=0
 	round=$((round + 1))
 done
+tripsphase
 osascript -e "tell application id \"$probe\" to quit" >/dev/null
 
 mem_m=$(megabytes "$(mem "$P_Moorings")")
@@ -323,6 +377,12 @@ if [ "$(numeric "$l50_m" "$l50_r" "$l50_l")" = 1 ]; then
 	ok=$(echo "$l50_m $l50_r $l50_l" | awk '{ print ($1 <= $2 && $1 <= $3) ? 1 : 0 }')
 fi
 check Lat50 "$ok" "Moorings p50 ${l50_m} ms, bound min(Rectangle p50 ${l50_r}, Loop p50 ${l50_l}) ms"
+if [ -n "$TRIPS_BOUND" ]; then
+	ok=$(echo "$TR_per $TRIPS_BOUND" | awk '{ print ($1 <= $2) ? 1 : 0 }')
+	check Trips "$ok" "per action $TR_per, bound $TRIPS_BOUND"
+else
+	printf "%-8s UNSET per action %s, no bound set yet\n" Trips "$TR_per"
+fi
 
 [ "$fails" -eq 0 ] || exit 1
 exit 0
