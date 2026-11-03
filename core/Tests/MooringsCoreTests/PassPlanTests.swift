@@ -41,7 +41,7 @@ let passPlanCases: [PassPlanCase] = [
     // Test 1: A full pass overdue by fullSeconds wins over a recent app wake.
     PassPlanCase(LastFull: 90, Woke: [10: 99], WantPlan: .full),
     // Test 2: Wakes older than settleSeconds name nothing.
-    PassPlanCase(Woke: [10: 97], WantPlan: .full),
+    PassPlanCase(Woke: [10: 97], WantPlan: .apps([])),
     // Test 3: One recent app with an unchanged list is the only one read.
     PassPlanCase(
         Woke: [10: 99, 11: 90], Listed: [10: planA, 11: planA], Previous: [10: planA, 11: planA],
@@ -98,12 +98,15 @@ let passPlanCases: [PassPlanCase] = [
     PassPlanCase(
         Listed: [10: [1: planMoved[1]!, 2: Frame(x: 0, y: 400, w: 100, h: 100)]], Previous: [10: planTwo],
         Front: 10, Echoes: [1: planMoved[1]!], WantPlan: .apps([10])),
-    // Test 17: No recent wake and no echo plans a full pass.
-    PassPlanCase(Listed: [10: planA], Previous: [10: planA], Front: 10, WantPlan: .full),
+    // Test 17: No recent wake and no echo reads the front app alone, since the forced pass served the
+    // last wake that named no app.
+    PassPlanCase(Listed: [10: planA], Previous: [10: planA], Front: 10, WantPlan: .apps([10])),
     // Test 18: No recent wake and a live echo plans an apps pass.
     PassPlanCase(
         Listed: [10: planMoved, 11: planOther], Previous: [10: planA, 11: planOther], Front: 11,
         Echoes: [1: planMoved[1]!], WantPlan: .apps([11])),
+    // Test 19: No recent wake, no echo and no front app reads no app.
+    PassPlanCase(Listed: [10: planA], Previous: [10: planA], WantPlan: .apps([])),
 ]
 
 @Test(arguments: passPlanCases)

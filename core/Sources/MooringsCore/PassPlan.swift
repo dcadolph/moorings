@@ -37,12 +37,13 @@ public enum PassPlan: Equatable, Sendable {
         return !since.isEmpty && since.allSatisfy(listed.contains) && !woke.values.contains { $0 > lastScan }
     }
 
-    // plan returns .full when forced, which a recent wake that named no app is, when a full pass is
-    // overdue, or when no app was named by a recent wake and no action's move is still echoing, and otherwise the apps that woke recently,
-    // the apps whose listed windows differ from the previous pass, and the front app. A slow app is
-    // read only when it woke recently. echoes holds the frames recent actions read back after moving
-    // a window. The front app is left out when a listed window of it has an echo and it neither woke
-    // nor changed, so the pass after an action reads nothing the action already read.
+    // plan returns .full when forced or when a full pass is overdue, and otherwise the apps that woke
+    // recently, the apps whose listed windows differ from the previous pass, and the front app. A wake
+    // that names no app is served by the one forced pass the passes run for it, so a pass after that
+    // reads what the window server list shows changed plus the front app. A slow app is read only when
+    // it woke recently. echoes holds the frames recent actions read back after moving a window. The
+    // front app is left out when a listed window of it has an echo and it neither woke nor changed, so
+    // the pass after an action reads nothing the action already read.
     public static func plan(
         now: Double, forced: Bool, lastFull: Double, woke: [Int32: Double],
         listed: [Int32: [WindowID: Frame]], previous: [Int32: [WindowID: Frame]], slow: Set<Int32>,
@@ -52,9 +53,6 @@ public enum PassPlan: Equatable, Sendable {
             return .full
         }
         let recent = Set(woke.filter { now - $0.value < Pace.settleSeconds }.keys)
-        if recent.isEmpty && echoes.isEmpty {
-            return .full
-        }
         var reads = recent.union(changed(listed: listed, previous: previous, slow: slow, echoes: echoes))
         if let front, !(listed[front] ?? [:]).keys.contains(where: { echoes[$0] != nil }) {
             reads.insert(front)
