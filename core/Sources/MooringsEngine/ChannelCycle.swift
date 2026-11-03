@@ -55,13 +55,19 @@ public final class ChannelCycle {
     }
 
     // sync reads the windows now and syncs on them, for the actions and clicks that change the front
-    // window between passes.
+    // window between passes. wanted reads only the focused window, so it reads that window alone where
+    // the store can, since a scan of every app would answer a one-window question, and scans when the
+    // store has no cheaper read or the focused window is one a scan would drop.
     public func sync() {
         guard platform.windows.ready else {
             unclaim()
             return
         }
         let screens = platform.screens.current()
+        if let w = platform.windows.focused(screens) {
+            sync(Scan(windows: [w], focused: w), screens: screens)
+            return
+        }
         sync(platform.windows.scan(screens, full: false), screens: screens)
     }
 
