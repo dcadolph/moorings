@@ -214,7 +214,7 @@ final class Windows {
             stalls[pid] = nil
             readPids.insert(pid)
             let windowID = { [self] (el: AXUIElement) -> WindowID? in
-                if let known = idOf[el] {
+                if let known = fresh[el] ?? idOf[el] {
                     fresh[el] = known
                     return known
                 }
