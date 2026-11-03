@@ -748,7 +748,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         logger.notice("status: update=\(self.updater.state.status, privacy: .public)")
         logger.notice(
-            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) slow=\(self.windows.stalledCount) observed=\(self.events.observed) hotkeys=\(self.hotkeys.enabled)"
+            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) slow=\(self.windows.stalledCount) observed=\(self.events.observed) hotkeys=\(self.hotkeys.enabled) trips=\(Windows.roundTrips)"
         )
         for (key, bundle) in engine.anchors.assignments().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let held = engine.anchors.slotWindows(key).map(String.init).joined(separator: ",")
