@@ -523,13 +523,15 @@ final class Windows {
 
     // hit reads the element at p and the window it belongs to: the window's id, frame and green button
     // and the element's role. It returns nil when no window is there or the app whose window is on top
-    // at p is stalled.
+    // at p is stalled. It caches the window's element so window(_:screens:) can read it alone, as a
+    // drag's first read does; that read applies the scan's keep rule, so caching confirms nothing.
     func hit(_ p: CGPoint) -> (id: WindowID, frame: Frame, button: Frame?, role: String?)? {
         guard let el = element(at: p, owner: top(at: p)?.pid) else { return nil }
         let role = Self.string(el, kAXRoleAttribute)
         guard let win = role == kAXWindowRole ? el : Self.element(el, kAXWindowAttribute), let id = Self.id(win),
             let frame = Self.frame(win)
         else { return nil }
+        elements[id] = win
         return (id, frame, Self.element(win, kAXZoomButtonAttribute).flatMap { Self.frame($0) }, role)
     }
 

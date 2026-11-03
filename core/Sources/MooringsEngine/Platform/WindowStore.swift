@@ -9,6 +9,9 @@ public protocol WindowStore: AnyObject {
     // focused reads the focused window alone, as a scan would describe it, nil when the store has no
     // cheaper read than a scan or the window is not one a scan keeps; the caller then scans.
     func focused(_ screens: Screens) -> WindowInfo?
+    // window reads the window with id alone, as a scan would describe it, nil when the store has no
+    // cheaper read than a scan or the window is not one a scan keeps; the caller then scans.
+    func window(_ id: WindowID, screens: Screens) -> WindowInfo?
     // frame returns the window's current frame, nil when it cannot be read.
     func frame(_ id: WindowID) -> Frame?
     // move places the window; from is its last read frame when known so an adapter can animate
@@ -43,6 +46,9 @@ public protocol WindowStore: AnyObject {
 extension WindowStore {
     // focused has no cheaper read than a scan, so the caller scans.
     public func focused(_ screens: Screens) -> WindowInfo? { nil }
+
+    // window has no cheaper read than a scan, so the caller scans.
+    public func window(_ id: WindowID, screens: Screens) -> WindowInfo? { nil }
 
     // position moves the window to x, y at the size it has now, for a store with no cheaper way.
     public func position(_ id: WindowID, x: Double, y: Double) {

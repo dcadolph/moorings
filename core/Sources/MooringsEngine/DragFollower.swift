@@ -239,6 +239,43 @@ public final class DragFollower {
         return moving == true && !done
     }
 
+    // first reads the dragged window alone where the store can: the given window, else the window
+    // under the pointer, else the focused one when nothing is under it. A drag of anything in any app
+    // comes here, so a scan of every app to describe one window is the cost this avoids. When the read
+    // returns nil it scans and chooses from the scan the same way, as a store with no cheaper read
+    // needs and a window no scan keeps falls back to.
+    private func first(_ screens: Screens) -> WindowInfo? {
+        let store = platform.windows
+        let under = given == nil ? (from ?? at).flatMap { store.hit($0) } : nil
+        let alone: WindowInfo?
+        if let given {
+            alone = store.window(given, screens: screens)
+        } else if let under {
+            alone = store.window(under, screens: screens)
+        } else {
+            alone = store.focused(screens)
+        }
+        if let alone {
+            trace.append(
+                "first read given \(String(describing: given)) at \(String(describing: from ?? at)) "
+                    + "under \(String(describing: under)) alone \(alone.id)")
+            return alone
+        }
+        trace.append("first read fell back to scan")
+        let scan = store.scan(screens, full: false)
+        if let given {
+            let found = scan.windows.first { $0.id == given }
+            trace.append("first read given \(given) in scan \(found != nil)")
+            return found
+        }
+        let hit = under.flatMap { id in scan.windows.first { $0.id == id } }
+        trace.append(
+            "first read at \(String(describing: from ?? at)) under \(String(describing: under)) "
+                + "in scan \(hit != nil) focused \(String(describing: scan.focused?.id)) "
+                + "of \(scan.windows.count) windows")
+        return hit ?? scan.focused
+    }
+
     // look reads the dragged window: the first time the given window, else the window under the
     // pointer, else the focused one, then its frame until it moves, resizes, or Behavior.stillDrag
     // gives up on it. The focused window can still be another one when a press lands on a window that
@@ -246,21 +283,7 @@ public final class DragFollower {
     // back.
     private func look() {
         guard let w = win, let s = start else {
-            let scan = platform.windows.scan(platform.screens.current(), full: false)
-            let found: WindowInfo?
-            if let given {
-                found = scan.windows.first { $0.id == given }
-                trace.append("first read given \(given) in scan \(found != nil)")
-            } else {
-                let under = (from ?? at).flatMap { platform.windows.hit($0) }
-                let hit = under.flatMap { id in scan.windows.first { $0.id == id } }
-                found = hit ?? scan.focused
-                trace.append(
-                    "first read at \(String(describing: from ?? at)) under \(String(describing: under)) "
-                        + "in scan \(hit != nil) focused \(String(describing: scan.focused?.id)) "
-                        + "of \(scan.windows.count) windows")
-            }
-            guard let found else {
+            guard let found = first(platform.screens.current()) else {
                 trace.append("first read found no window")
                 done = true
                 return
