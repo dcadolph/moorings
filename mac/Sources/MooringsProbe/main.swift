@@ -5,7 +5,8 @@ import AppKit
 // reopens a window from before, and always quits when asked. It opens one window at launch, another
 // on Command-N, on a Dock reopen with no window showing, or on the new-window distributed
 // notification, and an open panel on Command-O. The hang distributed notification sleeps its main
-// thread, so the selftest can check that a hung app does not stall Moorings.
+// thread, so the selftest can check that a hung app does not stall Moorings. The latency
+// notification times links that move its key window, for the bench.
 @MainActor
 final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // newWindow is the distributed notification that asks the probe for another window.
@@ -24,6 +25,8 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var windows: [NSWindow] = []
     // count numbers the windows made, for their titles and their cascade.
     private var count = 0
+    // latency is the latency run in progress, kept alive until it replies.
+    private var latency: LatencyRun?
 
     // applicationWillFinishLaunching turns off window restore before AppKit reads it.
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -39,6 +42,9 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             suspensionBehavior: .deliverImmediately)
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(hung), name: Self.hang, object: nil, suspensionBehavior: .deliverImmediately)
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(timed), name: Latency.request, object: nil,
+            suspensionBehavior: .deliverImmediately)
         newWindow(nil)
         NSApp.activate()
     }
@@ -76,6 +82,33 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         let asked = (note.userInfo?["seconds"] as? String).flatMap(Double.init) ?? Self.hangSeconds
         Thread.sleep(forTimeInterval: min(max(asked, 0), 30))
+    }
+
+    // timed runs a latency request on the key window, or the newest one, and posts the result line.
+    // A request while a run is in progress, or one with no window or a bad field, gets an error line.
+    @objc private func timed(_ note: Notification) {
+        let info = note.userInfo
+        guard latency == nil, let n = (info?["n"] as? String).flatMap(Int.init), n > 0,
+            let left = (info?["left"] as? String).flatMap(URL.init(string:)),
+            let right = (info?["right"] as? String).flatMap(URL.init(string:)),
+            let w = NSApp.keyWindow ?? windows.last
+        else {
+            Self.reply("error bad request, a run in progress, or no window")
+            return
+        }
+        let run = LatencyRun(window: w)
+        latency = run
+        Task {
+            let line = await run.run(n, left: left, right: right)
+            latency = nil
+            Self.reply(line)
+        }
+    }
+
+    // reply posts a latency result line for the waiting command.
+    private static func reply(_ line: String) {
+        DistributedNotificationCenter.default().postNotificationName(
+            Latency.done, object: nil, userInfo: ["line": line], deliverImmediately: true)
     }
 
     // newWindow opens another window below and right of the last one and brings it forward.
@@ -144,6 +177,15 @@ if args.count == 3, args[1] == "--cpu" {
     }
     print(String(format: "%.6f", secs))
     exit(0)
+}
+
+// The --latency mode asks the running probe to time n left and right links and prints its line.
+if args.count == 5, args[1] == "--latency" {
+    guard let n = Int(args[2]), n > 0 else {
+        FileHandle.standardError.write(Data("probe: --latency needs a positive count\n".utf8))
+        exit(2)
+    }
+    exit(MainActor.assumeIsolated { Latency.ask(n: n, left: args[3], right: args[4]) })
 }
 
 MainActor.assumeIsolated {
