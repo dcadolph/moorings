@@ -191,3 +191,50 @@ import MooringsCore
     // and two per window.
     #expect(Windows.roundTrips - at == 1 + 2 * n, "probe windows \(n)")
 }
+
+// testZoomRectMovesWithWindow moves a Probe window and reads the probe alone: the green button rect
+// moves with the window at no cost, and a resize reads the button again. It runs only when
+// MOORINGS_LIVE_CONTRACTS is 1, with Accessibility access.
+@Test(
+    .enabled(
+        if: ProcessInfo.processInfo.environment["MOORINGS_LIVE_CONTRACTS"] == "1",
+        "MOORINGS_LIVE_CONTRACTS is not 1"),
+    .enabled(if: AXIsProcessTrusted(), "this test host has no Accessibility access")
+) @MainActor func testZoomRectMovesWithWindow() {
+    _ = NSApplication.shared
+    let host = MacHost(store: Windows())
+    defer { host.finish() }
+    guard let id = host.open(),
+        let pid = NSRunningApplication.runningApplications(withBundleIdentifier: MacHost.probe).first?.processIdentifier
+    else {
+        Issue.record("the probe opened no window")
+        return
+    }
+    let store = host.store
+    let screens = Screens.current()
+    let probeOnly:
+        (_: [pid_t: [WindowID: Frame]], _: [pid_t: [WindowID: Frame]], _: Set<pid_t>, _: pid_t?) -> PassPlan = {
+            _, _, _, _ in .apps([pid])
+        }
+    let read = { store.scan(screens, decide: probeOnly).windows.filter { $0.bundle == MacHost.probe } }
+    let first = read()
+    guard let was = first.first(where: { $0.id == id }), let rect = was.zoomRect else {
+        Issue.record("the probe window has no green button rect")
+        return
+    }
+    let n = first.count
+    store.position(id, x: was.frame.x + 100, y: was.frame.y)
+    _ = host.wait(until: host.now + 2) { store.frame(id).map { $0.x == was.frame.x + 100 } ?? false }
+    var at = Windows.roundTrips
+    let moved = read().first { $0.id == id }
+    // Test 0: A pure move costs one trip for the app and one per window for its traits, and the rect
+    // moves with the window.
+    #expect(Windows.roundTrips - at == 1 + n, "probe windows \(n)")
+    #expect(moved?.zoomRect == Frame(x: rect.x + 100, y: rect.y, w: rect.w, h: rect.h))
+    store.resize(id, w: was.frame.w + 40, h: was.frame.h)
+    _ = host.wait(until: host.now + 2) { store.frame(id).map { $0.w == was.frame.w + 40 } ?? false }
+    at = Windows.roundTrips
+    _ = read()
+    // Test 1: A resize reads the green button again, its position and its size.
+    #expect(Windows.roundTrips - at == 1 + n + 2, "probe windows \(n)")
+}
