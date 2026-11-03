@@ -37,10 +37,10 @@ enum Latency {
     // code: 0 with the line printed, 1 when no reply came in time.
     @MainActor
     static func ask(n: Int, left: String, right: String) -> Int32 {
-        let client = LatencyClient()
+        let client = ReplyClient()
         let center = DistributedNotificationCenter.default()
         center.addObserver(
-            client, selector: #selector(LatencyClient.finished), name: done, object: nil,
+            client, selector: #selector(ReplyClient.finished), name: done, object: nil,
             suspensionBehavior: .deliverImmediately)
         center.postNotificationName(
             request, object: nil, userInfo: ["n": String(n), "left": left, "right": right],
@@ -58,13 +58,13 @@ enum Latency {
     }
 }
 
-// LatencyClient holds the reply the command waits for.
+// ReplyClient holds the line a latency or walk command waits for from the running probe.
 @MainActor
-final class LatencyClient: NSObject {
+final class ReplyClient: NSObject {
     // result is the line the probe sent back, nil until it arrives.
     private(set) var result: String?
 
-    // finished keeps the line the done notification carries.
+    // finished keeps the line a done notification carries.
     @objc func finished(_ note: Notification) {
         result = note.userInfo?["line"] as? String ?? "error no line"
     }
