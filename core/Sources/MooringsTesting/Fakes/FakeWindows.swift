@@ -128,6 +128,17 @@ public final class FakeWindows: WindowStore {
         return infos(screens).first { $0.id == focusedID }
     }
 
+    // answersWindow reports whether window reads one window alone, as the Mac store does; tests turn
+    // it off to model a store with no cheaper read than a scan.
+    public var answersWindow = true
+
+    // window returns the window with id as a scan would list it, without recording a scan, nil when
+    // a scan would drop it or answersWindow is off.
+    public func window(_ id: WindowID, screens: Screens) -> WindowInfo? {
+        guard answersWindow else { return nil }
+        return infos(screens).first { $0.id == id }
+    }
+
     // scan lists the windows that are not minimized and overlap a screen, front to back.
     public func scan(_ screens: Screens, full: Bool) -> Scan {
         calls.append(.scan(full: full))

@@ -218,3 +218,22 @@ final class DragRig {
     #expect(rig.overlay.shown == nil)
     #expect(rig.applied.isEmpty)
 }
+
+// A drag that begins over a window reads that window alone, with no scan, and watches it.
+@Test @MainActor func testDragFirstReadIsOneWindow() {
+    let rig = DragRig()
+    rig.drag(DragRig.path(Point(x: 1600, y: 415), Point(x: 2, y: 700)))
+    #expect(!rig.windows.calls.contains { if case .scan = $0 { true } else { false } }, "\(rig.windows.calls)")
+    #expect(rig.follower.trace.contains { $0.hasPrefix("watching \(rig.id) at ") }, "\(rig.follower.trace)")
+    #expect(rig.follower.drop == .zone("left-half"))
+}
+
+// A store with no cheaper read than a scan falls back to the scan, and the drag still drops.
+@Test @MainActor func testDragFirstReadFallsBackToScan() {
+    let rig = DragRig()
+    rig.windows.answersWindow = false
+    rig.drag(DragRig.path(Point(x: 1600, y: 415), Point(x: 2, y: 700)))
+    #expect(rig.windows.calls.contains(.scan(full: false)))
+    #expect(rig.follower.trace.contains("first read fell back to scan"), "\(rig.follower.trace)")
+    #expect(rig.follower.drop == .zone("left-half"))
+}
