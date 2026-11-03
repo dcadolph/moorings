@@ -11,4 +11,13 @@ public protocol EventSource: AnyObject {
     // closing where the platform needs that (the Mac's per-app AXObserver) and knows them as listed,
     // so an event for a window no pass listed can be filtered.
     func watch(_ scan: Scan)
+    // quiet tells the source whether the engine is paused. A paused engine needs only a tick per
+    // event, to find choices another program saved, so a quiet source may deliver a bare wake
+    // instead of reading the window an event names.
+    func quiet(_ on: Bool)
+}
+
+extension EventSource {
+    // quiet does nothing: the source delivers the same events paused or not.
+    public func quiet(_ on: Bool) {}
 }

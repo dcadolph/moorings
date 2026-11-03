@@ -12,6 +12,9 @@ public final class FakeEvents: EventSource {
     public private(set) var started = 0
     // stopped counts the stops.
     public private(set) var stopped = 0
+    // quiet is what the engine last told the source about the pause. The fake delivers the same
+    // events either way.
+    public private(set) var quiet = false
     // windows is the store whose changes are delivered.
     private let windows: FakeWindows
 
@@ -30,6 +33,11 @@ public final class FakeEvents: EventSource {
     public func stop() {
         stopped += 1
         windows.onEvent = nil
+    }
+
+    // quiet keeps on for the tests.
+    public func quiet(_ on: Bool) {
+        quiet = on
     }
 
     // watch counts the scan; fake windows need no narrowing.

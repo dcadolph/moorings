@@ -496,6 +496,25 @@ private func fillRig(
     #expect(near(rig.windows.frame(id), rig.slot))
 }
 
+// A save that pauses tells the events to go quiet, and a resume another program saved, read on a
+// paused event, tells them to speak again.
+@Test func testPauseQuietsTheEvents() {
+    let rig = PassRig()
+    rig.engine.start()
+    let events = rig.engine.platform.events as! FakeEvents
+    let store = rig.engine.platform.store as! FakeStore
+    #expect(!events.quiet)
+    rig.anchors.choices.paused = true
+    rig.engine.save()
+    #expect(events.quiet)
+    var resumed = rig.anchors.choices
+    resumed.paused = false
+    store.rewrite(resumed)
+    rig.engine.handle(.wake)
+    #expect(!rig.anchors.choices.paused)
+    #expect(!events.quiet)
+}
+
 // Pausing while an app launches, when passes run every Pace.busySeconds, still leaves no pass set.
 @Test func testPausedWhileBusySetsNoPass() {
     let rig = PassRig()
