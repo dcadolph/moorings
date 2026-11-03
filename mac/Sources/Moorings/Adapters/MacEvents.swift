@@ -49,6 +49,9 @@ final class MacEvents: @preconcurrency EventSource {
     private let listApps: @MainActor () -> Set<pid_t>
     // apps holds the regular apps from the last listing, kept up to date by launches and quits.
     private var apps: Set<pid_t> = []
+    // quieted is true while the engine is paused: a window event then delivers a bare wake and reads
+    // nothing, since a paused engine uses an event only to find choices another program saved.
+    private var quieted = false
     // appsListed is when listApps last ran, nil before the first time.
     private var appsListed: Double?
     // listCount is how many times the source listed the running apps, for the tests.
@@ -158,6 +161,12 @@ final class MacEvents: @preconcurrency EventSource {
         }
     }
 
+    // quiet records whether the engine is paused. It outlasts a stop and start, since the engine
+    // tells it only when the choices change.
+    func quiet(_ on: Bool) {
+        quieted = on
+    }
+
     // watchClosing observes the close of window id with element el and keeps its id for the event.
     private func watchClosing(_ id: WindowID, _ el: AXUIElement) {
         ids[el] = id
@@ -169,12 +178,17 @@ final class MacEvents: @preconcurrency EventSource {
     // keep it. A window's own move within Pace.settleSeconds of a placement is dropped while the
     // window reads where the placement read it back, and marks nothing when it reads elsewhere or
     // was not read back; any other event marks its app as woken. A window that appears has its close
-    // observed at once.
-    private func axEvent(_ el: AXUIElement, _ note: String) {
+    // observed at once. While quiet, any event but a close delivers a bare wake and reads nothing,
+    // and a close reads nothing for a window whose close is observed.
+    func axEvent(_ el: AXUIElement, _ note: String) {
         guard let deliver else { return }
         if note == kAXUIElementDestroyedNotification {
-            guard let id = ids.removeValue(forKey: el) ?? Windows.id(el) else { return }
+            guard let id = ids.removeValue(forKey: el) ?? (quieted ? nil : Windows.id(el)) else { return }
             deliver(.destroyed(id))
+            return
+        }
+        if quieted {
+            deliver(.wake)
             return
         }
         let id = Windows.id(el)

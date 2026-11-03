@@ -327,9 +327,11 @@ public final class Engine {
         }
     }
 
-    // bind registers every shortcut in effect that this platform supports and logs the problems
-    // with the saved ones under .choices.
+    // bind registers every shortcut in effect that this platform supports, logs the problems with
+    // the saved ones under .choices, and tells the events whether the engine is paused. Every
+    // change of the choices passes through it: start, save, reload and a reload before a pass.
     private func bind() {
+        platform.events.quiet(anchors.choices.paused)
         let bindings = Bindings(anchors.choices)
         for p in bindings.problems {
             platform.log.note(.choices, p)
