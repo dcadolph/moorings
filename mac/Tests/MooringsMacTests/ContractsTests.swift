@@ -14,6 +14,22 @@ import MooringsTesting
 final class MacHost: @preconcurrency ContractHost {
     // probe is the probe's bundle id. make probe in mac/ builds and registers it.
     static let probe = Selftest.bundle
+    // app is the Moorings app's bundle id.
+    static let app = "com.dcadolph.moorings"
+
+    // unready returns why a live run cannot start, nil when it can: the probe is not installed, or the
+    // Moorings app is running. A running Moorings is a second engine on the desk that moves the
+    // probe's windows as its own and reads the run's synthetic drags as the owner's, so it can anchor
+    // the probe in a slot and save that to the owner's choices.
+    static func unready() -> String? {
+        if NSWorkspace.shared.urlForApplication(withBundleIdentifier: probe) == nil {
+            return "the probe is not installed. Run make probe in mac/ first"
+        }
+        if !NSRunningApplication.runningApplications(withBundleIdentifier: app).isEmpty {
+            return "Moorings is running and would move the probe's windows. Quit it first"
+        }
+        return nil
+    }
     // store reads the windows the host opens.
     let store: Windows
     // opened lists the windows the host opened.
@@ -123,8 +139,8 @@ final class MacHost: @preconcurrency ContractHost {
         "MOORINGS_LIVE_CONTRACTS is not 1"),
     .enabled(if: AXIsProcessTrusted(), "this test host has no Accessibility access")
 ) @MainActor func testMacContracts() {
-    guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: MacHost.probe) != nil else {
-        Issue.record("the probe is not installed. Run make probe in mac/ first")
+    if let why = MacHost.unready() {
+        Issue.record("\(why)")
         return
     }
     _ = NSApplication.shared

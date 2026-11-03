@@ -105,8 +105,8 @@ import MooringsCore
         "MOORINGS_LIVE_CONTRACTS is not 1"),
     .enabled(if: AXIsProcessTrusted(), "this test host has no Accessibility access")
 ) @MainActor func testFocusedTrustsARecentConfirmation() {
-    guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: MacHost.probe) != nil else {
-        Issue.record("the probe is not installed. Run make probe in mac/ first")
+    if let why = MacHost.unready() {
+        Issue.record("\(why)")
         return
     }
     _ = NSApplication.shared
@@ -150,8 +150,8 @@ import MooringsCore
         "MOORINGS_LIVE_CONTRACTS is not 1"),
     .enabled(if: AXIsProcessTrusted(), "this test host has no Accessibility access")
 ) @MainActor func testScanCountsRoundTrips() {
-    guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: MacHost.probe) != nil else {
-        Issue.record("the probe is not installed. Run make probe in mac/ first")
+    if let why = MacHost.unready() {
+        Issue.record("\(why)")
         return
     }
     _ = NSApplication.shared
@@ -201,6 +201,10 @@ import MooringsCore
         "MOORINGS_LIVE_CONTRACTS is not 1"),
     .enabled(if: AXIsProcessTrusted(), "this test host has no Accessibility access")
 ) @MainActor func testZoomRectMovesWithWindow() {
+    if let why = MacHost.unready() {
+        Issue.record("\(why)")
+        return
+    }
     _ = NSApplication.shared
     let host = MacHost(store: Windows())
     defer { host.finish() }
