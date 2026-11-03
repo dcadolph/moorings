@@ -51,6 +51,10 @@ final class Windows {
     private var zooms: [WindowID: (frame: Frame, rect: Frame?)] = [:]
     // apps caches the app element for each process.
     private var apps: [pid_t: AXUIElement] = [:]
+    // idOf caches the id of each window element a scan read. A window element's id never changes
+    // while the element is valid, so asking again each scan is a round trip spent on nothing. An app
+    // a scan reads gets its entries from that read alone, so a closed window's entry goes with it.
+    private var idOf: [AXUIElement: WindowID] = [:]
     // RunningApp is what a scan needs from one running app, cached so a pass asks the app nothing.
     private struct RunningApp {
         // app is the running app.
@@ -150,6 +154,8 @@ final class Windows {
         var seen: [WindowID: AXUIElement] = [:]
         var focusedID: WindowID?
         var byPid: [pid_t: [WindowInfo]] = [:]
+        var readPids: Set<pid_t> = []
+        var fresh: [AXUIElement: WindowID] = [:]
         scanned = []
         let front = tracked ? (lastFront ?? front) : front
         let frames = Dictionary(order.map { ($0.id, $0.frame) }, uniquingKeysWith: { a, _ in a })
@@ -191,9 +197,7 @@ final class Windows {
             }
             let app = appElement(pid)
             scanned.insert(pid)
-            var raw: CFTypeRef?
-            Windows.roundTrips += 1
-            if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw) == .cannotComplete {
+            guard let read = Self.appWindows(app) else {
                 slow.insert(pid)
                 stall(pid)
                 let carried = WindowInfo.carrying(last[pid] ?? [], frames: frames)
@@ -206,9 +210,19 @@ final class Windows {
             }
             slow.remove(pid)
             stalls[pid] = nil
-            let main = Self.element(app, kAXMainWindowAttribute).flatMap { Self.id($0) }
-            for el in raw as? [AXUIElement] ?? [] {
-                guard let id = Self.id(el), rank[id] != nil,
+            readPids.insert(pid)
+            let windowID = { [self] (el: AXUIElement) -> WindowID? in
+                if let known = idOf[el] {
+                    fresh[el] = known
+                    return known
+                }
+                let asked = Self.id(el)
+                fresh[el] = asked
+                return asked
+            }
+            let main = read.main.flatMap(windowID)
+            for el in read.windows {
+                guard let id = windowID(el), rank[id] != nil,
                     let info = info(el, id: id, bundle: bundle, isMain: id == main, screens: screens)
                 else { continue }
                 seen[id] = el
@@ -216,10 +230,11 @@ final class Windows {
                 byPid[pid, default: []].append(info)
             }
             if pid == front {
-                focusedID = Self.element(app, kAXFocusedWindowAttribute).flatMap { Self.id($0) }
+                focusedID = read.focused.flatMap(windowID)
                 focus = (pid, focusedID)
             }
         }
+        idOf = idOf.filter { !readPids.contains(Self.pid($0.key) ?? -1) }.merging(fresh) { _, new in new }
         found = WindowInfo.promotingLone(found)
         last = byPid
         elements.merge(seen) { _, new in new }
@@ -662,6 +677,7 @@ final class Windows {
     // forget drops the cached elements, windows and frames of a process that quit.
     func forget(_ pid: pid_t) {
         elements = elements.filter { Self.pid($0.value).map { $0 != pid } ?? false }
+        idOf = idOf.filter { Self.pid($0.key).map { $0 != pid } ?? false }
         apps[pid] = nil
         last[pid] = nil
         listed[pid] = nil
@@ -780,6 +796,36 @@ final class Windows {
             frame: frame(position: values[3], size: values[4])
         )
         return (traits, zoom)
+    }
+
+    // appNames are the attributes appWindows reads from an app in one round trip, in this order.
+    private static let appNames = [kAXWindowsAttribute, kAXMainWindowAttribute, kAXFocusedWindowAttribute]
+
+    // appWindows reads app's windows, main window and focused window in one round trip instead of
+    // three, with the rule traits uses for what each slot holds. It returns nil when the app cannot
+    // answer in time, which stalls it once per scan as a single read would, and reads the three one
+    // at a time when the batched call fails for any other reason.
+    static func appWindows(_ app: AXUIElement) -> (windows: [AXUIElement], main: AXUIElement?, focused: AXUIElement?)? {
+        var raw: CFArray?
+        Windows.roundTrips += 1
+        let err = AXUIElementCopyMultipleAttributeValues(app, appNames as CFArray, [], &raw)
+        let values: [CFTypeRef?]
+        if err == .success, let list = raw as [AnyObject]?, list.count == appNames.count {
+            values = list.map { present($0) }
+        } else if err == .cannotComplete {
+            return nil
+        } else {
+            var one: CFTypeRef?
+            Windows.roundTrips += 1
+            if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &one) == .cannotComplete {
+                return nil
+            }
+            values = [one, value(app, kAXMainWindowAttribute), value(app, kAXFocusedWindowAttribute)]
+        }
+        let element = { (v: CFTypeRef?) -> AXUIElement? in
+            v.flatMap { CFGetTypeID($0) == AXUIElementGetTypeID() ? unsafeDowncast($0, to: AXUIElement.self) : nil }
+        }
+        return (values[0] as? [AXUIElement] ?? [], element(values[1]), element(values[2]))
     }
 
     // present returns v, or nil when it is the error or null a multiple-attribute read puts in place of
@@ -930,6 +976,7 @@ extension Windows: @preconcurrency WindowStore {
         let held = elements
         let ids = Self.living(Self.listed()) { id in held[id].map(Self.destroyed) ?? false }
         elements = elements.filter { ids.contains($0.key) }
+        idOf = idOf.filter { ids.contains($0.value) }
         return ids
     }
 
