@@ -6,8 +6,8 @@ import AppKit
 // on Command-N, on a Dock reopen with no window showing, or on the new-window distributed
 // notification, and an open panel on Command-O. The hang distributed notification sleeps its main
 // thread, so the selftest can check that a hung app does not stall Moorings. The latency
-// notification times links that move its key window, for the bench, and the walk notification
-// drives a scripted desk for the use measure.
+// notification times links that move its key window, for the bench, the walk notification drives a
+// scripted desk for the use measure, and the drags notification posts the use measure's real drags.
 @MainActor
 final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // newWindow is the distributed notification that asks the probe for another window.
@@ -30,6 +30,8 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var latency: LatencyRun?
     // walk is the walk in progress, kept alive until it replies.
     private var walk: WalkRun?
+    // drags is the drag run in progress, kept alive until it replies.
+    private var drags: DragRun?
 
     // applicationWillFinishLaunching turns off window restore before AppKit reads it.
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -50,6 +52,9 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             suspensionBehavior: .deliverImmediately)
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(walked), name: Walk.request, object: nil,
+            suspensionBehavior: .deliverImmediately)
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(dragged), name: Drags.request, object: nil,
             suspensionBehavior: .deliverImmediately)
         newWindow(nil)
         NSApp.activate()
@@ -130,6 +135,24 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let line = await run.run(seconds: seconds)
             walk = nil
             Self.reply(line, to: Walk.done)
+        }
+    }
+
+    // dragged runs a drag run in its own window and posts the count line. A bad request or one while
+    // a run is in progress gets an error line.
+    @objc private func dragged(_ note: Notification) {
+        guard drags == nil, let seconds = (note.userInfo?["seconds"] as? String).flatMap(Int.init),
+            seconds >= Drags.every
+        else {
+            Self.reply("error bad request or a drag run in progress", to: Drags.done)
+            return
+        }
+        let run = DragRun()
+        drags = run
+        Task {
+            let line = await run.run(seconds: seconds)
+            drags = nil
+            Self.reply(line, to: Drags.done)
         }
     }
 
@@ -231,6 +254,15 @@ if args.count == 4, args[1] == "--walk" {
         exit(2)
     }
     exit(MainActor.assumeIsolated { Walk.ask(seconds: seconds, other: args[3]) })
+}
+
+// The --drags mode asks the running probe for a drag run of seconds and prints its count line.
+if args.count == 3, args[1] == "--drags" {
+    guard let seconds = Int(args[2]), seconds > 0 else {
+        FileHandle.standardError.write(Data("probe: --drags needs a positive count of seconds\n".utf8))
+        exit(2)
+    }
+    exit(MainActor.assumeIsolated { Drags.ask(seconds: seconds) })
 }
 
 MainActor.assumeIsolated {
