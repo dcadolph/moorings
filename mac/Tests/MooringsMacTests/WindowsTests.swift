@@ -141,8 +141,9 @@ import MooringsCore
     #expect(asked == 3)
 }
 
-// testScanCountsRoundTrips scans with a Probe window open and expects the round trip counter to
-// rise by at least five. It runs only when MOORINGS_LIVE_CONTRACTS is 1, with Accessibility access.
+// testScanCountsRoundTrips scans with a Probe window open and counts the round trips of a scan of the
+// desk and of a read of the probe alone, with its window ids cached and after they are forgotten. It
+// runs only when MOORINGS_LIVE_CONTRACTS is 1, with Accessibility access.
 @Test(
     .enabled(
         if: ProcessInfo.processInfo.environment["MOORINGS_LIVE_CONTRACTS"] == "1",
@@ -162,6 +163,31 @@ import MooringsCore
     }
     let before = Windows.roundTrips
     _ = Windows().scan(Screens.current())
-    // Test 0: One app read costs at least three trips and its window at least two more.
-    #expect(Windows.roundTrips - before >= 5)
+    // Test 0: A full scan of the desk costs at least one trip for the probe and two for its window.
+    #expect(Windows.roundTrips - before >= 3)
+    let store = Windows()
+    let screens = Screens.current()
+    let full = store.scan(screens)
+    guard
+        let pid = NSRunningApplication.runningApplications(withBundleIdentifier: MacHost.probe).first?.processIdentifier
+    else {
+        Issue.record("the probe is not running")
+        return
+    }
+    let n = full.windows.filter { $0.bundle == MacHost.probe }.count
+    let probeOnly:
+        (_: [pid_t: [WindowID: Frame]], _: [pid_t: [WindowID: Frame]], _: Set<pid_t>, _: pid_t?) -> PassPlan = {
+            _, _, _, _ in .apps([pid])
+        }
+    var at = Windows.roundTrips
+    _ = store.scan(screens, decide: probeOnly)
+    // Test 1: A second read of the probe costs one trip for the app and one per window for its traits,
+    // since the ids are cached and the frames did not change.
+    #expect(Windows.roundTrips - at == 1 + n, "probe windows \(n)")
+    store.forget(pid)
+    at = Windows.roundTrips
+    _ = store.scan(screens, decide: probeOnly)
+    // Test 2: After the probe is forgotten, its read asks each window's id again: one trip for the app
+    // and two per window.
+    #expect(Windows.roundTrips - at == 1 + 2 * n, "probe windows \(n)")
 }
