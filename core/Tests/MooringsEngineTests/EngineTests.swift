@@ -406,6 +406,26 @@ private func fillRig(
     #expect(!rig.engine.channelCycle.claimed)
 }
 
+// Test 23: A full wake reads every app on the next pass alone, and the pass after it reads the apps
+// that changed, which still lists a window shown between the two.
+@Test func testEngineFullWakeReadsEveryAppOnce() {
+    let rig = EngineRig(features: .all)
+    rig.engine.moor()
+    rig.clock.advance(by: Pace.settleSeconds + 1)
+    rig.engine.passes.stop()
+    rig.engine.wake()
+    var from = rig.windows.calls.count
+    rig.engine.moor()
+    #expect(rig.windows.calls.dropFirst(from).first == .scan(full: true))
+    let shown = rig.windows.add(bundle: "com.example.new", frame: Frame(x: 1500, y: 300, w: 600, h: 400))
+    rig.clock.advance(by: Pace.pollSeconds)
+    rig.engine.passes.stop()
+    from = rig.windows.calls.count
+    rig.engine.moor()
+    #expect(rig.windows.calls.dropFirst(from).first == .scan(full: false))
+    #expect(rig.engine.passes.lastRead.contains(shown))
+}
+
 // A pin moved by hand while paused stays where the owner put it, and goes back to its slot on
 // resume, as Selftest's pause and resume checks expect.
 @Test func testPausedPinMovedByHandGoesBackOnResume() {

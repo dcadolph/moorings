@@ -17,8 +17,7 @@ public final class PassLoop {
     public private(set) var still = false
     // due is when the next pass runs, nil when none is set.
     public private(set) var due: Double?
-    // fullWoke is when the last wake came that named no window, so the scans read every app until
-    // the windows settle.
+    // fullWoke is when the last wake came that named no window.
     public private(set) var fullWoke = -Double.infinity
     // launching is when the passes stop looking for the first window of an app that just launched.
     public var launching = -Double.infinity
@@ -42,6 +41,9 @@ public final class PassLoop {
     private var lastApps: Double?
     // started reports whether the first pass ran.
     private var started = false
+    // fullDue reports whether a wake that named no window came since the last pass that read every
+    // app, so the next pass reads every app once.
+    private var fullDue = false
     // toldRefused reports whether the banner told of a refused window this session.
     private var toldRefused = false
 
@@ -55,14 +57,16 @@ public final class PassLoop {
     }
 
     // wake marks windows as changing, so passes run every Pace.pollSeconds until they settle. A full
-    // wake also makes the scans read every app for Pace.settleSeconds; an event that named its window
-    // wakes narrow, since the source marked that window's app. Nothing wakes while paused.
+    // wake also makes the next pass read every app, once, and the passes after it read the apps the
+    // window server list shows changed plus the front app; an event that named its window wakes
+    // narrow, since the source marked that window's app. Nothing wakes while paused.
     public func wake(full: Bool = true) {
         guard !anchors.choices.paused else { return }
         let t = platform.clock.now
         woke = t
         if full {
             fullWoke = t
+            fullDue = true
         }
         if let due, due <= t + Pace.pollSeconds {
             return
@@ -100,7 +104,10 @@ public final class PassLoop {
         } else if anchors.hasCastOff || !anchors.stashed.isEmpty {
             anchors.prune(alive: platform.windows.alive())
         }
-        let forced = !started || waiting || t < launching || t - fullWoke < Pace.settleSeconds
+        let forced = !started || waiting || t < launching || fullDue
+        if forced {
+            fullDue = false
+        }
         let scan = platform.windows.scan(screens, full: forced)
         let refused = platform.windows.refused
         let list = scan.windows.filter { !refused.contains($0.id) }

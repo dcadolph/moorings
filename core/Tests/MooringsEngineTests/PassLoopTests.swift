@@ -239,3 +239,21 @@ final class SpellingKeys: Keys {
     #expect(rig.log.traces == want)
     #expect(!rig.log.lines.contains { $0.text.hasPrefix("pass ") })
 }
+
+// Two full wakes before a pass runs make one pass that reads every app, and the passes after it
+// until the windows settle read only the apps that changed.
+@Test func testPassFullWakesReadEveryAppOnce() {
+    let rig = PassRig()
+    rig.windows.add(bundle: "com.example.pad", frame: Frame(x: 1500, y: 200, w: 800, h: 600), focus: true)
+    rig.passes.moor()
+    rig.clock.advance(by: 30)
+    let full = { rig.log.traces.filter { $0.text.hasPrefix("pass full") }.count }
+    let before = full(), traced = rig.log.traces.count
+    rig.passes.wake()
+    rig.passes.wake()
+    rig.windows.add(bundle: "com.example.new", frame: Frame(x: 1500, y: 300, w: 600, h: 400))
+    rig.clock.advance(by: Pace.settleSeconds + 1)
+    let passes = rig.log.traces.dropFirst(traced).filter { $0.text.hasPrefix("pass ") }.count
+    #expect(passes >= 2, "a window shown after the wake makes the first pass not still")
+    #expect(full() - before == 1, "\(rig.log.traces)")
+}
