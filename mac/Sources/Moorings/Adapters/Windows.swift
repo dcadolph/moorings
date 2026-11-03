@@ -47,7 +47,9 @@ final class Windows {
     // scan that carries the list keeps.
     private var listedAt = -Double.infinity
     // zooms caches each window's green button rect with the frame it was read at, so it is asked
-    // for again only when the window moves.
+    // for again only when the window's size changes. The button sits in the title bar at a fixed
+    // offset from the window's corner until the window's size or layout changes, and a full screen
+    // toggle changes the size, so on a pure move the cached rect moves with the window exactly.
     private var zooms: [WindowID: (frame: Frame, rect: Frame?)] = [:]
     // apps caches the app element for each process.
     private var apps: [pid_t: AXUIElement] = [:]
@@ -716,7 +718,13 @@ final class Windows {
         let (traits, zoomButton) = Self.traits(el)
         guard traits.movable, let frame = traits.frame else { return nil }
         var zoom = zooms[id]
-        if zoom == nil || zoom!.frame != frame {
+        if let cached = zoom, cached.frame.w == frame.w, cached.frame.h == frame.h {
+            if cached.frame != frame {
+                let dx = frame.x - cached.frame.x, dy = frame.y - cached.frame.y
+                zoom = (frame, cached.rect.map { Frame(x: $0.x + dx, y: $0.y + dy, w: $0.w, h: $0.h) })
+                zooms[id] = zoom
+            }
+        } else {
             zoom = (frame, zoomButton.flatMap { Self.frame($0) })
             zooms[id] = zoom
         }
