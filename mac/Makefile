@@ -29,7 +29,7 @@ INTENTS_OUT := .build/intents
 # a universal one.
 INTENTS_CONSTS_DIR := $(if $(ARCHS),.build/apple/Intermediates.noindex/Moorings.build/Release/Moorings.build,.build/$(shell uname -m)-apple-macosx/release/Moorings.build)
 
-.PHONY: build test bench probe app sandbox zip dmg notarize run clean
+.PHONY: build test bench use probe app sandbox zip dmg notarize run clean
 
 build:
 	swift build
@@ -40,6 +40,10 @@ test:
 
 bench: probe
 	scripts/bench.sh
+
+# use measures all three apps over a scripted desk with mac/scripts/use.sh.
+use: probe
+	scripts/use.sh
 
 # probe bundles the window app the selftest, the Mac contracts and the bench move, and registers it so
 # the selftest finds it by bundle id.

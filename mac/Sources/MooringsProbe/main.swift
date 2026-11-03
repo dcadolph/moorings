@@ -6,7 +6,8 @@ import AppKit
 // on Command-N, on a Dock reopen with no window showing, or on the new-window distributed
 // notification, and an open panel on Command-O. The hang distributed notification sleeps its main
 // thread, so the selftest can check that a hung app does not stall Moorings. The latency
-// notification times links that move its key window, for the bench.
+// notification times links that move its key window, for the bench, and the walk notification
+// drives a scripted desk for the use measure.
 @MainActor
 final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // newWindow is the distributed notification that asks the probe for another window.
@@ -27,6 +28,8 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var count = 0
     // latency is the latency run in progress, kept alive until it replies.
     private var latency: LatencyRun?
+    // walk is the walk in progress, kept alive until it replies.
+    private var walk: WalkRun?
 
     // applicationWillFinishLaunching turns off window restore before AppKit reads it.
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -44,6 +47,9 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self, selector: #selector(hung), name: Self.hang, object: nil, suspensionBehavior: .deliverImmediately)
         DistributedNotificationCenter.default().addObserver(
             self, selector: #selector(timed), name: Latency.request, object: nil,
+            suspensionBehavior: .deliverImmediately)
+        DistributedNotificationCenter.default().addObserver(
+            self, selector: #selector(walked), name: Walk.request, object: nil,
             suspensionBehavior: .deliverImmediately)
         newWindow(nil)
         NSApp.activate()
@@ -93,7 +99,7 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let right = (info?["right"] as? String).flatMap(URL.init(string:)),
             let w = NSApp.keyWindow ?? windows.last
         else {
-            Self.reply("error bad request, a run in progress, or no window")
+            Self.reply("error bad request, a run in progress, or no window", to: Latency.done)
             return
         }
         let run = LatencyRun(window: w)
@@ -101,18 +107,46 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         Task {
             let line = await run.run(n, left: left, right: right)
             latency = nil
-            Self.reply(line)
+            Self.reply(line, to: Latency.done)
         }
     }
 
-    // reply posts a latency result line for the waiting command.
-    private static func reply(_ line: String) {
+    // walked runs a walk on the key window, or the newest one, switching to the app the request
+    // names, and posts the count line. A bad request or one while a walk runs gets an error line.
+    @objc private func walked(_ note: Notification) {
+        let info = note.userInfo
+        guard walk == nil, let seconds = (info?["seconds"] as? String).flatMap(Int.init), seconds > 0,
+            let other = (info?["other"] as? String).flatMap({
+                NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0)
+            }),
+            let w = NSApp.keyWindow ?? windows.last
+        else {
+            Self.reply("error bad request, a walk in progress, or no window", to: Walk.done)
+            return
+        }
+        let run = WalkRun(window: w, other: other) { [unowned self] in open() }
+        walk = run
+        Task {
+            let line = await run.run(seconds: seconds)
+            walk = nil
+            Self.reply(line, to: Walk.done)
+        }
+    }
+
+    // reply posts a result line under name for the waiting command.
+    private static func reply(_ line: String, to name: Notification.Name) {
         DistributedNotificationCenter.default().postNotificationName(
-            Latency.done, object: nil, userInfo: ["line": line], deliverImmediately: true)
+            name, object: nil, userInfo: ["line": line], deliverImmediately: true)
     }
 
     // newWindow opens another window below and right of the last one and brings it forward.
     @objc func newWindow(_ sender: Any?) {
+        open()
+    }
+
+    // open opens another window below and right of the last one, brings it forward and returns it.
+    @discardableResult
+    private func open() -> NSWindow {
         count += 1
         let w = NSWindow(
             contentRect: NSRect(origin: .zero, size: Self.size),
@@ -127,6 +161,7 @@ final class Probe: NSObject, NSApplicationDelegate, NSWindowDelegate {
         w.setFrameOrigin(NSPoint(x: w.frame.minX + step, y: w.frame.minY - step))
         windows.append(w)
         w.makeKeyAndOrderFront(nil)
+        return w
     }
 
     // openPanel shows an open panel as its own window, the way a document app's Open does.
@@ -186,6 +221,16 @@ if args.count == 5, args[1] == "--latency" {
         exit(2)
     }
     exit(MainActor.assumeIsolated { Latency.ask(n: n, left: args[3], right: args[4]) })
+}
+
+// The --walk mode asks the running probe for a walk of seconds, switching to the app with bundle id
+// other, and prints its count line.
+if args.count == 4, args[1] == "--walk" {
+    guard let seconds = Int(args[2]), seconds > 0 else {
+        FileHandle.standardError.write(Data("probe: --walk needs a positive count of seconds\n".utf8))
+        exit(2)
+    }
+    exit(MainActor.assumeIsolated { Walk.ask(seconds: seconds, other: args[3]) })
 }
 
 MainActor.assumeIsolated {
