@@ -50,14 +50,6 @@ started_textedit=0
 
 . "$(dirname "$0")/measure.sh"
 
-# trips prints the Moorings round trip count from a fresh status line.
-trips() {
-	open -g moorings://status
-	sleep 1
-	/usr/bin/log show --last 5s --predicate "subsystem == \"$subsystem\"" 2>/dev/null |
-		grep -o 'trips=[0-9]*' | tail -1 | cut -d= -f2
-}
-
 # cleanup closes the scratch document, quits TextEdit if this run started it, quits the probe and
 # removes scratch files.
 cleanup() {
