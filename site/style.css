@@ -308,13 +308,13 @@ footer a { color: var(--muted); } footer a:hover { color: var(--accent); }
 }
 @media (max-width: 880px) { .hero h1 br.wide { display: none; } }
 
-/* Compare page: one list per app, a mark per feature. */
-.mark { display: inline-block; flex: none; font: 700 12px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase;
+/* Compare page: one list per app, a verdict per feature. */
+.verdict { display: inline-block; flex: none; font: 700 12px/1 var(--sans); letter-spacing: .08em; text-transform: uppercase;
   padding: 6px 10px; border-radius: 999px; border: 1px solid currentColor; }
-.mark.yes { color: var(--palm); background: color-mix(in srgb, var(--palm) 14%, transparent); }
-.mark.partial { color: var(--sand); background: color-mix(in srgb, var(--sand) 14%, transparent); }
-.mark.planned { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.mark.no { color: var(--muted); background: transparent; }
+.verdict.yes { color: var(--palm); background: color-mix(in srgb, var(--palm) 14%, transparent); }
+.verdict.partial { color: var(--sand); background: color-mix(in srgb, var(--sand) 14%, transparent); }
+.verdict.planned { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.verdict.no { color: var(--muted); background: transparent; }
 .doc .cmp-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; color: var(--muted); font-size: 15px; }
 .cmp-key { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
 .doc .cmp-intro { color: var(--muted); }
