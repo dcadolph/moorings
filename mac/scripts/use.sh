@@ -190,7 +190,7 @@ rounds() {
 use_m=$(median $(rounds Moorings))
 use_r=$(median $(rounds Rectangle))
 use_l=$(median $(rounds Loop))
-spread=$(rounds Moorings | sort -n | awk -v m="$use_m" 'NR == 1 { lo = $1 } { hi = $1 } END { printf "%.0f", m > 0 ? (hi - lo) * 100 / m : 0 }')
+spread=$(rounds Moorings | sort -n | awk -v m="$use_m" 'NR == 1 { lo = $1 } { hi = $1 } END { printf "%.0f", (m > 0 ? (hi - lo) * 100 / m : 0) }')
 echo
 echo "use              median over $ROUNDS rounds of ${WALK} s: Moorings $use_m s (spread ${spread} pct of median), Rectangle $use_r s, Loop $use_l s"
 if [ "$dragged" -gt 0 ]; then
