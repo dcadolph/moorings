@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://macmoorings.com/sitemap.xml
