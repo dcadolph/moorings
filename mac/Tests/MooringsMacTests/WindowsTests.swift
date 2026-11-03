@@ -140,3 +140,28 @@ import MooringsCore
     #expect(windows.window(id, screens: screens)?.id == id)
     #expect(asked == 3)
 }
+
+// testScanCountsRoundTrips scans with a Probe window open and expects the round trip counter to
+// rise by at least five. It runs only when MOORINGS_LIVE_CONTRACTS is 1, with Accessibility access.
+@Test(
+    .enabled(
+        if: ProcessInfo.processInfo.environment["MOORINGS_LIVE_CONTRACTS"] == "1",
+        "MOORINGS_LIVE_CONTRACTS is not 1"),
+    .enabled(if: AXIsProcessTrusted(), "this test host has no Accessibility access")
+) @MainActor func testScanCountsRoundTrips() {
+    guard NSWorkspace.shared.urlForApplication(withBundleIdentifier: MacHost.probe) != nil else {
+        Issue.record("the probe is not installed. Run make probe in mac/ first")
+        return
+    }
+    _ = NSApplication.shared
+    let host = MacHost(store: Windows())
+    defer { host.finish() }
+    guard host.open() != nil else {
+        Issue.record("the probe opened no window")
+        return
+    }
+    let before = Windows.roundTrips
+    _ = Windows().scan(Screens.current())
+    // Test 0: One app read costs at least three trips and its window at least two more.
+    #expect(Windows.roundTrips - before >= 5)
+}

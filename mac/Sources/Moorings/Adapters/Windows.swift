@@ -3,6 +3,7 @@ import ApplicationServices
 
 import MooringsCore
 import MooringsEngine
+import os
 
 // axWindowID reads the CGWindowID behind a window element. It is private to the system but has
 // been stable since macOS 10.6, and every window manager relies on it.
@@ -25,6 +26,13 @@ extension Screens {
 final class Windows {
     // timeout caps how long one Accessibility call to a busy app may block the main thread.
     static let timeout: Float = 0.25
+
+    // roundTrips counts the Accessibility calls this process has made that cross to another
+    // process, so a caller can read it before and after a phase and take the difference.
+    static var roundTrips = 0
+
+    // logger writes the scan summary at debug level.
+    private let logger = Logger(subsystem: "com.dcadolph.moorings", category: "windows")
 
     // elements maps each window a scan or read has seen to its element, kept until the window is gone
     // or its app quits, so a minimized window or one on another Space can still be acted on.
@@ -133,6 +141,8 @@ final class Windows {
             _ front: pid_t?
         ) -> PassPlan = { _, _, _, _ in .full }
     ) -> (windows: [WindowInfo], focused: WindowInfo?) {
+        let tripsBefore = Self.roundTrips
+        let startedAt = DispatchTime.now().uptimeNanoseconds
         let order = carry ? carried() : list()
         let rank = Dictionary(order.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { a, _ in a })
         let pids = Set(order.map(\.pid))
@@ -182,6 +192,7 @@ final class Windows {
             let app = appElement(pid)
             scanned.insert(pid)
             var raw: CFTypeRef?
+            Windows.roundTrips += 1
             if AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw) == .cannotComplete {
                 slow.insert(pid)
                 stall(pid)
@@ -218,6 +229,18 @@ final class Windows {
         if let focusedID, let i = found.firstIndex(where: { $0.id == focusedID }) {
             found.insert(found.remove(at: i), at: 0)
         }
+        let elapsed = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000
+        let planWord: String
+        switch plan {
+        case .full: planWord = "full"
+        case let .apps(reads): planWord = "apps \(reads.count)"
+        }
+        let trips = Self.roundTrips - tripsBefore
+        let ms = String(format: "%.1f", elapsed)
+        let apps = scanned.count
+        logger.debug(
+            "scan \(planWord, privacy: .public) apps \(apps) windows \(found.count) trips \(trips) ms \(ms, privacy: .public)"
+        )
         return (found, found.first { $0.id == focusedID })
     }
 
@@ -279,6 +302,7 @@ final class Windows {
             let app = appElement(running.processIdentifier)
             let start = Date()
             var raw: CFTypeRef?
+            Windows.roundTrips += 1
             let err = AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw)
             let ms = Int(Date().timeIntervalSince(start) * 1000)
             let els = raw as? [AXUIElement] ?? []
@@ -323,6 +347,7 @@ final class Windows {
             return
         }
         for step in MoveSteps.steps(from: current, to: frame) {
+            Windows.roundTrips += 1
             let err =
                 switch step {
                 case .size: AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, sizeValue)
@@ -338,6 +363,7 @@ final class Windows {
     func position(_ id: WindowID, x: Double, y: Double) {
         var origin = CGPoint(x: x, y: y)
         guard let el = elements[id], let value = AXValueCreate(.cgPoint, &origin) else { return }
+        Windows.roundTrips += 1
         AXUIElementSetAttributeValue(el, kAXPositionAttribute as CFString, value)
     }
 
@@ -345,6 +371,7 @@ final class Windows {
     func resize(_ id: WindowID, w: Double, h: Double) {
         var size = CGSize(width: w, height: h)
         guard let el = elements[id], let value = AXValueCreate(.cgSize, &size) else { return }
+        Windows.roundTrips += 1
         AXUIElementSetAttributeValue(el, kAXSizeAttribute as CFString, value)
     }
 
@@ -374,22 +401,26 @@ final class Windows {
         }
         let app = AXUIElementCreateApplication(pid)
         var value: CFTypeRef?
+        Windows.roundTrips += 1
         let on =
             AXUIElementCopyAttributeValue(app, Self.enhancedUIKey, &value) == .success
             && (value as? Bool) == true
         if on {
+            Windows.roundTrips += 1
             AXUIElementSetAttributeValue(app, Self.enhancedUIKey, kCFBooleanFalse)
         }
         move(id, to: frame, from: current)
         guard on else { return }
         let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier
         if Behavior.restoresEnhancedUI(mode, bundle: bundle, assistive: NSWorkspace.shared.isVoiceOverEnabled) {
+            Windows.roundTrips += 1
             AXUIElementSetAttributeValue(app, Self.enhancedUIKey, kCFBooleanTrue)
         }
     }
 
     // dropEnhancedUI turns off the Enhanced UI of the app with pid.
     static func dropEnhancedUI(_ pid: pid_t) {
+        Windows.roundTrips += 1
         AXUIElementSetAttributeValue(AXUIElementCreateApplication(pid), enhancedUIKey, kCFBooleanFalse)
     }
 
@@ -416,6 +447,7 @@ final class Windows {
     // close presses the close button of the window with id.
     func close(_ id: WindowID) {
         guard let el = elements[id], let button = Self.element(el, kAXCloseButtonAttribute) else { return }
+        Windows.roundTrips += 1
         AXUIElementPerformAction(button, kAXPressAction as CFString)
     }
 
@@ -429,6 +461,7 @@ final class Windows {
                     Self.string($0, kAXIdentifierAttribute) == "CancelButton"
                 })
         else { return false }
+        Windows.roundTrips += 1
         return AXUIElementPerformAction(button, kAXPressAction as CFString) == .success
     }
 
@@ -448,6 +481,7 @@ final class Windows {
     // minimize sends the window with id to the Dock.
     func minimize(_ id: WindowID) {
         guard let el = elements[id] else { return }
+        Windows.roundTrips += 1
         AXUIElementSetAttributeValue(el, kAXMinimizedAttribute as CFString, kCFBooleanTrue)
     }
 
@@ -468,6 +502,7 @@ final class Windows {
     // exitFullScreen asks the window with id to leave native fullscreen.
     func exitFullScreen(_ id: WindowID) {
         guard let el = elements[id] else { return }
+        Windows.roundTrips += 1
         AXUIElementSetAttributeValue(el, "AXFullScreen" as CFString, kCFBooleanFalse)
     }
 
@@ -517,6 +552,7 @@ final class Windows {
         let system = AXUIElementCreateSystemWide()
         AXUIElementSetMessagingTimeout(system, Self.timeout)
         var found: AXUIElement?
+        Windows.roundTrips += 1
         let err = AXUIElementCopyElementAtPosition(system, Float(p.x), Float(p.y), &found)
         if err == .cannotComplete, let owner {
             stall(owner)
@@ -556,6 +592,7 @@ final class Windows {
     // process stalled when it cannot answer in time.
     private func ask(_ el: AXUIElement, _ attribute: String, pid: pid_t) -> AXUIElement? {
         var v: CFTypeRef?
+        Windows.roundTrips += 1
         let err = AXUIElementCopyAttributeValue(el, attribute as CFString, &v)
         if err == .cannotComplete {
             stall(pid)
@@ -586,7 +623,9 @@ final class Windows {
 
     // makeFront makes el its app's main window and raises it.
     private static func makeFront(_ el: AXUIElement) {
+        Windows.roundTrips += 1
         AXUIElementSetAttributeValue(el, kAXMainAttribute as CFString, kCFBooleanTrue)
+        Windows.roundTrips += 1
         AXUIElementPerformAction(el, kAXRaiseAction as CFString)
     }
 
@@ -614,6 +653,7 @@ final class Windows {
     // every read as invalid, while one minimized or on another Space still answers.
     static func destroyed(_ el: AXUIElement) -> Bool {
         var value: CFTypeRef?
+        Windows.roundTrips += 1
         return AXUIElementCopyAttributeValue(el, kAXRoleAttribute as CFString, &value) == .invalidUIElement
     }
 
@@ -716,6 +756,7 @@ final class Windows {
     static func traits(_ el: AXUIElement) -> (traits: WindowTraits, zoomButton: AXUIElement?) {
         var raw: CFArray?
         let values: [CFTypeRef?]
+        Windows.roundTrips += 1
         let err = AXUIElementCopyMultipleAttributeValues(el, traitNames as CFArray, [], &raw)
         if err == .success, let list = raw as [AnyObject]?, list.count == traitNames.count {
             values = list.map { present($0) }
@@ -784,12 +825,14 @@ final class Windows {
     // id returns the window id of el.
     static func id(_ el: AXUIElement) -> WindowID? {
         var id: CGWindowID = 0
+        Windows.roundTrips += 1
         return axWindowID(el, &id) == .success && id != 0 ? WindowID(id) : nil
     }
 
     // value returns an attribute of el.
     private static func value(_ el: AXUIElement, _ attribute: String) -> CFTypeRef? {
         var value: CFTypeRef?
+        Windows.roundTrips += 1
         return AXUIElementCopyAttributeValue(el, attribute as CFString, &value) == .success ? value : nil
     }
 
