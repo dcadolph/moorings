@@ -382,6 +382,30 @@ private func fillRig(
     #expect(keys.claimed.isEmpty && keys.claims == 0)
 }
 
+// Test 21: A sync between passes reads the focused window alone where the store can, with no scan,
+// and claims when that window fills the channel.
+@Test func testChannelCycleSyncReadsTheFocusedWindowAlone() {
+    let (rig, _, _) = fillRig()
+    rig.engine.channelCycle.unclaim()
+    rig.windows.answersFocused = true
+    let from = rig.windows.calls.count
+    rig.engine.channelCycle.sync()
+    let scans = rig.windows.calls.dropFirst(from).filter { $0 == .scan(full: false) || $0 == .scan(full: true) }
+    #expect(scans.isEmpty, "\(scans)")
+    #expect(rig.engine.channelCycle.claimed)
+}
+
+// Test 22: A sync with no focused window to read alone falls back to the scan.
+@Test func testChannelCycleSyncScansWithNoFocusedWindow() {
+    let (rig, _, _) = fillRig()
+    rig.windows.answersFocused = true
+    rig.windows.focusedID = nil
+    let from = rig.windows.calls.count
+    rig.engine.channelCycle.sync()
+    #expect(rig.windows.calls.dropFirst(from).contains(.scan(full: false)))
+    #expect(!rig.engine.channelCycle.claimed)
+}
+
 // A pin moved by hand while paused stays where the owner put it, and goes back to its slot on
 // resume, as Selftest's pause and resume checks expect.
 @Test func testPausedPinMovedByHandGoesBackOnResume() {
