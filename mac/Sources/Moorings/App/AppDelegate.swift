@@ -695,9 +695,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // refreshShortcuts turns the shortcuts off while an app in the ignore list is in front, and the
-    // channel cycle's claim with them.
-    func refreshShortcuts() {
-        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    // channel cycle's claim with them. known is the front app's bundle when the caller already has
+    // it, as an activation notification does, so Launch Services is not asked again; nil asks.
+    func refreshShortcuts(front known: String?? = nil) {
+        let front = known ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
         hotkeys.setEnabled(front.map { !engine.anchors.choices.ignores.contains($0) } ?? true)
         engine.channelCycle.sync()
     }
@@ -768,9 +769,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // frontChanged notes the app that came to the front, drops its enhanced interface when the
     // choices ask, and turns the shortcuts off or on for it.
     @objc private func frontChanged(_ note: Notification) {
-        if let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
-            app.processIdentifier != ProcessInfo.processInfo.processIdentifier
-        {
+        let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+        if let app, app.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             windows.lastFront = app.processIdentifier
             if windows.trusted,
                 Behavior.disablesEnhancedUIOnActivation(
@@ -780,7 +780,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 Windows.dropEnhancedUI(app.processIdentifier)
             }
         }
-        refreshShortcuts()
+        refreshShortcuts(front: app.map { $0.bundleIdentifier })
     }
 
     // screensChanged says how to anchor an app when the displays change and an ultrawide arrived.
