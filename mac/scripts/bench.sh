@@ -9,6 +9,7 @@
 #   N     Actions per active phase (default 100).
 #   IDLE  Seconds of the idle window (default 120).
 #   ROUNDS  Active phases per app, interleaved by round (default 3).
+#   LAT   Actions per latency run (default 20).
 #   MOORINGS_ACTIVE_BOUND  Multiple of Rectangle's per-action CPU that Moorings may use (default 1.0).
 #
 # Every bound is computed from Rectangle and Loop measured in the same run.
@@ -27,6 +28,13 @@
 #   Paused  Moorings at most 1 ms of CPU per foreign move (0.10 s over 100 moves). It is the median
 #           Moorings CPU time delta, read in microseconds, during the Rectangle active phases, while
 #           Moorings is paused, divided by N. The Loop phase figure is shown in the table only.
+#   Latency Moorings landed p95 at most Rectangle's p95 and at most Loop's p50, each the median
+#           over ROUNDS latency runs, with no action missed or landed on the wrong side. A latency
+#           run follows each app's active phase, outside its CPU window: the running probe opens
+#           LAT alternating left and right links without bringing the app forward and times each
+#           from the open to the window's last move before it holds still for 0.3 s. An action
+#           that moves nothing within 2 s is missed.
+#   Lat50   Moorings landed p50 at most Rectangle's p50 and at most Loop's p50, medians as above.
 #
 # The probe opens its window before the idle window and the bench waits out the 30 s in which
 # Moorings reads every app for a launched app's first window, and each active phase starts 3 s after
@@ -41,6 +49,7 @@ set -u
 N=${N:-100}
 IDLE=${IDLE:-120}
 ROUNDS=${ROUNDS:-3}
+LAT=${LAT:-20}
 BOUND=${MOORINGS_ACTIVE_BOUND:-1.0}
 apps="Moorings Rectangle Loop"
 subsystem="com.dcadolph.moorings"
@@ -52,8 +61,11 @@ streampid=""
 # pid prints the first pid of the named app's binary under /Applications.
 pid() { pgrep -f "/Applications/$1.app/Contents/MacOS/$1" | head -1; }
 
+# probebin runs the bench's probe binary with its arguments.
+probebin() { "$(dirname "$0")/../.build/MooringsProbe.app/Contents/MacOS/MooringsProbe" "$@"; }
+
 # cpu prints the cumulative CPU seconds of a pid, to the microsecond, as the probe reads them.
-cpu() { "$(dirname "$0")/../.build/MooringsProbe.app/Contents/MacOS/MooringsProbe" --cpu "$1"; }
+cpu() { probebin --cpu "$1"; }
 
 # mem prints phys_footprint of a pid in the unit footprint reports.
 mem() { footprint -p "$1" 2>/dev/null | awk '/phys_footprint:/ { print $2 $3 }' | head -1; }
@@ -164,6 +176,38 @@ run() {
 	report "active:$who:$round" $(($(date +%s) - t0))
 }
 
+# latency asks the running probe to time LAT alternating actions through one app's links and
+# stores round $4's p50, p95, missed and wrong counts as L50_, L95_, LM_ and LW_<app>_<round>.
+latency() {
+	who=$1
+	l=$2
+	r=$3
+	round=$4
+	if ! line=$(probebin --latency "$LAT" "$l" "$r"); then
+		echo "bench: the probe sent no latency line for $who" >&2
+		exit 2
+	fi
+	echo "latency $who round $round: $line"
+	case $line in
+	"p50 "*) ;;
+	*)
+		echo "bench: the probe refused the latency run for $who" >&2
+		exit 2
+		;;
+	esac
+	set -- $line
+	eval "L50_${who}_$round=$2 L95_${who}_$round=$4 LM_${who}_$round=$6 LW_${who}_$round=$8"
+}
+
+# lat prints one latency field of an app over every round, one per line.
+lat() {
+	r=1
+	while [ "$r" -le "$ROUNDS" ]; do
+		eval "echo \$${1}_${2}_$r"
+		r=$((r + 1))
+	done
+}
+
 # check prints a verdict line and records a failure.
 fails=0
 check() {
@@ -221,11 +265,14 @@ echo "idle             Moorings   debug-stream pass lines $passes"
 round=1
 while [ "$round" -le "$ROUNDS" ]; do
 	run Moorings "moorings://action?name=left-half" "moorings://action?name=right-half" "$round"
+	latency Moorings "moorings://action?name=left-half" "moorings://action?name=right-half" "$round"
 	pause Pause
 	paused=1
 	sleep 1
 	run Rectangle "rectangle://execute-action?name=left-half" "rectangle://execute-action?name=right-half" "$round"
+	latency Rectangle "rectangle://execute-action?name=left-half" "rectangle://execute-action?name=right-half" "$round"
 	run Loop "loop://direction/leftHalf" "loop://direction/rightHalf" "$round"
+	latency Loop "loop://direction/leftHalf" "loop://direction/rightHalf" "$round"
 	pause Resume
 	paused=0
 	round=$((round + 1))
@@ -243,6 +290,14 @@ act_r=$(median $all_r)
 act_l=$(median $all_l)
 pau_m=$(median $(phases Rectangle Moorings))
 pau_l=$(median $(phases Loop Moorings))
+# sort -n reads a missed percentile as zero, so a miss can only lower a median: a rival's bound
+# gets tighter, and a Moorings miss fails on its count.
+l95_m=$(median $(lat L95 Moorings))
+l95_r=$(median $(lat L95 Rectangle))
+l50_m=$(median $(lat L50 Moorings))
+l50_r=$(median $(lat L50 Rectangle))
+l50_l=$(median $(lat L50 Loop))
+lbad_m=$(echo $(lat LM Moorings) $(lat LW Moorings) | awk '{ s = 0; for (i = 1; i <= NF; i++) s += $i; print s }')
 
 echo
 echo "active           per action over $ROUNDS rounds: Moorings ${all_m}s, Rectangle ${all_r}s, Loop ${all_l}s"
@@ -255,6 +310,7 @@ echo "$act_m $act_r|$all_m|$all_r" | awk -F'|' '{
 	printf "active ratio Moorings/Rectangle: %.2f (rounds%s)\n", med[1] / med[2], rounds
 }'
 echo "paused           Moorings   median cpu per foreign move: Rectangle phases $pau_m s, Loop phases $pau_l s"
+echo "latency          median over $ROUNDS rounds in ms: Moorings p50 $l50_m p95 $l95_m, Rectangle p50 $l50_r p95 $l95_r, Loop p50 $l50_l p95 $(median $(lat L95 Loop))"
 echo
 echo "verdict"
 ok=$(echo "$mem_m $mem_r $mem_l" | awk '{ print ($1 <= 1.5 * $2 && $1 <= $3) ? 1 : 0 }')
@@ -265,6 +321,18 @@ ok=$(echo "$act_m $act_r $act_l $BOUND" | awk '{ print ($1 <= $4 * $2 && $1 <= $
 check Active "$ok" "median ${act_m} s per action, ratio $(echo "$act_m $act_r" | awk '{ printf "%.2f", $1 / $2 }'), bound min(${BOUND} x Rectangle ${act_r}, Loop ${act_l})"
 ok=$(echo "$pau_m" | awk '{ print ($1 <= 0.001) ? 1 : 0 }')
 check Paused "$ok" "measured ${pau_m} s per foreign move, bound 0.001 s"
+# numeric is 1 when every argument is a plain decimal number, so a missed percentile fails a check.
+numeric() { printf '%s\n' "$@" | awk '!/^[0-9]+(\.[0-9]+)?$/ { bad = 1 } END { print bad ? 0 : 1 }'; }
+ok=0
+if [ "$(numeric "$l95_m" "$l95_r" "$l50_l")" = 1 ] && [ "$lbad_m" = 0 ]; then
+	ok=$(echo "$l95_m $l95_r $l50_l" | awk '{ print ($1 <= $2 && $1 <= $3) ? 1 : 0 }')
+fi
+check Latency "$ok" "Moorings p95 ${l95_m} ms with $lbad_m missed or wrong, bound min(Rectangle p95 ${l95_r}, Loop p50 ${l50_l}) ms and 0"
+ok=0
+if [ "$(numeric "$l50_m" "$l50_r" "$l50_l")" = 1 ]; then
+	ok=$(echo "$l50_m $l50_r $l50_l" | awk '{ print ($1 <= $2 && $1 <= $3) ? 1 : 0 }')
+fi
+check Lat50 "$ok" "Moorings p50 ${l50_m} ms, bound min(Rectangle p50 ${l50_r}, Loop p50 ${l50_l}) ms"
 
 [ "$fails" -eq 0 ] || exit 1
 exit 0
