@@ -11,16 +11,19 @@
   --lift: color-mix(in srgb, var(--text) 6%, var(--bg));
   --lift2: color-mix(in srgb, var(--text) 11%, var(--bg));
   --line: color-mix(in srgb, var(--text) 14%, transparent);
-  --serif: ui-serif, "New York", "Iowan Old Style", Georgia, serif;
-  --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --serif: "Newsreader", ui-serif, "New York", "Iowan Old Style", Georgia, serif;
+  --sans: "Manrope", ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --gut: 24px;
   --page: 1200px;
 }
 @media (prefers-color-scheme: light) {
-  :root { --bg: #f2e9d6; --surface: #faf5ea; --text: #0e2a3b; --muted: #4d6470; --accent: #1c6b74; --on: #f2e9d6;
-    --sand: #8a5c1c; --palm: #3f6f26; --cream: #e9dbbd; }
+  :root:not([data-theme="dark"]) { --bg: #f2e9d6; --surface: #faf5ea; --text: #0e2a3b; --muted: #4d6470; --accent: #1c6b74; --on: #f2e9d6;
+    --sand: #8a5c1c; --palm: #3f6f26; --cream: #e9dbbd; color-scheme: light; }
 }
+:root[data-theme="light"] { --bg: #f2e9d6; --surface: #faf5ea; --text: #0e2a3b; --muted: #4d6470; --accent: #1c6b74; --on: #f2e9d6;
+    --sand: #8a5c1c; --palm: #3f6f26; --cream: #e9dbbd; color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 body { background: var(--bg); color: var(--text); font: 18px/1.6 var(--sans);
@@ -40,12 +43,11 @@ p b { color: var(--text); font-weight: 600; }
 .small.palm { color: var(--palm); }
 .band { padding: clamp(72px, 8vw, 112px) 0; }
 .lift { background: var(--lift); }
-.band.lift { --lift: #0d202c; --surface: #12293a; --lift2: color-mix(in srgb, #f2e9d8 9%, #0d202c);
-  --line: color-mix(in srgb, #f2e9d8 14%, transparent); }
-@media (prefers-color-scheme: light) {
-  .band.lift { --lift: color-mix(in srgb, #0e2a3b 6%, #f2e9d6); --surface: #faf5ea;
-    --lift2: color-mix(in srgb, #0e2a3b 11%, #f2e9d6); --line: color-mix(in srgb, #0e2a3b 14%, transparent); }
-}
+/* Deep bands: the lifted sections are harbor navy in both themes. */
+.band.lift { --lift: #0e2a3b; --bg: #0e2a3b; --surface: #133349; --text: #f2e9d8; --muted: #b6c3c4;
+  --accent: #6cc7b3; --sand: #e3c58f; --palm: #8fbf6a; --on: #141618;
+  --lift2: color-mix(in srgb, #f2e9d8 9%, #0e2a3b); --line: color-mix(in srgb, #f2e9d8 15%, transparent);
+  color: var(--text); color-scheme: dark; }
 .cream { --bg: var(--cream); --surface: #faf5ea; --text: #0e2a3b; --muted: #4a606b; --accent: #185f68;
   --sand: #7a5218; --palm: #335c1d; --on: #faf5ea; --lift: color-mix(in srgb, #0e2a3b 6%, var(--cream));
   --lift2: color-mix(in srgb, #0e2a3b 11%, var(--cream)); --line: color-mix(in srgb, #0e2a3b 16%, transparent);
@@ -59,6 +61,20 @@ p b { color: var(--text); font-weight: 600; }
 .top nav { display: flex; gap: 32px; font-size: 15px; }
 .top nav a { text-decoration: none; color: var(--muted); }
 .top nav a:hover { color: var(--accent); }
+.top nav { align-items: center; }
+@media (max-width: 560px) { .top nav { gap: 18px; font-size: 14px; } }
+.theme { display: grid; place-items: center; width: 34px; height: 34px; margin: -6px 0; border: 1.5px solid var(--line);
+  border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; }
+.theme:hover { color: var(--accent); }
+.theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.theme svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.theme .moon { display: none; }
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .theme .sun { display: none; }
+  :root:not([data-theme="dark"]) .theme .moon { display: block; }
+}
+:root[data-theme="light"] .theme .sun { display: none; }
+:root[data-theme="light"] .theme .moon { display: block; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; background: var(--sand); color: var(--on);
   font: 800 17px var(--sans); padding: 0 34px; height: 58px; border-radius: 999px; text-decoration: none;
