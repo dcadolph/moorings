@@ -15,7 +15,7 @@
 </p>
 
 A free window manager for every Mac. Snap windows with a key or a drag, and on an ultrawide, pin
-your always-on apps to the edges.
+your always-on apps to the edges. No ultrawide? Moorings anchors on your widest display instead.
 
 A native menu bar app, signed and notarized, with a full set of window shortcuts, drag snapping,
 tiling, saved layouts and profiles on every display, and up to four apps parked on the edges of an
