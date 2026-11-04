@@ -7,7 +7,7 @@ extension Scenarios {
     // The lift spans the strips in use, as the lift probe measured it: a side with no anchored app gives
     // its strip to the lift.
     static func maximizeLiftsPin(_ s: Stage) {
-        guard let (pad, strip, _) = s.pin(), let wide = s.wide() else { return }
+        guard let (pad, strip, _) = s.pin(), let wide = s.hostFrame() else { return }
         let use = s.engine.anchors.inUse(wide)
         let over = Geometry.lift(wide, .left, use.left, use.right)
         s.note("over", over)

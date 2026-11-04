@@ -11,7 +11,7 @@ import MooringsTesting
 // and a packaged app on the left strip first.
 func probeSkip(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
-    guard let wide = screens.wide else {
+    guard let wide = screens.hostFrame else {
         print("skip: no ultrawide")
         return 1
     }

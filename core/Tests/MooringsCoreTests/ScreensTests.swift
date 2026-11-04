@@ -19,7 +19,7 @@ struct ScreensIndexCase: Sendable, CustomTestStringConvertible {
 let screensPair = Screens(
     full: [Frame(x: 0, y: 0, w: 1920, h: 1080), Frame(x: 1920, y: 0, w: 5120, h: 1440)],
     usable: [Frame(x: 0, y: 0, w: 1920, h: 1032), Frame(x: 1920, y: 0, w: 5120, h: 1392)],
-    ultrawide: 1
+    host: 1, isUltrawide: true
 )
 
 // screensIndexCases covers the overlap rule.
@@ -52,7 +52,7 @@ func testScreensIndex(test: ScreensIndexCase) {
 
 // testScreensWide checks that wide is the ultrawide's usable frame and nil without one.
 @Test func testScreensWide() {
-    #expect(screensPair.wide == Frame(x: 1920, y: 0, w: 5120, h: 1392))
-    let none = Screens(full: screensPair.full, usable: screensPair.usable, ultrawide: nil)
-    #expect(none.wide == nil)
+    #expect(screensPair.hostFrame == Frame(x: 1920, y: 0, w: 5120, h: 1392))
+    let none = Screens(full: screensPair.full, usable: screensPair.usable, host: nil, isUltrawide: false)
+    #expect(none.hostFrame == nil)
 }

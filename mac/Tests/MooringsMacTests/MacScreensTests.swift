@@ -11,9 +11,11 @@ import MooringsEngine
 @MainActor
 @Test func testMacScreensQuirksCache() {
     let wide = Screens(
-        full: [Frame(x: 0, y: 0, w: 5120, h: 1440)], usable: [Frame(x: 0, y: 25, w: 5120, h: 1415)], ultrawide: 0)
+        full: [Frame(x: 0, y: 0, w: 5120, h: 1440)], usable: [Frame(x: 0, y: 25, w: 5120, h: 1415)], host: 0,
+        isUltrawide: true)
     let laptop = Screens(
-        full: [Frame(x: 0, y: 0, w: 1728, h: 1117)], usable: [Frame(x: 0, y: 38, w: 1728, h: 1079)], ultrawide: nil)
+        full: [Frame(x: 0, y: 0, w: 1728, h: 1117)], usable: [Frame(x: 0, y: 38, w: 1728, h: 1079)], host: nil,
+        isUltrawide: false)
     let tests: [(calls: [(at: Double, screens: Screens)], wantReads: Int)] = [
         // Test 0: Two calls 1 s apart on the same screens read once.
         ([(0, wide), (1, wide)], 1),

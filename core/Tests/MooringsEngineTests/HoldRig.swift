@@ -169,7 +169,7 @@ final class HoldRig {
         let s = screens.current()
         let scan = windows.scan(s, full: true)
         let moves = anchors.moor(
-            Scene(screen: s.wide, windows: scan.windows, focused: scan.focused?.id, now: clock.now))
+            Scene(screen: s.hostFrame, windows: scan.windows, focused: scan.focused?.id, now: clock.now))
         for m in moves where !m.exitFullScreen {
             windows.move(m.id, to: m.frame, from: nil, behavior: Behaviors())
         }

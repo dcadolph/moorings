@@ -151,7 +151,7 @@ public final class FakeWindows: WindowStore {
         windows.compactMap { w -> WindowInfo? in
             guard !w.minimized, let i = screens.index(w.frame) else { return nil }
             return WindowInfo(
-                id: w.id, bundle: w.bundle, frame: w.frame, onUltrawide: i == screens.ultrawide,
+                id: w.id, bundle: w.bundle, frame: w.frame, onHost: i == screens.host,
                 isMain: w.isMain)
         }
     }

@@ -14,7 +14,7 @@ let dragTarget = (x: Int32(2), y: Int32(400))
 // and how often the hook was put back.
 func probeDrag(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
-    guard let wide = screens.wide else {
+    guard let wide = screens.hostFrame else {
         print("drag: no ultrawide")
         return 1
     }

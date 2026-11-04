@@ -116,7 +116,7 @@ public final class DragFollower {
             hide()
             return
         }
-        let ch = i == screens.ultrawide ? anchors.channel(screens.usable[i]) : nil
+        let ch = i == screens.host ? anchors.channel(screens.usable[i]) : nil
         var prev: String?
         if case let .zone(z) = drop {
             prev = z

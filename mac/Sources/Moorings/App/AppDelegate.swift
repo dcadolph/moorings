@@ -421,7 +421,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // each save.
     func hintAnchor(_ screens: Screens) {
         let defaults = UserDefaults.standard
-        guard screens.wide != nil, engine.anchors.choices.slots.isEmpty, !defaults.bool(forKey: Self.hintKey) else {
+        guard screens.hostFrame != nil, engine.anchors.choices.slots.isEmpty, !defaults.bool(forKey: Self.hintKey)
+        else {
             return
         }
         defaults.set(true, forKey: Self.hintKey)
@@ -774,7 +775,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         logger.notice("status: update=\(self.updater.state.status, privacy: .public)")
         logger.notice(
-            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.wide), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) slow=\(self.windows.stalledCount) observed=\(self.events.observed) hotkeys=\(self.hotkeys.enabled) trips=\(Windows.roundTrips)"
+            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.hostFrame), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) slow=\(self.windows.stalledCount) observed=\(self.events.observed) hotkeys=\(self.hotkeys.enabled) trips=\(Windows.roundTrips)"
         )
         for (key, bundle) in engine.anchors.assignments().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let held = engine.anchors.slotWindows(key).map(String.init).joined(separator: ",")
@@ -783,7 +784,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         for w in windows.scan(screens).windows {
             logger.notice(
-                "window \(w.id) \(w.bundle, privacy: .public) frame=\(w.frame.description, privacy: .public) wide=\(w.onUltrawide) main=\(w.isMain) panel=\(w.isFilePanel) pinned=\(self.engine.anchors.pinned(w)) castOff=\(self.engine.anchors.isCastOff(w.id))"
+                "window \(w.id) \(w.bundle, privacy: .public) frame=\(w.frame.description, privacy: .public) wide=\(w.onHost) main=\(w.isMain) panel=\(w.isFilePanel) pinned=\(self.engine.anchors.pinned(w)) castOff=\(self.engine.anchors.isCastOff(w.id))"
             )
         }
         for line in windows.explain(screens) {

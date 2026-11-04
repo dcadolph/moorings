@@ -5,7 +5,9 @@ extension Scenarios {
     // secondWindowGoesToChannel opens a second window of a pinned app with slot stacks off, puts it on
     // the strip by hand, and proves the pass pushes it inside the channel within 1 s.
     static func secondWindowGoesToChannel(_ s: Stage) {
-        guard let (_, strip, _) = s.pin(), let wide = s.wide(), let second = s.open("second window") else { return }
+        guard let (_, strip, _) = s.pin(), let wide = s.hostFrame(), let second = s.open("second window") else {
+            return
+        }
         let channel = s.regions(wide).channel
         s.note("channel", channel)
         let onStrip = Frame(x: strip.x + 10, y: strip.y + 10, w: 300, h: 300)

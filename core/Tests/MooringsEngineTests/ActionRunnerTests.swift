@@ -71,7 +71,7 @@ final class ActionRig {
         rig.anchors.pinned(
             WindowInfo(
                 id: rig.slack, bundle: "com.tinyspeck.slackmacgap", frame: rig.frame(rig.slack),
-                onUltrawide: true, isMain: true)))
+                onHost: true, isMain: true)))
     rig.focus(rig.slack)
     #expect(rig.runner.run("maximize"))
     #expect(rig.anchors.isLifted(rig.slack))

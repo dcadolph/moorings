@@ -35,12 +35,12 @@ struct TestWorld {
     @discardableResult
     mutating func add(
         _ bundle: String, _ frame: Frame, main: Bool = true, panel: Bool = false,
-        onUltrawide: Bool = true
+        onHost: Bool = true
     ) -> WindowID {
         let id = WindowID(windows.count + 1)
         windows.append(
             WindowInfo(
-                id: id, bundle: bundle, frame: frame, onUltrawide: onUltrawide,
+                id: id, bundle: bundle, frame: frame, onHost: onHost,
                 isMain: main, isFilePanel: panel))
         return id
     }
@@ -136,8 +136,8 @@ func inChannel(_ anchors: Anchors, _ f: Frame) -> Bool {
 @Test func testOtherScreen() {
     let anchors = anchored()
     var world = TestWorld()
-    let s = world.add(slack, Frame(x: 5300, y: 100, w: 800, h: 600), onUltrawide: false)
-    let free = world.add("com.apple.Notes", Frame(x: 5300, y: 100, w: 800, h: 600), onUltrawide: false)
+    let s = world.add(slack, Frame(x: 5300, y: 100, w: 800, h: 600), onHost: false)
+    let free = world.add("com.apple.Notes", Frame(x: 5300, y: 100, w: 800, h: 600), onHost: false)
     world.pass(anchors)
     #expect(world.frame(s) == leftFull)
     #expect(world.moves[free] == nil)
@@ -396,8 +396,8 @@ func testSlotFrames(test: SlotCase) {
     let w = world.add("com.apple.Safari", Frame(x: 1000, y: 100, w: 800, h: 600))
     world.pass(anchors)
     world.focused = w
-    #expect(anchors.castReason(world.info(w), ultrawide: wide) == nil)
-    #expect(anchors.toggleCastOff(world.info(w), ultrawide: wide))
+    #expect(anchors.castReason(world.info(w), host: wide) == nil)
+    #expect(anchors.toggleCastOff(world.info(w), host: wide))
     #expect(anchors.isCastOff(w))
     let over = Frame(x: 3000, y: 100, w: 3000, h: 900)
     world.set(w, over)
@@ -406,7 +406,7 @@ func testSlotFrames(test: SlotCase) {
     #expect(world.frame(w) == over)
     #expect(world.moves[w] == nil)
     #expect(inChannel(anchors, world.frame(other)))
-    #expect(anchors.toggleCastOff(world.info(w), ultrawide: wide))
+    #expect(anchors.toggleCastOff(world.info(w), host: wide))
     #expect(!anchors.isCastOff(w))
     world.pass(anchors)
     #expect(inChannel(anchors, world.frame(w)))
@@ -447,9 +447,9 @@ func testSlotFrames(test: SlotCase) {
         world.pass(anchors)
         #expect(world.frame(w).w == 2304)
         if cast {
-            anchors.toggleCastOff(world.info(w), ultrawide: wide)
+            anchors.toggleCastOff(world.info(w), host: wide)
             world.pass(anchors)
-            anchors.toggleCastOff(world.info(w), ultrawide: wide)
+            anchors.toggleCastOff(world.info(w), host: wide)
             world.pass(anchors)
         }
         anchors.setWidths(Widths(left: 10, right: 20))
@@ -467,7 +467,7 @@ func testSlotFrames(test: SlotCase) {
     world.add(iterm, rightFull)
     let w = world.add("com.apple.Safari", Frame(x: 1000, y: 100, w: 800, h: 600))
     world.pass(anchors)
-    anchors.toggleCastOff(world.info(w), ultrawide: wide)
+    anchors.toggleCastOff(world.info(w), host: wide)
     #expect(anchors.isCastOff(w))
     anchors.prune(alive: [1, 2])
     world.set(w, Frame(x: 3000, y: 100, w: 800, h: 600))
@@ -493,19 +493,19 @@ let castReasonCases: [CastReasonCase] = [
     CastReasonCase(window: nil, wantReason: "There is no focused window to cast off."),
     // Test 1: Pinned.
     CastReasonCase(
-        window: WindowInfo(id: 1, bundle: slack, frame: leftFull, onUltrawide: true, isMain: true),
+        window: WindowInfo(id: 1, bundle: slack, frame: leftFull, onHost: true, isMain: true),
         wantReason: "Pinned windows stay in their slot."),
     // Test 2: Other screen.
     CastReasonCase(
         window: WindowInfo(
             id: 3, bundle: "com.apple.Notes", frame: Frame(x: 5300, y: 100, w: 600, h: 400),
-            onUltrawide: false, isMain: true),
+            onHost: false, isMain: true),
         wantReason: "Only windows on the ultrawide are held in the channel."),
     // Test 3: Free.
     CastReasonCase(
         window: WindowInfo(
             id: 4, bundle: "com.apple.Safari", frame: Frame(x: 1000, y: 100, w: 800, h: 600),
-            onUltrawide: true, isMain: true), wantReason: nil),
+            onHost: true, isMain: true), wantReason: nil),
 ]
 
 // testCastReason checks when Cast off is disabled and that a pin is refused and left in place.
@@ -515,8 +515,8 @@ func testCastReason(test: CastReasonCase) {
     var world = TestWorld()
     world.add(slack, leftFull)
     world.pass(anchors)
-    #expect(anchors.castReason(test.window, ultrawide: wide) == test.wantReason)
-    #expect(anchors.toggleCastOff(test.window, ultrawide: wide) == (test.wantReason == nil))
+    #expect(anchors.castReason(test.window, host: wide) == test.wantReason)
+    #expect(anchors.toggleCastOff(test.window, host: wide) == (test.wantReason == nil))
     world.pass(anchors)
     #expect(world.frame(1) == leftFull && world.moves[1] == nil)
 }
@@ -525,8 +525,8 @@ func testCastReason(test: CastReasonCase) {
 @Test func testCastReasonNoUltrawide() {
     let w = WindowInfo(
         id: 4, bundle: "com.apple.Safari", frame: Frame(x: 1000, y: 100, w: 800, h: 600),
-        onUltrawide: false, isMain: true)
-    #expect(Anchors().castReason(w, ultrawide: nil) == "Only windows on the ultrawide are held in the channel.")
+        onHost: false, isMain: true)
+    #expect(Anchors().castReason(w, host: nil) == "Only windows on the ultrawide are held in the channel.")
 }
 
 // Test 20: A cast-off window whose app is anchored becomes a pin and is no longer cast off, and
@@ -539,7 +539,7 @@ func testCastReason(test: CastReasonCase) {
     let w = world.add("com.apple.Safari", Frame(x: 1000, y: 100, w: 800, h: 600))
     world.pass(anchors)
     let before = try Choices.encode(anchors.choices)
-    anchors.toggleCastOff(world.info(w), ultrawide: wide)
+    anchors.toggleCastOff(world.info(w), host: wide)
     #expect(try Choices.encode(anchors.choices) == before)
     anchors.assign(.leftBottom, "com.apple.Safari")
     world.pass(anchors)
@@ -551,12 +551,12 @@ func testCastReason(test: CastReasonCase) {
 @Test func testPromotingLone() {
     let f = Frame(x: 0, y: 0, w: 100, h: 100)
     let windows = [
-        WindowInfo(id: 1, bundle: iterm, frame: f, onUltrawide: true, isMain: false),
-        WindowInfo(id: 2, bundle: slack, frame: f, onUltrawide: true, isMain: false),
-        WindowInfo(id: 3, bundle: slack, frame: f, onUltrawide: true, isMain: false),
-        WindowInfo(id: 4, bundle: "com.apple.TextEdit", frame: f, onUltrawide: true, isMain: false),
-        WindowInfo(id: 5, bundle: "com.apple.TextEdit", frame: f, onUltrawide: true, isMain: true),
-        WindowInfo(id: 6, bundle: "com.apple.Preview", frame: f, onUltrawide: true, isMain: false, isFilePanel: true),
+        WindowInfo(id: 1, bundle: iterm, frame: f, onHost: true, isMain: false),
+        WindowInfo(id: 2, bundle: slack, frame: f, onHost: true, isMain: false),
+        WindowInfo(id: 3, bundle: slack, frame: f, onHost: true, isMain: false),
+        WindowInfo(id: 4, bundle: "com.apple.TextEdit", frame: f, onHost: true, isMain: false),
+        WindowInfo(id: 5, bundle: "com.apple.TextEdit", frame: f, onHost: true, isMain: true),
+        WindowInfo(id: 6, bundle: "com.apple.Preview", frame: f, onHost: true, isMain: false, isFilePanel: true),
     ]
     let got = WindowInfo.promotingLone(windows).map(\.isMain)
     #expect(got == [true, false, false, false, true, false])
@@ -568,10 +568,10 @@ func testCastReason(test: CastReasonCase) {
     let last = [
         WindowInfo(
             id: 1, bundle: "com.apple.systempreferences", frame: Frame(x: 0, y: 30, w: 723, h: 1410),
-            onUltrawide: true, isMain: true, zoomRect: Frame(x: 52, y: 36, w: 14, h: 14)),
+            onHost: true, isMain: true, zoomRect: Frame(x: 52, y: 36, w: 14, h: 14)),
         WindowInfo(
             id: 2, bundle: "com.apple.systempreferences", frame: Frame(x: 900, y: 200, w: 400, h: 300),
-            onUltrawide: true, isMain: false),
+            onHost: true, isMain: false),
     ]
     let got = WindowInfo.carrying(last, frames: [1: Frame(x: 100, y: 40, w: 723, h: 1400)])
     #expect(got.map(\.id) == [1])
@@ -588,7 +588,7 @@ func testCastReason(test: CastReasonCase) {
         let anchors = anchored()
         anchors.choices.slotStacks = stacks
         let w = WindowInfo(
-            id: 9, bundle: iterm, frame: Frame(x: 1000, y: 200, w: 800, h: 600), onUltrawide: true, isMain: false)
+            id: 9, bundle: iterm, frame: Frame(x: 1000, y: 200, w: 800, h: 600), onHost: true, isMain: false)
         #expect(anchors.pinned(w) == stacks, "stacks \(stacks)")
         #expect(anchors.pinned(WindowInfo.promotingLone([w])[0]), "stacks \(stacks)")
     }
@@ -693,7 +693,7 @@ func testCastReason(test: CastReasonCase) {
 // Swift only: an anchored app's other window is left alone off the ultrawide and while cast off,
 // and is kept in the channel otherwise.
 @Test func testAnchoredAppOtherWindows() {
-    let tests: [(name: String, onUltrawide: Bool, castOff: Bool, want: Frame)] = [
+    let tests: [(name: String, onHost: Bool, castOff: Bool, want: Frame)] = [
         ("in the channel", true, false, Frame(x: 512, y: 200, w: 800, h: 600)),
         ("off the ultrawide", false, false, Frame(x: 0, y: 200, w: 800, h: 600)),
         ("cast off", true, true, Frame(x: 0, y: 200, w: 800, h: 600)),
@@ -705,10 +705,10 @@ func testCastReason(test: CastReasonCase) {
         world.add(slack, leftFull)
         let other = world.add(
             slack, Frame(x: 1000, y: 200, w: 800, h: 600), main: false,
-            onUltrawide: test.onUltrawide)
+            onHost: test.onHost)
         world.pass(anchors)
         if test.castOff {
-            anchors.toggleCastOff(world.info(other), ultrawide: wide)
+            anchors.toggleCastOff(world.info(other), host: wide)
         }
         world.set(other, Frame(x: 0, y: 200, w: 800, h: 600))
         world.clock += 1
@@ -725,7 +725,7 @@ func testCastReason(test: CastReasonCase) {
     let main = world.add(slack, Frame(x: 1500, y: 200, w: 800, h: 600))
     let second = world.add(slack, Frame(x: 2000, y: 300, w: 700, h: 500), main: false)
     let third = world.add(slack, Frame(x: 2500, y: 400, w: 600, h: 400), main: false)
-    let away = world.add(slack, Frame(x: -1000, y: 200, w: 800, h: 600), main: false, onUltrawide: false)
+    let away = world.add(slack, Frame(x: -1000, y: 200, w: 800, h: 600), main: false, onHost: false)
     world.pass(anchors)
     for id in [main, second, third] {
         #expect(world.frame(id) == leftFull, "window \(id)")
@@ -774,7 +774,7 @@ func testCastReason(test: CastReasonCase) {
     let id: WindowID = 0x100_0000_0000
     let window = WindowInfo(
         id: id, bundle: slack, frame: Frame(x: 900, y: 100, w: 800, h: 600),
-        onUltrawide: true, isMain: true)
+        onHost: true, isMain: true)
     let scene = Scene(screen: wide, windows: [window], focused: nil, mouseHeld: false, now: 1000)
     let moves = anchored().moor(scene)
     #expect(moves.count == 1)

@@ -81,7 +81,8 @@ final class KeeperRig {
     rig.keeper.saveWorkspace("desk")
     #expect(rig.anchors.choices.workspaces["desk"]?.displays == saved)
     let laptop = Frame(x: 0, y: 25, w: 1200, h: 775)
-    rig.screens.screens = Screens(full: [Frame(x: 0, y: 0, w: 1200, h: 800)], usable: [laptop], ultrawide: nil)
+    rig.screens.screens = Screens(
+        full: [Frame(x: 0, y: 0, w: 1200, h: 800)], usable: [laptop], host: nil, isUltrawide: false)
     rig.windows.nudge(rig.pads[1], to: Frame(x: 100, y: 100, w: 500, h: 300))
     #expect(rig.keeper.recall("desk"))
     #expect(rig.notifier.notes.last?.body == "Recalled.")
@@ -134,7 +135,7 @@ final class KeeperRig {
     let rig = KeeperRig()
     let office = Screens(
         full: [Frame(x: 0, y: 0, w: 1920, h: 1080)], usable: [Frame(x: 0, y: 25, w: 1920, h: 1055)],
-        ultrawide: nil)
+        host: nil, isUltrawide: false)
     rig.screens.screens = office
     rig.keeper.saveWorkspace("desk")
     rig.keeper.tie("desk")
@@ -162,7 +163,7 @@ final class KeeperRig {
     rig.keeper.tie("desk")
     rig.screens.screens = Screens(
         full: [Frame(x: 0, y: 0, w: 1920, h: 1080)], usable: [Frame(x: 0, y: 25, w: 1920, h: 1055)],
-        ultrawide: nil)
+        host: nil, isUltrawide: false)
     rig.keeper.screensChanged()
     rig.clock.advance(by: WorkspaceKeeper.settleSeconds)
     rig.windows.nudge(rig.pads[0], to: Frame(x: 100, y: 100, w: 400, h: 300))

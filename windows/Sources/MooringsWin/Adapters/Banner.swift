@@ -53,7 +53,7 @@ final class BannerWindow {
     func show(_ title: String, _ body: String) {
         close()
         let screens = Screens.current(minAspect: minAspect)
-        guard let screen = screens.wide ?? screens.usable.first else { return }
+        guard let screen = screens.hostFrame ?? screens.usable.first else { return }
         self.title = title
         lines = Banner.wrap(body)
         let instance = GetModuleHandleW(nil)

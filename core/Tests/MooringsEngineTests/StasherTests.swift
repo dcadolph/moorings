@@ -159,7 +159,7 @@ final class StashRig {
 @Test @MainActor func testStashOriginalFromDrag() {
     let rig = StashRig()
     let began = Frame(x: 900, y: 200, w: 800, h: 600)
-    let w = WindowInfo(id: rig.id, bundle: "com.example.pad", frame: rig.start, onUltrawide: true, isMain: true)
+    let w = WindowInfo(id: rig.id, bundle: "com.example.pad", frame: rig.start, onHost: true, isMain: true)
     #expect(rig.stasher.stash(w, edge: .left, original: began))
     rig.stasher.unstashAll()
     #expect(rig.windows.frame(rig.id) == began)

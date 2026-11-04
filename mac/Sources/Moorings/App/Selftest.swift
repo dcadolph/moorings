@@ -241,7 +241,7 @@ final class Selftest {
     // returns why the run cannot start, nil when it can.
     private func prepare() -> String? {
         guard app.windows.trusted else { return "Accessibility is not granted" }
-        guard Screens.current().wide != nil else { return "no ultrawide screen is attached" }
+        guard Screens.current().hostFrame != nil else { return "no ultrawide screen is attached" }
         if let why = Self.held(CGEventSource.flagsState(.combinedSessionState)) {
             return why
         }
@@ -305,7 +305,7 @@ final class Selftest {
 
         try await close(b)
         let freed = "an anchored app with no window frees its side"
-        if emptySide, let wide = Screens.current().wide {
+        if emptySide, let wide = Screens.current().hostFrame {
             check(
                 freed,
                 await settled {
@@ -340,7 +340,7 @@ final class Selftest {
         check("a new document takes the slot back", await settled { self.landed(c) })
 
         try await Task.sleep(for: .seconds(Self.graceSeconds))
-        guard let wide = Screens.current().wide, let f = app.windows.frame(c) else {
+        guard let wide = Screens.current().hostFrame, let f = app.windows.frame(c) else {
             throw Stop(reason: "lost the window")
         }
         let ch = anchors.channel(wide)
@@ -548,7 +548,7 @@ final class Selftest {
             check(name, (false, "the tap was turned off \(turnedOff) times, running=\(app.tap.running)"))
             return
         }
-        guard let wide = Screens.current().wide, let pinned = app.windows.frame(id) else {
+        guard let wide = Screens.current().hostFrame, let pinned = app.windows.frame(id) else {
             throw Stop(reason: "lost the window")
         }
         let ch = anchors.channel(wide)
@@ -621,7 +621,7 @@ final class Selftest {
         guard let w = info(id) else { return (false, "the window is gone") }
         guard anchors.pinned(w) else { return (false, "not anchored, at \(w.frame)") }
         guard let target = anchors.target(id) else { return (false, "anchored but never placed") }
-        guard let s = Screens.current().wide else { return (false, "no ultrawide") }
+        guard let s = Screens.current().hostFrame else { return (false, "no ultrawide") }
         let edge =
             slot.side == .left
             ? abs(w.frame.x - s.x) <= Anchors.tolerance
@@ -636,7 +636,7 @@ final class Selftest {
     private func inChannel(_ id: WindowID) -> (Bool, String) {
         guard let w = info(id) else { return (false, "the window is gone") }
         guard !anchors.pinned(w) else { return (false, "anchored, at \(w.frame)") }
-        guard let s = Screens.current().wide else { return (false, "no ultrawide") }
+        guard let s = Screens.current().hostFrame else { return (false, "no ultrawide") }
         let ch = anchors.channel(s)
         let inside =
             w.frame.x >= ch.x - Anchors.tolerance

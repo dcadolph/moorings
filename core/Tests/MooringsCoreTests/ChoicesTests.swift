@@ -81,7 +81,7 @@ import Testing
 @Test func testAnchorsUndo() {
     let anchors = Anchors()
     let w = WindowInfo(
-        id: 7, bundle: "com.apple.Safari", frame: Frame(x: 1, y: 2, w: 3, h: 4), onUltrawide: false,
+        id: 7, bundle: "com.apple.Safari", frame: Frame(x: 1, y: 2, w: 3, h: 4), onHost: false,
         isMain: true)
     #expect(!anchors.canUndo)
     anchors.save(w)

@@ -5,7 +5,7 @@ extension Scenarios {
     // footprintFollowsDrag drags a window by its title bar to the left edge and proves the footprint
     // showed the left half the drop takes, within 1 point, before the drop.
     static func footprintFollowsDrag(_ s: Stage) {
-        guard let wide = s.wide(), let full = s.full(), let (pad, half) = s.dragged(wide) else { return }
+        guard let wide = s.hostFrame(), let full = s.full(), let (pad, half) = s.dragged(wide) else { return }
         guard s.drag(pad, to: edge(full), "dragged window") else { return }
         s.measure("footprint shown \(s.shows.count) times")
         s.note("footprint", s.shows.last)

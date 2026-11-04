@@ -43,7 +43,7 @@ struct LiftWorld {
     @discardableResult
     mutating func add(_ bundle: String, _ frame: Frame, main: Bool = true) -> WindowID {
         let id = WindowID(windows.count + 1)
-        windows.append(WindowInfo(id: id, bundle: bundle, frame: frame, onUltrawide: true, isMain: main))
+        windows.append(WindowInfo(id: id, bundle: bundle, frame: frame, onHost: true, isMain: main))
         return id
     }
 

@@ -149,7 +149,7 @@ final class OrganizerRig {
     rig.windows.focusedID = rig.pads[2]
     let s = rig.screens.current()
     let scan = rig.windows.scan(s, full: true)
-    for m in rig.anchors.moor(Scene(screen: s.wide, windows: scan.windows, focused: scan.focused?.id, now: 1)) {
+    for m in rig.anchors.moor(Scene(screen: s.hostFrame, windows: scan.windows, focused: scan.focused?.id, now: 1)) {
         rig.windows.move(m.id, to: m.frame, from: nil, behavior: Behaviors())
     }
     let held = rig.frame(slack)
@@ -245,7 +245,7 @@ final class OrganizerRig {
     let slack = rig.windows.add(bundle: "com.tinyspeck.slackmacgap", frame: Frame(x: 1500, y: 200, w: 800, h: 600))
     let s = rig.screens.current()
     let scan = rig.windows.scan(s, full: true)
-    for m in rig.anchors.moor(Scene(screen: s.wide, windows: scan.windows, focused: scan.focused?.id, now: 1)) {
+    for m in rig.anchors.moor(Scene(screen: s.hostFrame, windows: scan.windows, focused: scan.focused?.id, now: 1)) {
         rig.windows.move(m.id, to: m.frame, from: nil, behavior: Behaviors())
     }
     rig.windows.focusedID = slack
@@ -299,7 +299,7 @@ final class OrganizerRig {
         let s = rig.screens.current()
         let off = rig.windows.scan(s, full: true).windows.first { $0.id == rig.pads[2] }!
         rig.anchors.stashed.insert(rig.pads[0])
-        #expect(rig.anchors.toggleCastOff(off, ultrawide: s.usable[0]))
+        #expect(rig.anchors.toggleCastOff(off, host: s.usable[0]))
         let parked = rig.frame(rig.pads[0]), cast = rig.frame(rig.pads[2])
         rig.windows.focusedID = rig.pads[3]
         #expect(rig.organizer.run(name))
@@ -332,7 +332,8 @@ final class OrganizerRig {
 @Test func testOrganizerFillAllNoUltrawide() {
     let rig = OrganizerRig()
     rig.screens.screens = Screens(
-        full: [Frame(x: 0, y: 0, w: 3440, h: 1440)], usable: [Frame(x: 0, y: 25, w: 3440, h: 1415)], ultrawide: nil)
+        full: [Frame(x: 0, y: 0, w: 3440, h: 1440)], usable: [Frame(x: 0, y: 25, w: 3440, h: 1415)], host: nil,
+        isUltrawide: false)
     #expect(!rig.organizer.run(Tile.fillAllName))
     #expect(rig.moved.isEmpty)
 }

@@ -473,7 +473,7 @@ final class StripEditor {
             panel.makeKeyAndOrderFront(nil)
             return true
         }
-        guard let wide = Screens.current().wide else {
+        guard let wide = Screens.current().hostFrame else {
             logger.notice("strips: no ultrawide attached")
             return false
         }

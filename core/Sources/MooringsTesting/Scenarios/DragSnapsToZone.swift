@@ -28,7 +28,7 @@ extension Scenarios {
     // the left-half zone, the window takes the channel's left half within 1.5 s and 1 point, and the
     // footprint is gone after the drop.
     static func dragSnapsToZone(_ s: Stage) {
-        guard let wide = s.wide(), let full = s.full(), let (pad, half) = s.dragged(wide) else { return }
+        guard let wide = s.hostFrame(), let full = s.full(), let (pad, half) = s.dragged(wide) else { return }
         guard s.drag(pad, to: edge(full), "dragged window") else { return }
         let on = s.drops.last?.on
         if on != .zone("left-half") {

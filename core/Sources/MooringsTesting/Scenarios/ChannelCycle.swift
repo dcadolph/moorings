@@ -12,7 +12,7 @@ extension Scenarios {
     static func channelCycle(_ s: Stage) {
         s.choose { _ in }
         let screens = s.host.screens()
-        guard let i = screens.ultrawide else {
+        guard let i = screens.host else {
             s.fail("the host has an ultrawide", "none at the host's min aspect")
             return
         }

@@ -64,7 +64,7 @@ import Testing
 @Test func testHistoryFromSave() {
     let anchors = Anchors()
     let w = WindowInfo(
-        id: 7, bundle: "com.apple.TextEdit", frame: F(100, 100, 400, 300), onUltrawide: true,
+        id: 7, bundle: "com.apple.TextEdit", frame: F(100, 100, 400, 300), onHost: true,
         isMain: true, isFilePanel: false)
     anchors.save(w)
     var moved = w

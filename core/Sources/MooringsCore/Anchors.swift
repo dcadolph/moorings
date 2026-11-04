@@ -308,8 +308,8 @@ public struct WindowInfo: Equatable, Sendable {
     public var bundle: String
     // frame is the window's frame in global top-left coordinates.
     public var frame: Frame
-    // onUltrawide reports whether the window is on the ultrawide.
-    public var onUltrawide: Bool
+    // onHost reports whether the window is on the host display.
+    public var onHost: Bool
     // isMain reports whether the window is its app's main window.
     public var isMain: Bool
     // isFilePanel reports whether the window is an open or save panel.
@@ -321,13 +321,13 @@ public struct WindowInfo: Equatable, Sendable {
 
     // init builds a window description.
     public init(
-        id: WindowID, bundle: String, frame: Frame, onUltrawide: Bool, isMain: Bool,
+        id: WindowID, bundle: String, frame: Frame, onHost: Bool, isMain: Bool,
         isFilePanel: Bool = false, isFullScreen: Bool = false, zoomRect: Frame? = nil
     ) {
         self.id = id
         self.bundle = bundle
         self.frame = frame
-        self.onUltrawide = onUltrawide
+        self.onHost = onHost
         self.isMain = isMain
         self.isFilePanel = isFilePanel
         self.isFullScreen = isFullScreen
@@ -371,7 +371,7 @@ public struct WindowInfo: Equatable, Sendable {
 
 // Scene is what one pass sees.
 public struct Scene: Sendable {
-    // screen is the ultrawide's usable frame, nil when none is attached.
+    // screen is the host display's usable frame, nil when none is attached.
     public var screen: Frame?
     // windows lists the movable windows on every screen, front-most first.
     public var windows: [WindowInfo]
@@ -705,7 +705,7 @@ public final class Anchors {
             holders[pin.bundle] = w.id
             return true
         }
-        return choices.slotStacks && w.onUltrawide && !w.isFilePanel
+        return choices.slotStacks && w.onHost && !w.isFilePanel
     }
 
     // claim gives each pin without a holder the front-most window of its app that lies inside the
@@ -716,7 +716,7 @@ public final class Anchors {
         for pin in pins where holders[pin.bundle] == nil {
             let area = strip(screen, pin.slot.side, nil)
             let w = windows.first {
-                $0.bundle == pin.bundle && $0.onUltrawide && !$0.isFilePanel && !$0.isFullScreen
+                $0.bundle == pin.bundle && $0.onHost && !$0.isFilePanel && !$0.isFullScreen
                     && Self.within($0.frame, area)
             }
             if let w {
@@ -798,11 +798,11 @@ public final class Anchors {
         castOff.contains(id)
     }
 
-    // castReason returns why w cannot be cast off, or nil when it can. ultrawide is the ultrawide's
+    // castReason returns why w cannot be cast off, or nil when it can. host is the host display's
     // usable frame, nil when none is attached.
-    public func castReason(_ w: WindowInfo?, ultrawide: Frame?) -> String? {
+    public func castReason(_ w: WindowInfo?, host: Frame?) -> String? {
         guard let w else { return "There is no focused window to cast off." }
-        if ultrawide == nil || !w.onUltrawide {
+        if host == nil || !w.onHost {
             return "Only windows on the ultrawide are held in the channel."
         }
         if pinned(w) {
@@ -814,11 +814,11 @@ public final class Anchors {
     // toggleCastOff lets free window w cover the strips, or puts it back under the channel rules,
     // and reports whether it changed.
     @discardableResult
-    public func toggleCastOff(_ w: WindowInfo?, ultrawide: Frame?) -> Bool {
+    public func toggleCastOff(_ w: WindowInfo?, host: Frame?) -> Bool {
         if let w, castOff.remove(w.id) != nil {
             return true
         }
-        guard let w, castReason(w, ultrawide: ultrawide) == nil else { return false }
+        guard let w, castReason(w, host: host) == nil else { return false }
         castOff.insert(w.id)
         return true
     }
@@ -1017,7 +1017,7 @@ public final class Anchors {
                 if let move = moorPin(w, target, Edges(right: side == .right, bottom: row == .bottom)) {
                     moves.append(move)
                 }
-            } else if w.onUltrawide, !w.isFilePanel {
+            } else if w.onHost, !w.isFilePanel {
                 // A window no pin holds has no slot place to keep, so a later hold starts fresh
                 // instead of reading its time in the channel as a move by hand.
                 placed[w.id] = nil

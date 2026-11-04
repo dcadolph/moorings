@@ -9,7 +9,7 @@ extension Scenarios {
     // reloaded once and the pin reads back at the new strip within 2 s, 1 point. A reload is seen as
     // the loss of a marker kept only in the engine's choices in memory.
     static func reloadOnFileChange(_ s: Stage) {
-        guard let (pad, strip, _) = s.pin(), let wide = s.wide() else { return }
+        guard let (pad, strip, _) = s.pin(), let wide = s.hostFrame() else { return }
         var narrow = s.engine.anchors.choices
         narrow.widths = Widths(left: 30, right: widths.right)
         var newStrip = Geometry.regions(wide, 30, widths.right).left

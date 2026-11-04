@@ -5,7 +5,7 @@ extension Scenarios {
     // altDragParks drags a window by its title bar to the left edge with Option held, Alt on Windows,
     // and proves the drop parks it in the left top slot and the slot holds its app.
     static func altDragParks(_ s: Stage) {
-        guard let wide = s.wide(), let full = s.full(), let (pad, _) = s.dragged(wide) else { return }
+        guard let wide = s.hostFrame(), let full = s.full(), let (pad, _) = s.dragged(wide) else { return }
         guard s.drag(pad, to: edge(full), held: .option, "dragged window") else { return }
         let on = s.drops.last?.on
         if on != .park(SlotKey.leftTop.rawValue) {

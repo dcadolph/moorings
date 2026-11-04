@@ -10,7 +10,7 @@ extension Scenarios {
     // dropped there shows here.
     static func everyKeymapAction(_ s: Stage) {
         s.choose { _ in }
-        guard let wide = s.wide(), let pad = s.open("window") else { return }
+        guard let wide = s.hostFrame(), let pad = s.open("window") else { return }
         let start = s.start(wide)
         let move = { (f: Frame) in
             s.engine.platform.windows.move(pad.id, to: f, from: nil, behavior: Behaviors())

@@ -76,7 +76,7 @@ public final class Stasher {
         let area = screens.usable[i]
         var blocked: Set<StashEdge> = []
         var span: Frame?
-        if i == screens.ultrawide {
+        if i == screens.host {
             let sides = Set(anchors.choices.slots.keys.map(\.side))
             if sides.contains(.left) {
                 blocked.insert(.left)

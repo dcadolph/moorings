@@ -9,7 +9,7 @@ import MooringsTesting
 // took the foreground, and whether it closed itself after the fade.
 func probeBanner(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
-    guard let screen = screens.wide ?? screens.usable.first else {
+    guard let screen = screens.hostFrame ?? screens.usable.first else {
         print("banner: no screen")
         return 1
     }

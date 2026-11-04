@@ -149,9 +149,9 @@ public final class Stage {
         engine.platform.windows.frame(id)
     }
 
-    // wide returns the host's ultrawide, or records that it has none.
-    func wide() -> Frame? {
-        guard let wide = host.screens().wide else {
+    // hostFrame returns the host display's usable frame, or records that it has none.
+    func hostFrame() -> Frame? {
+        guard let wide = host.screens().hostFrame else {
             fail("the host has an ultrawide", "none at the host's min aspect")
             return nil
         }
@@ -218,7 +218,7 @@ public final class Stage {
     // scenarios expect, and waits until it reads back at the left strip. It returns the window, the
     // strip and when the pass placed it, nil when any of that failed.
     func pin(paused: Bool = false) -> (pad: WindowInfo, strip: Frame, at: Double)? {
-        guard let wide = wide(), let pad = open("pinned window") else { return nil }
+        guard let wide = hostFrame(), let pad = open("pinned window") else { return nil }
         let strip = regions(wide).left
         note("strip", strip)
         let t0 = host.now
@@ -272,7 +272,7 @@ public final class Stage {
     // full returns the full frame of the host's ultrawide, or records that it has none.
     func full() -> Frame? {
         let screens = host.screens()
-        guard let i = screens.ultrawide else {
+        guard let i = screens.host else {
             fail("the host has an ultrawide", "none at the host's min aspect")
             return nil
         }

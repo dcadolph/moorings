@@ -6,18 +6,21 @@ public struct Screens: Equatable, Sendable {
     public let full: [Frame]
     // usable lists each screen's frame without the menu bar, the Dock, or the taskbar.
     public let usable: [Frame]
-    // ultrawide is the index of the ultrawide, nil when none is attached.
-    public let ultrawide: Int?
+    // host is the index of the display moorings anchors on, nil when none is attached.
+    public let host: Int?
+    // isUltrawide reports whether the host is an ultrawide.
+    public let isUltrawide: Bool
 
     // init builds the displays from their full and usable frames, in the same order.
-    public init(full: [Frame], usable: [Frame], ultrawide: Int?) {
+    public init(full: [Frame], usable: [Frame], host: Int?, isUltrawide: Bool) {
         self.full = full
         self.usable = usable
-        self.ultrawide = ultrawide
+        self.host = host
+        self.isUltrawide = isUltrawide
     }
 
-    // wide returns the ultrawide's usable frame, nil when none is attached.
-    public var wide: Frame? { ultrawide.map { usable[$0] } }
+    // hostFrame returns the host's usable frame, nil when no display is attached.
+    public var hostFrame: Frame? { host.map { usable[$0] } }
 
     // index returns the screen f overlaps most, nil when it overlaps none.
     public func index(_ f: Frame) -> Int? {

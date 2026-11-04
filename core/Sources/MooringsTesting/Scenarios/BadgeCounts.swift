@@ -9,7 +9,7 @@ extension Scenarios {
     static func badgeCounts(_ s: Stage) {
         s.choose { $0.stacking.badge = true }
         let screens = s.host.screens()
-        guard let i = screens.ultrawide else {
+        guard let i = screens.host else {
             s.fail("the host has an ultrawide", "none at the host's min aspect")
             return
         }

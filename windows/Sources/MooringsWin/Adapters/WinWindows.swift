@@ -8,9 +8,8 @@ extension Screens {
     static func current(minAspect: Double = Layout.minAspect) -> Screens {
         let monitors = Monitor.all()
         let full = monitors.map(\.full)
-        return Screens(
-            full: full, usable: monitors.map(\.usable),
-            ultrawide: Layout.ultrawide(full, minAspect: minAspect))
+        let host = Layout.ultrawide(full, minAspect: minAspect)
+        return Screens(full: full, usable: monitors.map(\.usable), host: host, isUltrawide: host != nil)
     }
 }
 
@@ -207,7 +206,7 @@ final class WinWindows: WindowStore {
         guard caption || fills, let bundle = bundle(hwnd) else { return nil }
         return WindowInfo(
             id: id(hwnd), bundle: bundle, frame: frame,
-            onUltrawide: screen != nil && screen == screens.ultrawide, isMain: false,
+            onHost: screen != nil && screen == screens.host, isMain: false,
             isFullScreen: fills && !caption)
     }
 

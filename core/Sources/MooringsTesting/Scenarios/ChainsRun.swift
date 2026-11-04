@@ -14,7 +14,7 @@ extension Scenarios {
             $0.behavior.subsequentExecution = SubsequentExecution.none
             $0.chains = [halves, once]
         }
-        guard let wide = s.wide(), let pad = s.open("window") else { return }
+        guard let wide = s.hostFrame(), let pad = s.open("window") else { return }
         let start = s.start(wide)
         let screens = s.host.screens()
         let reset = { () -> WindowInfo? in

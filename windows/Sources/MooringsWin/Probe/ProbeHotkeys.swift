@@ -14,7 +14,7 @@ let heldChord = (mods: UINT(0x0002 | 0x0001), vk: UINT(0x25))
 // seconds, and prints the presses received, Notepad's frame and the channel.
 func probeHotkeys(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
-    guard let wide = screens.wide else {
+    guard let wide = screens.hostFrame else {
         print("hotkeys: no ultrawide")
         return 1
     }

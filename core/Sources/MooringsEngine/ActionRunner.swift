@@ -344,7 +344,7 @@ public final class ActionRunner {
         let landed = platform.windows.frame(w.id) ?? frame
         placed = (w, landed)
         engine.landed(w.id, at: landed)
-        if let u = screens.ultrawide, screens.index(landed) == u {
+        if let u = screens.host, screens.index(landed) == u {
             let ch = anchors.channel(screens.usable[u])
             if !Actions.near(Geometry.clamp(landed, ch), landed, tolerance: Anchors.tolerance) {
                 engine.wake()
@@ -356,7 +356,7 @@ public final class ActionRunner {
     // screen when index is nil or names a display that is gone.
     private func target(for w: WindowInfo, screens: Screens, index: Int? = nil) -> ActionTarget {
         let areas = screens.usable.indices.map { i in
-            i == screens.ultrawide ? anchors.channel(screens.usable[i]) : screens.usable[i]
+            i == screens.host ? anchors.channel(screens.usable[i]) : screens.usable[i]
         }
         let quirks = platform.screens.quirks(screens)
         let index = index.flatMap { screens.full.indices.contains($0) ? $0 : nil } ?? screens.index(w.frame) ?? 0
@@ -418,7 +418,7 @@ public final class ActionRunner {
     // fills reports whether w fills the channel: a free window on the ultrawide, not pinned, lifted,
     // cast off, stashed, a file panel or fullscreen, whose frame is the one Maximize would give it.
     public func fills(_ w: WindowInfo, screens: Screens) -> Bool {
-        guard let u = screens.ultrawide, screens.index(w.frame) == u, !anchors.pinned(w), !anchors.isLifted(w.id),
+        guard let u = screens.host, screens.index(w.frame) == u, !anchors.pinned(w), !anchors.isLifted(w.id),
             !anchors.isCastOff(w.id), !anchors.stashed.contains(w.id), !w.isFilePanel, !w.isFullScreen,
             let f = preview("maximize", for: w, screens: screens)
         else { return false }

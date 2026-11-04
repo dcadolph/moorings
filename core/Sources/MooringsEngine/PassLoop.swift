@@ -113,7 +113,7 @@ public final class PassLoop {
         let list = scan.windows.filter { !refused.contains($0.id) }
         let held = engine.mouseHeld
         let scene = Scene(
-            screen: screens.wide, windows: list, focused: scan.focused?.id, mouseHeld: held,
+            screen: screens.hostFrame, windows: list, focused: scan.focused?.id, mouseHeld: held,
             now: platform.clock.now)
         let moves = anchors.moor(scene)
         platform.log.trace(.passes, "pass \(forced ? "full" : "apps") read \(list.count) moved \(moves.count)")

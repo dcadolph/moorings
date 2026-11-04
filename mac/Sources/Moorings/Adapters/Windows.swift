@@ -17,7 +17,9 @@ extension Screens {
         let primary = screens.first?.frame.height ?? 0
         let flip = { (r: NSRect) in Frame(x: r.minX, y: primary - r.maxY, w: r.width, h: r.height) }
         let full = screens.map { flip($0.frame) }
-        return Screens(full: full, usable: screens.map { flip($0.visibleFrame) }, ultrawide: Layout.ultrawide(full))
+        let host = Layout.ultrawide(full)
+        return Screens(
+            full: full, usable: screens.map { flip($0.visibleFrame) }, host: host, isUltrawide: host != nil)
     }
 }
 
@@ -732,7 +734,7 @@ final class Windows {
             id: id,
             bundle: bundle,
             frame: frame,
-            onUltrawide: screens.ultrawide != nil && screens.index(frame) == screens.ultrawide,
+            onHost: screens.host != nil && screens.index(frame) == screens.host,
             isMain: isMain,
             isFilePanel: traits.filePanel,
             isFullScreen: traits.fullScreen,

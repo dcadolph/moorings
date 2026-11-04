@@ -177,7 +177,7 @@ struct MenuBuilder {
         if let front = frontItem() {
             out.append(front)
         }
-        out.append(castItem(focused, wide: screens.wide))
+        out.append(castItem(focused, wide: screens.hostFrame))
         let pinned = scan.windows.filter { anchors.pinned($0) }
         for w in pinned where anchors.isReleased(w.id) {
             out.append(
@@ -198,7 +198,7 @@ struct MenuBuilder {
         out.append(folder("Lift", liftItems(pinned)))
         out.append(folder("Workspaces", workspaceItems()))
         out.append(folder("Profiles", profileItems()))
-        out.append(folder("Widths", widthItems(screens.wide)))
+        out.append(folder("Widths", widthItems(screens.hostFrame)))
         out.append(folder("Heights", heightItems()))
         out.append(.separator())
         out.append(
@@ -316,9 +316,9 @@ struct MenuBuilder {
     // disabled with the reason when it cannot be.
     private func castItem(_ focused: WindowInfo?, wide: Frame?) -> NSMenuItem {
         let on = focused.map { anchors.isCastOff($0.id) } ?? false
-        let why = on ? nil : anchors.castReason(focused, ultrawide: wide)
+        let why = on ? nil : anchors.castReason(focused, host: wide)
         return ActionItem("Cast off this window", tip: why ?? Self.castTip, checked: on, enabled: why == nil) {
-            anchors.toggleCastOff(focused, ultrawide: wide)
+            anchors.toggleCastOff(focused, host: wide)
             app.engine.wake()
             app.engine.moor()
         }
@@ -409,7 +409,7 @@ struct MenuBuilder {
     // anchorable reports whether to go on anchoring the app called name. With no ultrawide attached
     // it says why nothing will move and goes on only when the owner chooses Anchor anyway.
     private func anchorable(_ name: String) -> Bool {
-        guard let text = Self.noUltrawide(name, wide: Screens.current().wide) else { return true }
+        guard let text = Self.noUltrawide(name, wide: Screens.current().hostFrame) else { return true }
         let alert = NSAlert()
         alert.messageText = text.title
         alert.informativeText = text.body

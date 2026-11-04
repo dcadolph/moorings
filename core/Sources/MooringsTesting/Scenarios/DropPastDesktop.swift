@@ -7,7 +7,7 @@ extension Scenarios {
     // each reads back within 1 point. On a fake ultrawide wider than the desktop the frames lie past
     // it, where a drop on the simulated screen puts a window.
     static func dropPastDesktop(_ s: Stage) {
-        guard let wide = s.wide() else { return }
+        guard let wide = s.hostFrame() else { return }
         s.choose { $0.paused = true }
         guard let pad = s.open("moved window") else { return }
         let side = (wide.w * 0.4).rounded(.down)

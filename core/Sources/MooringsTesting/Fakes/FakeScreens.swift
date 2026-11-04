@@ -18,7 +18,7 @@ public final class FakeScreens: ScreenSource {
     public static func ultrawide() -> FakeScreens {
         let full = Frame(x: 0, y: 0, w: 3440, h: 1440)
         let usable = Frame(x: 0, y: 25, w: 3440, h: 1415)
-        return FakeScreens(Screens(full: [full], usable: [usable], ultrawide: 0))
+        return FakeScreens(Screens(full: [full], usable: [usable], host: 0, isUltrawide: true))
     }
 
     // current returns the displays the test set.

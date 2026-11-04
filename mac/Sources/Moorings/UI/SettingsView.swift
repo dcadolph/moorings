@@ -326,7 +326,7 @@ struct SettingsView: View {
         let anchors = model.app.engine.anchors
         let w = anchors.widths
         let minPoints = anchors.minWidth(side)
-        let screenWidth = Screens.current().wide?.w
+        let screenWidth = Screens.current().hostFrame?.w
         let pct = side == .left ? w.left : w.right
         let range = Layout.widthRange(w, side, minPoints: minPoints, screenWidth: screenWidth)
         let value = Binding(

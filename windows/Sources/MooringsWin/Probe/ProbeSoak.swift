@@ -13,7 +13,7 @@ import MooringsEngine
 // Under --leak it opens handles every minute and never closes them, so the bounds must trip.
 func probeSoak(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
-    guard let wide = screens.wide else {
+    guard let wide = screens.hostFrame else {
         print("soak: no ultrawide")
         return 1
     }

@@ -10,7 +10,7 @@ import MooringsTesting
 // prints each move and release with its time, then the final frames.
 func probeMoor(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
-    guard let wide = screens.wide else {
+    guard let wide = screens.hostFrame else {
         print("moor: no ultrawide")
         return 1
     }
