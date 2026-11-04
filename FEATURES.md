@@ -118,12 +118,16 @@ each part.
 - Profiles: save shortcuts, snapping, behavior, chains and menu under a name with a group of
   workspaces, and switch between them from the menu or a shortcut. Anchored apps stay put.
 
-## Anchored apps on an ultrawide
+## Anchored apps
 
 - Up to four apps held at the screen edges, a top and bottom slot on each side, with the open
   middle, the channel, left for everything else.
-- Nothing is anchored until you choose an app, so a first start moves no window. On an ultrawide,
-  one message says how to anchor the first app.
+- Nothing is anchored until you choose an app, so a first start moves no window. One message
+  says how to anchor the first app.
+- With no ultrawide attached, the widest display anchors. One side takes half of it, and both
+  sides take a third each on a display at least 1920 points wide. On a laptop the left side holds
+  and the right side's apps wait in the channel, with one message that says so. Widths and Adjust
+  strips stay with the ultrawide, which keeps its own widths.
 - Anchor *app* at the top of the menu holds the app you were just using.
 - Width and height presets, with a label that says how wide the channel is. Widths holds a
   Presets folder with the built-ins and your own saved pairs. Heights keeps its taller and shorter

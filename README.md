@@ -406,6 +406,13 @@ full height. A side with nothing anchored gives its width to the channel. Widths
 the strip widths and the split between rows, with presets. Anchored apps that are not running
 open in the background at launch.
 
+With no ultrawide attached, Moorings anchors on the widest display instead, the main one on a tie.
+One anchored side takes half of it. Both sides take a third each on a display at least 1920 points
+wide. On a narrower one, such as a laptop, the left side holds and the right side's apps stay in
+the channel, with one message that says so. Widths and Adjust strips belong to the ultrawide and
+are hidden on other displays, and the widths you set there are kept for it. With nothing anchored,
+a normal display behaves like any other.
+
 Adjust strips, in either menu, a bindable shortcut action named adjust-strips, opens an editor
 over the ultrawide. Each inner strip edge has a drag bar, arrows and a typed percent field, and
 each strip's row line has up and down arrows and a field. Arrow keys step 1 percent and Shift
