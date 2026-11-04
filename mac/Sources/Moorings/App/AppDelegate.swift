@@ -512,19 +512,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             } catch {
                 self.logger.notice("update check failed: \(error.localizedDescription, privacy: .public)")
                 if say {
-                    self.notify("Update check failed", "Moorings could not reach GitHub. Try again in a moment.")
+                    self.notify("Update check failed", "Couldn't reach GitHub.")
                 }
                 return
             }
             guard say else { return }
             guard let found else {
-                self.notify("Moorings is up to date", "Version \(Self.version) is the latest release.")
+                self.notify("Moorings is up to date", "Moorings \(Self.version) is the latest.")
                 return
             }
             if case .verified = self.updater.state {
-                self.notify("Moorings \(found.tag) is ready", "It installs the next time you pause for a moment.")
+                self.notify(
+                    "Moorings \(found.tag) is ready",
+                    "Click to restart into it now. Otherwise it installs when you're idle."
+                ) { self.updater.installNow() }
+            } else if self.updater.canReplace {
+                self.notify("Moorings \(found.tag) is out.", "Click to update now.") { self.updateNow() }
             } else {
-                self.notify("Moorings \(found.tag) is out", "Click to open the release page.") {
+                self.notify("Moorings \(found.tag) is out.", "Click to open the release page.") {
                     NSWorkspace.shared.open(found.page)
                 }
             }
@@ -532,21 +537,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // updateNow checks, verifies and installs the latest release at once, without waiting for a quiet
-    // moment, and logs each step. It is the moorings://update link.
-    private func updateNow() {
+    // moment and whatever the automatic choices say, and logs each step. The update banner, the menu's
+    // update line and the moorings://update link run it.
+    func updateNow() {
         logger.notice("update: asked by link")
         guard ReleaseVersion(Self.version) != nil else {
             logger.notice("update: this build has no release version")
             return
         }
+        notify("Updating Moorings", "Moorings downloads and verifies the release, then restarts into it.")
         Task { @MainActor in
+            let found: ReleaseInfo?
             do {
-                let found = try await self.updater.check(automatic: true, install: true, forced: true)
-                if found == nil {
-                    self.logger.notice("update: \(Self.version, privacy: .public) is the latest release")
-                }
+                found = try await self.updater.check(automatic: true, install: true, forced: true)
             } catch {
                 self.logger.notice("update: check failed: \(error.localizedDescription, privacy: .public)")
+                self.notify("Update check failed", "Couldn't reach GitHub.")
+                return
+            }
+            guard let found else {
+                self.logger.notice("update: \(Self.version, privacy: .public) is the latest release")
+                self.notify("Moorings is up to date", "Moorings \(Self.version) is the latest.")
+                return
+            }
+            guard case .verified = self.updater.state else {
+                self.notify("Moorings \(found.tag) did not install", "Click to open the release page.") {
+                    NSWorkspace.shared.open(found.page)
+                }
                 return
             }
             self.updater.installNow()
@@ -727,19 +744,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         _ = apps.open(bundle, background: background, target: target)
     }
 
-    // launchAtLogin reports whether Moorings is registered as a login item.
-    var launchAtLogin: Bool { SMAppService.mainApp.status == .enabled }
+    // launchAtLogin reports whether Moorings is registered as a login item, including one macOS has
+    // not allowed yet.
+    var launchAtLogin: Bool { [.enabled, .requiresApproval].contains(SMAppService.mainApp.status) }
 
-    // setLaunchAtLogin registers or unregisters Moorings as a login item.
-    func setLaunchAtLogin(_ on: Bool) {
+    // loginNeedsApproval reports whether Moorings is registered as a login item that macOS waits for
+    // the owner to allow in Login Items.
+    var loginNeedsApproval: Bool { SMAppService.mainApp.status == .requiresApproval }
+
+    // setLaunchAtLogin registers or unregisters Moorings as a login item and returns the error to
+    // show, nil when it worked.
+    func setLaunchAtLogin(_ on: Bool) -> String? {
         do {
             if on {
                 try SMAppService.mainApp.register()
             } else {
                 try SMAppService.mainApp.unregister()
             }
+            return nil
         } catch {
             logger.error("launch at login: \(error.localizedDescription, privacy: .public)")
+            return error.localizedDescription
         }
     }
 

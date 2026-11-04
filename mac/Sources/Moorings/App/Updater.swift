@@ -359,6 +359,9 @@ final class Updater {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
+    // canReplace reports whether this copy of Moorings can swap itself for a newer release.
+    var canReplace: Bool { Self.replaceable(bundle) }
+
     // replaceable reports whether the bundle can be swapped in place: an app bundle outside App
     // Translocation in a folder this user can write.
     nonisolated static func replaceable(_ bundle: URL) -> Bool {

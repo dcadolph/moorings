@@ -59,8 +59,13 @@ struct MenuBuilder {
     private var anchors: Anchors { app.engine.anchors }
 
     // updateLine returns the line the top of the menu shows for an update, nil when there is none: the
-    // download under way, the staged update, the step that refused one, or a newer release to open.
-    static func updateLine(_ state: UpdateState, release: ReleaseInfo?) -> NSMenuItem? {
+    // download under way, the staged update, the step that refused one, or a newer release. Choosing
+    // the staged update runs installNow. Choosing a newer release runs updateNow, or opens its page
+    // when updateNow is nil because this copy cannot replace itself.
+    static func updateLine(
+        _ state: UpdateState, release: ReleaseInfo?, installNow: @escaping @MainActor () -> Void,
+        updateNow: (@MainActor () -> Void)?
+    ) -> NSMenuItem? {
         let page = release?.page ?? AppDelegate.releasesPage
         switch state {
         case .downloading(let tag):
@@ -69,9 +74,9 @@ struct MenuBuilder {
             ) {}
         case .verified(let tag):
             return ActionItem(
-                "\(tag) ready, installs when you pause",
-                tip: "Moorings restarts into the update after half a minute without input.", enabled: false
-            ) {}
+                "\(tag) ready, installs when you're idle",
+                tip: "Choose it to restart into the update now. Otherwise Moorings restarts into it after "
+                    + "half a minute without keyboard or mouse input.", run: installNow)
         case .installing(let tag):
             return ActionItem("Installing \(tag)", tip: "Moorings is restarting into the update.", enabled: false) {}
         case .refused(let step, let tag):
@@ -83,6 +88,12 @@ struct MenuBuilder {
             }
         case .idle:
             guard let release else { return nil }
+            if let updateNow {
+                return ActionItem(
+                    "Update to \(release.tag) now",
+                    tip: "Download the release, verify its Apple signature and notarization, and restart into it.",
+                    run: updateNow)
+            }
             return ActionItem("Update available: \(release.tag)", tip: "Open the release page to download it.") {
                 NSWorkspace.shared.open(release.page)
             }
@@ -102,14 +113,22 @@ struct MenuBuilder {
             ActionItem(
                 "Install updates automatically",
                 tip: "Download a new release, verify its Apple signature and notarization, and restart into it "
-                    + "when you pause.", checked: check && install, enabled: check, run: toggleInstall),
+                    + "when you're idle.", checked: check && install, enabled: check, run: toggleInstall),
         ]
     }
 
     // items returns the top-level entries.
     func items() -> [NSMenuItem] {
         var out: [NSMenuItem] = []
-        if let line = Self.updateLine(app.updater.state, release: app.updater.release) {
+        let app = self.app
+        var updateNow: (@MainActor () -> Void)?
+        if app.updater.canReplace {
+            updateNow = { app.updateNow() }
+        }
+        let line = Self.updateLine(
+            app.updater.state, release: app.updater.release, installNow: { app.updater.installNow() },
+            updateNow: updateNow)
+        if let line {
             out.append(line)
             out.append(.separator())
         }
@@ -191,11 +210,13 @@ struct MenuBuilder {
                 app.settings.show()
             })
         out.append(
-            ActionItem("Launch at login", tip: "Open Moorings when you log in.", checked: app.launchAtLogin) {
-                app.setLaunchAtLogin(!app.launchAtLogin)
+            ActionItem("Start Moorings at login", tip: "Open Moorings when you log in.", checked: app.launchAtLogin) {
+                if let error = app.setLaunchAtLogin(!app.launchAtLogin) {
+                    app.notify("Couldn't change the login item", error)
+                }
             })
         out.append(
-            ActionItem("Check for updates now", tip: "Ask GitHub for the latest release right away.") {
+            ActionItem("Check for Updates…", tip: "Ask GitHub for the latest release right away.") {
                 app.checkUpdateNow()
             })
         out += Self.updateChoices(

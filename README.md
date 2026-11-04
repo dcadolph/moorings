@@ -157,7 +157,7 @@ The menu rebuilds each time it opens. From the top: an update offer when one is 
 Pause Moorings toggle (Resume Moorings while paused), Re-moor now,
 Anchor or Unanchor the front app, Cast off this window, a Re-moor entry for each released app,
 then the Anchored apps, Window, Lift, Workspaces, Profiles, Widths and Heights folders, Settings,
-Launch at login, Check for updates now, Check for updates automatically, Install updates
+Start Moorings at login, Check for Updates…, Check for updates automatically, Install updates
 automatically, Tip the harbormaster, and Quit. Quit pulls the sailboat under the water before
 Moorings exits, unless Reduce Motion is on.
 

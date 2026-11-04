@@ -217,7 +217,7 @@ struct UpdateRig {
     #expect(found?.tag == updateTag)
     #expect(rig.checks.count == 1 && d.calls.count == 0)
     #expect(u.state == .idle)
-    let line = MenuBuilder.updateLine(u.state, release: u.release)
+    let line = MenuBuilder.updateLine(u.state, release: u.release, installNow: {}, updateNow: nil)
     #expect(line?.title == "Update available: \(updateTag)")
 
     let forced = try await rig.updater(downloader: d).check(automatic: false, install: false, forced: true)

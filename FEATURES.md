@@ -189,12 +189,14 @@ each part.
   notification permission to grant.
 - Quit Moorings from the menu and an octopus pulls the sailboat under the water. With Reduce
   Motion on it just quits.
-- Launch at login is one menu switch. Opening Moorings while it runs shows the settings window.
+- Start Moorings at login is one menu switch, and Settings > General says when macOS needs you
+  to allow it in Login Items. Opening Moorings while it runs shows the settings window.
 - Moorings checks for a new release every six hours, and when the menu opens an hour after the
-  last check, and offers it at the top of the menu. The offer opens the release page, and
-  Homebrew or the dmg installs it. With Install updates automatically on, Moorings instead
-  downloads the release, verifies its Apple signature and notarization, and restarts into it once
-  the Mac has sat idle for 30 seconds.
+  last check, and offers it at the top of the menu. Choosing the offer, or clicking the banner
+  Check for Updates… shows, downloads the release, verifies its Apple signature and notarization,
+  and restarts into it at once. A copy that cannot replace itself opens the release page instead.
+  With Install updates automatically on, Moorings does the same on its own once the Mac has sat
+  idle for 30 seconds, and choosing the ready line in the menu restarts into it now.
 - Installs with `brew install --cask dcadolph/tap/moorings`, or from the signed and notarized dmg
   on each release. The release's `SHA256SUMS` is signed through Sigstore and every file carries a
   build attestation, so `gh attestation verify` or `cosign verify-blob` checks a download.

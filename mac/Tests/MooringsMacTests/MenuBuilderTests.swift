@@ -75,29 +75,52 @@ import MooringsCore
     }
 }
 
-// The top line names the update's state, and only a refusal or an offered release can be chosen.
+// The top line names the update's state. The staged update installs now when chosen, and a newer
+// release updates now when this copy can replace itself, else opens its page.
 @Test @MainActor func testUpdateLine() {
     let page = URL(string: "https://github.com/dcadolph/moorings/releases/tag/v9.0.0")!
     let release = ReleaseInfo(tag: "v9.0.0", page: page)
-    let tests: [(state: UpdateState, release: ReleaseInfo?, want: String?, wantEnabled: Bool)] = [
-        // Test 0: Nothing newer.
-        (.idle, nil, nil, false),
-        // Test 1: A newer release offered.
-        (.idle, release, "Update available: v9.0.0", true),
-        // Test 2: Downloading.
-        (.downloading("v9.0.0"), release, "Downloading v9.0.0", false),
-        // Test 3: Staged.
-        (.verified("v9.0.0"), release, "v9.0.0 ready, installs when you pause", false),
-        // Test 4: Installing.
-        (.installing("v9.0.0"), release, "Installing v9.0.0", false),
-        // Test 5: Refused.
-        (.refused(.notarization, "v9.0.0"), release, "v9.0.0 could not be verified (notarization)", true),
-    ]
+    let tests:
+        [(
+            state: UpdateState, release: ReleaseInfo?, replace: Bool, want: String?, wantEnabled: Bool,
+            wantInstall: Int, wantUpdate: Int
+        )] = [
+            // Test 0: Nothing newer.
+            (.idle, nil, true, nil, false, 0, 0),
+            // Test 1: A newer release this copy can replace itself with.
+            (.idle, release, true, "Update to v9.0.0 now", true, 0, 1),
+            // Test 2: A newer release this copy cannot install, which opens the page.
+            (.idle, release, false, "Update available: v9.0.0", true, 0, 0),
+            // Test 3: Downloading.
+            (.downloading("v9.0.0"), release, true, "Downloading v9.0.0", false, 0, 0),
+            // Test 4: Staged, chosen to install now.
+            (.verified("v9.0.0"), release, true, "v9.0.0 ready, installs when you're idle", true, 1, 0),
+            // Test 5: Installing.
+            (.installing("v9.0.0"), release, true, "Installing v9.0.0", false, 0, 0),
+            // Test 6: Refused.
+            (
+                .refused(.notarization, "v9.0.0"), release, true, "v9.0.0 could not be verified (notarization)", true,
+                0, 0
+            ),
+        ]
     for (i, test) in tests.enumerated() {
-        let line = MenuBuilder.updateLine(test.state, release: test.release) as? ActionItem
+        var installs = 0
+        var updates = 0
+        var updateNow: (@MainActor () -> Void)?
+        if test.replace {
+            updateNow = { updates += 1 }
+        }
+        let line =
+            MenuBuilder.updateLine(
+                test.state, release: test.release, installNow: { installs += 1 }, updateNow: updateNow)
+            as? ActionItem
         #expect(line?.title == test.want, "test \(i)")
         if let line {
             #expect(line.validateMenuItem(line) == test.wantEnabled, "test \(i)")
+            if test.wantInstall + test.wantUpdate > 0 {
+                _ = line.perform(line.action!)
+            }
         }
+        #expect(installs == test.wantInstall && updates == test.wantUpdate, "test \(i)")
     }
 }

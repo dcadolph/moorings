@@ -1,3 +1,4 @@
+import ServiceManagement
 import SwiftUI
 
 import MooringsCore
@@ -1035,14 +1036,22 @@ struct SettingsView: View {
     private var general: some View {
         Form {
             Toggle(
-                "Launch at login",
+                "Start Moorings at login",
                 isOn: Binding(
                     get: { model.app.launchAtLogin },
                     set: { v in
-                        model.app.setLaunchAtLogin(v); model.reload()
+                        let error = model.app.setLaunchAtLogin(v)
+                        model.reload()
+                        if let error { model.message = "Couldn't change the login item: \(error)" }
                     }))
+            if model.app.loginNeedsApproval {
+                HStack {
+                    Text("macOS needs you to allow Moorings in Login Items.").font(.callout)
+                    Button("Open Login Items") { SMAppService.openSystemSettingsLoginItems() }
+                }
+            }
             Toggle(
-                "Check for updates every few hours",
+                "Check for updates",
                 isOn: Binding(
                     get: { model.choices.checkUpdates },
                     set: { v in model.change { $0.checkUpdates = v } }))
