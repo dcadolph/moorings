@@ -373,6 +373,8 @@ public struct WindowInfo: Equatable, Sendable {
 public struct Scene: Sendable {
     // screen is the host display's usable frame, nil when none is attached.
     public var screen: Frame?
+    // isUltrawide reports whether the host display is an ultrawide.
+    public var isUltrawide: Bool
     // windows lists the movable windows on every screen, front-most first.
     public var windows: [WindowInfo]
     // focused is the focused window's id, nil when none.
@@ -383,8 +385,12 @@ public struct Scene: Sendable {
     public var now: Double
 
     // init builds a scene.
-    public init(screen: Frame?, windows: [WindowInfo], focused: WindowID? = nil, mouseHeld: Bool = false, now: Double) {
+    public init(
+        screen: Frame?, isUltrawide: Bool = true, windows: [WindowInfo], focused: WindowID? = nil,
+        mouseHeld: Bool = false, now: Double
+    ) {
         self.screen = screen
+        self.isUltrawide = isUltrawide
         self.windows = windows
         self.focused = focused
         self.mouseHeld = mouseHeld
@@ -522,6 +528,15 @@ public final class Anchors {
     public internal(set) var minBy: [Side: String] = [:]
     // justReleased lists the pins the last pass let go, for the app to tell the owner.
     public internal(set) var justReleased: [WindowID] = []
+    // justWaiting lists the anchored apps the last pass started holding back because the host is too
+    // narrow for both sides, for the app to tell the owner once.
+    public internal(set) var justWaiting: [String] = []
+    // lastWaiting is the side that waited in the last pass, nil when none.
+    var lastWaiting: Side?
+    // hostIsUltrawide reports whether the last pass's host was an ultrawide.
+    public internal(set) var hostIsUltrawide = true
+    // hostPoints is the usable width of the last pass's host, zero before the first pass.
+    var hostPoints = 0.0
 
     // init builds Anchors from saved choices.
     public init(choices: Choices = Choices()) {
@@ -537,9 +552,22 @@ public final class Anchors {
         return Layout.heights(saved: saved, config: PartialHeights()).0
     }
 
-    // setWidths saves a width pair, ignoring one that leaves no channel.
+    // hostWidths returns the strip widths the host gives a held side: the chosen widths on an
+    // ultrawide, else Layout.hostPair when both sides hold and Layout.hostWidth when one does.
+    func hostWidths() -> Widths {
+        if hostIsUltrawide {
+            return widths
+        }
+        if emptySides().isEmpty {
+            return Layout.hostPair
+        }
+        return Widths(left: Layout.hostWidth, right: Layout.hostWidth)
+    }
+
+    // setWidths saves a width pair, ignoring one that leaves no channel and any while the host is a
+    // normal display, whose widths are fixed.
     public func setWidths(_ w: Widths) {
-        if Layout.validSplit(w) {
+        if hostIsUltrawide, Layout.validSplit(w) {
             choices.widths = w
         }
     }
@@ -625,23 +653,45 @@ public final class Anchors {
         return now - started <= Self.openSeconds
     }
 
-    // emptySides returns the sides with no anchored app keeping its strip, which the channel takes.
-    public func emptySides() -> [Side] {
+    // stage returns the display moorings lays out: the host when it is an ultrawide or an app is
+    // anchored, else nil, so a normal display with nothing anchored behaves like any other display.
+    public func stage(_ screens: Screens) -> Int? {
+        screens.isUltrawide || !pins().isEmpty ? screens.host : nil
+    }
+
+    // waitingSide returns the side whose anchored apps wait in the channel as free windows: the right
+    // when the host is a normal display narrower than three times Layout.hostThirdPoints and both
+    // sides keep their strip, else nil. The left always holds, since no anchor time is kept.
+    public func waitingSide() -> Side? {
+        guard !hostIsUltrawide, hostPoints < 3 * Layout.hostThirdPoints else { return nil }
         let held = Set(pins().filter { holdsSpace($0.bundle) }.map(\.slot.side))
+        return held.count == 2 ? .right : nil
+    }
+
+    // activePins returns the pins in slot order less those on the waiting side.
+    public func activePins() -> [Pin] {
+        let waiting = waitingSide()
+        return pins().filter { $0.slot.side != waiting }
+    }
+
+    // emptySides returns the sides with no anchored app keeping its strip, which the channel takes.
+    // A waiting side is empty.
+    public func emptySides() -> [Side] {
+        let held = Set(activePins().filter { holdsSpace($0.bundle) }.map(\.slot.side))
         return [Side.left, .right].filter { !held.contains($0) }
     }
 
     // splitSides returns the sides where two anchored apps keep their strip, so each takes a row.
     public func splitSides() -> [Side] {
-        let held = pins().filter { holdsSpace($0.bundle) }.map(\.slot.side)
+        let held = activePins().filter { holdsSpace($0.bundle) }.map(\.slot.side)
         return [Side.left, .right].filter { side in held.filter { $0 == side }.count > 1 }
     }
 
-    // inUse returns the strip widths in use: the chosen widths, with 0 for an empty side. On screen,
+    // inUse returns the strip widths in use: the host's widths, with 0 for an empty side. On screen,
     // each held side grows to fit the widest pin there that will not shrink, while the channel keeps
-    // at least Layout.minChannelPct.
+    // at least Layout.minChannelPct, and on a normal display at least Layout.hostThirdPoints.
     public func inUse(_ screen: Frame? = nil) -> Widths {
-        let w = widths
+        let w = hostWidths()
         let empty = emptySides()
         let left = empty.contains(.left) ? 0 : w.left
         let right = empty.contains(.right) ? 0 : w.right
@@ -651,7 +701,9 @@ public final class Anchors {
         }
         var gl = grow(.left, left)
         var gr = grow(.right, right)
-        let room = 100 - Layout.minChannelPct - left - right
+        let floorPct =
+            hostIsUltrawide ? Layout.minChannelPct : max(Layout.minChannelPct, Layout.hostThirdPoints * 100 / screen.w)
+        let room = max(0, 100 - floorPct - left - right)
         if gl + gr > room {
             let total = gl + gr
             gl = gl * room / total
@@ -660,7 +712,7 @@ public final class Anchors {
         return Widths(left: left + gl, right: right + gr)
     }
 
-    // channel returns the channel on screen, the ultrawide's usable frame.
+    // channel returns the channel on screen, the host display's usable frame.
     public func channel(_ screen: Frame) -> Frame {
         let w = inUse(screen)
         return Geometry.regions(screen, w.left, w.right).channel
@@ -673,10 +725,11 @@ public final class Anchors {
     }
 
     // strip returns row of the strip on side, the whole strip when row is nil, at the side's width,
-    // the chosen width when the side is empty.
+    // the host's width when the side is empty.
     func strip(_ screen: Frame, _ side: Side, _ row: Row?) -> Frame {
         let use = inUse(screen)
-        let pct = side == .left ? (use.left > 0 ? use.left : widths.left) : (use.right > 0 ? use.right : widths.right)
+        let host = hostWidths()
+        let pct = side == .left ? (use.left > 0 ? use.left : host.left) : (use.right > 0 ? use.right : host.right)
         return Geometry.slot(screen, side, row, pct, topPct: heights[side])
     }
 
@@ -779,9 +832,9 @@ public final class Anchors {
         return list[(i + (backward ? list.count - 1 : 1)) % list.count]
     }
 
-    // pin returns the pin for bundle, or nil when the app is not anchored.
+    // pin returns the pin for bundle, or nil when the app is not anchored or its side waits.
     func pin(_ bundle: String) -> Pin? {
-        pins().first { $0.bundle == bundle }
+        activePins().first { $0.bundle == bundle }
     }
 
     // pinned reports whether a pin holds w.
@@ -803,7 +856,7 @@ public final class Anchors {
     public func castReason(_ w: WindowInfo?, host: Frame?) -> String? {
         guard let w else { return "There is no focused window to cast off." }
         if host == nil || !w.onHost {
-            return "Only windows on the ultrawide are held in the channel."
+            return "Only windows on the anchoring display are held in the channel."
         }
         if pinned(w) {
             return "Pinned windows stay in their slot."
@@ -950,6 +1003,9 @@ public final class Anchors {
     // ultrawide.
     public func moor(_ scene: Scene) -> [Move] {
         justReleased = []
+        justWaiting = []
+        hostIsUltrawide = scene.isUltrawide
+        hostPoints = scene.screen?.w ?? 0
         if choices.paused {
             weigh()
             return []
@@ -961,14 +1017,14 @@ public final class Anchors {
         let dropped = dragging
         dragging = false
         now = scene.now
-        let pins = pins()
+        let all = pins()
         var shown: Set<String> = []
         held = [:]
         holdAreas = [:]
         holders = holders.filter { id in scene.windows.contains { $0.id == id.value } }
-        claim(scene.windows, pins, screen)
+        claim(scene.windows, all, screen)
         for w in scene.windows {
-            if let pin = pin(w.bundle, in: pins), pinsWindow(pin, w) {
+            if let pin = pin(w.bundle, in: all), pinsWindow(pin, w) {
                 shown.insert(pin.bundle)
                 held[w.id] = pin.bundle
             }
@@ -977,6 +1033,13 @@ public final class Anchors {
         for bundle in shown {
             openedAt[bundle] = nil
         }
+        let waiting = waitingSide()
+        if let waiting, lastWaiting == nil {
+            justWaiting = all.filter { $0.slot.side == waiting && holdsSpace($0.bundle) }.map(\.bundle)
+        }
+        lastWaiting = waiting
+        let pins = all.filter { $0.slot.side != waiting }
+        held = held.filter { id in pins.contains { $0.bundle == id.value } }
         let rows = rows(pins.filter { holdsSpace($0.bundle) })
         for w in scene.windows {
             doubt(w)

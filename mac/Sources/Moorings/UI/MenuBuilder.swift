@@ -177,7 +177,7 @@ struct MenuBuilder {
         if let front = frontItem() {
             out.append(front)
         }
-        out.append(castItem(focused, wide: screens.hostFrame))
+        out.append(castItem(focused, wide: anchors.stage(screens).map { screens.usable[$0] }))
         let pinned = scan.windows.filter { anchors.pinned($0) }
         for w in pinned where anchors.isReleased(w.id) {
             out.append(
@@ -198,7 +198,9 @@ struct MenuBuilder {
         out.append(folder("Lift", liftItems(pinned)))
         out.append(folder("Workspaces", workspaceItems()))
         out.append(folder("Profiles", profileItems()))
-        out.append(folder("Widths", widthItems(screens.hostFrame)))
+        if screens.isUltrawide {
+            out.append(folder("Widths", widthItems(screens.hostFrame)))
+        }
         out.append(folder("Heights", heightItems()))
         out.append(.separator())
         out.append(
@@ -304,7 +306,6 @@ struct MenuBuilder {
                 ? "Anchor \(name) to this empty slot."
                 : "Anchor \(name) here in place of \(appName(current))."
             return ActionItem(key.title, tip: tip) {
-                guard anchorable(name) else { return }
                 anchors.assign(key, bundle)
                 app.engine.save()
             } as NSMenuItem
@@ -399,36 +400,10 @@ struct MenuBuilder {
     // lock puts bundle in the slot key and opens it like a Dock click. While paused it says the app
     // will not move there until Resume Moorings.
     private func lock(_ key: SlotKey, _ bundle: String) {
-        guard anchorable(appName(bundle)) else { return }
         anchors.lock(key, bundle, now: AppDelegate.now)
         app.engine.save()
         app.open(bundle, background: false)
         notifyPaused("\(appName(bundle)) is anchored to the \(key.title.lowercased()) slot")
-    }
-
-    // anchorable reports whether to go on anchoring the app called name. With no ultrawide attached
-    // it says why nothing will move and goes on only when the owner chooses Anchor anyway.
-    private func anchorable(_ name: String) -> Bool {
-        guard let text = Self.noUltrawide(name, wide: Screens.current().hostFrame) else { return true }
-        let alert = NSAlert()
-        alert.messageText = text.title
-        alert.informativeText = text.body
-        alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: "Anchor anyway")
-        NSApp.activate()
-        return alert.runModal() == .alertSecondButtonReturn
-    }
-
-    // noUltrawide returns the popup that explains anchoring the app called name while no ultrawide is
-    // attached, nil when wide holds the ultrawide's frame.
-    static func noUltrawide(_ name: String, wide: Frame?) -> (title: String, body: String)? {
-        guard wide == nil else { return nil }
-        let body = String(
-            format: "%@ stays where it is. Anchored apps live in the side strips of an ultrawide, a display "
-                + "at least %.1f times as wide as it is tall, and none is attached now. Choose Anchor "
-                + "anyway to have %@ take the slot the next time one is attached.",
-            name, Layout.minAspect, name)
-        return ("Anchoring needs an ultrawide", body)
     }
 
     // notifyPaused shows a banner saying change waits for Resume Moorings, when Moorings is paused.

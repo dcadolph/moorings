@@ -294,15 +294,26 @@ struct SettingsView: View {
         }
     }
 
-    // stripsSection edits the strip widths and top row heights.
+    // stripsSection edits the strip widths, on an ultrawide only, and the top row heights.
     private var stripsSection: some View {
         Section("Strips") {
-            widthRow("Left width", .left)
-            widthRow("Right width", .right)
+            if Screens.current().isUltrawide {
+                widthRow("Left width", .left)
+                widthRow("Right width", .right)
+            } else {
+                Text(Self.fixedWidths)
+                    .foregroundStyle(.secondary)
+            }
             heightRow("Left top row", .left)
             heightRow("Right top row", .right)
         }
     }
+
+    // fixedWidths says how strips are sized on a display that is not an ultrawide.
+    static let fixedWidths =
+        "Strip widths are set by this display. One anchored side takes half of it. Both sides take a third "
+        + "each on a display at least \(Int(3 * Layout.hostThirdPoints)) points wide, and on a narrower one "
+        + "the right side waits in the middle. Widths you set on an ultrawide are kept for it."
 
     // presetsSection lists the saved width pairs and saves the current one.
     private var presetsSection: some View {
@@ -385,23 +396,32 @@ struct SettingsView: View {
         }
     }
 
+    // widthControls opens the on-screen strip editor and lists the saved width presets, on an
+    // ultrawide only.
+    @ViewBuilder
+    private var widthControls: some View {
+        Section("Adjust strips on screen") {
+            HStack {
+                Text("Step, type or drag the strips on the display")
+                Spacer()
+                ShortcutRecorder(current: model.bindings.map[Keymaps.stripsName], suspend: model.suspend) { sc in
+                    model.change { $0.shortcuts[Keymaps.stripsName] = .some(sc) }
+                }
+                Button("Clear") { model.change { $0.shortcuts[Keymaps.stripsName] = .some(nil) } }
+                    .help("Turn this shortcut off.")
+                Button("Open") { model.app.strips.show() }
+            }
+        }
+        presetsSection
+    }
+
     // layout picks the keymap, snapping and the gap.
     private var layout: some View {
         Form {
             stripsSection
-            Section("Adjust strips on screen") {
-                HStack {
-                    Text("Step, type or drag the strips on the display")
-                    Spacer()
-                    ShortcutRecorder(current: model.bindings.map[Keymaps.stripsName], suspend: model.suspend) { sc in
-                        model.change { $0.shortcuts[Keymaps.stripsName] = .some(sc) }
-                    }
-                    Button("Clear") { model.change { $0.shortcuts[Keymaps.stripsName] = .some(nil) } }
-                        .help("Turn this shortcut off.")
-                    Button("Open") { model.app.strips.show() }
-                }
+            if Screens.current().isUltrawide {
+                widthControls
             }
-            presetsSection
             Picker(
                 "Keymap",
                 selection: Binding(

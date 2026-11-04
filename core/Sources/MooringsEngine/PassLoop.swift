@@ -113,7 +113,9 @@ public final class PassLoop {
         let list = scan.windows.filter { !refused.contains($0.id) }
         let held = engine.mouseHeld
         let scene = Scene(
-            screen: screens.hostFrame, windows: list, focused: scan.focused?.id, mouseHeld: held,
+            screen: anchors.stage(screens).map { screens.usable[$0] }, isUltrawide: screens.isUltrawide, windows: list,
+            focused: scan.focused?.id,
+            mouseHeld: held,
             now: platform.clock.now)
         let moves = anchors.moor(scene)
         platform.log.trace(.passes, "pass \(forced ? "full" : "apps") read \(list.count) moved \(moves.count)")
@@ -129,6 +131,10 @@ public final class PassLoop {
         platform.events.watch(kept)
         for id in anchors.justReleased {
             tellReleased(id, list)
+        }
+        for bundle in anchors.justWaiting {
+            let name = platform.apps.name(bundle)
+            platform.notifier.notify("\(name) waits for a wider display", Self.waitingBody(name))
         }
         tellRefused(scan.windows)
         engine.observers.passed(t, moves.count)
@@ -205,6 +211,13 @@ public final class PassLoop {
             return "Click its green button to put it back\(key.map { ",\nor press \($0)" } ?? "")."
         }
         return key.map { "Press \($0) on it to put it back." } ?? "Moorings leaves it where you put it."
+    }
+
+    // waitingBody is the banner body for an anchored app named name that waits because the display
+    // is too narrow for both sides.
+    public static func waitingBody(_ name: String) -> String {
+        "This display is too narrow for both sides, so \(name) stays in the middle until a wider one is "
+            + "attached or the left side is emptied."
     }
 
     // tellRefused shows the banner once a session for the first window that refused a move, when the

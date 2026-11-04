@@ -28,8 +28,10 @@ struct TestWorld {
     var mouseHeld = false
     // Focused is the focused window, if any.
     var focused: WindowID?
-    // Screen is the ultrawide's usable frame, nil when none is attached.
+    // Screen is the host display's usable frame, nil when none is attached.
     var screen: Frame? = wide
+    // Ultrawide reports whether the host display is an ultrawide.
+    var ultrawide = true
 
     // add appends a window and returns its id.
     @discardableResult
@@ -63,7 +65,9 @@ struct TestWorld {
 
     // pass runs one moor pass and applies its moves.
     mutating func pass(_ anchors: Anchors) {
-        let scene = Scene(screen: screen, windows: windows, focused: focused, mouseHeld: mouseHeld, now: clock)
+        let scene = Scene(
+            screen: screen, isUltrawide: ultrawide, windows: windows, focused: focused, mouseHeld: mouseHeld,
+            now: clock)
         for move in anchors.moor(scene) {
             set(move.id, move.frame)
             moves[move.id, default: 0] += 1
@@ -500,7 +504,7 @@ let castReasonCases: [CastReasonCase] = [
         window: WindowInfo(
             id: 3, bundle: "com.apple.Notes", frame: Frame(x: 5300, y: 100, w: 600, h: 400),
             onHost: false, isMain: true),
-        wantReason: "Only windows on the ultrawide are held in the channel."),
+        wantReason: "Only windows on the anchoring display are held in the channel."),
     // Test 3: Free.
     CastReasonCase(
         window: WindowInfo(
@@ -521,12 +525,12 @@ func testCastReason(test: CastReasonCase) {
     #expect(world.frame(1) == leftFull && world.moves[1] == nil)
 }
 
-// Test 19: Cast off has no reason to give without an ultrawide.
-@Test func testCastReasonNoUltrawide() {
+// Test 19: Cast off has no reason to give off the host display.
+@Test func testCastReasonOffHost() {
     let w = WindowInfo(
         id: 4, bundle: "com.apple.Safari", frame: Frame(x: 1000, y: 100, w: 800, h: 600),
         onHost: false, isMain: true)
-    #expect(Anchors().castReason(w, host: nil) == "Only windows on the ultrawide are held in the channel.")
+    #expect(Anchors().castReason(w, host: nil) == "Only windows on the anchoring display are held in the channel.")
 }
 
 // Test 20: A cast-off window whose app is anchored becomes a pin and is no longer cast off, and
@@ -930,4 +934,95 @@ let finder = "com.apple.finder"
     world.pass(anchors)
     #expect(world.frame(s) == leftFull)
     #expect(!anchors.held.isEmpty)
+}
+
+// macbook is the usable frame of a 14-inch MacBook, 1512 points wide below a 38 point menu bar.
+let macbook = Frame(x: 0, y: 38, w: 1512, h: 944)
+
+// monitor is the usable frame of a 27-inch 2560x1440 display below a 25 point menu bar.
+let monitor = Frame(x: 0, y: 25, w: 2560, h: 1415)
+
+// normalWorld returns a world whose host is the normal display screen.
+func normalWorld(_ screen: Frame) -> TestWorld {
+    var world = TestWorld()
+    world.screen = screen
+    world.ultrawide = false
+    return world
+}
+
+// Test 0: A lone pin on a laptop takes half the display, and a free window takes the other half.
+@Test func testNormalHostOneSide() {
+    let anchors = Anchors(choices: Choices(slots: [.leftTop: slack]))
+    var world = normalWorld(macbook)
+    let s = world.add(slack, Frame(x: 600, y: 200, w: 500, h: 400))
+    let f = world.add("com.apple.Safari", Frame(x: 100, y: 100, w: 1300, h: 700))
+    world.pass(anchors)
+    #expect(world.frame(s) == Frame(x: 0, y: 38, w: 756, h: 944))
+    #expect(anchors.inUse(macbook) == Widths(left: 50, right: 0))
+    let ch = anchors.channel(macbook)
+    #expect(ch.x == 756 && ch.w == 756)
+    #expect(Anchors.within(world.frame(f), ch))
+    #expect(anchors.justWaiting.isEmpty)
+}
+
+// Test 1: Both sides on a laptop do not fit, so the left holds and the right app waits in the
+// channel as a free window, with one banner for it.
+@Test func testNormalHostRightWaits() {
+    let anchors = anchored()
+    var world = normalWorld(macbook)
+    let s = world.add(slack, Frame(x: 600, y: 200, w: 500, h: 400))
+    let i = world.add(iterm, Frame(x: 900, y: 200, w: 500, h: 400))
+    world.pass(anchors)
+    #expect(world.frame(s) == Frame(x: 0, y: 38, w: 756, h: 944))
+    #expect(anchors.waitingSide() == .right)
+    #expect(!anchors.pinned(world.info(i)))
+    #expect(Anchors.within(world.frame(i), anchors.channel(macbook)))
+    #expect(anchors.justWaiting == [iterm])
+    world.clock += 1
+    world.pass(anchors)
+    #expect(anchors.justWaiting.isEmpty)
+    #expect(anchors.waitingSide() == .right)
+}
+
+// Test 2: Both sides fit on a 2560 point display at a third each.
+@Test func testNormalHostBothSidesFit() {
+    let anchors = anchored()
+    var world = normalWorld(monitor)
+    let s = world.add(slack, Frame(x: 900, y: 200, w: 500, h: 400))
+    let i = world.add(iterm, Frame(x: 1000, y: 200, w: 500, h: 400))
+    world.pass(anchors)
+    #expect(anchors.waitingSide() == nil)
+    #expect(anchors.inUse(monitor) == Widths(left: 33, right: 33))
+    #expect(world.frame(s) == Geometry.slot(monitor, .left, nil, 33, topPct: 50))
+    #expect(world.frame(i) == Geometry.slot(monitor, .right, nil, 33, topPct: 50))
+    #expect(anchors.justWaiting.isEmpty)
+}
+
+// Test 3: A normal host leaves the saved ultrawide widths untouched and refuses new ones.
+@Test func testNormalHostKeepsSavedWidths() {
+    let saved = Widths(left: 15, right: 40)
+    let anchors = Anchors(choices: Choices(slots: [.leftTop: slack], widths: saved))
+    var world = normalWorld(macbook)
+    world.add(slack, Frame(x: 600, y: 200, w: 500, h: 400))
+    world.pass(anchors)
+    #expect(anchors.inUse(macbook).left == 50)
+    anchors.setWidths(Widths(left: 20, right: 30))
+    #expect(anchors.choices.widths == saved)
+    var back = TestWorld()
+    back.add(slack, Frame(x: 600, y: 200, w: 500, h: 400))
+    back.pass(anchors)
+    #expect(anchors.inUse(wide) == Widths(left: 15, right: 0))
+    anchors.setWidths(Widths(left: 20, right: 30))
+    #expect(anchors.choices.widths == Widths(left: 20, right: 30))
+}
+
+// Test 4: A pin that will not shrink grows its strip on a normal host only as far as the channel's
+// point floor allows.
+@Test func testNormalHostChannelPointFloor() {
+    let anchors = Anchors(choices: Choices(slots: [.leftTop: slack]))
+    var world = normalWorld(macbook)
+    world.add(slack, Frame(x: 0, y: 38, w: 1100, h: 944))
+    anchors.floors[1] = Floor(w: 1100, h: 0)
+    world.pass(anchors)
+    #expect(anchors.channel(macbook).w >= Layout.hostThirdPoints - 1)
 }

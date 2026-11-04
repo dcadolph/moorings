@@ -205,6 +205,53 @@ func testUltrawide(test: UltrawideCase) {
     #expect(Layout.ultrawide(test.screens) == test.wantIndex)
 }
 
+// HostCase is one host display expectation.
+struct HostCase: Sendable, CustomTestStringConvertible {
+    // Name labels the case.
+    let name: String
+    // Full are the full frames, the main display first.
+    let full: [Frame]
+    // Usable are the usable frames in the same order.
+    let usable: [Frame]
+    // WantIndex is the expected host, nil for none.
+    let wantIndex: Int?
+    // WantUltrawide reports whether the host is expected to be an ultrawide.
+    let wantUltrawide: Bool
+
+    // testDescription labels the case in test output.
+    var testDescription: String { name }
+}
+
+// hostCases covers the ultrawide first, else the widest usable frame with ties to the main display.
+let hostCases: [HostCase] = [
+    // Test 0: An ultrawide beside a laptop is the host.
+    HostCase(
+        name: "ultrawide", full: [F(0, 0, 1512, 982), F(1512, 0, 5120, 1440)],
+        usable: [F(0, 38, 1512, 944), F(1512, 25, 5120, 1415)], wantIndex: 1, wantUltrawide: true),
+    // Test 1: A laptop alone is the host.
+    HostCase(
+        name: "laptop", full: [F(0, 0, 1512, 982)], usable: [F(0, 38, 1512, 944)], wantIndex: 0,
+        wantUltrawide: false),
+    // Test 2: The wider usable frame wins over the main display.
+    HostCase(
+        name: "monitor beside laptop", full: [F(0, 0, 1512, 982), F(1512, 0, 2560, 1440)],
+        usable: [F(0, 38, 1512, 944), F(1512, 25, 2560, 1415)], wantIndex: 1, wantUltrawide: false),
+    // Test 3: Equal widths go to the main display.
+    HostCase(
+        name: "tie", full: [F(0, 0, 1920, 1080), F(1920, 0, 1920, 1080)],
+        usable: [F(0, 25, 1920, 1055), F(1920, 0, 1920, 1080)], wantIndex: 0, wantUltrawide: false),
+    // Test 4: No displays, no host.
+    HostCase(name: "none", full: [], usable: [], wantIndex: nil, wantUltrawide: false),
+]
+
+// testHost checks which display moorings anchors on.
+@Test(arguments: hostCases)
+func testHost(test: HostCase) {
+    let got = Layout.host(full: test.full, usable: test.usable)
+    #expect(got.index == test.wantIndex)
+    #expect(got.isUltrawide == test.wantUltrawide)
+}
+
 // ClampedCase is one typed strip width expectation.
 struct ClampedCase: Sendable, CustomTestStringConvertible {
     // Start is the pair before the edit.

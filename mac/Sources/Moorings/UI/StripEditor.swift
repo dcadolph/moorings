@@ -473,8 +473,9 @@ final class StripEditor {
             panel.makeKeyAndOrderFront(nil)
             return true
         }
-        guard let wide = Screens.current().hostFrame else {
-            logger.notice("strips: no ultrawide attached")
+        let screens = Screens.current()
+        guard screens.isUltrawide, let wide = screens.hostFrame else {
+            logger.notice("strips: widths are fixed without an ultrawide")
             return false
         }
         let anchors = app.engine.anchors

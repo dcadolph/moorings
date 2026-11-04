@@ -19,6 +19,12 @@ public struct Screens: Equatable, Sendable {
         self.isUltrawide = isUltrawide
     }
 
+    // init builds the displays from their full and usable frames and picks the host with Layout.host.
+    public init(full: [Frame], usable: [Frame], minAspect: Double = Layout.minAspect) {
+        let host = Layout.host(full: full, usable: usable, minAspect: minAspect)
+        self.init(full: full, usable: usable, host: host.index, isUltrawide: host.isUltrawide)
+    }
+
     // hostFrame returns the host's usable frame, nil when no display is attached.
     public var hostFrame: Frame? { host.map { usable[$0] } }
 

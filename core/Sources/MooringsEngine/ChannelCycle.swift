@@ -33,7 +33,7 @@ public final class ChannelCycle {
     func wanted(_ scan: Scan, screens: Screens) -> Bool {
         guard engine.features.contains(.channelCycle), anchors.choices.channelCycle, !anchors.choices.paused,
             platform.keys.shortcutsOn,
-            engine.offers(Self.keys[1].tag), screens.host != nil, let w = scan.focused
+            engine.offers(Self.keys[1].tag), engine.anchors.stage(screens) != nil, let w = scan.focused
         else { return false }
         return engine.actions.fills(w, screens: screens)
     }

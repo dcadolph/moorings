@@ -9,8 +9,8 @@ final class PassRig {
     static let slackID = "com.tinyspeck.slackmacgap"
     // windows is the fake window store.
     let windows = FakeWindows()
-    // screens is the fake ultrawide.
-    let screens = FakeScreens.ultrawide()
+    // screens is the fake display, the ultrawide unless the test picks another.
+    let screens: FakeScreens
     // clock is the fake clock.
     let clock = FakeClock(100)
     // timers hands the engine's objects their schedulers, the pass loop's fifth.
@@ -39,13 +39,15 @@ final class PassRig {
     var moves: [(Move, Frame?)] = []
 
     // init builds the rig with Slack anchored in the slot key.
-    init(_ key: SlotKey = .leftTop) {
+    init(_ key: SlotKey = .leftTop, screens: FakeScreens = .ultrawide(), slots: [SlotKey: String] = [:]) {
         self.key = key
+        self.screens = screens
         timers = FakeTimers(clock: clock)
         apps = FakeApps(windows: windows, names: [:])
         let platform = newTestPlatform(
             windows: windows, screens: screens, clock: clock, notifier: notifier,
-            store: FakeStore(Choices(slots: [key: PassRig.slackID])), pointer: pointer, keys: keys, apps: apps,
+            store: FakeStore(Choices(slots: slots.merging([key: PassRig.slackID]) { a, _ in a })), pointer: pointer,
+            keys: keys, apps: apps,
             log: log, timers: timers)
         engine = newTestEngine(platform)
         anchors = engine.anchors
@@ -256,4 +258,17 @@ final class SpellingKeys: Keys {
     let passes = rig.log.traces.dropFirst(traced).filter { $0.text.hasPrefix("pass ") }.count
     #expect(passes >= 2, "a window shown after the wake makes the first pass not still")
     #expect(full() - before == 1, "\(rig.log.traces)")
+}
+
+// A right side that waits on a laptop gets one banner naming the app, not one each pass.
+@Test func testPassWaitingSideTellsOnce() {
+    let iterm = "com.googlecode.iterm2"
+    let rig = PassRig(screens: .laptop(), slots: [.rightTop: iterm])
+    rig.windows.add(bundle: PassRig.slackID, frame: Frame(x: 600, y: 200, w: 500, h: 400), focus: true)
+    rig.windows.add(bundle: iterm, frame: Frame(x: 900, y: 200, w: 500, h: 400))
+    rig.passes.moor()
+    rig.clock.advance(by: 1)
+    rig.passes.moor()
+    #expect(rig.notifier.notes.map(\.title) == ["\(iterm) waits for a wider display"])
+    #expect(rig.notifier.notes.first?.body == PassLoop.waitingBody(iterm))
 }

@@ -8,8 +8,8 @@ import Testing
 final class StashRig {
     // windows is the fake window store.
     let windows = FakeWindows()
-    // screens is the fake ultrawide.
-    let screens = FakeScreens.ultrawide()
+    // screens is the fake display, the ultrawide unless the test picks another.
+    let screens: FakeScreens
     // clock is the fake clock the rest check runs on.
     let clock = FakeClock()
     // pointer is the fake pointer, which tells the stasher of each move while it tracks.
@@ -28,7 +28,8 @@ final class StashRig {
     let start = Frame(x: 300, y: 300, w: 800, h: 600)
 
     // init builds the rig with choices and a window that refuses moves when refuses is set.
-    init(_ choices: Choices = Choices(), refuses: Bool = false) {
+    init(_ choices: Choices = Choices(), refuses: Bool = false, screens: FakeScreens = .ultrawide()) {
+        self.screens = screens
         timers = FakeTimers(clock: clock)
         engine = newTestEngine(
             newTestPlatform(
@@ -236,4 +237,22 @@ final class StashRig {
     var c = Choices()
     c.snapping.snapModifiers = ["command"]
     #expect(StashRig(c).stasher.dropEdge(Point(x: 1, y: 700), held: .command) == nil)
+}
+
+// A side that waits on a laptop too narrow for both does not block its edge.
+@Test @MainActor func testStashWaitingSideLeavesEdge() {
+    let rig = StashRig(
+        Choices(slots: [.leftTop: "com.tinyspeck.slackmacgap", .rightTop: "com.googlecode.iterm2"]),
+        screens: .laptop())
+    rig.windows.add(bundle: "com.tinyspeck.slackmacgap", frame: Frame(x: 0, y: 38, w: 700, h: 900))
+    rig.windows.add(bundle: "com.googlecode.iterm2", frame: Frame(x: 800, y: 38, w: 600, h: 900))
+    rig.engine.passes.moor()
+    #expect(rig.anchors.waitingSide() == .right)
+    guard let w = rig.windows.scan(rig.screens.current(), full: true).windows.first(where: { $0.id == rig.id })
+    else {
+        Issue.record("the focused window is gone")
+        return
+    }
+    #expect(rig.stasher.stash(w, edge: .right))
+    #expect(rig.stasher.entries.map(\.s.edge) == [.right])
 }

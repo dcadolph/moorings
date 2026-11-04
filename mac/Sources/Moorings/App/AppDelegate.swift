@@ -81,6 +81,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     lazy var settings = SettingsWindow(app: self)
     // saveFailureTold is whether this launch has already told the owner a save failed.
     var saveFailureTold = false
+    // lastHost names the host display the last screen change saw, so screensChanged re-moors only
+    // when it changed.
+    var lastHost = ""
     // snap follows drags and snaps the dragged window to the zone under the cursor.
     lazy var snap = MacDrag(app: self)
     // platform is what the engine reads and drives on the Mac. A save shows the choices the menu bar
@@ -152,6 +155,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NotificationCenter.default.addObserver(
             self, selector: #selector(screensChanged(_:)),
             name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        lastHost = Self.hostKey(Screens.current())
         events.turned = { [weak self] in self?.showMark() }
         engine.observers.passed = { [weak self] _, _ in self?.showMark() }
         engine.observers.saveFailed = { [weak self] _ in self?.saveFailed() }
@@ -775,7 +779,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "?"
         logger.notice("status: update=\(self.updater.state.status, privacy: .public)")
         logger.notice(
-            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) ultrawide=\(String(describing: screens.hostFrame), privacy: .public) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) slow=\(self.windows.stalledCount) observed=\(self.events.observed) hotkeys=\(self.hotkeys.enabled) trips=\(Windows.roundTrips)"
+            "status: trusted=\(self.windows.trusted) build=\(build, privacy: .public) host=\(String(describing: screens.hostFrame), privacy: .public) ultrawide=\(screens.isUltrawide) paused=\(self.engine.anchors.choices.paused) tap=\(self.tap.running) slow=\(self.windows.stalledCount) observed=\(self.events.observed) hotkeys=\(self.hotkeys.enabled) trips=\(Windows.roundTrips)"
         )
         for (key, bundle) in engine.anchors.assignments().sorted(by: { $0.key.rawValue < $1.key.rawValue }) {
             let held = engine.anchors.slotWindows(key).map(String.init).joined(separator: ",")
@@ -809,8 +813,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refreshShortcuts(front: app.map { $0.bundleIdentifier })
     }
 
-    // screensChanged says how to anchor an app when the displays change and an ultrawide arrived.
+    // screensChanged places everything again when the host display changed, and says how to anchor
+    // an app when nothing is anchored yet.
     @objc private func screensChanged(_ note: Notification) {
-        hintAnchor(Screens.current())
+        let screens = Screens.current()
+        let host = Self.hostKey(screens)
+        if host != lastHost {
+            lastHost = host
+            engine.anchors.remoorNow()
+            engine.wake()
+        }
+        hintAnchor(screens)
+    }
+
+    // hostKey names the host display by its frame and kind, so a change of either is seen.
+    static func hostKey(_ screens: Screens) -> String {
+        "\(String(describing: screens.hostFrame)) \(screens.isUltrawide)"
     }
 }

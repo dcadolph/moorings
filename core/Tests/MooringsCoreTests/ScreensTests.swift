@@ -50,9 +50,19 @@ func testScreensIndex(test: ScreensIndexCase) {
     #expect(screensPair.index(test.frame) == test.wantIndex)
 }
 
-// testScreensWide checks that wide is the ultrawide's usable frame and nil without one.
-@Test func testScreensWide() {
+// testScreensHostFrame checks that hostFrame is the host's usable frame and nil without one.
+@Test func testScreensHostFrame() {
     #expect(screensPair.hostFrame == Frame(x: 1920, y: 0, w: 5120, h: 1392))
     let none = Screens(full: screensPair.full, usable: screensPair.usable, host: nil, isUltrawide: false)
     #expect(none.hostFrame == nil)
+}
+
+// testScreensPicksHost checks that the frames alone pick the host: the ultrawide when attached,
+// else the widest normal display.
+@Test func testScreensPicksHost() {
+    let both = Screens(full: screensPair.full, usable: screensPair.usable)
+    #expect(both.host == 1 && both.isUltrawide)
+    let laptop = Screens(full: [Frame(x: 0, y: 0, w: 1512, h: 982)], usable: [Frame(x: 0, y: 38, w: 1512, h: 944)])
+    #expect(laptop.host == 0 && !laptop.isUltrawide)
+    #expect(laptop.hostFrame == Frame(x: 0, y: 38, w: 1512, h: 944))
 }

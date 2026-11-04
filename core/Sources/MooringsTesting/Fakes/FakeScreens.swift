@@ -21,6 +21,14 @@ public final class FakeScreens: ScreenSource {
         return FakeScreens(Screens(full: [full], usable: [usable], host: 0, isUltrawide: true))
     }
 
+    // laptop builds a source with one 1512x982 laptop display, its usable frame below a 38 point
+    // bar, which is not an ultrawide.
+    public static func laptop() -> FakeScreens {
+        let full = Frame(x: 0, y: 0, w: 1512, h: 982)
+        let usable = Frame(x: 0, y: 38, w: 1512, h: 944)
+        return FakeScreens(Screens(full: [full], usable: [usable], host: 0, isUltrawide: false))
+    }
+
     // current returns the displays the test set.
     public func current() -> Screens {
         screens

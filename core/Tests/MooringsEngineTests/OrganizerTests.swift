@@ -338,6 +338,30 @@ final class OrganizerRig {
     #expect(rig.moved.isEmpty)
 }
 
+// Test 21a: Fill channel with all works on a laptop host with an app anchored.
+@Test func testOrganizerFillAllNormalHost() {
+    let rig = OrganizerRig { $0.slots = [.leftTop: "com.example.absent"] }
+    rig.screens.screens = FakeScreens.laptop().screens
+    rig.engine.passes.moor()
+    #expect(rig.organizer.run(Tile.fillAllName))
+    let ch = rig.organizer.area(rig.screens.current(), 0)
+    #expect(ch.y == 38 && ch.h == 944 && ch.x + ch.w == 1512)
+    #expect(rig.pads.map(rig.frame).allSatisfy { Actions.near($0, ch, tolerance: 1) })
+}
+
+// Test 21b: A laptop with nothing anchored is left alone as before: a pass moves no window, even one
+// hanging off the edge, and the channel actions refuse.
+@Test func testOrganizerNormalHostNothingAnchored() {
+    let rig = OrganizerRig()
+    rig.screens.screens = FakeScreens.laptop().screens
+    let before = rig.pads.map(rig.frame)
+    rig.engine.passes.moor()
+    #expect(rig.pads.map(rig.frame) == before)
+    #expect(rig.anchors.stage(rig.screens.current()) == nil)
+    #expect(!rig.organizer.run(Tile.fillAllName))
+    #expect(rig.moved.isEmpty)
+}
+
 // Test 22: Fit channel past the channel's capacity gives the focused window and the front-most of the
 // rest a cell each and stacks the back-most on the main frame.
 @Test func testOrganizerFitChannelPastCapacity() {

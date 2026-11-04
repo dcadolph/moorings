@@ -23,7 +23,7 @@ public final class Organizer {
     // area returns the frame organize actions work in on screen i: the channel on the ultrawide and
     // the usable frame elsewhere.
     public func area(_ screens: Screens, _ i: Int) -> Frame {
-        i == screens.host ? anchors.channel(screens.usable[i]) : screens.usable[i]
+        i == anchors.stage(screens) ? anchors.channel(screens.usable[i]) : screens.usable[i]
     }
 
     // place moves each window to the frame at the same index, saving where each was first so Undo
@@ -49,7 +49,7 @@ public final class Organizer {
     // stage returns the screen the channel actions work on, the ultrawide while it is attached and
     // the focused window's screen otherwise, with its organizable windows.
     private func stage(_ scan: Scan, _ screens: Screens) -> (i: Int, list: [WindowInfo])? {
-        guard let i = screens.host ?? scan.focused.flatMap({ screens.index($0.frame) }) else { return nil }
+        guard let i = anchors.stage(screens) ?? scan.focused.flatMap({ screens.index($0.frame) }) else { return nil }
         return (i, organizable(scan.windows, screens, i))
     }
 
@@ -120,8 +120,8 @@ public final class Organizer {
     // stage, or a stage of one, moves nothing.
     private func cycleChannel(_ scan: Scan, _ win: WindowInfo, _ screens: Screens, backward: Bool) -> Bool {
         let name = backward ? "cycle-channel-windows-backward" : "cycle-channel-windows"
-        guard let u = screens.host else {
-            platform.log.note(.actions, "\(name): no ultrawide")
+        guard let u = anchors.stage(screens) else {
+            platform.log.note(.actions, "\(name): no anchoring display")
             return false
         }
         let stage = organizable(scan.windows, screens, u).sorted { $0.id < $1.id }
@@ -162,7 +162,7 @@ public final class Organizer {
     // raises the focused window, or the front-most when the focused one is off the stage, so the
     // channel keys walk them from there. A window that fills the channel already is not moved.
     private func fillAll(_ scan: Scan, _ screens: Screens) -> Bool {
-        guard screens.host != nil, let (_, list) = stage(scan, screens), let first = list.first else {
+        guard anchors.stage(screens) != nil, let (_, list) = stage(scan, screens), let first = list.first else {
             platform.log.note(.actions, "\(Tile.fillAllName): no channel windows to fill")
             return false
         }
@@ -189,7 +189,7 @@ public final class Organizer {
         guard !anchors.choices.paused else { return }
         let screens = platform.screens.current()
         let scan = platform.windows.scan(screens, full: true)
-        guard let i = screens.host ?? scan.focused.flatMap({ screens.index($0.frame) }) else { return }
+        guard let i = anchors.stage(screens) ?? scan.focused.flatMap({ screens.index($0.frame) }) else { return }
         let list = organizable(scan.windows, screens, i)
         let pairs = Tile.tidy(
             area(screens, i), list.map { TileWindow(id: $0.id, frame: $0.frame) }, n,

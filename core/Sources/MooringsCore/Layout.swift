@@ -76,6 +76,13 @@ public enum Layout {
     public static let widthStep = 1.0
     // heightStep is how many percentage points a height stepper moves.
     public static let heightStep = 5.0
+    // hostWidth is the share of a normal display one held side takes.
+    public static let hostWidth = 50.0
+    // hostPair is the width pair a normal display gives when both sides hold.
+    public static let hostPair = Widths(left: 33, right: 33)
+    // hostThirdPoints is the least width in points each region needs on a normal display, so both
+    // sides hold only on a display at least three times as wide, and the channel never narrows below it.
+    public static let hostThirdPoints = 640.0
 
     // presets are the built-in width pairs offered in the menu, far enough apart to look different.
     public static let presets: [Widths] = [
@@ -201,6 +208,24 @@ public enum Layout {
     public static func topStepped(_ h: Heights, _ side: Side, _ delta: Double) -> (Double, ok: Bool) {
         let pct = h[side] + delta
         return (pct, validTop(pct))
+    }
+
+    // host returns the display moorings anchors on and whether it is an ultrawide: the ultrawide when
+    // one is attached, else the display with the widest usable frame, the first on a tie so the main
+    // display wins. full and usable list each display's frames in the same order.
+    public static func host(full: [Frame], usable: [Frame], minAspect: Double = minAspect)
+        -> (index: Int?, isUltrawide: Bool)
+    {
+        if let u = ultrawide(full, minAspect: minAspect) {
+            return (u, true)
+        }
+        var best: Int?
+        var bestWidth = 0.0
+        for (index, f) in usable.enumerated() where best == nil || f.w > bestWidth {
+            best = index
+            bestWidth = f.w
+        }
+        return (best, false)
     }
 
     // ultrawide returns the index of the widest screen at or above minAspect, or nil. Each frame is
