@@ -156,7 +156,7 @@ final class MacHost: @preconcurrency ContractHost {
     failures += PointerContract.run(MacPointer(), host: host)
     var delivered: [String] = []
     failures += KeysContract.run(MacKeys(Hotkeys { delivered.append($0) }), host: host, actions: { delivered })
-    failures += LogContract.run(MacLog(), host: host)
+    failures += LogContract.run(MacLog())
     failures += TimersContract.run(MacTimers(), clock: MacClock(), host: host)
     failures += EventSourceContract.run(MacEvents(store: store), store: store, host: host)
     failures += ScreenSourceContract.run(MacScreens(), host: host)
@@ -171,7 +171,7 @@ final class MacHost: @preconcurrency ContractHost {
 // exist.
 @Test @MainActor func testMacPureAdapters() {
     let host = MacHost(store: Windows())
-    var failures = LogContract.run(MacLog(), host: host)
+    var failures = LogContract.run(MacLog())
     failures += TimersContract.run(MacTimers(), clock: MacClock(), host: host)
     let defaults = DefaultsStore(key: "moorings.contract.\(UUID().uuidString)") { _ in }
     host.defaults = defaults
