@@ -137,8 +137,8 @@ click More info, then Run anyway. The `README-windows.txt` inside walks through 
 
 ## Light on your Mac
 
-As light as Rectangle: the same 2.6 ms of CPU per action, a tenth of Loop's, and less memory than
-either. Measured side by side with Rectangle 2.0.4 and Loop 1.4.2 on an M1 Max:
+As light as Rectangle on each action: the same 2.6 ms of CPU, a tenth of Loop's, and less memory
+than either. Measured side by side with Rectangle 2.0.4 and Loop 1.4.2 on an M1 Max:
 
 | Measure        | Moorings | Rectangle | Loop     |
 | -------------- | -------- | --------- | -------- |
@@ -147,9 +147,10 @@ either. Measured side by side with Rectangle 2.0.4 and Loop 1.4.2 on an M1 Max:
 | Idle, 2 min    | 0.0234 s | 0.0052 s  | 0.0112 s |
 
 Moorings holds anchored apps and the channel on every action and still matches Rectangle, which
-moves one window and stops. At rest it runs no layout work and uses 0.02 percent of one core. No
-release ships unless it stays at or under Rectangle's CPU per action. Method in
-[COMPARISON.md](COMPARISON.md#energy).
+moves one window and stops. Watching every window costs more over a working desk: about 1.3 s of
+CPU in a scripted two minutes, against about 0.1 s for each of the others. At rest it runs no layout
+work and uses 0.02 percent of one core. The release gate holds it at or under Rectangle's CPU per
+action. Method in [COMPARISON.md](COMPARISON.md#energy).
 
 ## Docs
 

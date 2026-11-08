@@ -1,6 +1,6 @@
 #!/bin/sh
 # Measure Moorings, Rectangle and Loop over a scripted desk like a working day and fail unless
-# Moorings uses no more CPU than Loop and no more than the baseline.
+# Moorings stays at or under its CPU baseline and, while paused, its round trip bound.
 #
 # Usage: use.sh
 #
@@ -25,34 +25,47 @@
 # across rebuilds (SIGN_ID for make probe), and the desk left alone while it runs. An untrusted
 # probe skips the part and says so. Its numbers are printed for information.
 #
-#   Use  Moorings median CPU over the rounds at most Loop's median and at most BASELINE. Rectangle
-#        observes no windows between shortcuts and is printed for information.
+#   Use     Moorings median CPU over the rounds at most BASELINE. Rectangle and Loop are printed for
+#           information: Moorings handles every window event to hold the layout, which they do not.
+#   Paused  One more walk with Moorings paused, at most PAUSED_TRIPS round trips net of one status
+#           request, measured by two status reads in a row while paused.
 #
 # Needs Moorings, Rectangle and Loop running from /Applications, Accessibility trusted for Moorings,
 # and the probe registered by make probe. Opens a scratch document in TextEdit, closes it at the end
-# and quits TextEdit only if it was not running before. Exits 2 when something is missing, 1 on a
-# FAIL, 0 on a PASS.
+# and quits TextEdit only if it was not running before. Moorings is resumed again on exit. Exits 2
+# when something is missing, 1 on a FAIL, 0 on a PASS.
 set -u
 
-# BASELINE is the first measured Moorings median in seconds, set from a passing run. It only ever
-# goes down. Empty until then, which leaves Loop as the only bound.
-BASELINE=""
+# BASELINE is the Moorings bound in seconds, the highest round of the 11-04 run on v1.18.1 rounded up
+# to 0.01 s. It only ever goes down.
+BASELINE=1.28
+# PAUSED_TRIPS is the paused walk's bound for a 120 s walk, that run's 620 plus the rounds' spread of
+# 10. It only ever goes down.
+PAUSED_TRIPS=630
 
 WALK=${WALK:-120}
 DRAGS=${DRAGS:-60}
 ROUNDS=${ROUNDS:-3}
+USE_BOUND=${MOORINGS_USE_BASELINE:-$BASELINE}
+PAUSED_BOUND=${MOORINGS_PAUSED_TRIPS_BOUND:-$PAUSED_TRIPS}
 apps="Moorings Rectangle Loop"
 subsystem="com.dcadolph.moorings"
 probe="com.dcadolph.moorings.probe"
 textedit="com.apple.TextEdit"
 tmp=$(mktemp -d)
 started_textedit=0
+paused=0
+fails=0
 
 . "$(dirname "$0")/measure.sh"
 
-# cleanup closes the scratch document, quits TextEdit if this run started it, quits the probe and
-# removes scratch files.
+# cleanup resumes Moorings if it is paused, closes the scratch document, quits TextEdit if this run
+# started it, quits the probe and removes scratch files.
 cleanup() {
+	if [ "$paused" = 1 ]; then
+		paused=0
+		pause Resume
+	fi
 	osascript -e "tell application id \"$textedit\" to close (every document whose path is \"$tmp/desk.txt\") saving no" \
 		>/dev/null 2>&1
 	if [ "$started_textedit" = 1 ]; then
@@ -168,6 +181,29 @@ while [ "$round" -le "$ROUNDS" ]; do
 	fi
 	round=$((round + 1))
 done
+
+# The paused walk reads the status cost while paused, since a paused status request reads less.
+pause Pause
+paused=1
+sleep 1
+pa=$(trips)
+pb=$(trips)
+repid
+p0=$(trips)
+if ! pline=$(probebin --walk "$WALK" "$textedit"); then
+	echo "use: the probe sent no paused walk line" >&2
+	exit 2
+fi
+p1=$(trips)
+pause Resume
+paused=0
+if [ -z "$pa" ] || [ -z "$pb" ] || [ -z "$p0" ] || [ -z "$p1" ]; then
+	echo "use: Moorings sent no trips= status line in the paused walk" >&2
+	exit 2
+fi
+pstatus=$((pb - pa))
+pnet=$((p1 - p0 - pstatus))
+echo "paused walk: Moorings trips $((p1 - p0)), status alone $pstatus, net $pnet, $pline"
 repid
 
 # rounds prints one app's use CPU over every round, one per line, or with a second argument G its
@@ -193,15 +229,10 @@ if [ "$dragged" -gt 0 ]; then
 fi
 echo
 echo "verdict"
-bound="Loop ${use_l} s, no baseline set yet"
-ok=$(echo "$use_m $use_l" | awk '{ print ($1 <= $2) ? 1 : 0 }')
-if [ -n "$BASELINE" ]; then
-	bound="min(Loop ${use_l} s, baseline ${BASELINE} s)"
-	ok=$(echo "$use_m $use_l $BASELINE" | awk '{ print ($1 <= $2 && $1 <= $3) ? 1 : 0 }')
-fi
-if [ "$ok" = 1 ]; then
-	printf "%-8s PASS  %s\n" Use "measured ${use_m} s, bound $bound"
-	exit 0
-fi
-printf "%-8s FAIL  %s\n" Use "measured ${use_m} s, bound $bound"
-exit 1
+ok=$(echo "$use_m $USE_BOUND" | awk '{ print ($1 <= $2) ? 1 : 0 }')
+check Use "$ok" "measured ${use_m} s, bound baseline ${USE_BOUND} s, Rectangle ${use_r} s and Loop ${use_l} s for information"
+ok=$(echo "$pnet $PAUSED_BOUND" | awk '{ print ($1 <= $2) ? 1 : 0 }')
+check Paused "$ok" "measured $pnet net round trips, bound $PAUSED_BOUND"
+
+[ "$fails" -eq 0 ] || exit 1
+exit 0

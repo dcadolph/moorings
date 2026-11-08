@@ -50,6 +50,28 @@ repid() {
 	done
 }
 
+# pause clicks the Moorings menu item whose name starts with the given word, Pause or Resume.
+pause() {
+	if ! osascript -e "tell application \"System Events\" to tell process \"Moorings\"
+		click menu bar item 1 of menu bar 1
+		delay 0.6
+		click (first menu item of menu 1 of menu bar item 1 of menu bar 1 whose name starts with \"⚓ $1\")
+	end tell" >/dev/null 2>&1; then
+		echo "$(basename "$0"): could not click the \"$1\" menu item of Moorings" >&2
+		exit 2
+	fi
+}
+
+# check prints a verdict line and counts a failure in fails, which the caller starts at 0.
+check() {
+	if [ "$2" = 1 ]; then
+		printf "%-8s PASS  %s\n" "$1" "$3"
+	else
+		printf "%-8s FAIL  %s\n" "$1" "$3"
+		fails=$((fails + 1))
+	fi
+}
+
 # median prints the middle of its numeric arguments, the lower middle for an even count.
 median() { printf '%s\n' "$@" | sort -n | awk '{ a[NR] = $1 } END { print a[int((NR + 1) / 2)] }'; }
 

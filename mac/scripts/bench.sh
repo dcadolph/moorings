@@ -131,18 +131,6 @@ report() {
 	done
 }
 
-# pause clicks the Moorings menu item whose name starts with the given word, Pause or Resume.
-pause() {
-	if ! osascript -e "tell application \"System Events\" to tell process \"Moorings\"
-		click menu bar item 1 of menu bar 1
-		delay 0.6
-		click (first menu item of menu 1 of menu bar item 1 of menu bar 1 whose name starts with \"⚓ $1\")
-	end tell" >/dev/null 2>&1; then
-		echo "bench: could not click the \"$1\" menu item of Moorings" >&2
-		exit 2
-	fi
-}
-
 # cleanup stops the debug stream, resumes Moorings if it is paused and removes scratch files.
 cleanup() {
 	if [ -n "$streampid" ]; then
@@ -251,20 +239,7 @@ lat() {
 	done
 }
 
-# check prints a verdict line and records a failure.
 fails=0
-check() {
-	name=$1
-	ok=$2
-	detail=$3
-	if [ "$ok" = 1 ]; then
-		printf "%-8s PASS  %s\n" "$name" "$detail"
-	else
-		printf "%-8s FAIL  %s\n" "$name" "$detail"
-		fails=$((fails + 1))
-	fi
-}
-
 missing=""
 for a in $apps; do
 	p=$(pid "$a")

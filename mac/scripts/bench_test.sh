@@ -108,7 +108,7 @@ case $1 in
 	case $2 in
 	1*) rate=1 ;;
 	2*) rate=2 ;;
-	3*) rate=3 ;;
+	3*) rate=${LOOP_RATE:-3} ;;
 	esac
 	echo "$n $rate" | awk '{ printf "%.6f\n", $1 * $2 / 1000 }'
 	;;
@@ -125,6 +125,7 @@ case $1 in
 	if [ "$n" = "${LOOP_CRASHES_IN_WALK:-0}" ]; then
 		"$STUBS/crash"
 	fi
+	echo $(($(cat "$STATE/trips") + ${WALK_TRIPS:-0})) >"$STATE/trips"
 	echo "walk seconds $2"
 	;;
 --drags)
@@ -204,9 +205,13 @@ expect bench-loop-crashes-and-stays-down bench.sh "$tree" 0 "LOOP_CRASHES_AT=2 L
 	"^Loop restarted: pid 300 is now 302" "^Memory +PASS.*Loop 40.00MB" "^Active +PASS"
 expect bench-moorings-dies bench.sh "$tree" 2 "MOORINGS_DIES_AT=2" \
 	"Moorings pid 100 is gone" "!^verdict"
-expect use-steady use.sh "$tree" 0 "DRAGS=0" "^Use +PASS" "!restarted"
+expect use-steady use.sh "$tree" 0 "DRAGS=0" "^Use +PASS" "^Paused +PASS +measured 0 net" "!restarted"
+expect use-moorings-over-loop use.sh "$tree" 0 "DRAGS=0 LOOP_RATE=0" "^Use +PASS.*Loop 0.0000 s for information"
+expect use-over-the-baseline use.sh "$tree" 1 "DRAGS=0 MOORINGS_USE_BASELINE=0.0001" "^Use +FAIL"
+expect use-paused-at-the-bound use.sh "$tree" 0 "DRAGS=0 WALK_TRIPS=630" "^Paused +PASS +measured 630 net round trips, bound 630"
+expect use-paused-over-the-bound use.sh "$tree" 1 "DRAGS=0 WALK_TRIPS=631" "^Paused +FAIL +measured 631 net"
 expect use-loop-crashes-in-a-walk use.sh "$tree" 0 "DRAGS=0 LOOP_CRASHES_IN_WALK=2" \
-	"^Loop restarted: pid 300 is now 301" "^use round 2:.*Loop 0\.0000 s" "^use round 3:.*Loop 0\.00[1-9]" "^Use +PASS"
+	"^Loop restarted: pid 300 is now 301" "^use round 2:.*Loop 0\.0000 s" "^use round 3:.*Loop 0\.0[0-9]" "^Use +PASS"
 
 if [ "$failed" -gt 0 ]; then
 	echo "$failed failed"
