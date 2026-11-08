@@ -154,7 +154,8 @@ public final class DragFollower {
     }
 
     // ended finishes the drag: a drop in a zone runs its action, a drop on a slot anchors the app, and
-    // a Command-drag at an edge stashes the window. A window that can no longer be read gets nothing.
+    // a Command-drag at an edge stashes the window at the size it was dragged at, since Windows may have
+    // snapped it at that edge. A window that can no longer be read gets nothing.
     public func ended(held: Modifiers) {
         let (w, drop, screen, stashAt, start, moved) = (win, drop, screen, stashAt, start, moving == true)
         trace.append(
@@ -167,6 +168,10 @@ public final class DragFollower {
         }
         w.frame = f
         if let stashAt {
+            if let start {
+                w.frame.w = start.w
+                w.frame.h = start.h
+            }
             engine.stash(w, edge: stashAt, original: start)
             return
         }

@@ -196,6 +196,23 @@ final class DragRig {
     #expect(drops == [.zone("left-half")])
 }
 
+// A stash drop parks the window at the size it was dragged at, even when the system snapped it at
+// the edge as the drag ended.
+@Test @MainActor func testDragStashKeepsDraggedSize() {
+    let rig = DragRig()
+    rig.follower.began(window: rig.id, moving: true)
+    rig.windows.nudge(rig.id, to: Frame(x: 0, y: 400, w: 800, h: 600))
+    rig.follower.moved(Point(x: 1, y: 700), held: .command)
+    let u = rig.screens.screens.usable[0]
+    rig.windows.nudge(rig.id, to: Frame(x: u.x, y: u.y, w: u.w / 2, h: u.h))
+    rig.follower.ended(held: .command)
+    #expect(rig.engine.stasher.entries.first?.s.original == rig.start)
+    let parked = rig.windows.frame(rig.id)
+    #expect(parked?.w == rig.start.w)
+    #expect(parked?.h == rig.start.h)
+    #expect(parked?.x == u.x - rig.start.w + Stash.sliver)
+}
+
 // A press on a window that is not focused follows the window under the pointer, not the focused
 // one, and the drop applies to it.
 @Test @MainActor func testDragFollowsWindowUnderPointer() {
