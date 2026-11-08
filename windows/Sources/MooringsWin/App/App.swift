@@ -43,10 +43,10 @@ final class App {
         e.dragEnded = { [unowned self] in drag.ended() }
         return e
     }()
-    // engine builds and runs every engine object on the Windows platform, with none of the routed
-    // actions yet.
+    // engine builds and runs every engine object on the Windows platform, with the routed actions
+    // Windows carries so far.
     private(set) lazy var engine: Engine = {
-        let e = Engine(platform: platform, features: [])
+        let e = Engine(platform: platform, features: [.stash])
         e.passes.tellsRefused = true
         return e
     }()
@@ -95,11 +95,7 @@ final class App {
         let stop = until.map { SetTimer(nil, 0, Self.millis($0 - Self.now), nil) } ?? 0
         engine.listen()
         if hooksMouse {
-            mouse.handler = { [unowned self] message, p in
-                if message == UINT(WM_MOUSEMOVE) {
-                    self.drag.pointer(p)
-                }
-            }
+            mouse.handler = { [unowned self] message, p in mouseEvent(message, p) }
             mouse.start()
         }
         defer {
@@ -133,6 +129,21 @@ final class App {
             }
             _ = TranslateMessage(&msg)
             _ = DispatchMessageW(&msg)
+        }
+    }
+
+    // mouseEvent hands one hook message to what follows the pointer: the drag and the stash.
+    private func mouseEvent(_ message: UINT, _ p: SnapPoint) {
+        switch message {
+        case UINT(WM_MOUSEMOVE):
+            drag.pointer(p)
+            pointer.moved?()
+        case UINT(WM_LBUTTONDOWN):
+            engine.stasher.clicked(Point(x: p.x, y: p.y))
+        case UINT(WM_LBUTTONUP), UINT(WM_RBUTTONUP), UINT(WM_MBUTTONUP), UINT(WM_XBUTTONUP):
+            pointer.moved?()
+        default:
+            break
         }
     }
 

@@ -8,6 +8,7 @@ enum Command: Equatable {
     case slot(SlotKey, String)
     case widths(Widths)
     case pause
+    case unstashAll
     case openSettings
     case reloadSettings
     case atLogin
@@ -76,11 +77,12 @@ final class Tray {
     static let taskbarCreated = RegisterWindowMessageW(wide("TaskbarCreated"))
 
     // menu builds the tray menu from the choices, the bundles of the running apps, whether Moorings
-    // starts at login, whether the host is an ultrawide, the only display with Widths to pick, and
-    // the newer release a check found, which comes first. It is pure so the menu and update probes
-    // can print it.
+    // starts at login, whether the host is an ultrawide, the only display with Widths to pick, the
+    // newer release a check found, which comes first, and whether a window is stashed. It is pure so
+    // the menu and update probes can print it.
     static func menu(
-        choices: Choices, running: [String], atLogin: Bool, isUltrawide: Bool, update: ReleaseInfo? = nil
+        choices: Choices, running: [String], atLogin: Bool, isUltrawide: Bool, update: ReleaseInfo? = nil,
+        stashed: Bool = false
     ) -> [MenuItem] {
         let apps = Array(Set(running)).sorted { appName($0).lowercased() < appName($1).lowercased() }
         var slots: [MenuItem] = []
@@ -119,8 +121,11 @@ final class Tray {
         if isUltrawide {
             items.append(MenuItem(title: "Widths", submenu: widths))
         }
+        items.append(.separator)
+        if stashed {
+            items.append(MenuItem(title: "Unstash all windows", command: .unstashAll))
+        }
         return items + [
-            .separator,
             MenuItem(title: "Pause", checked: choices.paused, command: .pause),
             MenuItem(title: "Open settings file", command: .openSettings),
             MenuItem(title: "Reload settings", command: .reloadSettings),
@@ -267,6 +272,9 @@ final class Tray {
         case Tray.updated:
             announce()
             return 0
+        case UINT(WM_ENDSESSION) where wParam != 0:
+            app.engine.shutdown()
+            return 0
         case UINT(WM_DISPLAYCHANGE):
             app.displaysChanged()
             return 0
@@ -288,7 +296,7 @@ final class Tray {
         let running = WinWindows.scan(screens: screens).windows.map(\.bundle)
         let items = Tray.menu(
             choices: app.engine.anchors.choices, running: running, atLogin: LoginItem.enabled,
-            isUltrawide: screens.isUltrawide, update: update?.found)
+            isUltrawide: screens.isUltrawide, update: update?.found, stashed: !app.engine.stasher.entries.isEmpty)
         commands = []
         guard let menu = build(items) else { return }
         defer { _ = DestroyMenu(menu) }
@@ -339,6 +347,9 @@ final class Tray {
             anchors.setWidths(w)
         case .pause:
             anchors.choices.paused.toggle()
+        case .unstashAll:
+            app.engine.stasher.unstashAll()
+            return
         case .openSettings:
             openSettings()
             return
