@@ -375,6 +375,8 @@ public struct Scene: Sendable {
     public var screen: Frame?
     // isUltrawide reports whether the host display is an ultrawide.
     public var isUltrawide: Bool
+    // hostScale is how many of the host's frame units make one point.
+    public var hostScale: Double
     // windows lists the movable windows on every screen, front-most first.
     public var windows: [WindowInfo]
     // focused is the focused window's id, nil when none.
@@ -386,11 +388,12 @@ public struct Scene: Sendable {
 
     // init builds a scene.
     public init(
-        screen: Frame?, isUltrawide: Bool = true, windows: [WindowInfo], focused: WindowID? = nil,
-        mouseHeld: Bool = false, now: Double
+        screen: Frame?, isUltrawide: Bool = true, hostScale: Double = 1, windows: [WindowInfo],
+        focused: WindowID? = nil, mouseHeld: Bool = false, now: Double
     ) {
         self.screen = screen
         self.isUltrawide = isUltrawide
+        self.hostScale = hostScale
         self.windows = windows
         self.focused = focused
         self.mouseHeld = mouseHeld
@@ -535,8 +538,10 @@ public final class Anchors {
     var lastWaiting: Side?
     // hostIsUltrawide reports whether the last pass's host was an ultrawide.
     public internal(set) var hostIsUltrawide = true
-    // hostPoints is the usable width of the last pass's host, zero before the first pass.
+    // hostPoints is the usable width in points of the last pass's host, zero before the first pass.
     var hostPoints = 0.0
+    // hostScale is how many of the last pass's host's frame units make one point.
+    var hostScale = 1.0
 
     // init builds Anchors from saved choices.
     public init(choices: Choices = Choices()) {
@@ -702,7 +707,8 @@ public final class Anchors {
         var gl = grow(.left, left)
         var gr = grow(.right, right)
         let floorPct =
-            hostIsUltrawide ? Layout.minChannelPct : max(Layout.minChannelPct, Layout.hostThirdPoints * 100 / screen.w)
+            hostIsUltrawide
+            ? Layout.minChannelPct : max(Layout.minChannelPct, Layout.hostThirdPoints * hostScale * 100 / screen.w)
         let room = max(0, 100 - floorPct - left - right)
         if gl + gr > room {
             let total = gl + gr
@@ -1005,7 +1011,8 @@ public final class Anchors {
         justReleased = []
         justWaiting = []
         hostIsUltrawide = scene.isUltrawide
-        hostPoints = scene.screen?.w ?? 0
+        hostScale = scene.hostScale
+        hostPoints = (scene.screen?.w ?? 0) / scene.hostScale
         if choices.paused {
             weigh()
             return []
