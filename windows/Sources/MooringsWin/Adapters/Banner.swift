@@ -4,7 +4,7 @@ import WinSDK
 import MooringsCore
 import MooringsEngine
 
-// BannerWindow shows what Moorings did in a box at the top center of the ultrawide, in place of a
+// BannerWindow shows what Moorings did in a box at the top center of the host, in place of a
 // system notification, and fades it away. It never takes the foreground.
 final class BannerWindow {
     // seconds is how long a banner stays up before it fades.

@@ -155,6 +155,22 @@ struct Monitor {
     static let taskbar = 48.0
     // fake stands in for every attached monitor when set, as --screen sets it.
     nonisolated(unsafe) static var fake: Monitor?
+    // GetDpi is GetDpiForMonitor's shape, with MDT_EFFECTIVE_DPI as 0.
+    typealias GetDpi =
+        @convention(c) (HMONITOR?, Int32, UnsafeMutablePointer<UINT>, UnsafeMutablePointer<UINT>) -> HRESULT
+    // getDpi is shcore's GetDpiForMonitor, loaded at run time, nil when shcore has none.
+    private static let getDpi: GetDpi? = {
+        guard let shcore = LoadLibraryW(wide("shcore.dll")), let proc = GetProcAddress(shcore, "GetDpiForMonitor")
+        else { return nil }
+        return unsafeBitCast(proc, to: GetDpi.self)
+    }()
+
+    // dpi returns handle's effective DPI, zero when Windows gives none.
+    static func dpi(_ handle: HMONITOR?) -> UINT {
+        var x: UINT = 0, y: UINT = 0
+        guard let getDpi, getDpi(handle, 0, &x, &y) == 0 else { return 0 }
+        return x
+    }
 
     // full is rcMonitor, the whole display.
     var full: Frame
@@ -162,12 +178,15 @@ struct Monitor {
     var usable: Frame
     // primary is true for the display that holds the origin.
     var primary: Bool
+    // scale is how many physical pixels make one point, 1 at 100 percent.
+    var scale: Double
 
-    // sized returns one primary monitor at the origin of size, with the taskbar along its bottom.
-    static func sized(_ size: Size) -> Monitor {
+    // sized returns one primary monitor at the origin of size and scale, with the taskbar along its
+    // bottom.
+    static func sized(_ size: Size, scale: Double = 1) -> Monitor {
         let full = Frame(x: 0, y: 0, w: Double(size.w), h: Double(size.h))
         let usable = Frame(x: 0, y: 0, w: full.w, h: max(1, full.h - taskbar))
-        return Monitor(full: full, usable: usable, primary: true)
+        return Monitor(full: full, usable: usable, primary: true, scale: scale)
     }
 
     // all returns every monitor in EnumDisplayMonitors order, or the fake one alone when set.
@@ -187,7 +206,9 @@ struct Monitor {
                 if GetMonitorInfoW(handle, &info) {
                     let primary = info.dwFlags & DWORD(MONITORINFOF_PRIMARY) != 0
                     let full = Frame(info.rcMonitor), usable = Frame(info.rcWork)
-                    found.monitors.append(Monitor(full: full, usable: usable, primary: primary))
+                    let dpi = Monitor.dpi(handle)
+                    let scale = dpi == 0 ? 1 : Double(dpi) / 96
+                    found.monitors.append(Monitor(full: full, usable: usable, primary: primary, scale: scale))
                 }
                 return true
             }, context)

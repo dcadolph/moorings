@@ -16,6 +16,7 @@ let probes: [String: Probe] = [
     "list": probeList,
     "place": probePlace,
     "moor": probeMoor,
+    "host": probeHost,
     "nudge": probeNudge,
     "events": probeEvents,
     "menu": probeMenu,

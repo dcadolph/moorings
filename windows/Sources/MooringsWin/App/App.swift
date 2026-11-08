@@ -59,15 +59,35 @@ final class App {
     )
     // hooksMouse is false only in the drag probe's negative control, which runs without the hook.
     var hooksMouse = true
+    // lastHost names the host the last display change saw, so displaysChanged re-moors only when it
+    // changed.
+    private(set) var lastHost: String
 
     // init builds the app on store, whose choices the engine loads.
     init(store: Store, minAspect: Double = Layout.minAspect) {
         self.store = store
         self.minAspect = minAspect
+        lastHost = Self.hostKey(Screens.current(minAspect: minAspect))
     }
 
     // now is the time in seconds since the system started, the same clock in every process.
     static var now: Double { Double(GetTickCount64()) / 1000 }
+
+    // hostKey names the host by its frame, kind, and scale, so a change of any is seen.
+    static func hostKey(_ screens: Screens) -> String {
+        "\(screens.hostFrame.map(pixels) ?? "none") \(screens.isUltrawide) \(screens.hostScale)"
+    }
+
+    // displaysChanged places everything again when the host changed, and reports whether it did.
+    @discardableResult
+    func displaysChanged() -> Bool {
+        let host = Self.hostKey(Screens.current(minAspect: minAspect))
+        guard host != lastHost else { return false }
+        lastHost = host
+        engine.anchors.remoorNow()
+        engine.wake()
+        return true
+    }
 
     // run watches window events, pumps messages and runs passes until until, or until WM_QUIT when
     // until is nil.

@@ -98,8 +98,9 @@ itself. To update by hand, take the offer at the top of the menu, or run
 
 ## Windows
 
-An early Windows build holds apps in the side strips of an ultrawide the same way. It runs on
-Windows 11 with a monitor 21:9 or wider and lives in the notification area.
+An early Windows build holds apps in the side strips of an ultrawide the same way, and on your
+widest display when no ultrawide is attached. It runs on Windows 11 and lives in the notification
+area.
 
 - Anchor an app from the tray menu to Left top, Left bottom, Right top or Right bottom, and its
   window stays in that strip.
@@ -107,7 +108,10 @@ Windows 11 with a monitor 21:9 or wider and lives in the notification area.
   is released, and Ctrl+Alt+Backspace puts it back.
 - Most of the Mac's default keymap on Ctrl+Alt: Ctrl+Alt+Left gives a window the channel's left
   half, and Ctrl+Alt+Enter lifts a held window over the channel.
-- Strip widths, Pause and Launch at login are in the tray menu.
+- Without an ultrawide, one anchored side takes half of the display. Both sides take a third each
+  when the display is at least 1920 wide at its scale, and on a narrower one the right side waits
+  in the channel.
+- Pause and Launch at login are in the tray menu, and so are strip widths on an ultrawide.
 - Settings live in `%APPDATA%\Moorings\choices.json`. Open settings file in the tray menu opens
   it, and Moorings reads it again when it changes or on Reload settings, so shortcuts and chains
   edited there take hold without a restart.

@@ -49,6 +49,11 @@ struct ProbeOptions {
     // screen replaces the monitor walk with one monitor of this size, so the runner acts as an
     // ultrawide.
     var screen: Size?
+    // scale is the pixels per point of the --screen monitor.
+    var scale = 1.0
+    // right is the end of the image path of the app the moor probe holds in the right top slot, none
+    // when empty.
+    var right = ""
     // mode is the display mode the modes probe switches to.
     var mode: Size?
     // reset makes the modes probe restore the display mode kept in the registry.
@@ -143,6 +148,13 @@ struct ProbeOptions {
                 } else {
                     mode = size
                 }
+            case "--scale":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }
+                scale = n
+            case "--right":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                right = value
             case "--seconds":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = Double(value), n > 0 else { throw ProbeError.badValue(flag, value) }

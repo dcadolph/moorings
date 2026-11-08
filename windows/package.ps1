@@ -35,7 +35,10 @@ Set-Content -Path (Join-Path $dir 'README-windows.txt') -Encoding utf8 -Value @'
 Moorings for Windows, early build
 
 Moorings holds apps in the side strips of an ultrawide monitor, 21:9 or wider, and keeps
-every other window in the channel between them.
+every other window in the channel between them. With no ultrawide attached it anchors on
+your widest display: one side takes half, and both sides take a third each when the display
+is at least 1920 wide at its scale. On a narrower display the right side waits in the
+channel, and a banner says so.
 
 Run it
 
@@ -56,7 +59,7 @@ What it does
   and K for quarters, Ctrl+Alt+D, F and G for thirds, Ctrl+Alt+Enter to maximize and
   Ctrl+Alt+C to center, all inside the channel. On a held window Ctrl+Alt+Enter lifts it
   over the channel, and pressing it again lowers it.
-- Widths: pick the strip widths from the tray menu.
+- Widths: on an ultrawide, pick the strip widths from the tray menu.
 - Pause stops everything until you choose it again. Launch at login starts Moorings when
   you sign in.
 
