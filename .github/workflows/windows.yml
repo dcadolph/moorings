@@ -497,6 +497,37 @@ jobs:
           Expect $q '^icon gone: true$' 'the icon removed on quit'
           Write-Host "  check: the loop ran its 2 s without Quit, ended $after s after Quit, icon removed"
 
+          function StashCheck([string[]] $geo) {
+            Write-Host "probe stash $geo"
+            $pad = Pad
+            Start-Sleep -Seconds 3
+            $null = Probe @('--probe', 'nudge', '--pid', "$($pad.Id)", '--frame', '200,150,500,350')
+            $s = Probe (@('--probe', 'stash') + $geo)
+            Expect $s '^stash ran: true$' 'the stash action ran through the engine'
+            $before = Rect ($s -match '^before: ')[0] 'before: '
+            $parked = Rect ($s -match '^parked: ')[0] 'parked: '
+            if ((Off $parked $before) -lt 100) { throw "the window did not park: $parked from $before" }
+            $sliver = [int][regex]::Match(($s -match '^sliver: ')[0], '(\d+)$').Value
+            if ($sliver -lt 11 -or $sliver -gt 13) { throw "the sliver is $sliver px, want 12 within 1" }
+            if ((Off (Rect ($s -match '^off: ')[0] 'off: ') $parked) -gt 1) { throw "a pointer off the sliver slid the window" }
+            $shown = Rect ($s -match '^shown: ')[0] 'shown: '
+            if ((Off (Rect ($s -match '^out: ')[0] 'out: ') $shown) -gt 1) { throw "resting on the sliver did not slide the window out" }
+            if ((Off (Rect ($s -match '^back: ')[0] 'back: ') $parked) -gt 1) { throw "leaving the window did not slide it back" }
+            Expect $s '^menu while stashed: true$' 'the tray offers Unstash all windows while a window is stashed'
+            if ((Off (Rect ($s -match '^restored: ')[0] 'restored: ') $before) -gt 1) { throw "unstash-all did not restore the frame" }
+            Expect $s '^stashed after unstash: 0$' 'unstash-all ended the stash'
+            Expect $s '^menu after unstash: false$' 'the tray drops Unstash all windows with none stashed'
+            Expect $s '^stashed after drag: 1$' 'a drag to the edge with the Windows key held stashed the window'
+            $sliver = [int][regex]::Match(($s -match '^drag sliver: ')[0], '(\d+)$').Value
+            if ($sliver -lt 11 -or $sliver -gt 13) { throw "the dragged window's sliver is $sliver px, want 12 within 1" }
+            if ($s -match '^foreground after the Windows key: Windows\.UI\.Core\.CoreWindow') { throw "the Start menu opened after the drag" }
+            Expect $s '^stashed after end session: 0$' 'the session end put the stash back'
+            if ((Off (Rect ($s -match '^end session: ')[0] 'end session: ') $before) -gt 1) { throw "the session end did not restore the frame" }
+            Write-Host "  check: parked with a $sliver px sliver, slid out on rest, back on leave, restored, drag stashed, session end restored"
+            Stop-Process -Id $pad.Id
+          }
+          StashCheck @()
+
           Write-Host "probe footprint"
           $pad = Start-Process notepad -PassThru
           Start-Sleep -Seconds 3
@@ -542,6 +573,8 @@ jobs:
 
           $script:standIn = $true
           $simApp = $sim + @('--app', '\mooringswin.exe')
+
+          StashCheck $simApp
 
           HotkeyCheck $simApp
           if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }

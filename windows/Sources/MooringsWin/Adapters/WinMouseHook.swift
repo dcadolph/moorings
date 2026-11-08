@@ -205,6 +205,23 @@ final class WinDrag {
             return
         }
         pointer(p)
-        app.engine.drag.ended(held: Modifiers.now())
+        let held = Modifiers.now()
+        if held.contains(.command) {
+            Self.maskStart()
+        }
+        app.engine.drag.ended(held: held)
+    }
+
+    // maskStart taps a key no keyboard has, so letting go of the Windows key after a drag does not
+    // open the Start menu, which opens only when no other key came between its press and release.
+    private static func maskStart() {
+        var inputs = [DWORD(0), DWORD(0x0002)].map { flags in
+            var input = INPUT()
+            input.type = DWORD(INPUT_KEYBOARD)
+            input.ki.wVk = 0xE8
+            input.ki.dwFlags = flags
+            return input
+        }
+        _ = SendInput(UINT(inputs.count), &inputs, Int32(MemoryLayout<INPUT>.size))
     }
 }
