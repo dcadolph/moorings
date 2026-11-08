@@ -78,6 +78,7 @@ func probeStash(_ opts: ProbeOptions) -> Int32 {
             1.0,
             {
                 show("out")
+                print("pointer: \(pixels(Frame(x: app.pointer.position.x, y: app.pointer.position.y, w: 0, h: 0)))")
                 guard let e = stasher.entries.first else { return }
                 let away = awayPoint(e)
                 aim(away.x, away.y)

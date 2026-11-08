@@ -134,6 +134,8 @@ final class App {
 
     // mouseEvent hands one hook message to what follows the pointer: the drag and the stash.
     private func mouseEvent(_ message: UINT, _ p: SnapPoint) {
+        pointer.hooked = Point(x: p.x, y: p.y)
+        defer { pointer.hooked = nil }
         switch message {
         case UINT(WM_MOUSEMOVE):
             drag.pointer(p)
