@@ -208,9 +208,22 @@ final class StickyKeys: Keys {
 
 // The fake log keeps every Log rule.
 @Test func testLogContractOnFake() {
-    let (_, _, host) = fakeHost()
-    let failures = LogContract.run(FakeLog(), host: host)
+    let failures = LogContract.run(FakeLog())
     #expect(failures.isEmpty, "\(failures)")
+}
+
+// SlowLog takes longer than the Log rule allows to return.
+private final class SlowLog: Log {
+    // note waits past the limit and keeps nothing.
+    func note(_ category: LogCategory, _ line: String) {
+        Thread.sleep(forTimeInterval: 0.02)
+    }
+}
+
+// A log that blocks its caller past the limit breaks the rule in every category.
+@Test func testLogContractCatchesSlowLog() {
+    let failures = LogContract.run(SlowLog())
+    #expect(failures.count == LogCategory.allCases.count, "\(failures)")
 }
 
 // The fake timers keep every Timers rule and every Scheduler rule on what they hand out.

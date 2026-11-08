@@ -23,7 +23,7 @@ func probeContracts(_ opts: ProbeOptions) -> Int32 {
     failures += SchedulerContract.run(scheduler, clock: WinClock(), host: host)
     failures += PointerContract.run(WinPointer(), host: host)
     failures += KeysContract.run(WinKeys(hotkeys), host: host, actions: { delivered })
-    failures += LogContract.run(WinLog(), host: host)
+    failures += LogContract.run(WinLog())
     failures += TimersContract.run(timers, clock: WinClock(), host: host)
     failures += EventSourceContract.run(WinEvents(), store: windows, host: host)
     failures += ScreenSourceContract.run(WinScreens(), host: host)
