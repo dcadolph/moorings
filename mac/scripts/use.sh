@@ -99,6 +99,7 @@ sleep 35
 # of the run when the probe is not trusted.
 drag_round() {
 	d0=$(trips)
+	repid
 	for a in $apps; do
 		eval "D0_$a=\$(cpu \$P_$a)"
 	done
@@ -120,7 +121,7 @@ drag_round() {
 	esac
 	for a in $apps; do
 		eval "base=\$D0_$a p=\$P_$a"
-		d=$(echo "$(cpu "$p") $base" | awk '{ printf "%.4f", $1 - $2 }')
+		d=$(spent "$p" "$base")
 		eval "G_${a}_$1=$d"
 	done
 	d1=$(trips)
@@ -136,6 +137,7 @@ dragged=0
 round=1
 while [ "$round" -le "$ROUNDS" ]; do
 	t0=$(trips)
+	repid
 	for a in $apps; do
 		eval "C0_$a=\$(cpu \$P_$a)"
 	done
@@ -152,7 +154,7 @@ while [ "$round" -le "$ROUNDS" ]; do
 	esac
 	for a in $apps; do
 		eval "base=\$C0_$a p=\$P_$a"
-		d=$(echo "$(cpu "$p") $base" | awk '{ printf "%.4f", $1 - $2 }')
+		d=$(spent "$p" "$base")
 		eval "U_${a}_$round=$d"
 	done
 	t1=$(trips)
@@ -166,6 +168,7 @@ while [ "$round" -le "$ROUNDS" ]; do
 	fi
 	round=$((round + 1))
 done
+repid
 
 # rounds prints one app's use CPU over every round, one per line, or with a second argument G its
 # drag part CPU over the rounds that ran one.

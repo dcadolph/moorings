@@ -51,6 +51,9 @@ jobs:
         run: swift test --sanitize=address -Xswiftc -warnings-as-errors
         working-directory: core
 
+      - name: Bench verdicts against stub apps
+        run: make bench-test
+
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 

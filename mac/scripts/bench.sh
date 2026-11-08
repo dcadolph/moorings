@@ -50,7 +50,8 @@
 #
 # Needs Moorings, Rectangle and Loop running from /Applications, Accessibility trusted for Moorings,
 # and the probe registered by make probe. Exits 2 when one is missing, 1 on any FAIL, 0 when every threshold passes.
-# Moorings is the only app paused or resumed, and it is resumed again on exit.
+# Moorings is the only app paused or resumed, and it is resumed again on exit. A rival that crashes
+# is followed to its new pid at the next phase, and the phase it crashed in counts as 0.
 set -u
 
 # TRIPS is the round trips per action bound, the 11.48 that two runs on v1.18.1 measured alike
@@ -101,8 +102,9 @@ phases() {
 # pidof_app prints the pid recorded for an app.
 pidof_app() { eval "echo \$P_$1"; }
 
-# snap records the current CPU seconds of each app as the baseline.
+# snap refreshes the pids and records the current CPU seconds of each app as the baseline.
 snap() {
+	repid
 	for a in $apps; do
 		eval "C0_$a=\$(cpu \$P_$a)"
 	done
@@ -111,8 +113,7 @@ snap() {
 # delta prints the CPU seconds an app used since the last snap.
 delta() {
 	eval "base=\$C0_$1"
-	now=$(cpu "$(pidof_app "$1")")
-	echo "$now $base" | awk '{ printf "%.4f", $1 - $2 }'
+	spent "$(pidof_app "$1")" "$base"
 }
 
 # report prints one table line per app and stores the deltas as D_<label>_<app>, with every
@@ -321,6 +322,7 @@ while [ "$round" -le "$ROUNDS" ]; do
 done
 tripsphase
 osascript -e "tell application id \"$probe\" to quit" >/dev/null
+repid
 
 mem_m=$(megabytes "$(mem "$P_Moorings")")
 mem_r=$(megabytes "$(mem "$P_Rectangle")")
