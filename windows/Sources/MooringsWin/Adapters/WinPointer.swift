@@ -11,8 +11,15 @@ final class WinPointer: Pointer {
     // buttons are VK_LBUTTON, VK_RBUTTON, VK_MBUTTON, VK_XBUTTON1 and VK_XBUTTON2.
     private static let buttons: [Int32] = [0x01, 0x02, 0x04, 0x05, 0x06]
 
+    // hooked is the point of the hook message being handled, which position reads, since a hook sees a
+    // move before Windows moves the cursor.
+    var hooked: Point?
+
     // position is where the pointer is, the origin when it cannot be read.
     var position: Point {
+        if let hooked {
+            return hooked
+        }
         var p = POINT()
         guard GetCursorPos(&p) else { return Point(x: 0, y: 0) }
         return Point(x: Double(p.x), y: Double(p.y))
