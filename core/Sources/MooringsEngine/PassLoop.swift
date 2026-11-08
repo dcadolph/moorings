@@ -113,8 +113,8 @@ public final class PassLoop {
         let list = scan.windows.filter { !refused.contains($0.id) }
         let held = engine.mouseHeld
         let scene = Scene(
-            screen: anchors.stage(screens).map { screens.usable[$0] }, isUltrawide: screens.isUltrawide, windows: list,
-            focused: scan.focused?.id,
+            screen: anchors.stage(screens).map { screens.usable[$0] }, isUltrawide: screens.isUltrawide,
+            hostScale: screens.hostScale, windows: list, focused: scan.focused?.id,
             mouseHeld: held,
             now: platform.clock.now)
         let moves = anchors.moor(scene)

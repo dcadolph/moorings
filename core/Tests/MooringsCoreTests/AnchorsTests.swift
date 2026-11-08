@@ -32,6 +32,8 @@ struct TestWorld {
     var screen: Frame? = wide
     // Ultrawide reports whether the host display is an ultrawide.
     var ultrawide = true
+    // Scale is how many of the host's frame units make one point.
+    var scale = 1.0
 
     // add appends a window and returns its id.
     @discardableResult
@@ -66,8 +68,8 @@ struct TestWorld {
     // pass runs one moor pass and applies its moves.
     mutating func pass(_ anchors: Anchors) {
         let scene = Scene(
-            screen: screen, isUltrawide: ultrawide, windows: windows, focused: focused, mouseHeld: mouseHeld,
-            now: clock)
+            screen: screen, isUltrawide: ultrawide, hostScale: scale, windows: windows, focused: focused,
+            mouseHeld: mouseHeld, now: clock)
         for move in anchors.moor(scene) {
             set(move.id, move.frame)
             moves[move.id, default: 0] += 1
@@ -982,6 +984,39 @@ func normalWorld(_ screen: Frame) -> TestWorld {
     world.pass(anchors)
     #expect(anchors.justWaiting.isEmpty)
     #expect(anchors.waitingSide() == .right)
+}
+
+// testNormalHostWaitsInPoints checks that the fit reads points, not frame units: a 2880 pixel laptop
+// at 200 percent is 1440 points, so the right side waits, and the same pixels at 100 percent hold both.
+@Test func testNormalHostWaitsInPoints() {
+    let laptop = Frame(x: 0, y: 0, w: 2880, h: 1872)
+    let tests: [(scale: Double, wantWaiting: Side?, wantWidths: Widths)] = [
+        (2, .right, Widths(left: 50, right: 0)),  // Test 0: 1440 points wait.
+        (1, nil, Layout.hostPair),  // Test 1: 2880 points hold both.
+    ]
+    for test in tests {
+        let anchors = anchored()
+        var world = normalWorld(laptop)
+        world.scale = test.scale
+        world.add(slack, Frame(x: 600, y: 200, w: 500, h: 400))
+        world.add(iterm, Frame(x: 900, y: 200, w: 500, h: 400))
+        world.pass(anchors)
+        #expect(anchors.waitingSide() == test.wantWaiting)
+        #expect(anchors.inUse(laptop) == test.wantWidths)
+    }
+}
+
+// testNormalHostChannelFloorInPoints checks that a large anchored app leaves the channel its least
+// width in points at the host's scale: 1280 pixels at 200 percent on a 2880 pixel laptop.
+@Test func testNormalHostChannelFloorInPoints() {
+    let laptop = Frame(x: 0, y: 0, w: 2880, h: 1872)
+    let anchors = Anchors(choices: Choices(slots: [.leftTop: slack]))
+    var world = normalWorld(laptop)
+    world.scale = 2
+    world.add(slack, Frame(x: 600, y: 200, w: 500, h: 400))
+    world.pass(anchors)
+    anchors.minPoints[.left] = 2000
+    #expect(abs(anchors.channel(laptop).w - 2 * Layout.hostThirdPoints) < 1)
 }
 
 // Test 2: Both sides fit on a 2560 point display at a third each.

@@ -65,4 +65,14 @@ func testScreensIndex(test: ScreensIndexCase) {
     let laptop = Screens(full: [Frame(x: 0, y: 0, w: 1512, h: 982)], usable: [Frame(x: 0, y: 38, w: 1512, h: 944)])
     #expect(laptop.host == 0 && !laptop.isUltrawide)
     #expect(laptop.hostFrame == Frame(x: 0, y: 38, w: 1512, h: 944))
+    #expect(laptop.hostScale == 1)
+}
+
+// testScreensHostScale checks that the host's own scale is the one kept, and that a missing scale
+// counts as one.
+@Test func testScreensHostScale() {
+    let both = Screens(full: screensPair.full, usable: screensPair.usable, scales: [2, 1.5])
+    #expect(both.hostScale == 1.5)
+    let short = Screens(full: screensPair.full, usable: screensPair.usable, scales: [2])
+    #expect(short.hostScale == 1)
 }
