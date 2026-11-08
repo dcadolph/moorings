@@ -7,9 +7,14 @@ extension Screens {
     // current reads the attached monitors. Only probes change minAspect.
     static func current(minAspect: Double = Layout.minAspect) -> Screens {
         let monitors = Monitor.all()
-        let full = monitors.map(\.full)
-        let host = Layout.ultrawide(full, minAspect: minAspect)
-        return Screens(full: full, usable: monitors.map(\.usable), host: host, isUltrawide: host != nil)
+        return Screens(
+            full: monitors.map(\.full), usable: monitors.map(\.usable), minAspect: minAspect,
+            scales: monitors.map(\.scale))
+    }
+
+    // hostLine names the host, its kind, and its scale for the probes and the report.
+    var hostLine: String {
+        "host: \(host.map(String.init) ?? "none") ultrawide \(isUltrawide) scale \(hostScale)"
     }
 }
 

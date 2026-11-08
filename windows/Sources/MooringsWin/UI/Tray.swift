@@ -76,9 +76,12 @@ final class Tray {
     static let taskbarCreated = RegisterWindowMessageW(wide("TaskbarCreated"))
 
     // menu builds the tray menu from the choices, the bundles of the running apps, whether Moorings
-    // starts at login, and the newer release a check found, which comes first. It is pure so the
-    // menu and update probes can print it.
-    static func menu(choices: Choices, running: [String], atLogin: Bool, update: ReleaseInfo? = nil) -> [MenuItem] {
+    // starts at login, whether the host is an ultrawide, the only display with Widths to pick, and
+    // the newer release a check found, which comes first. It is pure so the menu and update probes
+    // can print it.
+    static func menu(
+        choices: Choices, running: [String], atLogin: Bool, isUltrawide: Bool, update: ReleaseInfo? = nil
+    ) -> [MenuItem] {
         let apps = Array(Set(running)).sorted { appName($0).lowercased() < appName($1).lowercased() }
         var slots: [MenuItem] = []
         for key in SlotKey.allCases {
@@ -111,9 +114,12 @@ final class Tray {
         let offer = update.map {
             [MenuItem(title: "Update available: \($0.tag)", command: .openRelease($0.page)), .separator]
         }
-        return (offer ?? []) + [
-            MenuItem(title: "Slots", submenu: slots),
-            MenuItem(title: "Widths", submenu: widths),
+        var items: [MenuItem] = offer ?? []
+        items.append(MenuItem(title: "Slots", submenu: slots))
+        if isUltrawide {
+            items.append(MenuItem(title: "Widths", submenu: widths))
+        }
+        return items + [
             .separator,
             MenuItem(title: "Pause", checked: choices.paused, command: .pause),
             MenuItem(title: "Open settings file", command: .openSettings),
@@ -261,6 +267,12 @@ final class Tray {
         case Tray.updated:
             announce()
             return 0
+        case UINT(WM_DISPLAYCHANGE):
+            app.displaysChanged()
+            return 0
+        case UINT(WM_WININICHANGE) where wParam == WPARAM(SPI_SETWORKAREA):
+            app.displaysChanged()
+            return 0
         case Tray.taskbarCreated where Tray.taskbarCreated != 0:
             add()
             return 0
@@ -272,9 +284,11 @@ final class Tray {
     // open shows the menu at the cursor. The window comes to the front first so the menu closes
     // when the owner clicks elsewhere.
     private func open(_ hwnd: HWND) {
-        let running = WinWindows.scan(screens: .current(minAspect: app.minAspect)).windows.map(\.bundle)
+        let screens = Screens.current(minAspect: app.minAspect)
+        let running = WinWindows.scan(screens: screens).windows.map(\.bundle)
         let items = Tray.menu(
-            choices: app.engine.anchors.choices, running: running, atLogin: LoginItem.enabled, update: update?.found)
+            choices: app.engine.anchors.choices, running: running, atLogin: LoginItem.enabled,
+            isUltrawide: screens.isUltrawide, update: update?.found)
         commands = []
         guard let menu = build(items) else { return }
         defer { _ = DestroyMenu(menu) }
@@ -338,7 +352,7 @@ final class Tray {
             saveReport()
             return
         case .about:
-            let text = "Moorings \(version)\nHolds apps in the side strips of an ultrawide."
+            let text = "Moorings \(version)\nHolds apps in the side strips of your widest display."
             _ = MessageBoxW(window, wide(text), wide("About Moorings"), UINT(MB_OK | MB_ICONINFORMATION))
             return
         case .openRelease(let page):

@@ -104,7 +104,9 @@ jobs:
           Expect $m '^ultrawide: 0$' 'ultrawide 0 at min aspect 1.0'
 
           Write-Host "probe monitors"
-          Expect (Probe @('--probe', 'monitors')) '^ultrawide: none$' 'no ultrawide at the default min aspect'
+          $m = Probe @('--probe', 'monitors')
+          Expect $m '^ultrawide: none$' 'no ultrawide at the default min aspect'
+          Expect $m '^host: \d+ ultrawide false scale \d' 'a normal monitor hosts at the default min aspect'
 
           Write-Host "probe monitors --min-aspect 3.0"
           Expect (Probe @('--probe', 'monitors', '--min-aspect', '3.0')) '^ultrawide: none$' 'no ultrawide at min aspect 3.0'
@@ -224,7 +226,10 @@ jobs:
           Write-Host "probe menu"
           $pad = Start-Process notepad -PassThru
           Start-Sleep -Seconds 3
-          $menu = Probe @('--probe', 'menu')
+          $menu = Probe @('--probe', 'menu', '--min-aspect', '1.0')
+          Expect $menu '^menu \[ \] Widths$' 'Widths on an ultrawide'
+          if ((Probe @('--probe', 'menu')) -match 'Widths') { throw "a normal host offered Widths" }
+          Write-Host "  check: Widths is offered on an ultrawide and not on a normal host"
           $slots = Slots $menu
           $want = @('Left top', 'Left bottom', 'Right top', 'Right bottom')
           if ((@($slots.Keys) -join ',') -ne ($want -join ',')) { throw "slot titles are $(@($slots.Keys) -join ', ')" }
@@ -242,7 +247,7 @@ jobs:
           $c | Add-Member -NotePropertyName paused -NotePropertyValue $true -Force
           $c | Add-Member -NotePropertyName widths -NotePropertyValue ([pscustomobject]@{ left = 15; right = 40 }) -Force
           $c | ConvertTo-Json -Depth 32 | Set-Content $file
-          $menu = Probe @('--probe', 'menu')
+          $menu = Probe @('--probe', 'menu', '--min-aspect', '1.0')
           Expect $menu '^menu \[x\] Pause$' 'Pause checked'
           Expect $menu '^menu   \[x\] Left 15%, right 40%$' 'the saved width pair checked'
           Write-Host "  check: Pause checked, saved width pair checked"
@@ -561,18 +566,57 @@ jobs:
           $script:standIn = $false
           SkipCheck ($sim -join ' ')
 
-          Write-Host "SIM negative control: --screen 1024x768 at the default min aspect"
+          Write-Host "SIM normal host: --screen 1024x768 at the default min aspect"
           $small = @('--screen', '1024x768')
-          Expect (Probe (@('--probe', 'monitors') + $small)) '^ultrawide: none$' 'no ultrawide on a fake 4:3 screen'
+          $m = Probe (@('--probe', 'monitors') + $small)
+          Expect $m '^ultrawide: none$' 'no ultrawide on a fake 4:3 screen'
+          Expect $m '^host: 0 ultrawide false scale 1\.0$' 'the fake 4:3 screen hosts'
+          function StripOf($lines) { Rect ($lines -match '^strip: ')[0] 'strip: ' }
           $pad = Start-Process notepad -PassThru
           Start-Sleep -Seconds 3
-          $out = @(& $exe --probe moor --seconds 2 @small)
-          $code = $LASTEXITCODE
-          $global:LASTEXITCODE = 0
-          $out | ForEach-Object { Write-Host "  $_" }
-          if ($code -eq 0 -or -not ($out -match '^moor: no ultrawide$')) { throw "the pin was not refused on a 4:3 screen ($code)" }
+          $n = Probe (@('--probe', 'moor', '--seconds', '3') + $small)
+          $strip = StripOf $n
+          if ($strip[2] -ne 512) { throw "a lone pin on a normal host took $($strip[2]), want half of 1024" }
+          Expect $n '^waiting: none$' 'one side never waits'
+          $final = @($n -match "^final \S+ pid $($pad.Id) frame ")[0]
+          if ((Off (Rect $final 'frame ') $strip) -gt 1) { throw "Notepad did not reach the strip: $final" }
+          Write-Host "  check: a lone pin on a normal host holds half of it"
+          $n = Probe (@('--probe', 'moor', '--seconds', '3', '--min-aspect', '1.0') + $small)
+          if ((StripOf $n)[2] -notin 409, 410) { throw "the same screen as an ultrawide took $((StripOf $n)[2]), want the saved 40 percent" }
+          Write-Host "  check: the same screen as an ultrawide keeps the saved width, so half comes from the normal host"
+
+          Write-Host "SIM normal host with both sides held"
+          $script:standIn = $true
+          $stand = Pad
+          $script:standIn = $false
+          Start-Sleep -Seconds 3
+          function Both([string[]] $screen) { Probe (@('--probe', 'moor', '--seconds', '3', '--right', '\mooringswin.exe') + $screen) }
+          $waits = '^notice: .*waits for a wider display: '
+          $b = Both $small
+          Expect $b '^waiting: right$' 'the right side waits on 1024'
+          if (@($b -match $waits).Count -ne 1) { throw "want one waiting banner on 1024, got $(@($b -match $waits).Count)" }
+          if ((StripOf $b)[2] -ne 512) { throw "the left side took $((StripOf $b)[2]) while the right waits, want 512" }
+          Write-Host "  check: 1024 is too narrow, so the left holds half and one banner names the right app"
+          $b = Both @('--screen', '2560x1440')
+          Expect $b '^waiting: none$' 'both sides hold on 2560'
+          if ($b -match $waits) { throw "a banner said the right side waits on 2560" }
+          if ((StripOf $b)[2] -notin 844, 845) { throw "the left side took $((StripOf $b)[2]) on 2560, want a third" }
+          Write-Host "  check: 2560 holds both at a third each with no banner"
+          Expect (Both @('--screen', '2880x1920', '--scale', '2')) '^waiting: right$' 'the right side waits on 1440 points'
+          Expect (Both @('--screen', '2880x1920')) '^waiting: none$' 'both sides hold on 2880 points'
+          Write-Host "  check: 2880 pixels at 200 percent waits and at 100 percent holds both, so the fit reads points"
+          Stop-Process -Id $stand.Id
           Stop-Process -Id $pad.Id
-          Write-Host "  check: a fake 1024x768 screen has no ultrawide and the pin is refused"
+
+          Write-Host "SIM host follows the displays"
+          $h = Probe @('--probe', 'host')
+          Expect $h '^start: 0 0 1024 720 false 1\.0$' 'the first host key'
+          Expect $h '^same: false$' 'an unchanged host is not a change'
+          Expect $h '^other setting: 0 0 1024 720 false 1\.0 lifted true$' 'another setting change leaves the host alone'
+          Expect $h '^work area: 0 0 2560 1392 false 1\.0 lifted false$' 'a work area change re-moors on the new host'
+          Expect $h '^scale: 0 0 2560 1392 false 2\.0$' 'a scale change is a host change'
+          Expect $h '^ultrawide: 0 0 3440 1392 true 1\.0$' 'an arriving ultrawide becomes the host'
+          Write-Host "  check: the tray window's display messages move the host and re-moor, and other settings do not"
           if ($switch) { Expect (Probe @('--probe', 'modes', '--reset')) '^reset: done$' 'the display mode restored' }
 
       - name: Contracts
@@ -610,6 +654,7 @@ jobs:
           if (-not ($text -match '^version: ')) { throw "the report has no version line" }
           $monitors = @($text -match '^monitor: ').Count
           if ($monitors -lt 1) { throw "the report has no monitor line" }
+          if (-not ($text -match '^host: ')) { throw "the report has no host line" }
           if (-not ($text -match '^log: ')) { throw "the report has no log section" }
           Write-Host "  check: the report names the version, $monitors monitor(s) and the log"
 

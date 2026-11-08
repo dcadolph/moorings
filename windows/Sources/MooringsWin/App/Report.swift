@@ -23,6 +23,7 @@ enum Report {
         var lines = [String(name(date).dropLast(4)), "version: \(version)", "windows: \(windowsBuild())"]
         lines += monitors()
         let screens = Screens.current(minAspect: app.minAspect)
+        lines.append(screens.hostLine)
         let open = WinWindows.scan(screens: screens).windows.map(\.bundle)
         let choices = app.engine.anchors.choices
         lines.append("slots:")
@@ -100,16 +101,6 @@ final class ReportMonitors {
     static let devices = 32
     // lines holds one line per monitor, in enumeration order.
     var lines: [String] = []
-    // dpi is shcore's GetDpiForMonitor, loaded at run time, nil when shcore has none.
-    private let dpi: GetDpi? = {
-        guard let shcore = LoadLibraryW(wide("shcore.dll")), let proc = GetProcAddress(shcore, "GetDpiForMonitor")
-        else { return nil }
-        return unsafeBitCast(proc, to: GetDpi.self)
-    }()
-
-    // GetDpi is GetDpiForMonitor's shape, with MDT_EFFECTIVE_DPI as 0.
-    typealias GetDpi =
-        @convention(c) (HMONITOR?, Int32, UnsafeMutablePointer<UINT>, UnsafeMutablePointer<UINT>) -> HRESULT
 
     // add reads monitor through a MONITORINFOEXW laid out by hand, a MONITORINFO followed by the
     // device name, and appends its line.
@@ -127,11 +118,8 @@ final class ReportMonitors {
         let chars = (raw + head).bindMemory(to: WCHAR.self, capacity: Self.devices)
         let device = String(
             decoding: UnsafeBufferPointer(start: chars, count: Self.devices).prefix { $0 != 0 }, as: UTF16.self)
-        var x: UINT = 0, y: UINT = 0
-        if let dpi, dpi(monitor, 0, &x, &y) != 0 {
-            x = 0
-        }
         lines.append(
-            "monitor: \(device) full \(pixels(full)) usable \(pixels(usable)) primary \(primary) dpi \(x)")
+            "monitor: \(device) full \(pixels(full)) usable \(pixels(usable)) primary \(primary) "
+                + "dpi \(Monitor.dpi(monitor))")
     }
 }

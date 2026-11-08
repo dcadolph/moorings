@@ -6,12 +6,13 @@ import MooringsEngine
 import MooringsTesting
 
 // probeMoor pins the front Notepad to the left top slot in a fresh choices file with slot stacks
-// off, so a second Notepad is kept in the channel, runs the pass loop for the given seconds, and
-// prints each move and release with its time, then the final frames.
+// off, so a second Notepad is kept in the channel, and the app --right names to the right top slot.
+// It runs the pass loop for the given seconds and prints each move and release with its time, then
+// the waiting side and the final frames.
 func probeMoor(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
     guard let wide = screens.hostFrame else {
-        print("moor: no ultrawide")
+        print("moor: no display")
         return 1
     }
     let windows = WinWindows.scan(screens: screens).windows
@@ -24,6 +25,13 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
         slots: [.leftTop: pad.bundle], widths: Widths(left: 40, right: 30),
         paused: opts.paused)
     choices.slotStacks = false
+    if !opts.right.isEmpty {
+        guard let right = windows.first(where: { $0.bundle.hasSuffix(opts.right) }) else {
+            print("moor: no window of \(opts.right)")
+            return 1
+        }
+        choices.slots[.rightTop] = right.bundle
+    }
     do {
         try store.save(choices)
     } catch {
@@ -41,6 +49,7 @@ func probeMoor(_ opts: ProbeOptions) -> Int32 {
     app.notify = { title, body in print("notice: \(title): \(body)") }
     app.run(until: App.now + opts.seconds)
     let use = app.engine.anchors.inUse(wide)
+    print("waiting: \(app.engine.anchors.waitingSide().map { "\($0)" } ?? "none")")
     print("strip: \(pixels(Geometry.regions(wide, use.left, use.right).left))")
     print("channel: \(pixels(app.engine.anchors.channel(wide)))")
     for w in WinWindows.scan(screens: screens).windows {

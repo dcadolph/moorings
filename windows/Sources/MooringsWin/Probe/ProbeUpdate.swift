@@ -33,7 +33,7 @@ func probeUpdate(_ opts: ProbeOptions) -> Int32 {
     if let found = update.found {
         let name = found.zip?.lastPathComponent ?? "none"
         print("update \(found.tag.dropFirst(found.tag.hasPrefix("v") ? 1 : 0)) available zip \(name)")
-        let first = Tray.menu(choices: Choices(), running: [], atLogin: false, update: found).first
+        let first = Tray.menu(choices: Choices(), running: [], atLogin: false, isUltrawide: true, update: found).first
         print("menu first: \(first?.title ?? "none")")
     }
     print("due again: \(update.due())")

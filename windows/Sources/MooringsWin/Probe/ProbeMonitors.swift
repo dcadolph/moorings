@@ -5,7 +5,7 @@ import MooringsCore
 import MooringsEngine
 import MooringsTesting
 
-// probeMonitors prints one line per monitor and the index of the ultrawide among them.
+// probeMonitors prints one line per monitor, the index of the ultrawide among them, and the host.
 func probeMonitors(_ opts: ProbeOptions) -> Int32 {
     let monitors = Monitor.all()
     for (i, m) in monitors.enumerated() {
@@ -15,5 +15,6 @@ func probeMonitors(_ opts: ProbeOptions) -> Int32 {
     }
     let index = Layout.ultrawide(monitors.map(\.full), minAspect: opts.minAspect)
     print("ultrawide: \(index.map(String.init) ?? "none")")
+    print(Screens.current(minAspect: opts.minAspect).hostLine)
     return monitors.isEmpty ? 1 : 0
 }
