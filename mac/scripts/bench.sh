@@ -53,10 +53,9 @@
 # Moorings is the only app paused or resumed, and it is resumed again on exit.
 set -u
 
-# TRIPS is the round trips per action bound, the first passing measurement after the cuts rounded
-# up to a whole number. It only ever goes down. Empty until then, which prints the measurement with
-# no verdict.
-TRIPS=""
+# TRIPS is the round trips per action bound, the 11.48 that two runs on v1.18.1 measured alike
+# rounded up to a whole number. It only ever goes down.
+TRIPS=12
 
 N=${N:-100}
 IDLE=${IDLE:-120}
@@ -377,12 +376,8 @@ if [ "$(numeric "$l50_m" "$l50_r" "$l50_l")" = 1 ]; then
 	ok=$(echo "$l50_m $l50_r $l50_l" | awk '{ print ($1 <= $2 && $1 <= $3) ? 1 : 0 }')
 fi
 check Lat50 "$ok" "Moorings p50 ${l50_m} ms, bound min(Rectangle p50 ${l50_r}, Loop p50 ${l50_l}) ms"
-if [ -n "$TRIPS_BOUND" ]; then
-	ok=$(echo "$TR_per $TRIPS_BOUND" | awk '{ print ($1 <= $2) ? 1 : 0 }')
-	check Trips "$ok" "per action $TR_per, bound $TRIPS_BOUND"
-else
-	printf "%-8s UNSET per action %s, no bound set yet\n" Trips "$TR_per"
-fi
+ok=$(echo "$TR_per $TRIPS_BOUND" | awk '{ print ($1 <= $2) ? 1 : 0 }')
+check Trips "$ok" "per action $TR_per, bound $TRIPS_BOUND"
 
 [ "$fails" -eq 0 ] || exit 1
 exit 0
