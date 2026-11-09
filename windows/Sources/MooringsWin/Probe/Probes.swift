@@ -12,6 +12,7 @@ typealias Probe = @Sendable (ProbeOptions) -> Int32
 let probes: [String: Probe] = [
     "version": probeVersion,
     "console": probeConsole,
+    "link": probeLink,
     "monitors": probeMonitors,
     "modes": probeModes,
     "list": probeList,
