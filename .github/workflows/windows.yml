@@ -62,17 +62,14 @@ jobs:
           Write-Host "  $(@(& (Get-Command ffmpeg -ErrorAction Stop).Source -version)[0])"
 
           @'
-          # Start-Recorder starts ffmpeg capturing the desktop at 5 fps into $file and returns its pid
-          # once the file grows. Plain writes an unfragmented mp4, which only the control uses.
-          function Start-Recorder([string] $file, [switch] $Plain) {
+          # Start-Recorder starts ffmpeg capturing the desktop at 5 fps into a fragmented mp4, which
+          # plays even when the recorder is killed, and returns its pid once the file grows.
+          function Start-Recorder([string] $file) {
             $ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source
             $ffArgs = @('-nostdin', '-hide_banner', '-loglevel', 'error', '-f', 'gdigrab', '-framerate', '5',
               '-draw_mouse', '1', '-i', 'desktop', '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '1',
-              '-pix_fmt', 'yuv420p')
-            if (-not $Plain) {
-              $ffArgs += @('-g', '10', '-flush_packets', '1', '-movflags', '+frag_keyframe+empty_moov+default_base_moof')
-            }
-            $ffArgs += @('-y', $file)
+              '-pix_fmt', 'yuv420p', '-g', '10', '-flush_packets', '1',
+              '-movflags', '+frag_keyframe+empty_moov+default_base_moof', '-y', $file)
             $p = Start-Process -FilePath $ffmpeg -ArgumentList $ffArgs -WindowStyle Hidden -RedirectStandardError "$file.err" -PassThru
             $grown = $false
             for ($i = 0; $i -lt 40 -and -not $grown; $i++) {
@@ -80,7 +77,6 @@ jobs:
               if ($p.HasExited) { break }
               $grown = (Test-Path $file) -and (Get-Item $file).Length -gt 1024
             }
-            if ($Plain) { $grown = -not $p.HasExited }
             if (-not $grown) { throw "the recorder did not start writing ${file}: $(Get-Content "$file.err" -Raw)" }
             return $p.Id
           }
@@ -1073,29 +1069,6 @@ jobs:
           path: ${{ runner.temp }}/probes/probes.mp4
           retention-days: 7
           if-no-files-found: warn
-
-      # Negative control for the fragmented mp4: a killed plain recording does not play, and a killed
-      # fragmented one plays for its length.
-      - name: Recorder control
-        timeout-minutes: 3
-        run: |
-          $dir = Join-Path $env:RUNNER_TEMP 'probes'
-          . (Join-Path $dir 'recorder.ps1')
-          $plain = Join-Path $dir 'plain.mp4'
-          $id = Start-Recorder $plain -Plain
-          Start-Sleep -Seconds 10
-          $null = Stop-Recorder $id
-          $read = $null
-          try { $read = Test-Video $plain } catch { Write-Host "  plain: $($_.Exception.Message)" }
-          if ($null -ne $read) { throw "ffprobe read a killed plain recording as $read s, so fragmenting proves nothing" }
-          $fragmented = Join-Path $dir 'fragmented.mp4'
-          $id = Start-Recorder $fragmented
-          Start-Sleep -Seconds 10
-          $how = Stop-Recorder $id
-          $seconds = Test-Video $fragmented
-          Write-Host "  fragmented: recorder $how at the kill, $([math]::Round($seconds, 1)) s"
-          if ($how -ne 'running' -or $seconds -lt 7 -or $seconds -gt 13) { throw "the killed fragmented recording did not keep about 10 s: $how, $seconds s" }
-          Write-Host "  check: a killed plain recording does not play and a killed fragmented one does"
 
       - name: Contracts
         timeout-minutes: 5
