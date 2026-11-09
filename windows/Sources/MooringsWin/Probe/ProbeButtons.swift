@@ -138,8 +138,9 @@ func runButtonCase(_ c: ButtonCase, _ id: WindowID, other: WindowID?) {
 
 // probeButtons binds the extra mouse buttons and three caption buttons, runs the loop while another
 // thread makes each press in buttonCases on the window of --pid, and prints what each did, the channel
-// and the slowest the hook decided. --no-swallow lets taken presses through and --paused saves paused
-// choices, the two negative controls, and neither runs the close press, which would end the window.
+// and the slowest the hook decided. --no-swallow lets taken presses through and runs no action for them,
+// and --paused saves paused choices. Those are the two negative controls, and neither runs the close
+// press, which would end the window.
 func probeButtons(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
     guard let wide = screens.hostFrame, let pid = opts.pid, let hwnd = windowOf(pid, screens: screens) else {
