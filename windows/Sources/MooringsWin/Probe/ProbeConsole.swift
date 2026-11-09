@@ -1,20 +1,23 @@
 import Foundation
 import WinSDK
 
-// consoleMarker is the line the console probe prints and then looks for on the terminal's screen.
-private let consoleMarker = "console marker line"
+// outputMarker and errorMarker are the lines the console probe writes to stdout and stderr and then
+// looks for on the terminal's screen.
+private let outputMarker = "console marker line"
+private let errorMarker = "console: stderr written"
 
 // probeConsole writes to stdout and stderr the way the app does, then saves what the process holds
 // to console.txt in the --report folder, since a process with no terminal has nowhere else to say.
 func probeConsole(_ opts: ProbeOptions) -> Int32 {
-    print(consoleMarker)
+    print(outputMarker)
     fflush(stdout)
-    FileHandle.standardError.write(Data("console: stderr written\n".utf8))
+    FileHandle.standardError.write(Data("\(errorMarker)\n".utf8))
     let lines = [
         "window: \(GetConsoleWindow() == nil ? "none" : "present")",
         "stdout: \(streamKind(1))",
         "stderr: \(streamKind(2))",
-        "screen: \(screenHolds(consoleMarker) ? "marker" : "no marker")",
+        "screen stdout: \(screenHolds(outputMarker) ? "yes" : "no")",
+        "screen stderr: \(screenHolds(errorMarker) ? "yes" : "no")",
     ]
     do {
         let folder = URL(fileURLWithPath: opts.report)
@@ -27,13 +30,13 @@ func probeConsole(_ opts: ProbeOptions) -> Int32 {
     }
 }
 
-// streamKind names where descriptor leads: console, nul, pipe, file, or none.
+// streamKind names where descriptor leads: device, pipe, file, or none. A device is the console or
+// NUL, and the screen lines tell them apart, since a write-only handle cannot ask for a console mode.
 private func streamKind(_ descriptor: Int32) -> String {
     guard let handle = standardHandle(descriptor) else { return "none" }
     switch GetFileType(handle) {
     case DWORD(FILE_TYPE_CHAR):
-        var mode: DWORD = 0
-        return GetConsoleMode(handle, &mode) ? "console" : "nul"
+        return "device"
     case DWORD(FILE_TYPE_PIPE):
         return "pipe"
     default:

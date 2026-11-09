@@ -112,13 +112,13 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'console-shell'
           $code = NoConsole "--probe console --report $dir" 30000
           if ($code -ne '0') { throw "the start with no console exited $code" }
-          ExpectAll (ConsoleLines $dir) @('window: none', 'stdout: nul', 'stderr: nul', 'screen: no marker') 'started with no console'
+          ExpectAll (ConsoleLines $dir) @('window: none', 'stdout: device', 'stderr: device', 'screen stdout: no', 'screen stderr: no') 'started with no console'
 
           Write-Host "console negative control: the same start without opening the streams"
           $dir = Join-Path $env:RUNNER_TEMP 'console-nostreams'
           $code = NoConsole "--probe console --report $dir --no-streams" 30000
           Write-Host "  exit $code"
-          if ($code -eq '0') { ExpectAll (ConsoleLines $dir) @('stdout: none') 'with no streams opened' }
+          if ($code -eq '0') { throw "the probe wrote to a missing stderr and lived, so this check proves nothing" }
 
           Write-Host "console: started from a terminal, so its lines reach the screen"
           $dir = Join-Path $env:RUNNER_TEMP 'console-terminal'
@@ -127,7 +127,7 @@ jobs:
           $p = Start-Process $batch -PassThru
           $null = $p.Handle
           if (-not $p.WaitForExit(30000)) { Stop-Process -Id $p.Id -Force; throw "the terminal start hung" }
-          ExpectAll (ConsoleLines $dir) @('window: present', 'stdout: console', 'stderr: console', 'screen: marker') 'started from a terminal'
+          ExpectAll (ConsoleLines $dir) @('window: present', 'stdout: device', 'stderr: device', 'screen stdout: yes', 'screen stderr: yes') 'started from a terminal'
 
           Write-Host "console: captured, as every probe below is"
           $dir = Join-Path $env:RUNNER_TEMP 'console-pipe'
@@ -158,7 +158,8 @@ jobs:
           if ($run.Code -ne 'running' -or -not $run.Logged) { throw "the app did not stay up and log: $($run.Code), logged $($run.Logged)" }
           Write-Host "console negative control: the same start without opening the streams"
           $run = AppStart 'closed' '--no-streams'
-          Write-Host "  without the streams: $($run.Code), logged $($run.Logged)"
+          if ($run.Code -eq 'running' -or $run.Logged) { throw "the app logged with no stderr and lived: $($run.Code), logged $($run.Logged)" }
+          Write-Host "  check: without the streams the app died at its first log line ($($run.Code))"
 
           Write-Host "probe update against release records served from the runner"
           $site = Join-Path $env:RUNNER_TEMP 'releases'
