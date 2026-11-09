@@ -1109,7 +1109,8 @@ jobs:
           }
           try { $null = Start-Process calc -PassThru } catch { Write-Host "  no calculator on the runner" }
           Start-Sleep -Seconds 8
-          $null = Probe @('--probe', 'captions', '--min-aspect', '1.0')
+          & $exe --probe captions --min-aspect 1.0 | ForEach-Object { Write-Host "  $_" }
+          if ($LASTEXITCODE -ne 0) { throw "probe captions exited $LASTEXITCODE" }
           foreach ($b in @('chrome', 'edge')) {
             if ($browsers[$b]) { Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $browsers[$b] } | Stop-Process -Force -ErrorAction SilentlyContinue }
           }
