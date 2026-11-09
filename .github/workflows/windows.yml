@@ -45,8 +45,10 @@ jobs:
       - name: Probe
         run: |
           $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
+          # PowerShell waits for a Windows program and captures its output only through a pipe. Plain
+          # $out = & $exe returns at once with no lines and leaves $LASTEXITCODE alone, on every step.
           function Probe([string[]] $probeArgs) {
-            $out = @(& $exe @probeArgs)
+            $out = @(& $exe @probeArgs | ForEach-Object { $_ })
             if ($LASTEXITCODE -ne 0) { throw "probe $probeArgs exited $LASTEXITCODE" }
             $out | ForEach-Object { Write-Host "  $_" }
             return ,$out
@@ -126,7 +128,7 @@ jobs:
 
           Write-Host "console: captured, as every probe below is"
           $dir = Join-Path $env:RUNNER_TEMP 'console-pipe'
-          $out = @(& $exe --probe console --report $dir)
+          $out = @(& $exe --probe console --report $dir | ForEach-Object { $_ })
           if ($LASTEXITCODE -ne 0) { throw "the captured start exited $LASTEXITCODE" }
           ExpectAll (ConsoleLines $dir) @('stdout: pipe') 'captured'
           ExpectAll $out @('console marker line') 'captured'
@@ -752,7 +754,7 @@ jobs:
         timeout-minutes: 5
         run: |
           $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
-          $out = @(& $exe --probe contracts)
+          $out = @(& $exe --probe contracts | ForEach-Object { $_ })
           $code = $LASTEXITCODE
           $out | ForEach-Object { Write-Host "  $_" }
           if ($code -ne 0 -or -not ($out -match '^contracts: 13 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
@@ -767,12 +769,12 @@ jobs:
           if ($n -lt 1) { throw "the probes wrote no line to $log" }
           Write-Host "  check: the probes so far wrote $n lines to $log"
 
-          $menu = @(& $exe --probe menu)
+          $menu = @(& $exe --probe menu | ForEach-Object { $_ })
           if (-not ($menu -match '^menu \[ \] Save a report$')) { throw "the tray menu has no Save a report" }
           Write-Host "  check: the tray menu offers Save a report"
 
           $dir = Join-Path $env:RUNNER_TEMP 'report'
-          $out = @(& $exe --probe report --report $dir)
+          $out = @(& $exe --probe report --report $dir | ForEach-Object { $_ })
           $code = $LASTEXITCODE
           $out | ForEach-Object { Write-Host "  $_" }
           if ($code -ne 0) { throw "the report probe exited $code" }
@@ -790,7 +792,7 @@ jobs:
           Write-Host "report negative control: LOCALAPPDATA unset"
           $saved = $env:LOCALAPPDATA
           Remove-Item Env:LOCALAPPDATA
-          $out = @(& $exe --probe report --report $dir)
+          $out = @(& $exe --probe report --report $dir | ForEach-Object { $_ })
           $code = $LASTEXITCODE
           $env:LOCALAPPDATA = $saved
           $global:LASTEXITCODE = 0
@@ -806,7 +808,7 @@ jobs:
           [IO.File]::WriteAllText($fill, ($line * 10486) + $line)
           $before = (Get-Item $fill).Length
           $env:LOCALAPPDATA = $roll
-          $out = @(& $exe --probe report --report (Join-Path $env:RUNNER_TEMP 'report-roll'))
+          $out = @(& $exe --probe report --report (Join-Path $env:RUNNER_TEMP 'report-roll') | ForEach-Object { $_ })
           $code = $LASTEXITCODE
           $env:LOCALAPPDATA = $saved
           $out | ForEach-Object { Write-Host "  $_" }
@@ -823,7 +825,7 @@ jobs:
           $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
           function Scenarios([string] $name, [string[]] $more) {
             $dir = Join-Path $env:RUNNER_TEMP "scenarios\$name"
-            $out = @(& $exe (@('--scenarios') + $more + @('--report', $dir)))
+            $out = @(& $exe (@('--scenarios') + $more + @('--report', $dir)) | ForEach-Object { $_ })
             $code = $LASTEXITCODE
             $global:LASTEXITCODE = 0
             $out | ForEach-Object { Write-Host "  $_" }
@@ -879,15 +881,15 @@ jobs:
           if ($browsers.Count -eq 0) { throw "no Chrome, Edge or Firefox on the runner" }
           New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' -Force | Out-Null
           Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Edge' -Name HideFirstRunExperience -Value 1 -Type DWord
-          $modes = @(& $exe --probe modes)
+          $modes = @(& $exe --probe modes | ForEach-Object { $_ })
           $global:LASTEXITCODE = 0
           $mode = if ($modes -match '^mode 1920x1080 ') { '1920x1080' } else { $null }
           if ($mode) {
-            $m = @(& $exe --probe modes --mode $mode)
+            $m = @(& $exe --probe modes --mode $mode | ForEach-Object { $_ })
             $global:LASTEXITCODE = 0
             if (-not ($m -match '^switched to .*: done$')) { throw "the switch to $mode failed: $($m -join ' ')" }
           }
-          Write-Host "  screen: $(@(& $exe --probe modes) -match '^current: ')"
+          Write-Host "  screen: $(@(& $exe --probe modes | ForEach-Object { $_ }) -match '^current: ')"
           $global:LASTEXITCODE = 0
           $bad = @()
           $controls = 0
@@ -906,7 +908,7 @@ jobs:
             }
           } finally {
             if ($mode) {
-              $null = & $exe --probe modes --reset
+              $null = & $exe --probe modes --reset | ForEach-Object { $_ }
               $global:LASTEXITCODE = 0
             }
           }
@@ -925,7 +927,7 @@ jobs:
           $failed = 0
           for ($i = 1; $i -le $n; $i++) {
             $dir = Join-Path $env:RUNNER_TEMP "sim-repeat\$i"
-            $out = @(& $exe --scenarios --screen 3440x1440 --report $dir)
+            $out = @(& $exe --scenarios --screen 3440x1440 --report $dir | ForEach-Object { $_ })
             $code = $LASTEXITCODE
             $global:LASTEXITCODE = 0
             $sum = @($out -match '^scenarios: ')[0]
