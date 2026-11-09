@@ -89,18 +89,21 @@ jobs:
 
           # The step's pwsh holds a hidden console that Explorer does not, so the start runs from a
           # second pwsh that lets go of its console first. It prints the exit code, or running when the
-          # process outlived the wait and was stopped.
+          # process outlived the wait and was stopped. The arguments travel in the environment, since
+          # pwsh -File reads a value starting with -- as a parameter.
           $noConsole = Join-Path $env:RUNNER_TEMP 'no-console.ps1'
           Set-Content -Path $noConsole -Value @'
-          param([string] $Exe, [string] $Arguments, [int] $Wait)
+          param([string] $Exe, [int] $Wait)
           Add-Type -Namespace Win32 -Name Console -MemberDefinition '[DllImport("kernel32.dll")] public static extern bool FreeConsole();'
           $null = [Win32.Console]::FreeConsole()
-          $p = if ($Arguments) { Start-Process $Exe -ArgumentList $Arguments -PassThru } else { Start-Process $Exe -PassThru }
+          $p = if ($env:START_ARGUMENTS) { Start-Process $Exe -ArgumentList $env:START_ARGUMENTS -PassThru } else { Start-Process $Exe -PassThru }
           $null = $p.Handle
           if ($p.WaitForExit($Wait)) { "$($p.ExitCode)" } else { 'running'; Stop-Process -Id $p.Id -Force; $p.WaitForExit() }
           '@
           function NoConsole([string] $arguments, [int] $wait) {
-            $code = @(& pwsh -NoProfile -File $noConsole -Exe $exe -Arguments $arguments -Wait $wait)
+            $env:START_ARGUMENTS = $arguments
+            $code = @(& pwsh -NoProfile -File $noConsole -Exe $exe -Wait $wait)
+            $env:START_ARGUMENTS = ''
             if ($LASTEXITCODE -ne 0) { throw "the no-console start exited $LASTEXITCODE" }
             $code[-1]
           }
