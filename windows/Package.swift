@@ -14,7 +14,11 @@ var targets: [Target] = []
                 .product(name: "MooringsEngine", package: "core"),
                 .product(name: "MooringsTesting", package: "core"),
             ],
-            resources: [.embedInCode("moorings.ico")]
+            resources: [.embedInCode("moorings.ico")],
+            // A Windows program, so a double-click, the Run key, and a link open no console.
+            linkerSettings: [
+                .unsafeFlags(["-Xlinker", "/SUBSYSTEM:WINDOWS", "-Xlinker", "/ENTRY:mainCRTStartup"])
+            ]
         )
     )
 #endif

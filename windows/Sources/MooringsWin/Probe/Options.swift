@@ -134,6 +134,8 @@ struct ProbeOptions {
             case "--app":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 app = value.lowercased()
+            case "--no-streams":
+                break
             case "--no-hook":
                 noHook = true
             case "--alt":

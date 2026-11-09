@@ -59,6 +59,102 @@ jobs:
           $v = Probe @('--probe', 'version')
           Expect $v '^dpi: per-monitor-v2$' 'per-monitor-v2 DPI awareness'
 
+          # The subsystem field of the PE header: 2 is a Windows program, 3 a console program.
+          function Subsystem([string] $path) {
+            $bytes = [IO.File]::ReadAllBytes($path)
+            [BitConverter]::ToUInt16($bytes, [BitConverter]::ToInt32($bytes, 0x3C) + 24 + 68)
+          }
+          Write-Host "exe subsystem"
+          $subsystem = Subsystem $exe
+          $control = Subsystem "$env:SystemRoot\System32\cmd.exe"
+          Write-Host "  MooringsWin.exe $subsystem, cmd.exe $control"
+          if ($control -ne 3) { throw "the reader said $control for cmd.exe, a console program" }
+          if ($subsystem -ne 2) { throw "MooringsWin.exe has subsystem $subsystem, so Explorer opens a console for it" }
+
+          function ConsoleLines([string] $dir) {
+            $file = Join-Path $dir 'console.txt'
+            $until = (Get-Date).AddSeconds(10)
+            while (-not (Test-Path $file) -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 200 }
+            $lines = if (Test-Path $file) { @(Get-Content $file) } else { @() }
+            $lines | ForEach-Object { Write-Host "  $_" }
+            ,$lines
+          }
+          function ExpectAll($lines, [string[]] $want, [string] $why) {
+            foreach ($line in $want) {
+              if (-not ($lines -contains $line)) { throw "$why, want $line, got $($lines -join ', ')" }
+            }
+          }
+
+          # The step's pwsh holds a hidden console that Explorer does not, so the start runs from a
+          # second pwsh that lets go of its console first. It prints the exit code, or running when the
+          # process outlived the wait and was stopped.
+          $noConsole = Join-Path $env:RUNNER_TEMP 'no-console.ps1'
+          Set-Content -Path $noConsole -Value @'
+          param([string] $Exe, [string] $Arguments, [int] $Wait)
+          Add-Type -Namespace Win32 -Name Console -MemberDefinition '[DllImport("kernel32.dll")] public static extern bool FreeConsole();'
+          $null = [Win32.Console]::FreeConsole()
+          $p = if ($Arguments) { Start-Process $Exe -ArgumentList $Arguments -PassThru } else { Start-Process $Exe -PassThru }
+          $null = $p.Handle
+          if ($p.WaitForExit($Wait)) { "$($p.ExitCode)" } else { 'running'; Stop-Process -Id $p.Id -Force; $p.WaitForExit() }
+          '@
+          function NoConsole([string] $arguments, [int] $wait) {
+            $code = @(& pwsh -NoProfile -File $noConsole -Exe $exe -Arguments $arguments -Wait $wait)
+            if ($LASTEXITCODE -ne 0) { throw "the no-console start exited $LASTEXITCODE" }
+            $code[-1]
+          }
+
+          Write-Host "console: started with no console, the way Explorer starts it"
+          $dir = Join-Path $env:RUNNER_TEMP 'console-shell'
+          $code = NoConsole "--probe console --report $dir" 30000
+          if ($code -ne '0') { throw "the start with no console exited $code" }
+          ExpectAll (ConsoleLines $dir) @('window: none', 'stdout: nul', 'stderr: nul', 'screen: no marker') 'started with no console'
+
+          Write-Host "console negative control: the same start without opening the streams"
+          $dir = Join-Path $env:RUNNER_TEMP 'console-nostreams'
+          $code = NoConsole "--probe console --report $dir --no-streams" 30000
+          Write-Host "  exit $code"
+          if ($code -eq '0') { ExpectAll (ConsoleLines $dir) @('stdout: none') 'with no streams opened' }
+
+          Write-Host "console: started from a terminal, so its lines reach the screen"
+          $dir = Join-Path $env:RUNNER_TEMP 'console-terminal'
+          $batch = Join-Path $env:RUNNER_TEMP 'console-terminal.cmd'
+          Set-Content -Path $batch -Encoding ascii -Value "@`"$exe`" --probe console --report `"$dir`""
+          $p = Start-Process $batch -PassThru
+          $null = $p.Handle
+          if (-not $p.WaitForExit(30000)) { Stop-Process -Id $p.Id -Force; throw "the terminal start hung" }
+          ExpectAll (ConsoleLines $dir) @('window: present', 'stdout: console', 'stderr: console', 'screen: marker') 'started from a terminal'
+
+          Write-Host "console: captured, as every probe below is"
+          $dir = Join-Path $env:RUNNER_TEMP 'console-pipe'
+          $out = @(& $exe --probe console --report $dir)
+          if ($LASTEXITCODE -ne 0) { throw "the captured start exited $LASTEXITCODE" }
+          ExpectAll (ConsoleLines $dir) @('stdout: pipe') 'captured'
+          ExpectAll $out @('console marker line') 'captured'
+
+          # A bad choices file makes the engine log a line on start. The log writes stderr first and the
+          # file second, so the line in the file shows the app wrote to stderr and lived.
+          function AppStart([string] $name, [string] $arguments) {
+            $root = Join-Path $env:RUNNER_TEMP "console-app-$name"
+            $choices = Join-Path $root 'Roaming\Moorings'
+            New-Item -ItemType Directory -Force -Path $choices | Out-Null
+            Set-Content -Path (Join-Path $choices 'choices.json') -Value '{ not json'
+            $roaming, $local = $env:APPDATA, $env:LOCALAPPDATA
+            $env:APPDATA, $env:LOCALAPPDATA = (Join-Path $root 'Roaming'), (Join-Path $root 'Local')
+            $code = NoConsole $arguments 5000
+            $env:APPDATA, $env:LOCALAPPDATA = $roaming, $local
+            $log = Join-Path $root 'Local\Moorings\moorings.log'
+            $lines = if (Test-Path $log) { @(Get-Content $log) } else { @() }
+            Write-Host "  ${name}: $code, $($lines.Count) log lines"
+            $lines | Select-Object -First 3 | ForEach-Object { Write-Host "    $_" }
+            @{ Code = $code; Logged = [bool]($lines -match 'choices fell back') }
+          }
+          Write-Host "console: the app started with no console logs a line and stays up"
+          $run = AppStart 'open' ''
+          if ($run.Code -ne 'running' -or -not $run.Logged) { throw "the app did not stay up and log: $($run.Code), logged $($run.Logged)" }
+          Write-Host "console negative control: the same start without opening the streams"
+          $run = AppStart 'closed' '--no-streams'
+          Write-Host "  without the streams: $($run.Code), logged $($run.Logged)"
+
           Write-Host "probe update against release records served from the runner"
           $site = Join-Path $env:RUNNER_TEMP 'releases'
           New-Item -ItemType Directory -Path $site | Out-Null
