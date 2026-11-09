@@ -455,6 +455,25 @@ jobs:
             $r = Refused @('moorings://elsewhere?name=left-half')
             if ($r[0] -eq 0 -or -not ($r[1] -match '^unknown link: ')) { throw "a link to another host ran" }
             Write-Host "  check: flags after a link are ignored, and a link to another host is unknown"
+            $start = Place
+            $other = Pad
+            Start-Sleep -Seconds 3
+            function OtherState([string[]] $more) { Probe (@('--probe', 'link', '--pid', "$($other.Id)") + $more + $geo) }
+            $null = OtherState @('--frame', '300,200,500,350')
+            Start-Sleep -Seconds 2
+            if (-not ((LinkState @()) -contains 'foreground: no')) { throw "the foreground line did not read no with another window in front" }
+            Expect (Probe @('--action', 'left-half')) '^ran: left-half$' '--action said it ran with another window in front'
+            Start-Sleep -Seconds 2
+            $s = OtherState @()
+            if (-not ($s -contains 'foreground: yes')) { throw "the other window left the front" }
+            $channel = Rect ($s -match '^channel: ')[0] 'channel: '
+            $half = @($channel[0], $channel[1], [Math]::Floor($channel[2] / 2), $channel[3])
+            $off = Off (Rect ($s -match '^frame: ')[0] 'frame: ') $half
+            if ($off -gt 1) { throw "the action missed the window in front by $off px" }
+            $off = Off (Rect ((LinkState @()) -match '^frame: ')[0] 'frame: ') $start
+            if ($off -gt 1) { throw "the action moved the window behind by $off px" }
+            Stop-Process -Id $other.Id
+            Write-Host "  check: with another window in front the foreground line reads no, and the action moves that window and not the one behind"
             $second = Start-Process $exe -PassThru
             $null = $second.Handle
             if (-not $second.WaitForExit(15000)) { Stop-Process -Id $second.Id -Force; throw "a second plain launch stayed up" }
