@@ -727,20 +727,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // runLink runs the action a moorings://action?name= link asks for.
     private func runLink(_ url: URL) {
-        let name = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "name" }?
-            .value
-        guard let name, engine.actions.runnable(name) else {
+        let name = ActionLink.name(in: url.absoluteString)
+        switch name.map(engine.actions.linkVerdict) ?? .unknown {
+        case .run:
+            if let name { engine.actions.run(name) }
+        case .unknown:
             logger.notice("a moorings link asked for unknown action \(name ?? "none", privacy: .public)")
-            return
-        }
-        if let refused = engine.actions.linkRefused(name) {
+        case .refused(let refused):
             logger.notice(
                 "a moorings link asked for \(refused, privacy: .public): closing actions run only from shortcuts and the menu"
             )
             notify("Moorings", "A link asked to \(refused). Closing actions run only from shortcuts and the menu.")
-            return
         }
-        engine.actions.run(name)
     }
 
     // open opens the app with bundle the way a Dock click does, which launches it or asks a running

@@ -131,6 +131,28 @@ final class ActionRig {
     #expect(rig.runner.linkRefused("chain:Halves") == nil)
 }
 
+// A link's verdict runs what this platform supports, refuses closing, and calls the rest unknown.
+@Test(
+    arguments: [
+        ("left-half", LinkVerdict.run),
+        ("chain:Halves", .run),
+        ("close-window", .refused("close-window")),
+        ("close-others", .refused("close-others")),
+        ("chain:Shut", .refused("close-others")),
+        ("no-such-action", .unknown),
+        ("chain:Missing", .unknown),
+        ("", .unknown),
+    ] as [(String, LinkVerdict)])
+func testRunnerLinkVerdict(name: String, want: LinkVerdict) {
+    let rig = ActionRig {
+        $0.chains = [
+            Chain(name: "Shut", steps: ["left-half", "close-others"]),
+            Chain(name: "Halves", steps: ["left-half", "right-half"]),
+        ]
+    }
+    #expect(rig.runner.linkVerdict(name) == want)
+}
+
 // Move cursor warps the pointer to the center of the window an action moved.
 @Test func testRunnerMoveCursorWarps() {
     let pointer = FakePointer()

@@ -375,6 +375,121 @@ jobs:
             Probe (@('--probe', 'hotkeys', '--seconds', '2') + $geo)
           }
 
+          # Links and --action against the real app with its own settings: a known start frame, then each
+          # form must leave the same window on the channel's left half and still in front, which fails if
+          # a console or anything else takes the foreground first.
+          function LinkCheck([string[]] $geo) {
+            Write-Host "links $geo"
+            $pad = Pad
+            Start-Sleep -Seconds 3
+            $root = Join-Path $env:RUNNER_TEMP "links-$($pad.Id)"
+            New-Item -ItemType Directory -Force -Path (Join-Path $root 'Roaming'), (Join-Path $root 'Local') | Out-Null
+            $roaming, $local = $env:APPDATA, $env:LOCALAPPDATA
+            $env:APPDATA, $env:LOCALAPPDATA = (Join-Path $root 'Roaming'), (Join-Path $root 'Local')
+            function LinkState([string[]] $more) { Probe (@('--probe', 'link', '--pid', "$($pad.Id)") + $more + $geo) }
+            function WaitTray {
+              $until = (Get-Date).AddSeconds(15)
+              while ((Get-Date) -lt $until) {
+                if ((Probe (@('--probe', 'link') + $geo)) -contains 'tray windows: 1') { return }
+                Start-Sleep -Milliseconds 500
+              }
+              throw "no tray window after 15 s"
+            }
+            function Place {
+              $null = LinkState @('--frame', '200,150,500,350')
+              Start-Sleep -Seconds 2
+              $s = LinkState @()
+              if (-not ($s -contains 'foreground: yes')) { throw "the stand-in is not in front at the start" }
+              Rect ($s -match '^frame: ')[0] 'frame: '
+            }
+            function Refused([string[]] $form) {
+              $o = @(& $exe @form | ForEach-Object { $_ })
+              $code = $LASTEXITCODE
+              $global:LASTEXITCODE = 0
+              Write-Host "  $form -> $code $($o -join ' / ')"
+              ,@($code, $o)
+            }
+            function OnHalf([string] $form) {
+              Start-Sleep -Seconds 2
+              $s = LinkState @()
+              if (-not ($s -contains 'foreground: yes')) { throw "$form left the stand-in behind another window" }
+              $channel = Rect ($s -match '^channel: ')[0] 'channel: '
+              $half = @($channel[0], $channel[1], [Math]::Floor($channel[2] / 2), $channel[3])
+              $off = Off (Rect ($s -match '^frame: ')[0] 'frame: ') $half
+              if ($off -gt 1) { throw "after $form the stand-in is off the channel's left half by $off px" }
+              Write-Host "  check: $form put the window in front on the channel's left half, off by $off"
+            }
+            $app = Start-Process $exe -ArgumentList $geo -PassThru
+            $null = $app.Handle
+            WaitTray
+
+            $command = (Get-ItemProperty 'HKCU:\Software\Classes\moorings\shell\open\command').'(default)'
+            if ($command -ine "`"$exe`" `"%1`"") { throw "the link command is $command" }
+            if ($null -eq (Get-ItemProperty 'HKCU:\Software\Classes\moorings').'URL Protocol') { throw "the scheme has no URL Protocol value" }
+            Write-Host "  check: the scheme runs $command"
+
+            $null = Place
+            Expect (Probe @('--action', 'left-half')) '^ran: left-half$' '--action said it ran'
+            OnHalf '--action'
+            $null = Place
+            & cmd.exe /c 'start moorings://action?name=left-half'
+            OnHalf 'the shell opening the link'
+
+            Write-Host "links negative controls"
+            $start = Place
+            $r = Refused @('--action', 'no-such-action')
+            if ($r[0] -eq 0 -or -not ($r[1] -contains 'unknown action: no-such-action')) { throw "--action ran an unknown name" }
+            Start-Sleep -Seconds 1
+            $off = Off (Rect ((LinkState @()) -match '^frame: ')[0] 'frame: ') $start
+            if ($off -gt 1) { throw "an unknown action moved the window by $off px" }
+            Write-Host "  check: an unknown action says so, exits nonzero and moves nothing"
+            foreach ($form in @(@('moorings://action?name=close-window'), @('--action', 'close-window'))) {
+              $r = Refused $form
+              if ($r[0] -eq 0 -or -not ($r[1] -match '^refused: close-window: ')) { throw "$form was not refused" }
+            }
+            Start-Sleep -Seconds 1
+            if (-not ((LinkState @()) -contains 'window: alive')) { throw "a link closed the window" }
+            Write-Host "  check: close-window is refused from a link and from --action, and the window lives"
+            $r = Refused @('moorings://action?name=no-such-action', '--probe', 'version')
+            if ($r[0] -eq 0 -or -not ($r[1] -contains 'unknown action: no-such-action') -or ($r[1] -match '^version: ')) { throw "a link added a flag of its own" }
+            $r = Refused @('moorings://elsewhere?name=left-half')
+            if ($r[0] -eq 0 -or -not ($r[1] -match '^unknown link: ')) { throw "a link to another host ran" }
+            Write-Host "  check: flags after a link are ignored, and a link to another host is unknown"
+            $second = Start-Process $exe -PassThru
+            $null = $second.Handle
+            if (-not $second.WaitForExit(15000)) { Stop-Process -Id $second.Id -Force; throw "a second plain launch stayed up" }
+            if ($second.ExitCode -ne 0) { throw "a second plain launch exited $($second.ExitCode)" }
+            if (-not ((Probe (@('--probe', 'link') + $geo)) -contains 'tray windows: 1')) { throw "a second plain launch left another tray" }
+            Write-Host "  check: a second plain launch exits 0 and leaves one tray window"
+
+            Stop-Process -Id $app.Id -Force
+            $app.WaitForExit()
+            $start = Place
+            $r = Refused @('--action', 'left-half')
+            if ($r[0] -eq 0 -or -not ($r[1] -contains 'not running')) { throw "--action with no tray did not say not running" }
+            if ((Probe (@('--probe', 'link') + $geo)) -notcontains 'tray windows: 0') { throw "--action started a tray" }
+            $r = Refused @('moorings://action?name=no-such-action')
+            if ($r[0] -eq 0 -or (Probe (@('--probe', 'link') + $geo)) -notcontains 'tray windows: 0') { throw "a bad link started the app" }
+            Write-Host "  check: with no tray --action says not running, and neither it nor a bad link starts the app"
+
+            # A link cannot carry the fake screen, so the start by link is read only on the real one.
+            if ($geo -notcontains '--screen') {
+              $null = Place
+              $cold = Start-Process $exe -ArgumentList 'moorings://action?name=left-half' -PassThru
+              $null = $cold.Handle
+              WaitTray
+              Start-Sleep -Seconds 2
+              $s = LinkState @()
+              $f = Rect ($s -match '^frame: ')[0] 'frame: '
+              Stop-Process -Id $cold.Id -Force
+              $cold.WaitForExit()
+              if ($f[0] -gt 1 -or $f[3] -le 350 -or -not ($s -contains 'foreground: yes')) { throw "a link with no tray left the window at $($f -join ' ')" }
+              Write-Host "  check: a link with no tray started Moorings and ran, frame $($f -join ' ')"
+            }
+            $env:APPDATA, $env:LOCALAPPDATA = $roaming, $local
+            Stop-Process -Id $pad.Id
+          }
+
           function HotkeyCheck([string[]] $geo) {
             Write-Host "probe hotkeys $geo"
             $pad = Pad
@@ -411,6 +526,7 @@ jobs:
             $script:channel = $channel
           }
           HotkeyCheck @('--min-aspect', '1.0')
+          LinkCheck @('--min-aspect', '1.0')
 
           Write-Host "probe banner"
           $b = Probe @('--probe', 'banner', '--min-aspect', '1.0')
@@ -679,6 +795,7 @@ jobs:
           StashCheck $simApp
 
           HotkeyCheck $simApp
+          LinkCheck $simApp
           if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
 

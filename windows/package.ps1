@@ -63,6 +63,17 @@ What it does
 - Pause stops everything until you choose it again. Launch at login starts Moorings when
   you sign in.
 
+Links and the command line
+
+- A link such as moorings://action?name=left-half runs that action on the window in front,
+  and starts Moorings first if it is not running. Moorings registers the moorings: scheme
+  for your user each time it starts. To remove it, delete HKEY_CURRENT_USER\Software\Classes\moorings.
+- MooringsWin.exe --action left-half does the same from a terminal, and prints not running
+  if Moorings is not running. It returns right away in a terminal. To read its exit code in
+  PowerShell, pipe it: .\MooringsWin.exe --action left-half | Write-Output. In a script,
+  use Start-Process -Wait -PassThru.
+- Links and --action never close windows. Those actions run only from shortcuts and the menu.
+
 This build is checked on GitHub's Windows runner, not yet on a physical ultrawide.
 
 Moorings keeps a log in %LOCALAPPDATA%\Moorings\moorings.log, with one older file beside

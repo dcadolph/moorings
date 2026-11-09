@@ -1,5 +1,13 @@
 import MooringsCore
 
+// LinkVerdict is what a link's action name gets: it runs, it names nothing here, or it is a closing
+// action a link may not run.
+public enum LinkVerdict: Equatable, Sendable {
+    case run
+    case unknown
+    case refused(String)
+}
+
 // ActionRunner applies window actions to the focused window: halves, thirds, sizes, displays and
 // the rest, stepping through a cycle on repeat presses. It runs chains one step per press and the
 // front app's window actions, and hands the actions it does not own to the engine's routing.
@@ -54,6 +62,13 @@ public final class ActionRunner {
         }
         let chain = anchors.choices.chains.first { $0.actionName == name }
         return chain?.steps.first { closing.contains($0) }
+    }
+
+    // linkVerdict decides what a link asking for name gets, reading the choices and changing nothing,
+    // so a platform can answer the sender before the action runs.
+    public func linkVerdict(_ name: String) -> LinkVerdict {
+        guard supports(name) else { return .unknown }
+        return linkRefused(name).map(LinkVerdict.refused) ?? .run
     }
 
     // supports reports whether this platform runs action name: runnable, and either the engine's own

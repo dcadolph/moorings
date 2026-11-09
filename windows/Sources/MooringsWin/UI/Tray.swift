@@ -53,11 +53,17 @@ final class Tray {
     private var updates: WinScheduler?
     // told is the tag of the release a banner already announced.
     private var told: String?
+    // links holds the work the links asked for, run in order from the message queue.
+    private var links: [() -> Void] = []
 
     // callback is the message the icon sends on a click, WM_APP + 1.
     static let callback = UINT(WM_APP + 1)
     // updated is the message an update check posts when it ends, WM_APP + 2.
     static let updated = UINT(WM_APP + 2)
+    // link is the message that runs the next link's work from the queue, WM_APP + 3.
+    static let link = UINT(WM_APP + 3)
+    // again is the message a second plain launch posts before it exits, WM_APP + 4.
+    static let again = UINT(WM_APP + 4)
     // updateTick is how often the tray asks whether an update check is due, in seconds.
     static let updateTick = 60.0
     // iconID names the one icon this process adds.
@@ -272,6 +278,16 @@ final class Tray {
         case Tray.updated:
             announce()
             return 0
+        case UINT(WM_COPYDATA):
+            return receive(lParam)
+        case Tray.link:
+            if !links.isEmpty {
+                links.removeFirst()()
+            }
+            return 0
+        case Tray.again:
+            app.notify("Moorings is already running", "Its icon is in the notification area.")
+            return 0
         case UINT(WM_ENDSESSION) where wParam != 0:
             app.engine.shutdown()
             return 0
@@ -287,6 +303,41 @@ final class Tray {
         default:
             return nil
         }
+    }
+
+    // receive reads a link's action name from a WM_COPYDATA message and returns the answer for its
+    // sender, zero for a message that is not one.
+    private func receive(_ lParam: LPARAM) -> LRESULT {
+        guard let data = UnsafePointer<COPYDATASTRUCT>(bitPattern: Int(lParam))?.pointee, data.dwData == Links.tag,
+            Int(data.cbData) <= Links.limit, let bytes = data.lpData
+        else { return 0 }
+        return answer(String(decoding: UnsafeRawBufferPointer(start: bytes, count: Int(data.cbData)), as: UTF8.self))
+    }
+
+    // answer decides what a link asking for name gets and queues the work. A sent message can arrive
+    // while a pass waits on another process's window, so nothing here may enter the engine: the
+    // verdict only reads, and the action runs later from the queue, in order.
+    func answer(_ name: String) -> LRESULT {
+        let verdict = app.engine.actions.linkVerdict(name)
+        queue { [unowned self] in
+            switch verdict {
+            case .run:
+                app.engine.actions.run(name)
+            case .unknown:
+                app.log.note(.actions, "a moorings link asked for unknown action \(name)")
+            case .refused(let refused):
+                let why = "Closing actions run only from shortcuts and the menu."
+                app.log.note(.actions, "a moorings link asked for \(refused): \(why)")
+                app.notify("Moorings", "A link asked to \(refused). \(why)")
+            }
+        }
+        return Links.answer(verdict)
+    }
+
+    // queue runs work once the message queue reaches it.
+    private func queue(_ work: @escaping () -> Void) {
+        links.append(work)
+        _ = PostMessageW(window, Tray.link, 0, 0)
     }
 
     // open shows the menu at the cursor. The window comes to the front first so the menu closes
