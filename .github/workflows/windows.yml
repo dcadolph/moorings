@@ -526,6 +526,8 @@ jobs:
               if (-not $n.Success) { throw "no state line for case $name" }
               @{ Frame = @(1..4 | ForEach-Object { [int]$n.Groups[$_].Value }); Zoomed = $n.Groups[5].Value; Minimized = $n.Groups[6].Value; Front = $n.Groups[7].Value }
             }
+            Write-Host "probe nativeclicks, no hook in this process $geo"
+            $native = Probe (@('--probe', 'nativeclicks', '--pid', "$($pad.Id)") + $geo)
             $h = Buttons @()
             $channel = Rect ($h -match '^channel: ')[0] 'channel: '
             $half = [Math]::Floor($channel[2] / 2)
@@ -545,6 +547,14 @@ jobs:
             $off = Off (Case $h 'shift-caption').Frame (Case $h 'before shift-caption').Frame
             if ($off -gt 1) { throw "Shift on the caption, off a button, moved the window by $off px" }
             Write-Host "  check: Shift on the caption but off a button ran nothing"
+            foreach ($name in @('plain-minimize', 'plain-maximize', 'minimize-after-maximize')) {
+              $with = Case $h $name
+              $alone = Case $native $name
+              if ($with.Zoomed -ne $alone.Zoomed -or $with.Minimized -ne $alone.Minimized) {
+                throw "$name with the hook: zoomed $($with.Zoomed) minimized $($with.Minimized), alone: zoomed $($alone.Zoomed) minimized $($alone.Minimized)"
+              }
+            }
+            Write-Host "  check: unbound clicks did the same with the hook as with no hook"
             if ((Case $h 'plain-maximize').Zoomed -ne 'yes') { throw "an unbound maximize did not maximize" }
             if ((Case $h 'plain-minimize').Minimized -ne 'yes') { throw "an unbound minimize did not minimize" }
             Write-Host "  check: unbound maximize and minimize clicks still reach the window"
