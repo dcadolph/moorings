@@ -1080,6 +1080,31 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
+      # Negative control for the clean stop: a killed recorder leaves a file ffprobe rejects, and
+      # the same recording stopped with Ctrl-C plays for its length.
+      - name: Recorder control
+        timeout-minutes: 3
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'probes'
+          . (Join-Path $dir 'recorder.ps1')
+          $ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source
+          $killed = Join-Path $dir 'killed.mp4'
+          $id = Start-Recorder $ffmpeg $killed
+          Start-Sleep -Seconds 10
+          Stop-Process -Id $id -Force
+          Start-Sleep -Seconds 1
+          $read = $null
+          try { $read = Test-Video $killed } catch { Write-Host "  killed: $($_.Exception.Message)" }
+          if ($null -ne $read) { throw "ffprobe read a killed recording as $read s, so the clean stop proves nothing" }
+          $clean = Join-Path $dir 'clean.mp4'
+          $id = Start-Recorder $ffmpeg $clean
+          Start-Sleep -Seconds 10
+          $how = Stop-Recorder $id
+          $seconds = Test-Video $clean
+          Write-Host "  clean: recorder $how, $([math]::Round($seconds, 1)) s"
+          if ($how -ne 'exited' -or [math]::Abs($seconds - 10) -gt 3) { throw "the Ctrl-C stop did not leave a 10 s video: $how, $seconds s" }
+          Write-Host "  check: a killed recording does not play and a Ctrl-C stopped one does"
+
       - name: Contracts
         timeout-minutes: 5
         run: |
