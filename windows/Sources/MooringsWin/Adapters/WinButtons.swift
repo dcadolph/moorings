@@ -27,7 +27,7 @@ final class WinButtons {
     // a modal menu loop, and an action that waited through one would fire long after its press.
     static let staleMillis: UInt64 = 2000
 
-    // app holds the choices, the engine and the shortcuts' state.
+    // app holds the engine and its choices.
     private unowned let app: App
     // queued holds the actions waiting for the message loop, oldest first.
     private var queued: [Bound] = []
@@ -38,11 +38,11 @@ final class WinButtons {
     }
 
     // takes reports whether a press of the numbered button at p is bound to an action, and queues the
-    // action if so. Unbound presses, and every press while paused or while an ignored app is in front,
-    // pass on, as does a binding this platform cannot run.
+    // action if so. Unbound presses, and every press while paused, pass on, as does a binding this
+    // platform cannot run.
     func takes(_ number: Int, at p: POINT) -> Bool {
         let choices = app.engine.anchors.choices
-        guard !choices.paused, app.hotkeys.enabled else { return false }
+        guard !choices.paused else { return false }
         let press = number == WinMouseHook.left ? click(at: p, choices) : extra(number, choices)
         guard let press, app.engine.actions.supports(press.name) else { return false }
         queued.append(press)
