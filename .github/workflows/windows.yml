@@ -43,8 +43,8 @@ jobs:
         run: swift build -Xswiftc -warnings-as-errors
 
       # Record the desktop for the whole Probe step, so a failed probe can be watched, not only read.
-      # A killed ffmpeg never writes the mp4's index, so the recorder is stopped with a Ctrl-C sent to
-      # its console, the one stop ffmpeg finishes the file on.
+      # The runner ends a step's processes with the step, so the Probe step starts the recorder
+      # itself. The mp4 is fragmented and flushed per frame, so a killed recording still plays.
       - name: Record
         timeout-minutes: 5
         run: |
@@ -59,47 +59,39 @@ jobs:
           $installed = [math]::Round($clock.Elapsed.TotalSeconds, 1)
           Write-Host "  install: $installed s"
           if ($installed -gt 120) { Write-Host "::warning::the ffmpeg install took $installed s, over the 2 minute bound" }
-          $ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source
-          Write-Host "  $(@(& $ffmpeg -version)[0])"
+          Write-Host "  $(@(& (Get-Command ffmpeg -ErrorAction Stop).Source -version)[0])"
 
           @'
-          Add-Type -Namespace Rec -Name Con -MemberDefinition @"
-          [DllImport("kernel32.dll", SetLastError = true)] public static extern bool FreeConsole();
-          [DllImport("kernel32.dll", SetLastError = true)] public static extern bool AttachConsole(uint pid);
-          [DllImport("kernel32.dll", SetLastError = true)] public static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
-          [DllImport("kernel32.dll", SetLastError = true)] public static extern bool GenerateConsoleCtrlEvent(uint ctrlEvent, uint group);
-          "@
-
-          function Start-Recorder([string] $ffmpeg, [string] $file) {
+          # Start-Recorder starts ffmpeg capturing the desktop at 5 fps into $file and returns its pid
+          # once the file grows. Plain writes an unfragmented mp4, which only the control uses.
+          function Start-Recorder([string] $file, [switch] $Plain) {
+            $ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source
             $ffArgs = @('-nostdin', '-hide_banner', '-loglevel', 'error', '-f', 'gdigrab', '-framerate', '5',
               '-draw_mouse', '1', '-i', 'desktop', '-c:v', 'libx264', '-preset', 'ultrafast', '-threads', '1',
-              '-pix_fmt', 'yuv420p', '-y', $file)
+              '-pix_fmt', 'yuv420p')
+            if (-not $Plain) {
+              $ffArgs += @('-g', '10', '-flush_packets', '1', '-movflags', '+frag_keyframe+empty_moov+default_base_moof')
+            }
+            $ffArgs += @('-y', $file)
             $p = Start-Process -FilePath $ffmpeg -ArgumentList $ffArgs -WindowStyle Hidden -RedirectStandardError "$file.err" -PassThru
             $grown = $false
             for ($i = 0; $i -lt 40 -and -not $grown; $i++) {
               Start-Sleep -Milliseconds 500
               if ($p.HasExited) { break }
-              $grown = (Test-Path $file) -and (Get-Item $file).Length -gt 0
+              $grown = (Test-Path $file) -and (Get-Item $file).Length -gt 1024
             }
+            if ($Plain) { $grown = -not $p.HasExited }
             if (-not $grown) { throw "the recorder did not start writing ${file}: $(Get-Content "$file.err" -Raw)" }
             return $p.Id
           }
 
-          # Stop-Recorder sends Ctrl-C to the recorder's console with this process ignoring it, and
-          # returns how the recorder ended: exited, gone before the stop, or hung and then killed.
+          # Stop-Recorder kills the recorder and says whether it was still running or already gone.
           function Stop-Recorder([int] $id) {
             $p = Get-Process -Id $id -ErrorAction SilentlyContinue
             if (-not $p) { return 'gone' }
-            [Rec.Con]::FreeConsole() | Out-Null
-            if (-not [Rec.Con]::AttachConsole([uint32]$id)) {
-              throw "could not attach to the recorder's console: $([Runtime.InteropServices.Marshal]::GetLastWin32Error())"
-            }
-            [Rec.Con]::SetConsoleCtrlHandler([IntPtr]::Zero, $true) | Out-Null
-            $sent = [Rec.Con]::GenerateConsoleCtrlEvent(0, 0)
-            [Rec.Con]::FreeConsole() | Out-Null
-            if (-not $sent) { throw "Ctrl-C did not reach the recorder: $([Runtime.InteropServices.Marshal]::GetLastWin32Error())" }
-            if (-not $p.WaitForExit(20000)) { Stop-Process -Id $id -Force; return 'hung' }
-            return 'exited'
+            Stop-Process -Id $id -Force
+            $null = $p.WaitForExit(10000)
+            return 'running'
           }
 
           # Test-Video returns the file's length in seconds from ffprobe, or throws with its error.
@@ -113,14 +105,14 @@ jobs:
             return $seconds
           }
           '@ | Set-Content (Join-Path $dir 'recorder.ps1')
-
-          . (Join-Path $dir 'recorder.ps1')
-          $id = Start-Recorder $ffmpeg (Join-Path $dir 'probes.mp4')
-          "$id $([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" | Set-Content (Join-Path $dir 'recorder.txt')
-          Write-Host "  check: the recorder (pid $id) is writing probes.mp4"
+          Write-Host "  check: ffmpeg is installed and the recorder is ready for the Probe step"
 
       - name: Probe
         run: |
+          . (Join-Path $env:RUNNER_TEMP 'probes\recorder.ps1')
+          $recorder = Start-Recorder (Join-Path $env:RUNNER_TEMP 'probes\probes.mp4')
+          "$recorder $([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" | Set-Content (Join-Path $env:RUNNER_TEMP 'probes\recorder.txt')
+          Write-Host "  recording the desktop to probes.mp4 (pid $recorder)"
           $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
           # PowerShell waits for a Windows program and captures its output only through a pipe. Plain
           # $out = & $exe returns at once with no lines and leaves $LASTEXITCODE alone, on every step.
@@ -1046,13 +1038,14 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP 'probes'
           $stopped = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
           $state = Join-Path $dir 'recorder.txt'
-          if (-not (Test-Path $state)) { throw "no recorder was started" }
+          if (-not (Test-Path $state)) { throw "the Probe step started no recorder" }
           $id, $started = (Get-Content $state).Split(' ')
           . (Join-Path $dir 'recorder.ps1')
           $how = Stop-Recorder ([int]$id)
           "$started $stopped $how" | Set-Content $state
-          Write-Host "  recorded: $([math]::Round(($stopped - [long]$started) / 1000.0, 1)) s, recorder $how"
-          if ($how -ne 'exited') { throw "the recorder $how before a clean stop: $(Get-Content (Join-Path $dir 'probes.mp4.err') -Raw)" }
+          Write-Host "  recorded: $([math]::Round(($stopped - [long]$started) / 1000.0, 1)) s, recorder $how at the stop"
+          $err = Get-Content (Join-Path $dir 'probes.mp4.err') -Raw
+          if ($err) { Write-Host "  recorder said: $err" }
 
       - name: Video check
         if: always()
@@ -1062,6 +1055,7 @@ jobs:
           $file = Join-Path $dir 'probes.mp4'
           if (-not (Test-Path $file)) { throw "no probes.mp4 was written" }
           $started, $stopped, $how = (Get-Content (Join-Path $dir 'recorder.txt')).Split(' ')
+          if (-not $how) { throw "the Stop recording step did not run" }
           . (Join-Path $dir 'recorder.ps1')
           $seconds = Test-Video $file
           $wall = ([long]$stopped - [long]$started) / 1000.0
@@ -1080,30 +1074,28 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-      # Negative control for the clean stop: a killed recorder leaves a file ffprobe rejects, and
-      # the same recording stopped with Ctrl-C plays for its length.
+      # Negative control for the fragmented mp4: a killed plain recording does not play, and a killed
+      # fragmented one plays for its length.
       - name: Recorder control
         timeout-minutes: 3
         run: |
           $dir = Join-Path $env:RUNNER_TEMP 'probes'
           . (Join-Path $dir 'recorder.ps1')
-          $ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source
-          $killed = Join-Path $dir 'killed.mp4'
-          $id = Start-Recorder $ffmpeg $killed
+          $plain = Join-Path $dir 'plain.mp4'
+          $id = Start-Recorder $plain -Plain
           Start-Sleep -Seconds 10
-          Stop-Process -Id $id -Force
-          Start-Sleep -Seconds 1
+          $null = Stop-Recorder $id
           $read = $null
-          try { $read = Test-Video $killed } catch { Write-Host "  killed: $($_.Exception.Message)" }
-          if ($null -ne $read) { throw "ffprobe read a killed recording as $read s, so the clean stop proves nothing" }
-          $clean = Join-Path $dir 'clean.mp4'
-          $id = Start-Recorder $ffmpeg $clean
+          try { $read = Test-Video $plain } catch { Write-Host "  plain: $($_.Exception.Message)" }
+          if ($null -ne $read) { throw "ffprobe read a killed plain recording as $read s, so fragmenting proves nothing" }
+          $fragmented = Join-Path $dir 'fragmented.mp4'
+          $id = Start-Recorder $fragmented
           Start-Sleep -Seconds 10
           $how = Stop-Recorder $id
-          $seconds = Test-Video $clean
-          Write-Host "  clean: recorder $how, $([math]::Round($seconds, 1)) s"
-          if ($how -ne 'exited' -or [math]::Abs($seconds - 10) -gt 3) { throw "the Ctrl-C stop did not leave a 10 s video: $how, $seconds s" }
-          Write-Host "  check: a killed recording does not play and a Ctrl-C stopped one does"
+          $seconds = Test-Video $fragmented
+          Write-Host "  fragmented: recorder $how at the kill, $([math]::Round($seconds, 1)) s"
+          if ($how -ne 'running' -or $seconds -lt 7 -or $seconds -gt 13) { throw "the killed fragmented recording did not keep about 10 s: $how, $seconds s" }
+          Write-Host "  check: a killed plain recording does not play and a killed fragmented one does"
 
       - name: Contracts
         timeout-minutes: 5
