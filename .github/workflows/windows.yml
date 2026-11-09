@@ -526,7 +526,6 @@ jobs:
               if (-not $n.Success) { throw "no state line for case $name" }
               @{ Frame = @(1..4 | ForEach-Object { [int]$n.Groups[$_].Value }); Zoomed = $n.Groups[5].Value; Minimized = $n.Groups[6].Value; Front = $n.Groups[7].Value }
             }
-            $start = @(200, 150, 500, 350)
             $h = Buttons @()
             $channel = Rect ($h -match '^channel: ')[0] 'channel: '
             $half = [Math]::Floor($channel[2] / 2)
@@ -540,10 +539,10 @@ jobs:
               if ($name -ne 'behind' -and $c.Front -ne 'yes') { throw "case $name left the window behind another" }
             }
             Write-Host "  check: back, forward, middle, and the bound Shift, Alt and Windows clicks reached their halves, not the window's own button, and the window stayed in front"
-            $off = Off (Case $h 'behind front window').Frame @(100, 520, 400, 150)
+            $off = Off (Case $h 'behind front window').Frame (Case $h 'before behind front window').Frame
             if ($off -gt 1) { throw "the click behind moved the window in front by $off px" }
             Write-Host "  check: a bound click on a window behind another moved the clicked one and not the one in front"
-            $off = Off (Case $h 'shift-caption').Frame $start
+            $off = Off (Case $h 'shift-caption').Frame (Case $h 'before shift-caption').Frame
             if ($off -gt 1) { throw "Shift on the caption, off a button, moved the window by $off px" }
             Write-Host "  check: Shift on the caption but off a button ran nothing"
             if ((Case $h 'plain-maximize').Zoomed -ne 'yes') { throw "an unbound maximize did not maximize" }
@@ -559,7 +558,7 @@ jobs:
             Write-Host "  check: with the swallow removed the bound Shift-maximize click also maximizes"
             $q = Buttons @('--paused')
             foreach ($name in @('back', 'forward', 'middle')) {
-              $off = Off (Case $q $name).Frame $start
+              $off = Off (Case $q $name).Frame (Case $q "before $name").Frame
               if ($off -gt 1) { throw "paused, case $name moved the window by $off px" }
             }
             if ((Case $q 'shift-maximize').Zoomed -ne 'yes') { throw "paused, a bound click did not reach the window" }

@@ -77,8 +77,10 @@ func buttonLine(_ name: String, _ id: WindowID) {
         "front \(yes(GetForegroundWindow() == hwnd))")
 }
 
-// runButtonCase puts the window at its start, presses as the case says, lets the result land and prints
-// it. It runs on the probe's input thread, so it holds only window ids.
+// runButtonCase puts the window at its start, prints where it read from there, presses as the case says,
+// and prints the state while pressed, on release, and once the result lands. The visible frame is smaller
+// than the rect the start sets, so a check compares the case against its own before line. It runs on the
+// probe's input thread, so it holds only window ids.
 func runButtonCase(_ c: ButtonCase, _ id: WindowID, other: WindowID?) {
     guard let hwnd = WinWindows.hwnd(id) else { return }
     _ = ShowWindow(hwnd, SW_RESTORE)
@@ -92,6 +94,10 @@ func runButtonCase(_ c: ButtonCase, _ id: WindowID, other: WindowID?) {
         bringForward(front)
     }
     Sleep(500)
+    buttonLine("before \(c.name)", id)
+    if c.behind, let other {
+        buttonLine("before \(c.name) front window", other)
+    }
     var r = RECT()
     _ = GetWindowRect(hwnd, &r)
     let spot: POINT?
@@ -103,14 +109,17 @@ func runButtonCase(_ c: ButtonCase, _ id: WindowID, other: WindowID?) {
         print("case \(c.name): no spot")
         return
     }
+    print("spot \(c.name): \(spot.x) \(spot.y)")
     sendMouse(spot.x, spot.y, 0)
     Sleep(100)
     c.keys.forEach { sendKey($0, up: false) }
     Sleep(50)
     sendMouse(spot.x, spot.y, c.flags.down, data: c.data)
     Sleep(200)
+    buttonLine("pressed \(c.name)", id)
     sendMouse(spot.x, spot.y, c.flags.up, data: c.data)
     Sleep(50)
+    buttonLine("released \(c.name)", id)
     c.keys.reversed().forEach { sendKey($0, up: true) }
     Sleep(800)
     buttonLine(c.name, id)
