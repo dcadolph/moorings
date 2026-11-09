@@ -1105,7 +1105,7 @@ jobs:
           $global:LASTEXITCODE = 0
           Write-Host "caption answers by window kind, a read and not a check: any answer but a button keeps its native clicks"
           foreach ($b in @('chrome', 'edge')) {
-            if ($browsers[$b]) { $null = Start-Process $browsers[$b] -ArgumentList @("--user-data-dir=$(Join-Path $env:RUNNER_TEMP "captions-$b")", '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--new-window', 'about:blank') -PassThru }
+            if ($browsers[$b]) { $null = Start-Process $browsers[$b] -ArgumentList @("--user-data-dir=$(Join-Path $env:RUNNER_TEMP "captions-$b")", '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--new-window', 'about:blank') -PassThru; Start-Sleep -Seconds 6 }
           }
           try { $null = Start-Process calc -PassThru } catch { Write-Host "  no calculator on the runner" }
           Start-Sleep -Seconds 8

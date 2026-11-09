@@ -189,16 +189,17 @@ func probeNativeClicks(_ opts: ProbeOptions) -> Int32 {
     return 0
 }
 
-// probeCaptions prints what each window on screen answers at its three caption buttons, by class, so
-// the runner can say which kinds of window take bound clicks. Any answer but a button keeps its native
-// clicks.
+// probeCaptions prints what each window on screen answers at its three caption buttons, by class and
+// program, so the runner can say which kinds of window take bound clicks. Any answer but a button keeps
+// its native clicks.
 func probeCaptions(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
     for hwnd in WinWindows.topLevel() where WinWindows.describe(hwnd, screens: screens) != nil {
         let found = [("yellow", DWORD_PTR(8)), ("green", DWORD_PTR(9)), ("red", DWORD_PTR(20))].map { name, answer in
             "\(name) \(captionSpot(hwnd, answer) == nil ? "no" : "yes")"
         }
-        print("captions \(WinWindows.className(hwnd)): \(found.joined(separator: " "))")
+        let program = WinWindows.image(WinWindows.processID(hwnd))?.split(separator: "\\").last ?? "unknown"
+        print("captions \(WinWindows.className(hwnd)) \(program): \(found.joined(separator: " "))")
     }
     return 0
 }
