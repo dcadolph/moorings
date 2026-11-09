@@ -33,9 +33,17 @@ let buttonStart = (x: Int32(200), y: Int32(150), w: Int32(500), h: Int32(350))
 // buttonOtherStart is where the other window waits, clear of the first window's caption.
 let buttonOtherStart = (x: Int32(100), y: Int32(520), w: Int32(400), h: Int32(150))
 
+// plainCases are presses no binding takes, which must do what they do with no hook installed. Minimize
+// runs on both sides of maximize, so an effect of the order shows in the result.
+let plainCases = [
+    ButtonCase(name: "plain-minimize", spot: .answer(8)),
+    ButtonCase(name: "plain-maximize", spot: .answer(9)),
+    ButtonCase(name: "minimize-after-maximize", spot: .answer(8)),
+]
+
 // buttonCases lists the presses. The bound ones expect the choices probeButtons saves. Close comes last,
 // so a press that gets through ends the window after every other case has been read.
-let buttonCases = [
+let buttonCases: [ButtonCase] = [
     ButtonCase(name: "back", spot: .middle, flags: (0x0080, 0x0100), data: 1),
     ButtonCase(name: "forward", spot: .middle, flags: (0x0080, 0x0100), data: 2),
     ButtonCase(name: "middle", spot: .middle, flags: (0x0020, 0x0040)),
@@ -43,8 +51,7 @@ let buttonCases = [
     ButtonCase(name: "alt-minimize", keys: [0x12], spot: .answer(8)),
     ButtonCase(name: "behind", keys: [0x10], spot: .answer(9), behind: true),
     ButtonCase(name: "shift-caption", keys: [0x10], spot: .answer(2)),
-    ButtonCase(name: "plain-maximize", spot: .answer(9)),
-    ButtonCase(name: "plain-minimize", spot: .answer(8)),
+] + plainCases + [
     ButtonCase(name: "windows-close", keys: [0x5B], spot: .answer(20)),
 ]
 
@@ -164,6 +171,19 @@ func probeButtons(_ opts: ProbeOptions) -> Int32 {
     app.run(until: App.now + opts.seconds)
     print("channel: \(pixels(app.engine.anchors.channel(wide)))")
     print("hook slowest: \(WinMouseHook.slowest) ms")
+    return 0
+}
+
+// probeNativeClicks makes the plain presses on the window of --pid with no hook and no app in this
+// process, so ButtonCheck can hold the hooked result to what Windows does alone.
+func probeNativeClicks(_ opts: ProbeOptions) -> Int32 {
+    let screens = Screens.current(minAspect: opts.minAspect)
+    guard let pid = opts.pid, let hwnd = windowOf(pid, screens: screens) else {
+        print("nativeclicks: no window of --pid")
+        return 1
+    }
+    let id = WinWindows.id(hwnd)
+    plainCases.forEach { runButtonCase($0, id, other: nil) }
     return 0
 }
 

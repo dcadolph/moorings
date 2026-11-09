@@ -15,6 +15,7 @@ let probes: [String: Probe] = [
     "link": probeLink,
     "buttons": probeButtons,
     "captions": probeCaptions,
+    "nativeclicks": probeNativeClicks,
     "monitors": probeMonitors,
     "modes": probeModes,
     "list": probeList,
