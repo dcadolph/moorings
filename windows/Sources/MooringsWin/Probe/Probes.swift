@@ -11,6 +11,7 @@ typealias Probe = @Sendable (ProbeOptions) -> Int32
 // probes maps each probe name to its function.
 let probes: [String: Probe] = [
     "version": probeVersion,
+    "console": probeConsole,
     "monitors": probeMonitors,
     "modes": probeModes,
     "list": probeList,

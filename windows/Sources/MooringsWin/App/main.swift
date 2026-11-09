@@ -4,6 +4,12 @@ import WinSDK
 import MooringsCore
 import MooringsEngine
 
+// The streams open before anything can write. --no-streams skips it, the console probe's negative
+// control, and is read here because a bad command line already writes to stderr.
+if !CommandLine.arguments.contains("--no-streams") {
+    openStandardStreams()
+}
+
 // Per-Monitor-V2 must be set before any window call, so frames come back in physical pixels.
 _ = SetProcessDpiAwarenessContext(perMonitorAwareV2)
 
