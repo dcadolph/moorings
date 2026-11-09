@@ -74,6 +74,17 @@ Links and the command line
   use Start-Process -Wait -PassThru.
 - Links and --action never close windows. Those actions run only from shortcuts and the menu.
 
+Mouse buttons and caption buttons
+
+- In the settings file, mouseButtons binds a button number to an action: 2 is the middle
+  button, 3 is back and 4 is forward, as in "mouseButtons": {"3": "left-half"}.
+- buttonClicks binds a click on a window's own button: green is maximize, yellow is minimize
+  and red is close, plain or with +shift, +option for Alt, or +command for the Windows key,
+  as in "buttonClicks": {"green+shift": "left-half"}.
+- A bound click runs the action on that window and never reaches the button. An unbound
+  click works as usual. Some apps draw their own title bar and do not name these buttons to
+  Windows. Those apps keep their usual clicks.
+
 This build is checked on GitHub's Windows runner, not yet on a physical ultrawide.
 
 Moorings keeps a log in %LOCALAPPDATA%\Moorings\moorings.log, with one older file beside

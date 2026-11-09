@@ -13,6 +13,8 @@ let probes: [String: Probe] = [
     "version": probeVersion,
     "console": probeConsole,
     "link": probeLink,
+    "buttons": probeButtons,
+    "captions": probeCaptions,
     "monitors": probeMonitors,
     "modes": probeModes,
     "list": probeList,
