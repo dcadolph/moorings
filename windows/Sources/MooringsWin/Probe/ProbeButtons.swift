@@ -43,17 +43,18 @@ let plainCases = [
 
 // buttonCases lists the presses. The bound ones expect the choices probeButtons saves. Close comes last,
 // so a press that gets through ends the window after every other case has been read.
-let buttonCases: [ButtonCase] = [
-    ButtonCase(name: "back", spot: .middle, flags: (0x0080, 0x0100), data: 1),
-    ButtonCase(name: "forward", spot: .middle, flags: (0x0080, 0x0100), data: 2),
-    ButtonCase(name: "middle", spot: .middle, flags: (0x0020, 0x0040)),
-    ButtonCase(name: "shift-maximize", keys: [0x10], spot: .answer(9)),
-    ButtonCase(name: "alt-minimize", keys: [0x12], spot: .answer(8)),
-    ButtonCase(name: "behind", keys: [0x10], spot: .answer(9), behind: true),
-    ButtonCase(name: "shift-caption", keys: [0x10], spot: .answer(2)),
-] + plainCases + [
-    ButtonCase(name: "windows-close", keys: [0x5B], spot: .answer(20)),
-]
+let buttonCases: [ButtonCase] =
+    [
+        ButtonCase(name: "back", spot: .middle, flags: (0x0080, 0x0100), data: 1),
+        ButtonCase(name: "forward", spot: .middle, flags: (0x0080, 0x0100), data: 2),
+        ButtonCase(name: "middle", spot: .middle, flags: (0x0020, 0x0040)),
+        ButtonCase(name: "shift-maximize", keys: [0x10], spot: .answer(9)),
+        ButtonCase(name: "alt-minimize", keys: [0x12], spot: .answer(8)),
+        ButtonCase(name: "behind", keys: [0x10], spot: .answer(9), behind: true),
+        ButtonCase(name: "shift-caption", keys: [0x10], spot: .answer(2)),
+    ] + plainCases + [
+        ButtonCase(name: "windows-close", keys: [0x5B], spot: .answer(20))
+    ]
 
 // captionSpot finds the middle of the part of hwnd's caption that answers answer, nil when none does.
 // It walks the caption rows from the top right, since no two windows place their buttons alike.
