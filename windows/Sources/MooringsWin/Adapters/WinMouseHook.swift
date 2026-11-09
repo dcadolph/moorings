@@ -5,8 +5,10 @@ import MooringsCore
 import MooringsEngine
 
 // WinMouseHook delivers the pointer through a low-level mouse hook on the loop thread. The hook
-// callback only posts the point and the button message to the thread and notes where the left button
-// went down, so it stays far under the time Windows allows before it removes a slow hook.
+// callback posts the point and the button message to the thread and notes where the left button went
+// down. A button press also asks takes whether the press is Moorings', and if so the hook swallows the
+// press and its release. All of it stays far under the time Windows allows before it removes a slow
+// hook.
 final class WinMouseHook {
     // message is the private thread message the callback posts, with the mouse message in wParam
     // and the point packed in lParam. The tray icon has WM_APP + 1.
@@ -15,6 +17,9 @@ final class WinMouseHook {
     static let heartbeatSeconds = 10.0
     // mouseLowLevel is WH_MOUSE_LL.
     static let mouseLowLevel: Int32 = 14
+    // left is the left button's number. The others are numbered as the Mac numbers them: 2 middle,
+    // 3 back and 4 forward.
+    static let left = 0
 
     // point is the last point the hook delivered, nil before the first.
     private(set) var point: SnapPoint?
@@ -38,6 +43,17 @@ final class WinMouseHook {
     // press is where the left button last went down on the virtual desktop and when, by
     // GetTickCount64. The callback writes it, so it is set before the window under the press hears it.
     nonisolated(unsafe) static var press: (x: Int32, y: Int32, tick: UInt64)?
+    // takes reports whether a press of the numbered button at a point belongs to Moorings. The callback
+    // calls it, which can happen while a pass waits on another process's window, so it may only read
+    // and queue.
+    nonisolated(unsafe) static var takes: (Int, POINT) -> Bool = { _, _ in false }
+    // swallowing is false only in the buttons probe's negative control, which lets taken presses pass.
+    nonisolated(unsafe) static var swallowing = true
+    // swallowed holds the numbers of the buttons whose press the hook swallowed and whose release it
+    // has yet to see.
+    nonisolated(unsafe) static var swallowed: Set<Int> = []
+    // slowest is the longest takes has run, in milliseconds by GetTickCount64.
+    nonisolated(unsafe) static var slowest: UInt64 = 0
 
     // start installs the hook for the calling thread and starts the heartbeat.
     func start() {
@@ -67,6 +83,9 @@ final class WinMouseHook {
             { code, wParam, lParam in
                 if code >= 0, let info = UnsafePointer<MSLLHOOKSTRUCT>(bitPattern: Int(lParam)) {
                     WinMouseHook.delivered &+= 1
+                    if wParam != WPARAM(WM_MOUSEMOVE), WinMouseHook.swallows(wParam, info.pointee) {
+                        return 1
+                    }
                     let p = info.pointee.pt
                     if wParam == WPARAM(WM_LBUTTONDOWN) {
                         WinMouseHook.press = (p.x, p.y, GetTickCount64())
@@ -77,6 +96,36 @@ final class WinMouseHook {
                 return CallNextHookEx(nil, code, wParam, lParam)
             }, GetModuleHandleW(nil), 0)
         return hook != nil
+    }
+
+    // swallows reports whether the hook keeps message from every window. A press goes when takes claims
+    // it, and a release goes only when its own press did, so a lost release cannot eat a later one.
+    private static func swallows(_ message: WPARAM, _ info: MSLLHOOKSTRUCT) -> Bool {
+        guard let button = button(message, data: info.mouseData) else { return false }
+        guard button.down else { return swallowed.remove(button.number) != nil }
+        swallowed.remove(button.number)
+        let start = GetTickCount64()
+        let taken = takes(button.number, info.pt)
+        slowest = max(slowest, GetTickCount64() &- start)
+        guard taken, swallowing else { return false }
+        swallowed.insert(button.number)
+        return true
+    }
+
+    // button returns the number of the button message names and whether it went down, nil for the right
+    // button, which no binding takes, and for a message that is no button's. The high word of data says
+    // which X button.
+    static func button(_ message: WPARAM, data: DWORD) -> (number: Int, down: Bool)? {
+        let extra = data >> 16 == 1 ? 3 : 4
+        switch message {
+        case WPARAM(WM_LBUTTONDOWN): return (left, true)
+        case WPARAM(WM_LBUTTONUP): return (left, false)
+        case WPARAM(WM_MBUTTONDOWN): return (2, true)
+        case WPARAM(WM_MBUTTONUP): return (2, false)
+        case WPARAM(WM_XBUTTONDOWN): return (extra, true)
+        case WPARAM(WM_XBUTTONUP): return (extra, false)
+        default: return nil
+        }
     }
 
     // deliver handles msg when it is the hook's message and reports whether it was.
@@ -207,14 +256,15 @@ final class WinDrag {
         pointer(p)
         let held = Modifiers.now()
         if held.contains(.command) {
-            Self.maskStart()
+            Self.maskKeys()
         }
         app.engine.drag.ended(held: held)
     }
 
-    // maskStart taps a key no keyboard has, so letting go of the Windows key after a drag does not
-    // open the Start menu, which opens only when no other key came between its press and release.
-    private static func maskStart() {
+    // maskKeys taps a key no keyboard has, so letting go of the Windows key does not open the Start
+    // menu and letting go of Alt does not open the menu bar, which open only when no other key came
+    // between the press and the release.
+    static func maskKeys() {
         var inputs = [DWORD(0), DWORD(0x0002)].map { flags in
             var input = INPUT()
             input.type = DWORD(INPUT_KEYBOARD)

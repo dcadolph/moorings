@@ -509,6 +509,66 @@ jobs:
             Stop-Process -Id $pad.Id
           }
 
+          function ButtonCheck([string[]] $geo) {
+            Write-Host "probe buttons $geo"
+            $pad = Pad
+            $front = Pad
+            Start-Sleep -Seconds 3
+            $root = Join-Path $env:RUNNER_TEMP "buttons-$($pad.Id)"
+            New-Item -ItemType Directory -Force -Path (Join-Path $root 'Roaming'), (Join-Path $root 'Local') | Out-Null
+            $roaming, $local = $env:APPDATA, $env:LOCALAPPDATA
+            $env:APPDATA, $env:LOCALAPPDATA = (Join-Path $root 'Roaming'), (Join-Path $root 'Local')
+            function Buttons([string[]] $more) {
+              Probe (@('--probe', 'buttons', '--pid', "$($pad.Id)", '--other', "$($front.Id)", '--seconds', '60') + $more + $geo)
+            }
+            function Case($lines, [string] $name) {
+              $n = [regex]::Match((@($lines -match "^case ${name}: ")[0] + ''), "^case ${name}: frame (-?\d+) (-?\d+) (\d+) (\d+) zoomed (yes|no) minimized (yes|no) front (yes|no)$")
+              if (-not $n.Success) { throw "no state line for case $name" }
+              @{ Frame = @(1..4 | ForEach-Object { [int]$n.Groups[$_].Value }); Zoomed = $n.Groups[5].Value; Minimized = $n.Groups[6].Value; Front = $n.Groups[7].Value }
+            }
+            $start = @(200, 150, 500, 350)
+            $h = Buttons @()
+            $channel = Rect ($h -match '^channel: ')[0] 'channel: '
+            $half = [Math]::Floor($channel[2] / 2)
+            $sides = @{ left = @($channel[0], $channel[1], $half, $channel[3]); right = @(($channel[0] + $half), $channel[1], $half, $channel[3]) }
+            $want = [ordered]@{ back = 'left'; forward = 'right'; middle = 'left'; 'shift-maximize' = 'left'; 'alt-minimize' = 'right'; behind = 'left'; 'windows-close' = 'left' }
+            foreach ($name in $want.Keys) {
+              $c = Case $h $name
+              $off = Off $c.Frame $sides[$want[$name]]
+              if ($off -gt 1) { throw "case $name is off the $($want[$name]) half by $off px" }
+              if ($c.Zoomed -ne 'no' -or $c.Minimized -ne 'no') { throw "case $name also reached the window: zoomed $($c.Zoomed) minimized $($c.Minimized)" }
+              if ($name -ne 'behind' -and $c.Front -ne 'yes') { throw "case $name left the window behind another" }
+            }
+            Write-Host "  check: back, forward, middle, and the bound Shift, Alt and Windows clicks reached their halves, not the window's own button, and the window stayed in front"
+            $off = Off (Case $h 'behind front window').Frame @(100, 520, 400, 150)
+            if ($off -gt 1) { throw "the click behind moved the window in front by $off px" }
+            Write-Host "  check: a bound click on a window behind another moved the clicked one and not the one in front"
+            $off = Off (Case $h 'shift-caption').Frame $start
+            if ($off -gt 1) { throw "Shift on the caption, off a button, moved the window by $off px" }
+            Write-Host "  check: Shift on the caption but off a button ran nothing"
+            if ((Case $h 'plain-maximize').Zoomed -ne 'yes') { throw "an unbound maximize did not maximize" }
+            if ((Case $h 'plain-minimize').Minimized -ne 'yes') { throw "an unbound minimize did not minimize" }
+            Write-Host "  check: unbound maximize and minimize clicks still reach the window"
+            $slow = [int][regex]::Match(($h -match '^hook slowest: ')[0], '(\d+) ms').Groups[1].Value
+            if ($slow -ge 300) { throw "the hook took $slow ms to decide, past the 300 ms Windows allows by default" }
+            Write-Host "  check: the hook decided within $slow ms"
+
+            Write-Host "probe buttons negative controls $geo"
+            $n = Buttons @('--no-swallow')
+            if ((Case $n 'shift-maximize').Zoomed -ne 'yes') { throw "with the swallow removed the bound maximize click did not maximize too" }
+            Write-Host "  check: with the swallow removed the bound Shift-maximize click also maximizes"
+            $q = Buttons @('--paused')
+            foreach ($name in @('back', 'forward', 'middle')) {
+              $off = Off (Case $q $name).Frame $start
+              if ($off -gt 1) { throw "paused, case $name moved the window by $off px" }
+            }
+            if ((Case $q 'shift-maximize').Zoomed -ne 'yes') { throw "paused, a bound click did not reach the window" }
+            Write-Host "  check: paused, the extra buttons run nothing and a bound click reaches the window"
+            $env:APPDATA, $env:LOCALAPPDATA = $roaming, $local
+            Stop-Process -Id $pad.Id
+            Stop-Process -Id $front.Id
+          }
+
           function HotkeyCheck([string[]] $geo) {
             Write-Host "probe hotkeys $geo"
             $pad = Pad
@@ -546,6 +606,7 @@ jobs:
           }
           HotkeyCheck @('--min-aspect', '1.0')
           LinkCheck @('--min-aspect', '1.0')
+          ButtonCheck @('--min-aspect', '1.0')
 
           Write-Host "probe banner"
           $b = Probe @('--probe', 'banner', '--min-aspect', '1.0')
@@ -815,6 +876,7 @@ jobs:
 
           HotkeyCheck $simApp
           LinkCheck $simApp
+          ButtonCheck $simApp
           if ($script:channel[2] -lt 1100) { throw "SIM channel is $($script:channel -join ' '), not at ultrawide numbers" }
           Write-Host "  check: SIM left half of the channel $($script:channel -join ' ')"
 
@@ -1031,6 +1093,17 @@ jobs:
           }
           Write-Host "  screen: $(@(& $exe --probe modes | ForEach-Object { $_ }) -match '^current: ')"
           $global:LASTEXITCODE = 0
+          Write-Host "caption answers by window kind, a read and not a check: any answer but a button keeps its native clicks"
+          foreach ($b in @('chrome', 'edge')) {
+            if ($browsers[$b]) { $null = Start-Process $browsers[$b] -ArgumentList @("--user-data-dir=$(Join-Path $env:RUNNER_TEMP "captions-$b")", '--no-first-run', '--no-default-browser-check', '--disable-extensions', '--new-window', 'about:blank') -PassThru }
+          }
+          try { $null = Start-Process calc -PassThru } catch { Write-Host "  no calculator on the runner" }
+          Start-Sleep -Seconds 8
+          $null = Probe @('--probe', 'captions', '--min-aspect', '1.0')
+          foreach ($b in @('chrome', 'edge')) {
+            if ($browsers[$b]) { Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $browsers[$b] } | Stop-Process -Force -ErrorAction SilentlyContinue }
+          }
+          Get-Process -Name calc, win32calc, CalculatorApp -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
           $bad = @()
           $controls = 0
           try {

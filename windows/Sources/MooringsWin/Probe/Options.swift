@@ -60,6 +60,10 @@ struct ProbeOptions {
     var reset = false
     // noHook runs the drag probe without the mouse hook, its negative control.
     var noHook = false
+    // noSwallow lets the presses the buttons probe binds reach the window, its negative control.
+    var noSwallow = false
+    // other names the process of the window the buttons probe keeps in front for its click behind.
+    var other: DWORD?
     // alt holds Alt through the drag probe's drop.
     var alt = false
     // activate leaves the footprint probe's window without its pass-through bits, its negative
@@ -138,6 +142,12 @@ struct ProbeOptions {
                 break
             case "--no-hook":
                 noHook = true
+            case "--no-swallow":
+                noSwallow = true
+            case "--other":
+                guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
+                guard let n = DWORD(value) else { throw ProbeError.badValue(flag, value) }
+                other = n
             case "--alt":
                 alt = true
             case "--activate":

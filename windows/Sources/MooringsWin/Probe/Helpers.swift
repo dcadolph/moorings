@@ -35,8 +35,8 @@ func dragInput(from: (x: Int32, y: Int32), to: (x: Int32, y: Int32), keys: [WORD
 }
 
 // sendMouse moves the pointer to x, y on the virtual desktop with SendInput, adding the button
-// flags, 0x0002 for down and 0x0004 for up.
-func sendMouse(_ x: Int32, _ y: Int32, _ buttons: DWORD) {
+// flags, 0x0002 for down and 0x0004 for up. data says which X button.
+func sendMouse(_ x: Int32, _ y: Int32, _ buttons: DWORD, data: DWORD = 0) {
     let left = GetSystemMetrics(SM_XVIRTUALSCREEN), top = GetSystemMetrics(SM_YVIRTUALSCREEN)
     let w = max(2, GetSystemMetrics(SM_CXVIRTUALSCREEN)), h = max(2, GetSystemMetrics(SM_CYVIRTUALSCREEN))
     var input = INPUT()
@@ -44,6 +44,7 @@ func sendMouse(_ x: Int32, _ y: Int32, _ buttons: DWORD) {
     input.mi.dx = LONG((Int(x - left) * 65535) / Int(w - 1))
     input.mi.dy = LONG((Int(y - top) * 65535) / Int(h - 1))
     input.mi.dwFlags = 0x0001 | 0x8000 | 0x4000 | buttons
+    input.mi.mouseData = data
     _ = SendInput(1, &input, Int32(MemoryLayout<INPUT>.size))
 }
 
@@ -102,6 +103,11 @@ func pump(until: Double, _ each: (MSG) -> Void = { _ in }) {
 // foreground names the foreground window the way the list probe names windows.
 func foreground() -> String {
     GetForegroundWindow().map { hex(WinWindows.id($0)) } ?? "none"
+}
+
+// windowOf returns the first window of process pid that counts as a window on screens.
+func windowOf(_ pid: DWORD, screens: Screens) -> HWND? {
+    WinWindows.topLevel().first { WinWindows.processID($0) == pid && WinWindows.describe($0, screens: screens) != nil }
 }
 
 // bringForward makes hwnd the foreground window. Windows lets only the foreground process do that,

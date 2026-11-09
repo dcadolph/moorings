@@ -32,6 +32,8 @@ final class App {
     private(set) lazy var mouse = WinMouseHook()
     // drag feeds a window moved by its frame to the engine's drag follower.
     private(set) lazy var drag = WinDrag(app: self)
+    // buttons runs the actions bound to the extra mouse buttons and the caption buttons.
+    private(set) lazy var buttons = WinButtons(app: self)
     // footprint shows where a dragged window will land.
     let footprint = WinFootprint()
     // screens reads the attached monitors.
@@ -96,10 +98,12 @@ final class App {
         engine.listen()
         if hooksMouse {
             mouse.handler = { [unowned self] message, p in mouseEvent(message, p) }
+            WinMouseHook.takes = { [unowned self] number, p in buttons.takes(number, at: p) }
             mouse.start()
         }
         defer {
             mouse.stop()
+            WinMouseHook.takes = { _, _ in false }
             events.stop()
             if stop != 0 {
                 _ = KillTimer(nil, stop)
@@ -109,7 +113,7 @@ final class App {
         engine.wake()
         var msg = MSG()
         while GetMessageW(&msg, nil, 0, 0) {
-            if mouse.deliver(msg) {
+            if mouse.deliver(msg) || buttons.deliver(msg) {
                 continue
             }
             if msg.message == UINT(WM_HOTKEY), msg.hwnd == nil {

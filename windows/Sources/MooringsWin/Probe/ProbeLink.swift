@@ -21,10 +21,7 @@ func probeLink(_ opts: ProbeOptions) -> Int32 {
         print("channel: \(pixels(app.engine.anchors.channel(host)))")
     }
     guard let pid = opts.pid else { return 0 }
-    let hwnd = WinWindows.topLevel().first {
-        WinWindows.processID($0) == pid && WinWindows.describe($0, screens: screens) != nil
-    }
-    guard let hwnd else {
+    guard let hwnd = windowOf(pid, screens: screens) else {
         print("window: gone")
         return 0
     }
