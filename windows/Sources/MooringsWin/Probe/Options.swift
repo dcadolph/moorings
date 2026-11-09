@@ -60,7 +60,8 @@ struct ProbeOptions {
     var reset = false
     // noHook runs the drag probe without the mouse hook, its negative control.
     var noHook = false
-    // noSwallow lets the presses the buttons probe binds reach the window, its negative control.
+    // noSwallow lets the presses the buttons probe binds reach the window with no action, its negative
+    // control.
     var noSwallow = false
     // other names the process of the window the buttons probe keeps in front for its click behind.
     var other: DWORD?

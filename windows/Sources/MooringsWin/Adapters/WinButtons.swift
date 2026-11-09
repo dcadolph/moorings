@@ -39,12 +39,14 @@ final class WinButtons {
 
     // takes reports whether a press of the numbered button at p is bound to an action, and queues the
     // action if so. Unbound presses, and every press while paused, pass on, as does a binding this
-    // platform cannot run.
+    // platform cannot run. With swallowing off nothing queues, since an action that moved the window
+    // during the press would carry the button out from under the release.
     func takes(_ number: Int, at p: POINT) -> Bool {
         let choices = app.engine.anchors.choices
         guard !choices.paused else { return false }
         let press = number == WinMouseHook.left ? click(at: p, choices) : extra(number, choices)
         guard let press, app.engine.actions.supports(press.name) else { return false }
+        guard WinMouseHook.swallowing else { return true }
         queued.append(press)
         _ = PostThreadMessageW(GetCurrentThreadId(), Self.message, 0, 0)
         return true

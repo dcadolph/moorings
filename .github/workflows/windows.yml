@@ -565,8 +565,8 @@ jobs:
 
             Write-Host "probe buttons negative controls $geo"
             $n = Buttons @('--no-swallow')
-            if ((Case $n 'shift-maximize').Zoomed -ne 'yes') { throw "with the swallow removed the bound maximize click did not maximize too" }
-            Write-Host "  check: with the swallow removed the bound Shift-maximize click also maximizes"
+            if ((Case $n 'shift-maximize').Zoomed -ne 'yes') { throw "with the swallow removed and no action run, the bound maximize click did not maximize" }
+            Write-Host "  check: with the swallow removed and no action run, the bound Shift-maximize click maximizes, where the normal run read zoomed no"
             $q = Buttons @('--paused')
             foreach ($name in @('back', 'forward', 'middle')) {
               $off = Off (Case $q $name).Frame (Case $q "before $name").Frame

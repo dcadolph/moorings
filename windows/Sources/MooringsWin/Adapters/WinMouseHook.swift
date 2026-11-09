@@ -47,7 +47,8 @@ final class WinMouseHook {
     // calls it, which can happen while a pass waits on another process's window, so it may only read
     // and queue.
     nonisolated(unsafe) static var takes: (Int, POINT) -> Bool = { _, _ in false }
-    // swallowing is false only in the buttons probe's negative control, which lets taken presses pass.
+    // swallowing is false only in the buttons probe's negative control, which lets taken presses pass
+    // and runs no action for them, so the hook's return is all that differs from a normal press.
     nonisolated(unsafe) static var swallowing = true
     // swallowed holds the numbers of the buttons whose press the hook swallowed and whose release it
     // has yet to see.
