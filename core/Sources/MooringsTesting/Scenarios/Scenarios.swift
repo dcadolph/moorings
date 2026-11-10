@@ -352,7 +352,7 @@ public enum Scenarios {
         ("chainsRun", [], chainsRun),
         ("reloadOnFileChange", [], reloadOnFileChange),
         ("organize", .organize, organize),
-        ("channelCycle", .organize, channelCycle),
+        ("channelCycle", [.organize, .channelCycle], channelCycle),
         ("badgeCounts", .badge, badgeCounts),
         ("workspaceRecall", .workspaces, workspaceRecall),
     ]
@@ -360,7 +360,7 @@ public enum Scenarios {
     // featureNames names each feature the way a skip line says it.
     static let featureNames: [(Engine.Features, String)] = [
         (.grid, "grid"), (.stash, "stash"), (.organize, "organize"), (.tiling, "tiling"),
-        (.workspaces, "workspaces"), (.profiles, "profiles"), (.badge, "badge"),
+        (.workspaces, "workspaces"), (.profiles, "profiles"), (.badge, "badge"), (.channelCycle, "channel cycle"),
     ]
 
     // run runs every scenario named in only, every one when only is empty, on engine and host, and

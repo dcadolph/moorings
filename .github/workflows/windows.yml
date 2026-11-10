@@ -1300,19 +1300,19 @@ jobs:
           }
           function Written($run) {
             $shots = @(Get-ChildItem (Join-Path $run.Dir '*.png') -ErrorAction SilentlyContinue)
-            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 17) { throw "want report.html and 17 pictures in $($run.Dir), got $($shots.Count)" }
+            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 16) { throw "want report.html and 16 pictures in $($run.Dir), got $($shots.Count)" }
             if (-not ($run.Lines -match '^hook reinstalled: 0$')) { throw "the mouse hook was put back during the scenarios in $($run.Dir)" }
           }
 
           Write-Host "scenarios on the runner's screen"
           $s = Scenarios 'runner' @('--min-aspect', '1.0')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 17 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 16 run, 3 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
-          Write-Host "  check: 17 scenarios passed on the Win32 adapters, workspaceRecall and refusedWindowTriedOnce skipped, with report.html, 17 pictures and the hook never put back"
+          Write-Host "  check: 16 scenarios passed on the Win32 adapters, channelCycle, workspaceRecall and refusedWindowTriedOnce skipped, with report.html, 16 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
           $s = Scenarios 'sim' @('--screen', '3440x1440')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 17 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 16 run, 3 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
           if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
           Written $s
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
@@ -1409,7 +1409,7 @@ jobs:
             $hook = @($out -match '^hook reinstalled: ')[0]
             Write-Host "  SIM run $i of ${n}: $sum, $hook, exit $code"
             $out -match '^scenario failed: ' | ForEach-Object { Write-Host "    $_" }
-            if ($code -ne 0 -or $sum -ne 'scenarios: 17 run, 2 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
+            if ($code -ne 0 -or $sum -ne 'scenarios: 16 run, 3 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
           }
           if ($failed -ne 0) { throw "$failed of $n SIM runs failed" }
           Write-Host "  check: $n SIM runs in a row passed every scenario with the hook never put back"
