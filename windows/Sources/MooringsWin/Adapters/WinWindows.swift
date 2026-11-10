@@ -348,4 +348,14 @@ final class WinScreens: ScreenSource {
     func quirks(_ screens: Screens) -> ScreenQuirks {
         .none
     }
+
+    // displaySetKey names each display in screens by its device name and full frame, sorted, so a
+    // workspace tied to a set of monitors comes back only on those monitors, even when two sets share
+    // their frames. A frame no attached monitor has keeps an empty device name.
+    func displaySetKey(_ screens: Screens) -> String {
+        let monitors = Monitor.all()
+        return screens.full.map { f in
+            "\(monitors.first { $0.full == f }?.device ?? "")@\(Workspaces.signature([f]))"
+        }.sorted().joined(separator: " ")
+    }
 }
