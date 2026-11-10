@@ -939,9 +939,11 @@ jobs:
             Expect $f '^paused: false$' 'a fresh choices file, not paused'
             $n = [int][regex]::Match(($f -match '^free: ')[0], '(\d+)$').Value
             $a = Rect ($f -match '^area: ')[0] 'area: '
-            foreach ($name in 'tile-columns', 'tile-rows', 'cascade-all', 'cycle-stacked-windows', 'reverse-all', 'fit-channel') {
+            foreach ($name in 'tile-columns', 'tile-rows', 'cascade-all', 'reverse-all', 'fit-channel') {
               Expect $f "^${name}: ran true$" "$name ran through the action runner"
             }
+            Expect $f '^cycle bound: true$' 'cycle-stacked-windows bound to Ctrl+Alt+Shift+P'
+            Expect $f '^cycle-stacked-windows: pressed true$' 'the cycle shortcut press reached the probe'
             $start = Frames $f 'start'
             $cols = Frames $f 'tile-columns'
             foreach ($r in $cols.Values) {
@@ -976,25 +978,27 @@ jobs:
             foreach ($r in $fit) {
               if ($r[0] -lt $a[0] - 1 -or $r[1] -lt $a[1] - 1 -or $r[0] + $r[2] -gt $a[0] + $a[2] + 1 -or $r[1] + $r[3] -gt $a[1] + $a[3] + 1) { throw "fit-channel put a window at $($r -join ' '), outside $($a -join ' ')" }
             }
-            foreach ($i in 0..($fit.Count - 2)) {
+            $cap = [int][regex]::Match(($f -match '^fit capacity: ')[0], '(\d+)$').Value
+            if ($cap -ge $n) { foreach ($i in 0..($fit.Count - 2)) {
               foreach ($j in ($i + 1)..($fit.Count - 1)) {
                 $p = $fit[$i]; $q = $fit[$j]
                 $ox = [Math]::Min($p[0] + $p[2], $q[0] + $q[2]) - [Math]::Max($p[0], $q[0])
                 $oy = [Math]::Min($p[1] + $p[3], $q[1] + $q[3]) - [Math]::Max($p[1], $q[1])
                 if ($ox -gt 1 -and $oy -gt 1) { throw "fit-channel overlapped $($p -join ' ') and $($q -join ' ')" }
               }
-            }
+            } }
             $halves = @((Frames $f 'tidy-2').Values | Where-Object { [Math]::Abs($_[2] - $a[2] / 2) -le 1 -and [Math]::Abs($_[3] - $a[3]) -le 1 -and [Math]::Abs($_[1] - $a[1]) -le 1 })
             if ($n -eq 3 -and $halves.Count -ne 2) { throw "Tidy 2 front windows gave $($halves.Count) windows half the area, want 2" }
             Same $start (Frames $f 'undo') 'Undo tidy left a window off its start'
-            Write-Host "  check: $n free windows, columns and rows of $($a -join ' '), cascade step $step, cycle $before to $after, mirror, fit inside without overlap, Tidy 2 halves $($halves.Count), undo back to the start"
+            Write-Host "  check: $n free windows, columns and rows of $($a -join ' '), cascade step $step, cycle $before to $after, mirror, fit inside $($a -join ' ') with $cap cells, Tidy 2 halves $($halves.Count), undo back to the start"
 
             Write-Host "probe organize --paused $geo"
             $f = Probe (@('--probe', 'organize', '--paused') + $geo)
             Expect $f '^paused: true$' 'a paused choices file'
-            foreach ($name in 'tile-columns', 'tile-rows', 'cascade-all', 'cycle-stacked-windows', 'reverse-all', 'fit-channel') {
+            foreach ($name in 'tile-columns', 'tile-rows', 'cascade-all', 'reverse-all', 'fit-channel') {
               Expect $f "^${name}: ran false$" "$name refused while paused"
             }
+            Expect $f '^cycle-stacked-windows: pressed true$' 'the cycle shortcut press reached the probe while paused'
             $start = Frames $f 'start'
             foreach ($label in 'tile-columns', 'tile-rows', 'cascade-all') { Same $start (Frames $f $label) "$label moved a window while paused" }
             $stacked = Frames $f 'stacked'
