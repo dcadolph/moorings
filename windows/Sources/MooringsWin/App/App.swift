@@ -48,7 +48,7 @@ final class App {
     // engine builds and runs every engine object on the Windows platform, with the routed actions
     // Windows carries so far.
     private(set) lazy var engine: Engine = {
-        let e = Engine(platform: platform, features: [.stash])
+        let e = Engine(platform: platform, features: [.stash, .organize, .badge])
         e.passes.tellsRefused = true
         return e
     }()
@@ -57,8 +57,10 @@ final class App {
         windows: windows, screens: screens, overlay: footprint,
         notifier: WinNotifier { [unowned self] in self.notify($0, $1) }, clock: WinClock(), store: store,
         pointer: pointer, keys: keys, apps: apps, log: log, timers: timers, events: events, grid: WinNoGrid(),
-        badge: WinNoBadge()
+        badge: badge
     )
+    // badge shows how many windows are stacked under a resting pointer.
+    let badge = WinBadge()
     // hooksMouse is false only in the drag probe's negative control, which runs without the hook.
     var hooksMouse = true
     // lastHost names the host the last display change saw, so displaysChanged re-moors only when it
@@ -183,18 +185,6 @@ final class WinNoGrid: GridView {
     func contains(_ p: Point) -> Bool {
         false
     }
-}
-
-// WinNoBadge is the badge view of a platform with no stack badge yet: it never shows.
-final class WinNoBadge: BadgeView {
-    // shown is always nil.
-    var shown: BadgeMark? { nil }
-
-    // show paints nothing.
-    func show(_ count: Int, at front: Frame, palette: Palette) {}
-
-    // hide does nothing.
-    func hide() {}
 }
 
 // WinScheduler is the Windows Scheduler: one thread timer, its work run from the message loop's

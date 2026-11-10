@@ -70,6 +70,8 @@ struct ProbeOptions {
     // activate leaves the footprint probe's window without its pass-through bits, its negative
     // control.
     var activate = false
+    // noBadge writes the stack badge off, the badge probe's negative control.
+    var noBadge = false
     // app is the end of the image path of the app whose window the probes act on: Notepad, or the
     // stand probe's window under the fake ultrawide, which Windows would not size past the desktop.
     var app = "\\notepad.exe"
@@ -153,6 +155,8 @@ struct ProbeOptions {
                 alt = true
             case "--activate":
                 activate = true
+            case "--no-badge":
+                noBadge = true
             case "--screen", "--mode":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let size = Size(value) else { throw ProbeError.badValue(flag, value) }

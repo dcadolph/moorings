@@ -19,6 +19,7 @@ func probeContracts(_ opts: ProbeOptions) -> Int32 {
     let banner = BannerWindow(minAspect: opts.minAspect)
     var failures = WindowStoreContract.run(windows, host: host)
     failures += OverlayContract.run(WinFootprint(), store: windows, host: host)
+    failures += BadgeContract.run(WinBadge(), store: windows, host: host)
     failures += NotifierContract.run(WinNotifier { banner.show($0, $1) }, store: windows, host: host)
     failures += SchedulerContract.run(scheduler, clock: WinClock(), host: host)
     failures += PointerContract.run(WinPointer(), host: host)
@@ -39,7 +40,7 @@ func probeContracts(_ opts: ProbeOptions) -> Int32 {
     for f in failures {
         print("contract failed: \(f)")
     }
-    print("contracts: 13 suites, \(failures.count) failures")
+    print("contracts: 14 suites, \(failures.count) failures")
     return failures.isEmpty ? 0 : 1
 }
 
