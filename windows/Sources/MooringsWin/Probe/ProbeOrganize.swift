@@ -5,17 +5,23 @@ import MooringsCore
 import MooringsEngine
 import MooringsTesting
 
+// cycleChord is Ctrl+Alt+Shift+P, the shortcut the organize probe binds cycle-stacked-windows to.
+let cycleChord = StoredShortcut(mods: ["ctrl", "alt", "shift"], key: "p")
+
 // probeOrganize staggers every window of the app on a fresh choices file, paused under --paused, and
-// runs the organize actions through the action runner from the first of them, the way a shortcut
-// does: tile-columns, tile-rows, cascade-all, cycle-stacked-windows on the windows stacked 5 px
-// apart, reverse-all, fit-channel, then Tidy 2 and Undo tidy. It prints the area, the free windows
-// the actions share it with, and each window's frame after each action, so the workflow judges the
-// app's windows and not the others, which may keep their own minimum size.
+// runs the organize actions through the action runner from the first of them: tile-columns, tile-rows,
+// cascade-all, then cycle-stacked-windows on the windows stacked 5 px apart by pressing its bound
+// shortcut, since only a process that took the last input may raise another app's window, then
+// reverse-all, fit-channel, Tidy 2 and Undo tidy. It prints the area, the free windows the actions
+// share it with, how many fit cells the area holds, and each window's frame after each action, so the
+// workflow judges the app's windows and not the others, which may keep their own minimum size.
 func probeOrganize(_ opts: ProbeOptions) -> Int32 {
     let screens = Screens.current(minAspect: opts.minAspect)
     let store = Store()
+    var choices = Choices(paused: opts.paused)
+    choices.shortcuts["cycle-stacked-windows"] = cycleChord
     do {
-        try store.save(Choices(paused: opts.paused))
+        try store.save(choices)
     } catch {
         print("organize: \(error)")
         return 1
@@ -52,22 +58,28 @@ func probeOrganize(_ opts: ProbeOptions) -> Int32 {
     print("pads: \(pads.count)")
     print("free: \(free.count)")
     print("area: \(pixels(area))")
+    print("fit capacity: \(Tile.fitCapacity(area))")
     print("paused: \(app.engine.anchors.choices.paused)")
     show("start")
     for name in ["tile-columns", "tile-rows", "cascade-all", "cycle-stacked-windows", "reverse-all", "fit-channel"] {
-        var subject = first.id
-        if name == "cycle-stacked-windows" {
-            stack(5)
-            show("stacked")
-            subject = front() ?? first.id
-            print("front before: \(hex(subject))")
+        guard name == "cycle-stacked-windows" else {
+            let ran = app.engine.actions.run(name, window: first.id)
+            settle()
+            print("\(name): ran \(ran)")
+            show(name)
+            continue
         }
-        let ran = app.engine.actions.run(name, window: subject)
+        stack(5)
+        show("stacked")
+        print("front before: \(front().map(hex) ?? "none")")
+        let map = Bindings(app.engine.anchors.choices).map
+        app.hotkeys.bind(map, runnable: app.engine.actions.supports)
+        print("cycle bound: \(app.hotkeys.names.values.contains(name))")
+        print("sent: \(press([0x11, 0x12, 0x10, 0x50]))")
         settle()
-        print("\(name): ran \(ran)")
-        if name == "cycle-stacked-windows" {
-            print("front after: \(front().map(hex) ?? "none")")
-        }
+        app.hotkeys.unbind()
+        print("\(name): pressed \(app.hotkeys.pressed.contains(name))")
+        print("front after: \(front().map(hex) ?? "none")")
         show(name)
     }
     if let hwnd = WinWindows.hwnd(first.id) {
