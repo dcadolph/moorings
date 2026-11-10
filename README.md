@@ -121,6 +121,10 @@ area.
 - Organize and Channel in the tray menu tile, cascade, mirror and cycle the free windows, fit the
   channel's windows, and line up the front two or three, with Undo tidy to put them back. The stack
   badge counts windows stacked on one corner when `stacking.badge` is on in the settings file.
+- Workspaces in the tray menu save where every free window sits and put them back on Recall. A
+  workspace tied to the displays attached now comes back by itself when they are plugged in again,
+  and it can open the apps that are not running. App rules in the settings file place an app's
+  first window when it starts.
 - Pause and Launch at login are in the tray menu, and so are strip widths on an ultrawide.
 - Settings live in `%APPDATA%\Moorings\choices.json`. Open settings file in the tray menu opens
   it, and Moorings reads it again when it changes or on Reload settings, so shortcuts and chains

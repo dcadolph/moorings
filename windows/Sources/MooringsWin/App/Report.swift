@@ -97,29 +97,14 @@ enum Report {
 
 // ReportMonitors collects the report's monitor lines inside the EnumDisplayMonitors callback.
 final class ReportMonitors {
-    // devices is CCHDEVICENAME, the WCHARs of a device name after a MONITORINFO.
-    static let devices = 32
     // lines holds one line per monitor, in enumeration order.
     var lines: [String] = []
 
-    // add reads monitor through a MONITORINFOEXW laid out by hand, a MONITORINFO followed by the
-    // device name, and appends its line.
+    // add reads monitor and appends its line.
     func add(_ monitor: HMONITOR?) {
-        let head = MemoryLayout<MONITORINFO>.size
-        let size = head + Self.devices * MemoryLayout<WCHAR>.size
-        let raw = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: 8)
-        defer { raw.deallocate() }
-        raw.initializeMemory(as: UInt8.self, repeating: 0, count: size)
-        let info = raw.bindMemory(to: MONITORINFO.self, capacity: 1)
-        info.pointee.cbSize = DWORD(size)
-        guard GetMonitorInfoW(monitor, info) else { return }
-        let full = Frame(info.pointee.rcMonitor), usable = Frame(info.pointee.rcWork)
-        let primary = info.pointee.dwFlags & DWORD(MONITORINFOF_PRIMARY) != 0
-        let chars = (raw + head).bindMemory(to: WCHAR.self, capacity: Self.devices)
-        let device = String(
-            decoding: UnsafeBufferPointer(start: chars, count: Self.devices).prefix { $0 != 0 }, as: UTF16.self)
+        guard let m = Monitor.read(monitor) else { return }
         lines.append(
-            "monitor: \(device) full \(pixels(full)) usable \(pixels(usable)) primary \(primary) "
+            "monitor: \(m.device) full \(pixels(m.full)) usable \(pixels(m.usable)) primary \(m.primary) "
                 + "dpi \(Monitor.dpi(monitor))")
     }
 }

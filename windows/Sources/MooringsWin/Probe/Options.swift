@@ -72,6 +72,13 @@ struct ProbeOptions {
     var activate = false
     // noBadge writes the stack badge off, the badge probe's negative control.
     var noBadge = false
+    // tie makes the workspace probe tie its workspace to the fake monitor and swap the monitor for
+    // another size and back.
+    var tie = false
+    // launch makes the workspace probe close the app's window and reopen it through a recall.
+    var launch = false
+    // noRule runs the app rule probe without the rule, its negative control.
+    var noRule = false
     // app is the end of the image path of the app whose window the probes act on: Notepad, or the
     // stand probe's window under the fake ultrawide, which Windows would not size past the desktop.
     var app = "\\notepad.exe"
@@ -157,6 +164,12 @@ struct ProbeOptions {
                 activate = true
             case "--no-badge":
                 noBadge = true
+            case "--tie":
+                tie = true
+            case "--launch":
+                launch = true
+            case "--no-rule":
+                noRule = true
             case "--screen", "--mode":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let size = Size(value) else { throw ProbeError.badValue(flag, value) }

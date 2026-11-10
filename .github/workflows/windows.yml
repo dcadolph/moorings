@@ -417,6 +417,9 @@ jobs:
           if (@($menu -match '^menu   \[ \] Undo tidy \(off\)$').Count -ne 2) { throw "want Undo tidy off under both folders with nothing to undo" }
           if (@($menu -match '^menu   \[ \] Fit channel$').Count -ne 1) { throw "Fit channel is not listed once, under Channel only" }
           Write-Host "  check: Organize and Channel folders with Tidy 2 and 3 and Undo tidy off with nothing to undo"
+          Expect $menu '^menu \[ \] Workspaces$' 'the Workspaces folder'
+          Expect $menu '^menu   \[ \] Save workspace$' 'Save workspace under Workspaces'
+          Write-Host "  check: Workspaces folder with Save workspace"
 
           Write-Host "probe menu after writing paused: true and widths 15 and 40"
           $file = Join-Path $env:APPDATA 'Moorings\choices.json'
@@ -429,7 +432,8 @@ jobs:
           Expect $menu '^menu   \[x\] Left 15%, right 40%$' 'the saved width pair checked'
           Expect $menu '^menu   \[ \] Tile columns \(off\)$' 'Tile columns off while paused'
           Expect $menu '^menu   \[ \] Tidy 2 front windows \(off\)$' 'Tidy 2 off while paused'
-          Write-Host "  check: Pause checked, saved width pair checked, organize entries off"
+          Expect $menu '^menu   \[ \] Save workspace \(off\)$' 'Save workspace off while paused'
+          Write-Host "  check: Pause checked, saved width pair checked, organize and workspace entries off"
 
           Write-Host "probe menu --no-apps"
           $slots = Slots (Probe @('--probe', 'menu', '--no-apps'))
@@ -1042,6 +1046,86 @@ jobs:
           }
           BadgeCheck @('--min-aspect', '1.0')
 
+          # Gap reads a "label: want x y w h got x y w h" line and returns how far apart the two are.
+          function Gap([string] $line, [string] $label) {
+            $m = [regex]::Match($line, "^${label}: want (-?\d+ -?\d+ \d+ \d+) got (-?\d+ -?\d+ \d+ \d+)$")
+            if (-not $m.Success) { throw "unreadable $label line: $line" }
+            Off ($m.Groups[1].Value -split ' ' | ForEach-Object { [int]$_ }) ($m.Groups[2].Value -split ' ' | ForEach-Object { [int]$_ })
+          }
+          # PadsAt judges every window line under label: on its saved frame within 1 px when $on, else
+          # more than 1 px off it, and returns how many it read.
+          function PadsAt($lines, [string] $label, [bool] $on) {
+            $rows = @($lines -match "^$label 0x")
+            if ($rows.Count -lt 1) { throw "no $label lines" }
+            foreach ($l in $rows) {
+              $off = Gap $l "$label 0x[0-9a-f]+"
+              if ($on -and $off -gt 1) { throw "${label}: a window is $off px off its saved frame: $l" }
+              if (-not $on -and $off -le 1) { throw "${label}: a window sits on its saved frame: $l" }
+            }
+            $rows.Count
+          }
+          function WorkspaceCheck([string[]] $geo, [bool] $tie) {
+            $extra = if ($tie) { @('--tie') } else { @() }
+            Write-Host "probe workspace $geo $extra"
+            $pads = @(1..2 | ForEach-Object { Pad })
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'workspace') + $geo + $extra)
+            Expect $f '^pads: 2$' 'two windows of the app'
+            Expect $f '^name: Workspace 1$' 'the first free name on a fresh choices file'
+            Expect $f '^saved: \d+ pads 2$' 'both windows saved in the workspace'
+            Expect $f '^recalled: true$' 'the workspace recalled'
+            $n = PadsAt $f 'pad' $true
+            Expect $f '^menu \[ \] Workspaces$' 'the Workspaces folder'
+            Expect $f '^menu   \[ \] Workspace 1$' 'the saved workspace listed'
+            Expect $f '^menu     \[ \] Recall with these displays$' 'untied before the tie'
+            Write-Host "  check: $n windows saved as Workspace 1, moved away and recalled onto their saved frames within 1 px"
+            if ($tie) {
+              Expect $f '^tied: true$' 'the workspace tied to the fake monitor'
+              Expect $f '^menu     \[x\] Recall with these displays$' 'Recall with these displays checked once tied'
+              $own = [regex]::Match(($f -match '^own displays: ')[0], '^own displays: (.+)$').Groups[1].Value
+              $other = [regex]::Match(($f -match '^other displays: ')[0], '^other displays: (.+)$').Groups[1].Value
+              if (-not $own -or $own -eq $other) { throw "the two display sets share the key '$own'" }
+              $null = PadsAt $f 'other' $false
+              $null = PadsAt $f 'back' $true
+              Write-Host "  check: tied to $own, nothing came back on $other, and the workspace came back by itself on its own displays"
+            }
+            $pads | ForEach-Object { Stop-Process -Id $_.Id -ErrorAction SilentlyContinue }
+          }
+          WorkspaceCheck @('--min-aspect', '1.0') $false
+
+          Write-Host "probe workspace --launch"
+          $null = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $f = Probe @('--probe', 'workspace', '--launch', '--min-aspect', '1.0')
+          Expect $f '^opens missing: true$' 'Open apps that are not running set on every saved window'
+          Expect $f '^closed: true$' 'every Notepad closed before the recall'
+          Expect $f '^recalled: true$' 'the workspace recalled'
+          Expect $f '^launched: 0x' 'the recall opened Notepad'
+          $off = Gap (($f -match '^launch: ')[0]) 'launch'
+          if ($off -gt 1) { throw "the window the recall opened is $off px off its saved frame" }
+          Write-Host "  check: the recall opened Notepad by its exe path and put its window on the saved frame"
+          Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+
+          function AppRule([string[]] $extra) {
+            Write-Host "probe apprule $extra"
+            $null = Start-Process notepad -PassThru
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'apprule', '--min-aspect', '1.0') + $extra)
+            Expect $f '^closed: true$' 'every Notepad closed before the reopen'
+            Expect $f '^opened: true$' 'Notepad opened by its exe path through ShellExecuteW'
+            Expect $f '^shown: 0x' 'the reopened Notepad showed a window'
+            $off = Gap (($f -match '^landed: ')[0]) 'landed'
+            Get-Process notepad -ErrorAction SilentlyContinue | Stop-Process -ErrorAction SilentlyContinue
+            [pscustomobject]@{ Lines = $f; Off = $off }
+          }
+          $none = AppRule @('--no-rule')
+          Expect $none.Lines '^rule: false$' 'no rule in the control'
+          if ($none.Off -le 1) { throw "with no rule Notepad still landed on the rule's frame, so the check cannot fail" }
+          $ruled = AppRule @()
+          Expect $ruled.Lines '^rule: true$' 'the rule saved'
+          if ($ruled.Off -gt 1) { throw "the ruled Notepad is $($ruled.Off) px off its rule's frame" }
+          Write-Host "  check: with the rule Notepad's first window took its frame, and with no rule it landed $($none.Off) px away"
+
           Write-Host "probe footprint"
           $pad = Start-Process notepad -PassThru
           Start-Sleep -Seconds 3
@@ -1091,6 +1175,7 @@ jobs:
           StashCheck $simApp
           OrganizeCheck $simApp
           BadgeCheck $simApp
+          WorkspaceCheck $simApp $true
 
           HotkeyCheck $simApp
           LinkCheck $simApp
@@ -1300,19 +1385,19 @@ jobs:
           }
           function Written($run) {
             $shots = @(Get-ChildItem (Join-Path $run.Dir '*.png') -ErrorAction SilentlyContinue)
-            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 16) { throw "want report.html and 16 pictures in $($run.Dir), got $($shots.Count)" }
+            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 17) { throw "want report.html and 17 pictures in $($run.Dir), got $($shots.Count)" }
             if (-not ($run.Lines -match '^hook reinstalled: 0$')) { throw "the mouse hook was put back during the scenarios in $($run.Dir)" }
           }
 
           Write-Host "scenarios on the runner's screen"
           $s = Scenarios 'runner' @('--min-aspect', '1.0')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 16 run, 3 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 17 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
-          Write-Host "  check: 16 scenarios passed on the Win32 adapters, channelCycle, workspaceRecall and refusedWindowTriedOnce skipped, with report.html, 16 pictures and the hook never put back"
+          Write-Host "  check: 17 scenarios passed on the Win32 adapters, channelCycle and refusedWindowTriedOnce skipped, with report.html, 17 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
           $s = Scenarios 'sim' @('--screen', '3440x1440')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 16 run, 3 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 17 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
           if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
           Written $s
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
@@ -1409,7 +1494,7 @@ jobs:
             $hook = @($out -match '^hook reinstalled: ')[0]
             Write-Host "  SIM run $i of ${n}: $sum, $hook, exit $code"
             $out -match '^scenario failed: ' | ForEach-Object { Write-Host "    $_" }
-            if ($code -ne 0 -or $sum -ne 'scenarios: 16 run, 3 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
+            if ($code -ne 0 -or $sum -ne 'scenarios: 17 run, 2 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
           }
           if ($failed -ne 0) { throw "$failed of $n SIM runs failed" }
           Write-Host "  check: $n SIM runs in a row passed every scenario with the hook never put back"

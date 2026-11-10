@@ -48,7 +48,7 @@ final class App {
     // engine builds and runs every engine object on the Windows platform, with the routed actions
     // Windows carries so far.
     private(set) lazy var engine: Engine = {
-        let e = Engine(platform: platform, features: [.stash, .organize, .badge])
+        let e = Engine(platform: platform, features: [.stash, .organize, .badge, .workspaces])
         e.passes.tellsRefused = true
         return e
     }()
@@ -82,9 +82,11 @@ final class App {
         "\(screens.hostFrame.map(pixels) ?? "none") \(screens.isUltrawide) \(screens.hostScale)"
     }
 
-    // displaysChanged places everything again when the host changed, and reports whether it did.
+    // displaysChanged tells the workspaces, which recall the one tied to a new set of displays once
+    // they settle, then places everything again when the host changed, and reports whether it did.
     @discardableResult
     func displaysChanged() -> Bool {
+        engine.workspaces.screensChanged()
         let host = Self.hostKey(Screens.current(minAspect: minAspect))
         guard host != lastHost else { return false }
         lastHost = host

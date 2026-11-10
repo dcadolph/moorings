@@ -66,6 +66,13 @@ What it does
   side. Undo tidy puts them all back. Each runs on the window that was in front.
 - Stack badge: with "stacking": {"badge": true} in the settings file, resting the pointer
   on the corner of stacked windows shows how many there are.
+- Workspaces, in the tray menu: Save workspace keeps where every free window sits, and
+  Recall puts them back. Recall with these displays brings a workspace back by itself when
+  the same monitors are plugged in again. Open apps that are not running starts the apps a
+  recall finds missing and places their windows once they show.
+- App rules: in the settings file, "appRules": [{"bundle": "C:\\Windows\\System32\\notepad.exe",
+  "action": "left-half"}] places an app's first window each time the app starts, by an
+  action or by a "frame".
 - Pause stops everything until you choose it again. Launch at login starts Moorings when
   you sign in.
 
