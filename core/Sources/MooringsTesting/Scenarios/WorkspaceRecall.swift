@@ -5,6 +5,7 @@ extension Scenarios {
     // workspaceRecall puts two free windows at two frames in the channel, saves them as a workspace,
     // moves both from outside the store, and proves a recall puts each back at its saved frame within
     // 1 s, 1 point. It also proves the workspace saved both windows, and more on a host with others open.
+    // Every frame fits a 1024x720 area so the scenario runs on the Windows runner's screen.
     static func workspaceRecall(_ s: Stage) {
         s.choose { _ in }
         let screens = s.host.screens()
@@ -14,10 +15,10 @@ extension Scenarios {
         }
         let c = s.engine.organizer.area(screens, i)
         let saved = [
-            Frame(x: c.x + 100, y: c.y + 100, w: 700, h: 500), Frame(x: c.x + 900, y: c.y + 200, w: 600, h: 400),
+            Frame(x: c.x + 100, y: c.y + 100, w: 700, h: 500), Frame(x: c.x + 300, y: c.y + 150, w: 600, h: 400),
         ]
         let moved = [
-            Frame(x: c.x + 300, y: c.y + 300, w: 400, h: 300), Frame(x: c.x + 1200, y: c.y + 500, w: 500, h: 300),
+            Frame(x: c.x + 300, y: c.y + 300, w: 400, h: 300), Frame(x: c.x + 400, y: c.y + 250, w: 500, h: 300),
         ]
         var pads: [WindowInfo] = []
         for (k, f) in saved.enumerated() {
