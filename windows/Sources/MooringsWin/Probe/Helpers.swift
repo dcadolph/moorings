@@ -186,13 +186,39 @@ struct Monitor {
     var primary: Bool
     // scale is how many physical pixels make one point, 1 at 100 percent.
     var scale: Double
+    // device is the display's device name, such as \\.\DISPLAY1, and "fake" for a sized monitor.
+    var device: String
+
+    // devices is CCHDEVICENAME, the WCHARs of a device name after a MONITORINFO.
+    static let devices = 32
 
     // sized returns one primary monitor at the origin of size and scale, with the taskbar along its
     // bottom.
     static func sized(_ size: Size, scale: Double = 1) -> Monitor {
         let full = Frame(x: 0, y: 0, w: Double(size.w), h: Double(size.h))
         let usable = Frame(x: 0, y: 0, w: full.w, h: max(1, full.h - taskbar))
-        return Monitor(full: full, usable: usable, primary: true, scale: scale)
+        return Monitor(full: full, usable: usable, primary: true, scale: scale, device: "fake")
+    }
+
+    // read returns handle as a monitor, read through a MONITORINFOEXW laid out by hand, a MONITORINFO
+    // followed by the device name, or nil when Windows gives no info for it.
+    static func read(_ handle: HMONITOR?) -> Monitor? {
+        let head = MemoryLayout<MONITORINFO>.size
+        let size = head + devices * MemoryLayout<WCHAR>.size
+        let raw = UnsafeMutableRawPointer.allocate(byteCount: size, alignment: 8)
+        defer { raw.deallocate() }
+        raw.initializeMemory(as: UInt8.self, repeating: 0, count: size)
+        let info = raw.bindMemory(to: MONITORINFO.self, capacity: 1)
+        info.pointee.cbSize = DWORD(size)
+        guard GetMonitorInfoW(handle, info) else { return nil }
+        let chars = (raw + head).bindMemory(to: WCHAR.self, capacity: devices)
+        let name = UnsafeBufferPointer(start: chars, count: devices).prefix { $0 != 0 }
+        let device = String(decoding: name, as: UTF16.self)
+        let dpi = Monitor.dpi(handle)
+        return Monitor(
+            full: Frame(info.pointee.rcMonitor), usable: Frame(info.pointee.rcWork),
+            primary: info.pointee.dwFlags & DWORD(MONITORINFOF_PRIMARY) != 0, scale: dpi == 0 ? 1 : Double(dpi) / 96,
+            device: device)
     }
 
     // all returns every monitor in EnumDisplayMonitors order, or the fake one alone when set.
@@ -207,14 +233,8 @@ struct Monitor {
             { handle, _, _, context in
                 let raw = UnsafeRawPointer(bitPattern: Int(context))!
                 let found = Unmanaged<MonitorList>.fromOpaque(raw).takeUnretainedValue()
-                var info = MONITORINFO()
-                info.cbSize = DWORD(MemoryLayout<MONITORINFO>.size)
-                if GetMonitorInfoW(handle, &info) {
-                    let primary = info.dwFlags & DWORD(MONITORINFOF_PRIMARY) != 0
-                    let full = Frame(info.rcMonitor), usable = Frame(info.rcWork)
-                    let dpi = Monitor.dpi(handle)
-                    let scale = dpi == 0 ? 1 : Double(dpi) / 96
-                    found.monitors.append(Monitor(full: full, usable: usable, primary: primary, scale: scale))
+                if let monitor = Monitor.read(handle) {
+                    found.monitors.append(monitor)
                 }
                 return true
             }, context)

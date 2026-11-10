@@ -11,6 +11,11 @@ enum Command: Equatable {
     case action(String)
     case tidy(Int)
     case undoTidy
+    case saveWorkspace
+    case recallWorkspace(String)
+    case tieWorkspace(String)
+    case openMissing(String)
+    case deleteWorkspace(String)
     case pause
     case unstashAll
     case openSettings
@@ -91,11 +96,12 @@ final class Tray {
 
     // menu builds the tray menu from the choices, the bundles of the running apps, whether Moorings
     // starts at login, whether the host is an ultrawide, the only display with Widths to pick, the
-    // newer release a check found, which comes first, whether a window is stashed, and whether a tidy
-    // can be undone. It is pure so the menu and update probes can print it.
+    // newer release a check found, which comes first, whether a window is stashed, whether a tidy can
+    // be undone, and the key of the displays attached now. It is pure so the menu and update probes
+    // can print it.
     static func menu(
         choices: Choices, running: [String], atLogin: Bool, isUltrawide: Bool, update: ReleaseInfo? = nil,
-        stashed: Bool = false, canUndo: Bool = false
+        stashed: Bool = false, canUndo: Bool = false, displays: String = ""
     ) -> [MenuItem] {
         let apps = Array(Set(running)).sorted { appName($0).lowercased() < appName($1).lowercased() }
         var slots: [MenuItem] = []
@@ -135,6 +141,7 @@ final class Tray {
             items.append(MenuItem(title: "Widths", submenu: widths))
         }
         items += organizeFolders(choices: choices, canUndo: canUndo)
+        items.append(workspacesFolder(choices: choices, displays: displays))
         items.append(.separator)
         if stashed {
             items.append(MenuItem(title: "Unstash all windows", command: .unstashAll))
@@ -167,6 +174,42 @@ final class Tray {
         }
         channel += [.separator, undo]
         return [MenuItem(title: "Organize", submenu: organize), MenuItem(title: "Channel", submenu: channel)]
+    }
+
+    // workspacesFolder builds the Workspaces folder: Save workspace, then a folder per saved workspace
+    // in name order with Recall, Recall with these displays, checked when it is tied to displays, Open
+    // apps that are not running, and Delete. Saving and recalling are off while paused.
+    static func workspacesFolder(choices: Choices, displays: String) -> MenuItem {
+        let on = !choices.paused
+        var items = [MenuItem(title: "Save workspace", enabled: on, command: .saveWorkspace)]
+        let names = choices.workspaces.keys.sorted()
+        if !names.isEmpty {
+            items.append(.separator)
+        }
+        for name in names {
+            guard let ws = choices.workspaces[name] else { continue }
+            let tied = !displays.isEmpty && ws.setup == displays
+            let opens = opensMissing(ws)
+            let entries = [
+                MenuItem(title: "Recall", enabled: on, command: .recallWorkspace(name)),
+                MenuItem(title: "Recall with these displays", checked: tied, command: .tieWorkspace(name)),
+                MenuItem(title: "Open apps that are not running", checked: opens, command: .openMissing(name)),
+                MenuItem(title: "Delete", command: .deleteWorkspace(name)),
+            ]
+            items.append(MenuItem(title: name, submenu: entries))
+        }
+        return MenuItem(title: "Workspaces", submenu: items)
+    }
+
+    // opensMissing reports whether a recall of ws opens the app of every saved window that has none
+    // running, as the Mac's setting reads it.
+    static func opensMissing(_ ws: Workspace) -> Bool {
+        !ws.windows.isEmpty && ws.windows.allSatisfy { $0.launchBundle != nil }
+    }
+
+    // freeWorkspaceName returns Workspace 1, or the first Workspace N no saved workspace holds.
+    static func freeWorkspaceName(_ choices: Choices) -> String {
+        (1...).lazy.map { "Workspace \($0)" }.first { choices.workspaces[$0] == nil } ?? "Workspace"
     }
 
     // appName returns the name the menu shows for a bundle: the executable's file name for a path,
@@ -376,7 +419,7 @@ final class Tray {
         let items = Tray.menu(
             choices: app.engine.anchors.choices, running: running, atLogin: LoginItem.enabled,
             isUltrawide: screens.isUltrawide, update: update?.found, stashed: !app.engine.stasher.entries.isEmpty,
-            canUndo: app.engine.anchors.canUndo)
+            canUndo: app.engine.anchors.canUndo, displays: app.screens.displaySetKey(screens))
         commands = []
         guard let menu = build(items) else { return }
         defer { _ = DestroyMenu(menu) }
@@ -436,6 +479,25 @@ final class Tray {
             return
         case .undoTidy:
             app.engine.organizer.undo()
+            return
+        case .saveWorkspace:
+            app.engine.workspaces.saveWorkspace(Tray.freeWorkspaceName(anchors.choices))
+            return
+        case .recallWorkspace(let name):
+            app.engine.workspaces.recall(name)
+            return
+        case .tieWorkspace(let name):
+            app.engine.workspaces.tie(name)
+            return
+        case .openMissing(let name):
+            guard var ws = anchors.choices.workspaces[name] else { return }
+            let open = !Tray.opensMissing(ws)
+            for i in ws.windows.indices {
+                ws.windows[i].launchBundle = open ? ws.windows[i].bundle : nil
+            }
+            anchors.choices.workspaces[name] = ws
+        case .deleteWorkspace(let name):
+            app.engine.workspaces.delete(name)
             return
         case .pause:
             anchors.choices.paused.toggle()
