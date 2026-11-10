@@ -64,9 +64,17 @@ final class ScenarioRig {
     #expect(skipped.map(\.name) == ["quitRestoresStash", "organize", "channelCycle", "badgeCounts", "workspaceRecall"])
     #expect(
         skipped.map(\.skipped) == [
-            "needs stash", "needs organize", "needs organize", "needs badge", "needs workspaces",
+            "needs stash", "needs organize", "needs organize and channel cycle", "needs badge", "needs workspaces",
         ])
     #expect(ScenarioReport(host: "fakes", results: results).summary == "scenarios: 14 run, 5 skipped, 0 failed")
+}
+
+// Test 7: An engine with organize but not the channel cycle, as Windows declares, skips the channel
+// cycle scenario, since it proves the Control-Left and Right claim, and runs the organize one.
+@Test func testScenariosChannelCycleNeedsItsFeature() {
+    let rig = ScenarioRig(features: [.stash, .organize, .badge])
+    let results = Scenarios.run(rig.engine, host: rig.host, only: ["organize", "channelCycle"])
+    #expect(results.map(\.skipped) == [nil, "needs channel cycle"])
 }
 
 // Test 2: The run puts back the engine's choices and stops its passes.
