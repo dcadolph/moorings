@@ -407,6 +407,16 @@ jobs:
           Expect $menu '^menu \[ \] Pause$' 'Pause unchecked'
           if (@($menu -match '^menu   \[ \] Left \d+%, right \d+%$').Count -ne 3) { throw "want the three built-in width pairs unchecked" }
           Write-Host "  check: four slots each list notepad.exe, Pause unchecked"
+          Expect $menu '^menu \[ \] Organize$' 'the Organize folder'
+          Expect $menu '^menu   \[ \] Tile columns$' 'Tile columns under Organize'
+          Expect $menu '^menu   \[ \] Cycle stacked windows$' 'Cycle stacked windows under Organize'
+          Expect $menu '^menu \[ \] Channel$' 'the Channel folder'
+          Expect $menu '^menu   \[ \] Fit channel$' 'Fit channel under Channel'
+          Expect $menu '^menu   \[ \] Tidy 2 front windows$' 'Tidy 2 under Channel'
+          Expect $menu '^menu   \[ \] Tidy 3 front windows$' 'Tidy 3 under Channel'
+          if (@($menu -match '^menu   \[ \] Undo tidy \(off\)$').Count -ne 2) { throw "want Undo tidy off under both folders with nothing to undo" }
+          if (@($menu -match '^menu   \[ \] Fit channel$').Count -ne 1) { throw "Fit channel is not listed once, under Channel only" }
+          Write-Host "  check: Organize and Channel folders with Tidy 2 and 3 and Undo tidy off with nothing to undo"
 
           Write-Host "probe menu after writing paused: true and widths 15 and 40"
           $file = Join-Path $env:APPDATA 'Moorings\choices.json'
@@ -417,7 +427,9 @@ jobs:
           $menu = Probe @('--probe', 'menu', '--min-aspect', '1.0')
           Expect $menu '^menu \[x\] Pause$' 'Pause checked'
           Expect $menu '^menu   \[x\] Left 15%, right 40%$' 'the saved width pair checked'
-          Write-Host "  check: Pause checked, saved width pair checked"
+          Expect $menu '^menu   \[ \] Tile columns \(off\)$' 'Tile columns off while paused'
+          Expect $menu '^menu   \[ \] Tidy 2 front windows \(off\)$' 'Tidy 2 off while paused'
+          Write-Host "  check: Pause checked, saved width pair checked, organize entries off"
 
           Write-Host "probe menu --no-apps"
           $slots = Slots (Probe @('--probe', 'menu', '--no-apps'))
@@ -901,6 +913,131 @@ jobs:
           }
           StashCheck @()
 
+          # Frames reads the "label 0x...: x y w h" lines of one step of the organize probe, by window.
+          function Frames($lines, [string] $label) {
+            $out = [ordered]@{}
+            foreach ($l in @($lines -match "^$label 0x[0-9a-f]+: ")) {
+              $m = [regex]::Match($l, "^$label (0x[0-9a-f]+): (-?\d+) (-?\d+) (\d+) (\d+)$")
+              if (-not $m.Success) { throw "unreadable $label line: $l" }
+              $out[$m.Groups[1].Value] = @(2..5 | ForEach-Object { [int]$m.Groups[$_].Value })
+            }
+            $out
+          }
+          function Same($a, $b, [string] $why) {
+            foreach ($k in $a.Keys) {
+              if ((Off $a[$k] $b[$k]) -gt 1) { throw "${why}: $k at $($b[$k] -join ' '), was $($a[$k] -join ' ')" }
+            }
+          }
+          # Each organize action is judged on the app's windows only, since another window may keep its
+          # own minimum size, against the free window count the probe prints.
+          function OrganizeCheck([string[]] $geo) {
+            Write-Host "probe organize $geo"
+            $pads = @(1..3 | ForEach-Object { Pad })
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'organize') + $geo)
+            Expect $f '^pads: 3$' 'three windows of the app to organize'
+            Expect $f '^paused: false$' 'a fresh choices file, not paused'
+            $n = [int][regex]::Match(($f -match '^free: ')[0], '(\d+)$').Value
+            $a = Rect ($f -match '^area: ')[0] 'area: '
+            foreach ($name in 'tile-columns', 'tile-rows', 'cascade-all', 'cycle-stacked-windows', 'reverse-all', 'fit-channel') {
+              Expect $f "^${name}: ran true$" "$name ran through the action runner"
+            }
+            $start = Frames $f 'start'
+            $cols = Frames $f 'tile-columns'
+            foreach ($r in $cols.Values) {
+              if ([Math]::Abs($r[2] - $a[2] / $n) -gt 1 -or [Math]::Abs($r[1] - $a[1]) -gt 1 -or [Math]::Abs($r[3] - $a[3]) -gt 1) { throw "a column is $($r -join ' '), want one of $n equal columns of $($a -join ' ')" }
+            }
+            if ($n -eq 3) {
+              $xs = @($cols.Values | Sort-Object { $_[0] })
+              if ([Math]::Abs($xs[0][0] - $a[0]) -gt 1 -or [Math]::Abs($xs[2][0] + $xs[2][2] - $a[0] - $a[2]) -gt 1) { throw "three columns are not flush with the area $($a -join ' ')" }
+            }
+            foreach ($r in (Frames $f 'tile-rows').Values) {
+              if ([Math]::Abs($r[3] - $a[3] / $n) -gt 1 -or [Math]::Abs($r[0] - $a[0]) -gt 1 -or [Math]::Abs($r[2] - $a[2]) -gt 1) { throw "a row is $($r -join ' '), want one of $n equal rows of $($a -join ' ')" }
+            }
+            $step = [Math]::Min(30, [Math]::Min([Math]::Floor($a[2] / 2 / [Math]::Max(1, $n - 1)), [Math]::Floor($a[3] / 2 / [Math]::Max(1, $n - 1))))
+            $seen = @()
+            foreach ($r in (Frames $f 'cascade-all').Values) {
+              $dx = $r[0] - $a[0]; $dy = $r[1] - $a[1]; $k = [Math]::Round($dx / $step)
+              if ([Math]::Abs($dx - $dy) -gt 1 -or [Math]::Abs($dx - $k * $step) -gt 1 -or $k -lt 0 -or $k -ge $n) { throw "a cascaded window sits at $($r -join ' '), off the $step px steps from $($a[0]) $($a[1])" }
+              $seen += $k
+            }
+            if (@($seen | Sort-Object -Unique).Count -ne 3) { throw "the cascade put two windows on one step: $($seen -join ' ')" }
+            $before = [regex]::Match(($f -match '^front before: ')[0], '(0x[0-9a-f]+)$').Value
+            $after = [regex]::Match(($f -match '^front after: ')[0], '(0x[0-9a-f]+|none)$').Value
+            if (-not $start.Contains($before) -or -not $start.Contains($after) -or $before -eq $after) { throw "cycle-stacked-windows left $after in front, was $before" }
+            $stacked = Frames $f 'stacked'
+            $rev = Frames $f 'reverse-all'
+            foreach ($k in $stacked.Keys) {
+              $s = $stacked[$k]
+              $want = @(($a[0] + $a[2] - ($s[0] - $a[0]) - $s[2]), $s[1], $s[2], $s[3])
+              if ((Off $rev[$k] $want) -gt 1) { throw "reverse-all put $k at $($rev[$k] -join ' '), want the mirror $($want -join ' ')" }
+            }
+            $fit = @((Frames $f 'fit-channel').Values)
+            foreach ($r in $fit) {
+              if ($r[0] -lt $a[0] - 1 -or $r[1] -lt $a[1] - 1 -or $r[0] + $r[2] -gt $a[0] + $a[2] + 1 -or $r[1] + $r[3] -gt $a[1] + $a[3] + 1) { throw "fit-channel put a window at $($r -join ' '), outside $($a -join ' ')" }
+            }
+            foreach ($i in 0..($fit.Count - 2)) {
+              foreach ($j in ($i + 1)..($fit.Count - 1)) {
+                $p = $fit[$i]; $q = $fit[$j]
+                $ox = [Math]::Min($p[0] + $p[2], $q[0] + $q[2]) - [Math]::Max($p[0], $q[0])
+                $oy = [Math]::Min($p[1] + $p[3], $q[1] + $q[3]) - [Math]::Max($p[1], $q[1])
+                if ($ox -gt 1 -and $oy -gt 1) { throw "fit-channel overlapped $($p -join ' ') and $($q -join ' ')" }
+              }
+            }
+            $halves = @((Frames $f 'tidy-2').Values | Where-Object { [Math]::Abs($_[2] - $a[2] / 2) -le 1 -and [Math]::Abs($_[3] - $a[3]) -le 1 -and [Math]::Abs($_[1] - $a[1]) -le 1 })
+            if ($n -eq 3 -and $halves.Count -ne 2) { throw "Tidy 2 front windows gave $($halves.Count) windows half the area, want 2" }
+            Same $start (Frames $f 'undo') 'Undo tidy left a window off its start'
+            Write-Host "  check: $n free windows, columns and rows of $($a -join ' '), cascade step $step, cycle $before to $after, mirror, fit inside without overlap, Tidy 2 halves $($halves.Count), undo back to the start"
+
+            Write-Host "probe organize --paused $geo"
+            $f = Probe (@('--probe', 'organize', '--paused') + $geo)
+            Expect $f '^paused: true$' 'a paused choices file'
+            foreach ($name in 'tile-columns', 'tile-rows', 'cascade-all', 'cycle-stacked-windows', 'reverse-all', 'fit-channel') {
+              Expect $f "^${name}: ran false$" "$name refused while paused"
+            }
+            $start = Frames $f 'start'
+            foreach ($label in 'tile-columns', 'tile-rows', 'cascade-all') { Same $start (Frames $f $label) "$label moved a window while paused" }
+            $stacked = Frames $f 'stacked'
+            foreach ($label in 'cycle-stacked-windows', 'reverse-all', 'fit-channel', 'tidy-2', 'undo') { Same $stacked (Frames $f $label) "$label moved a window while paused" }
+            $before = [regex]::Match(($f -match '^front before: ')[0], '(0x[0-9a-f]+)$').Value
+            Expect $f "^front after: $before$" 'the front window unchanged while paused'
+            Write-Host "  check: paused, every organize action refused and no window moved, so the frame checks read real moves"
+            $pads | ForEach-Object { Stop-Process -Id $_.Id -ErrorAction SilentlyContinue }
+          }
+          OrganizeCheck @('--min-aspect', '1.0')
+
+          function BadgeCheck([string[]] $geo) {
+            Write-Host "probe badge $geo"
+            $pads = @(1..3 | ForEach-Object { Pad })
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'badge') + $geo)
+            Expect $f '^pads: 3$' 'three windows of the app to stack'
+            Expect $f '^ticking: true$' 'the badge ticks with stacking.badge on'
+            $front = Rect ($f -match '^front: ')[0] 'front: '
+            $m = [regex]::Match(($f -match '^rest: ')[0], '^rest: (\d+) at (-?\d+ -?\d+ \d+ \d+)$')
+            if (-not $m.Success) { throw "no badge while the pointer rested at the front corner: $(($f -match '^rest: ')[0])" }
+            if ([int]$m.Groups[1].Value -ne 3) { throw "the badge counts $($m.Groups[1].Value), want 3" }
+            if ((Off $front ($m.Groups[2].Value -split ' ' | ForEach-Object { [int]$_ })) -gt 1) { throw "the badge sits on $($m.Groups[2].Value), not the front window $($front -join ' ')" }
+            $line = ($f -match '^rest window: ')[0]
+            $b = Rect $line 'rest window: '
+            $scale = [double][regex]::Match($line, 'scale ([\d.]+)$').Groups[1].Value
+            if (-not ($line -match ' visible true scale ')) { throw "the badge window is not visible: $line" }
+            $px = { param($p) [int][Math]::Round($p * $scale) }
+            $want = @(($front[0] + $front[2] - (& $px 30) - (& $px 8)), ($front[1] + (& $px 8)), (& $px 30), (& $px 22))
+            if ((Off $b $want) -gt 1) { throw "the badge window is at $($b -join ' '), want the front window's top-right corner $($want -join ' ')" }
+            Expect $f '^away: none$' 'the badge hid when the pointer moved off the corner'
+            Expect $f '^away window: .* visible false ' 'the badge window hidden after the move'
+            Write-Host "  check: the badge counted 3 stacked windows at $($b -join ' ') on the front window's corner and hid when the pointer moved away"
+
+            Write-Host "probe badge --no-badge $geo"
+            $f = Probe (@('--probe', 'badge', '--no-badge') + $geo)
+            Expect $f '^ticking: false$' 'the badge stays off with stacking.badge off'
+            Expect $f '^rest: none$' 'no badge on the same stack with stacking.badge off'
+            Write-Host "  check: with stacking.badge off the same stack shows no badge, so the check can fail"
+            $pads | ForEach-Object { Stop-Process -Id $_.Id -ErrorAction SilentlyContinue }
+          }
+          BadgeCheck @('--min-aspect', '1.0')
+
           Write-Host "probe footprint"
           $pad = Start-Process notepad -PassThru
           Start-Sleep -Seconds 3
@@ -948,6 +1085,8 @@ jobs:
           $simApp = $sim + @('--app', '\mooringswin.exe')
 
           StashCheck $simApp
+          OrganizeCheck $simApp
+          BadgeCheck $simApp
 
           HotkeyCheck $simApp
           LinkCheck $simApp
@@ -1077,8 +1216,8 @@ jobs:
           $out = @(& $exe --probe contracts | ForEach-Object { $_ })
           $code = $LASTEXITCODE
           $out | ForEach-Object { Write-Host "  $_" }
-          if ($code -ne 0 -or -not ($out -match '^contracts: 13 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
-          Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Notifier, Scheduler, Pointer, Keys, Log, Timers, EventSource, Apps, ScreenSource, ChoicesStore and Clock rule"
+          if ($code -ne 0 -or -not ($out -match '^contracts: 14 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
+          Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Badge, Notifier, Scheduler, Pointer, Keys, Log, Timers, EventSource, Apps, ScreenSource, ChoicesStore and Clock rule"
 
       - name: Report
         timeout-minutes: 5
@@ -1157,19 +1296,19 @@ jobs:
           }
           function Written($run) {
             $shots = @(Get-ChildItem (Join-Path $run.Dir '*.png') -ErrorAction SilentlyContinue)
-            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 14) { throw "want report.html and 14 pictures in $($run.Dir), got $($shots.Count)" }
+            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 17) { throw "want report.html and 17 pictures in $($run.Dir), got $($shots.Count)" }
             if (-not ($run.Lines -match '^hook reinstalled: 0$')) { throw "the mouse hook was put back during the scenarios in $($run.Dir)" }
           }
 
           Write-Host "scenarios on the runner's screen"
           $s = Scenarios 'runner' @('--min-aspect', '1.0')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 14 run, 5 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 17 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
-          Write-Host "  check: 14 scenarios passed on the Win32 adapters, organize, channelCycle, badgeCounts, workspaceRecall and refusedWindowTriedOnce skipped, with report.html, 14 pictures and the hook never put back"
+          Write-Host "  check: 17 scenarios passed on the Win32 adapters, workspaceRecall and refusedWindowTriedOnce skipped, with report.html, 17 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
           $s = Scenarios 'sim' @('--screen', '3440x1440')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 14 run, 5 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 17 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
           if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
           Written $s
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
@@ -1266,7 +1405,7 @@ jobs:
             $hook = @($out -match '^hook reinstalled: ')[0]
             Write-Host "  SIM run $i of ${n}: $sum, $hook, exit $code"
             $out -match '^scenario failed: ' | ForEach-Object { Write-Host "    $_" }
-            if ($code -ne 0 -or $sum -ne 'scenarios: 14 run, 5 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
+            if ($code -ne 0 -or $sum -ne 'scenarios: 17 run, 2 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
           }
           if ($failed -ne 0) { throw "$failed of $n SIM runs failed" }
           Write-Host "  check: $n SIM runs in a row passed every scenario with the hook never put back"

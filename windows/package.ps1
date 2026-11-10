@@ -60,6 +60,12 @@ What it does
   Ctrl+Alt+C to center, all inside the channel. On a held window Ctrl+Alt+Enter lifts it
   over the channel, and pressing it again lowers it.
 - Widths: on an ultrawide, pick the strip widths from the tray menu.
+- Organize, in the tray menu, tiles the free windows in columns, rows or a grid, cascades
+  them, cycles through windows stacked on one spot, and mirrors them across the channel.
+  Channel fits every channel window in at once and lines up the front two or three side by
+  side. Undo tidy puts them all back. Each runs on the window that was in front.
+- Stack badge: with "stacking": {"badge": true} in the settings file, resting the pointer
+  on the corner of stacked windows shows how many there are.
 - Pause stops everything until you choose it again. Launch at login starts Moorings when
   you sign in.
 

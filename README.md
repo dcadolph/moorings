@@ -114,6 +114,9 @@ area.
 - Stash parks a window at a screen edge with a sliver showing, by its action or a drag to the edge
   with the Windows key held. Resting the pointer on the sliver slides it out, and moving away slides
   it back. Unstash all windows is in the tray menu, and quitting puts every stashed window back.
+- Organize and Channel in the tray menu tile, cascade, mirror and cycle the free windows, fit the
+  channel's windows, and line up the front two or three, with Undo tidy to put them back. The stack
+  badge counts windows stacked on one corner when `stacking.badge` is on in the settings file.
 - Pause and Launch at login are in the tray menu, and so are strip widths on an ultrawide.
 - Settings live in `%APPDATA%\Moorings\choices.json`. Open settings file in the tray menu opens
   it, and Moorings reads it again when it changes or on Reload settings, so shortcuts and chains

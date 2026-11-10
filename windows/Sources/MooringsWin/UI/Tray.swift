@@ -2,11 +2,15 @@ import Foundation
 import WinSDK
 
 import MooringsCore
+import MooringsEngine
 
 // Command is what choosing a tray menu item does.
 enum Command: Equatable {
     case slot(SlotKey, String)
     case widths(Widths)
+    case action(String)
+    case tidy(Int)
+    case undoTidy
     case pause
     case unstashAll
     case openSettings
@@ -47,6 +51,9 @@ final class Tray {
     private var icon: HICON?
     // commands maps each open menu's item ids, from 1, to what they do.
     private var commands: [Command] = []
+    // front is the window an organize command acts on: the focused window when the menu opened, else
+    // the front-most one in the z order, since a click on the icon hands the foreground to the taskbar.
+    private var front: WindowID?
     // update looks for a newer release, nil until watchUpdates and in a dev build.
     private(set) var update: WinUpdate?
     // updates runs the update tick on the message loop.
@@ -84,11 +91,11 @@ final class Tray {
 
     // menu builds the tray menu from the choices, the bundles of the running apps, whether Moorings
     // starts at login, whether the host is an ultrawide, the only display with Widths to pick, the
-    // newer release a check found, which comes first, and whether a window is stashed. It is pure so
-    // the menu and update probes can print it.
+    // newer release a check found, which comes first, whether a window is stashed, and whether a tidy
+    // can be undone. It is pure so the menu and update probes can print it.
     static func menu(
         choices: Choices, running: [String], atLogin: Bool, isUltrawide: Bool, update: ReleaseInfo? = nil,
-        stashed: Bool = false
+        stashed: Bool = false, canUndo: Bool = false
     ) -> [MenuItem] {
         let apps = Array(Set(running)).sorted { appName($0).lowercased() < appName($1).lowercased() }
         var slots: [MenuItem] = []
@@ -127,6 +134,7 @@ final class Tray {
         if isUltrawide {
             items.append(MenuItem(title: "Widths", submenu: widths))
         }
+        items += organizeFolders(choices: choices, canUndo: canUndo)
         items.append(.separator)
         if stashed {
             items.append(MenuItem(title: "Unstash all windows", command: .unstashAll))
@@ -141,6 +149,24 @@ final class Tray {
             MenuItem(title: "About Moorings", command: .about),
             MenuItem(title: "Quit Moorings", command: .quit),
         ]
+    }
+
+    // organizeFolders builds the Organize and Channel folders the way the Mac groups them: the organize
+    // actions, then the channel actions with Tidy for the front two or three windows, each ending in
+    // Undo tidy. Hidden actions are left out, and every entry is off while paused.
+    static func organizeFolders(choices: Choices, canUndo: Bool) -> [MenuItem] {
+        let on = !choices.paused
+        let entry = { (name: String) in MenuItem(title: Keymaps.label(name), enabled: on, command: .action(name)) }
+        let undo = MenuItem(title: "Undo tidy", enabled: on && canUndo, command: .undoTidy)
+        var organize = choices.menu.visible(Tile.names.filter { !Tile.channelNames.contains($0) }).map(entry)
+        organize += [.separator, undo]
+        var channel = choices.menu.visible(Tile.channelNames).map(entry)
+        channel.append(.separator)
+        channel += Organizer.tidyCounts.map {
+            MenuItem(title: "Tidy \($0) front windows", enabled: on, command: .tidy($0))
+        }
+        channel += [.separator, undo]
+        return [MenuItem(title: "Organize", submenu: organize), MenuItem(title: "Channel", submenu: channel)]
     }
 
     // appName returns the name the menu shows for a bundle: the executable's file name for a path,
@@ -344,10 +370,13 @@ final class Tray {
     // when the owner clicks elsewhere.
     private func open(_ hwnd: HWND) {
         let screens = Screens.current(minAspect: app.minAspect)
-        let running = WinWindows.scan(screens: screens).windows.map(\.bundle)
+        let scan = WinWindows.scan(screens: screens)
+        let running = scan.windows.map(\.bundle)
+        front = (scan.focused ?? scan.windows.first)?.id
         let items = Tray.menu(
             choices: app.engine.anchors.choices, running: running, atLogin: LoginItem.enabled,
-            isUltrawide: screens.isUltrawide, update: update?.found, stashed: !app.engine.stasher.entries.isEmpty)
+            isUltrawide: screens.isUltrawide, update: update?.found, stashed: !app.engine.stasher.entries.isEmpty,
+            canUndo: app.engine.anchors.canUndo)
         commands = []
         guard let menu = build(items) else { return }
         defer { _ = DestroyMenu(menu) }
@@ -396,6 +425,18 @@ final class Tray {
             anchors.lock(key, bundle, now: App.now)
         case .widths(let w):
             anchors.setWidths(w)
+        case .action(let name):
+            app.engine.actions.run(name, window: front)
+            return
+        case .tidy(let n):
+            if let front {
+                app.windows.raise(front)
+            }
+            app.engine.organizer.tidy(n)
+            return
+        case .undoTidy:
+            app.engine.organizer.undo()
+            return
         case .pause:
             anchors.choices.paused.toggle()
         case .unstashAll:

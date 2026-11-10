@@ -34,6 +34,8 @@ let probes: [String: Probe] = [
     "quit": probeQuit,
     "drag": probeDrag,
     "stash": probeStash,
+    "organize": probeOrganize,
+    "badge": probeBadge,
     "footprint": probeFootprint,
     "stand": probeStand,
     "contracts": probeContracts,
