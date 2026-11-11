@@ -96,8 +96,8 @@ itself. To update by hand, take the offer at the top of the menu, or run
 `brew upgrade --cask moorings`. To uninstall, quit Moorings and run
 `brew uninstall --cask moorings`, or drag it to the Trash.
 
-Moorings stays off the Mac App Store because store apps must run in Apple's sandbox, which blocks
-moving other apps' windows. Mac builds come signed and notarized, Windows builds come as a zip,
+Moorings stays off the Mac App Store because store apps must run in Apple's sandbox, and a
+sandboxed build of Moorings could not move other apps' windows. Mac builds come signed and notarized, Windows builds come as a zip,
 and both are attached to every release here, free.
 
 ## Windows

@@ -26,6 +26,7 @@
 <h1>Short guides.</h1>
 <p>Each guide is a few steps and the questions people ask about it. Everything here starts from the sailboat in the menu bar. The <a href="https://github.com/dcadolph/moorings#docs">README</a> has the full reference.</p>
 <ul class="toc cream">
+  <li><a href="#accessibility">Allow Accessibility</a></li>
   <li><a href="#ultrawide">Set up your ultrawide</a></li>
   <li><a href="#shortcuts">Set your shortcuts</a></li>
   <li><a href="#snapping">Change what a drag snaps to</a></li>
@@ -33,6 +34,21 @@
   <li><a href="#workspaces">Save a workspace</a></li>
   <li><a href="#settings">Fine-tune behavior and move your settings</a></li>
 </ul>
+
+<h2 id="accessibility">Allow Accessibility</h2>
+<p>Moorings moves other apps' windows through macOS Accessibility, so it needs your permission once. Until you allow it, a warning triangle takes the sailboat's place in the menu bar.</p>
+<h3>Steps</h3>
+<ol>
+  <li>Open Moorings. A banner asks for Accessibility access and stays for five seconds.</li>
+  <li>Click the banner. If it is gone, click the warning triangle in the menu bar and choose <b>Grant Accessibility access</b>. System Settings opens at Privacy &amp; Security, Accessibility, which macOS 27 calls Device Control and Data Access.</li>
+  <li>Turn on Moorings. If macOS asks, confirm with Touch ID or your password. The sailboat comes back within a couple of seconds and Moorings can move windows, with no restart.</li>
+</ol>
+<h3>Questions</h3>
+<details><summary>Moorings is not in the list.</summary><p>Click the plus button under the list, choose Moorings in Applications, and click Open. To get there by hand, open the Apple menu, System Settings, Privacy &amp; Security, then Accessibility, or Device Control and Data Access on macOS 27.</p></details>
+<details><summary>Moorings is on in the list, but the warning triangle stays.</summary><p>macOS can hold a stale entry, for example from a copy you built yourself. Turn Moorings off and on again. If the triangle stays, select Moorings in the list, click the minus button, then click the plus button and add Moorings from Applications. If that fails, quit Moorings and open it again. If the triangle is still there, <a href="https://github.com/dcadolph/moorings/issues">open an issue</a>.</p><p>If the sailboat is showing, access is fine. Check that Moorings is not paused and that no other window manager is running.</p></details>
+<details><summary>A banner says Moorings lost its Accessibility grant.</summary><p>macOS can drop the grant when an update replaces the app. Moorings checks for this the first time it starts after updating itself. Click the banner, or choose <b>Grant Accessibility access</b> in the menu, and turn Moorings on again.</p></details>
+<details><summary>What can Moorings see with this access?</summary><p>Each window's position, size, and title, and the app that owns it. It also watches mouse clicks and drags. While the front window fills the channel it watches key presses to catch Control-Left and Control-Right, and passes every other key through without keeping it. It does not read the text or pictures inside a window. The <a href="/privacy">privacy page</a> has the details.</p></details>
+<details><summary>Why is Moorings not on the Mac App Store?</summary><p>Store apps must run in Apple's sandbox, and a sandboxed build of Moorings could not move other apps' windows. Moorings ships from GitHub and Homebrew instead, signed with a Developer ID and notarized by Apple.</p></details>
 
 <h2 id="ultrawide">Set up your ultrawide</h2>
 <p>A display at least 2.2 times as wide as it is tall counts as an ultrawide. It gets four slots, a top and a bottom on each side, and the open middle between them is the channel.</p>
