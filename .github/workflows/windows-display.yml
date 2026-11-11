@@ -1,0 +1,188 @@
+name: windows-display
+
+# Give the hosted runner a real 3440x1440 monitor, so the monitor code reads an ultrawide from
+# Windows itself and not from --screen. The open source Virtual Display Driver, an indirect display
+# driver signed through the SignPath Foundation, adds the monitor. It is pinned by release and by
+# the sha256 GitHub lists for each download, runs only on this throwaway runner, and never ships.
+on:
+  push:
+    branches: ["spike/**"]
+    paths: [".github/workflows/windows-display.yml"]
+  workflow_dispatch:
+
+jobs:
+  display:
+    runs-on: windows-latest
+    continue-on-error: ${{ github.event_name == 'push' }}
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: compnerd/gha-setup-swift@9ff1ee4c44888c5817fc14d1b257ac8cabb4935f # v0.5.1
+        with:
+          swift-version: swift-6.3.3-release
+          swift-build: 6.3.3-RELEASE
+
+      - uses: actions/checkout@v5
+
+      - name: Build
+        run: swift build -Xswiftc -warnings-as-errors
+
+      # The control: before the driver, the runner has only its own screen and no ultrawide.
+      - name: Monitors before
+        run: |
+          $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
+          $m = @(& $exe --probe monitors | ForEach-Object { $_ })
+          $m | ForEach-Object { Write-Host "  $_" }
+          if ($m -match '^monitor \d+: full -?\d+ -?\d+ 3440 1440 ') { throw "a 3440x1440 monitor is listed before the driver" }
+          if (-not ($m -match '^ultrawide: none$')) { throw "an ultrawide is listed before the driver" }
+          Write-Host "  check: before the driver, no 3440x1440 monitor and no ultrawide"
+
+      - name: Install the virtual display
+        timeout-minutes: 10
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'vdd'
+          New-Item -ItemType Directory -Path $dir -Force | Out-Null
+          # Fetch downloads url to file and refuses it unless its sha256 is the pinned one.
+          function Fetch([string] $url, [string] $sha, [string] $file) {
+            Invoke-WebRequest -Uri $url -OutFile $file -UseBasicParsing
+            $got = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+            if ($got -ne $sha) { throw "$url has sha256 $got, pinned $sha" }
+            Write-Host "  fetched $url, sha256 $got"
+          }
+          $nefcon = Join-Path $dir 'nefcon.zip'
+          Fetch 'https://github.com/nefarius/nefcon/releases/download/v1.14.0/nefcon_v1.14.0.zip' `
+            'a15557da24a9efca203158de3b43b0eaf982db231f0194031f1ed428bc13e669' $nefcon
+          $driver = Join-Path $dir 'driver.zip'
+          Fetch 'https://github.com/VirtualDrivers/Virtual-Display-Driver/releases/download/25.7.23/VirtualDisplayDriver-x86.Driver.Only.zip' `
+            'e24210692b442b39af763536330ce78b423f19342b7a7792c26de3944e418b3a' $driver
+          Expand-Archive -Path $nefcon -DestinationPath (Join-Path $dir 'nefcon') -Force
+          Expand-Archive -Path $driver -DestinationPath (Join-Path $dir 'driver') -Force
+          Get-ChildItem -Recurse (Join-Path $dir 'driver') | ForEach-Object { Write-Host "  driver file: $($_.FullName.Substring($dir.Length + 1))" }
+
+          # The driver reads its monitors from this file when it starts: one monitor, 3440x1440
+          # first so Windows starts it there, and 5120x1440 for the second size.
+          $settings = 'C:\VirtualDisplayDriver'
+          New-Item -ItemType Directory -Path $settings -Force | Out-Null
+          @'
+          <?xml version='1.0' encoding='utf-8'?>
+          <vdd_settings>
+            <monitors><count>1</count></monitors>
+            <gpu><friendlyname>default</friendlyname></gpu>
+            <global><g_refresh_rate>60</g_refresh_rate></global>
+            <resolutions>
+              <resolution><width>3440</width><height>1440</height><refresh_rate>60</refresh_rate></resolution>
+              <resolution><width>5120</width><height>1440</height><refresh_rate>60</refresh_rate></resolution>
+            </resolutions>
+          </vdd_settings>
+          '@ | Set-Content -Path (Join-Path $settings 'vdd_settings.xml') -Encoding utf8
+
+          # The package is signed by a publisher Windows does not trust by default, so its
+          # certificates go into the machine's trusted publishers first, as the project's own silent
+          # install does. Without that, the install would wait on a prompt nobody answers.
+          $cat = @(Get-ChildItem -Recurse (Join-Path $dir 'driver') -Filter *.cat)[0]
+          $inf = @(Get-ChildItem -Recurse (Join-Path $dir 'driver') -Filter *.inf)[0]
+          if (-not $cat -or -not $inf) { throw "the driver zip has no .cat or no .inf" }
+          $certs = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+          $certs.Import([IO.File]::ReadAllBytes($cat.FullName))
+          $store = New-Object System.Security.Cryptography.X509Certificates.X509Store('TrustedPublisher', 'LocalMachine')
+          $store.Open('ReadWrite')
+          foreach ($c in $certs) {
+            $store.Add($c)
+            Write-Host "  trusted: $($c.Subject)"
+          }
+          $store.Close()
+
+          $tool = @(Get-ChildItem -Recurse (Join-Path $dir 'nefcon') -Filter nefconc.exe | Where-Object { $_.FullName -match '\\x64\\' })[0]
+          if (-not $tool) { throw "no x64 nefconc.exe in the nefcon zip" }
+          $p = Start-Process -FilePath $tool.FullName -ArgumentList @('install', "`"$($inf.FullName)`"", 'Root\MttVDD') `
+            -NoNewWindow -Wait -PassThru -RedirectStandardOutput (Join-Path $dir 'install.txt') -RedirectStandardError (Join-Path $dir 'install-err.txt')
+          Get-Content (Join-Path $dir 'install.txt'), (Join-Path $dir 'install-err.txt') | ForEach-Object { Write-Host "  nefcon: $_" }
+          if ($p.ExitCode -eq 3010) { throw "the driver install asks for a reboot (3010), which a hosted runner cannot do" }
+          if ($p.ExitCode -ne 0) { throw "nefconc install exited $($p.ExitCode)" }
+
+          $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
+          $seen = $false
+          for ($i = 0; $i -lt 30 -and -not $seen; $i++) {
+            Start-Sleep -Seconds 2
+            $m = @(& $exe --probe monitors | ForEach-Object { $_ })
+            $seen = [bool]($m -match '^monitor \d+: full -?\d+ -?\d+ 3440 1440 ')
+          }
+          & pnputil /enum-devices /class Display | ForEach-Object { Write-Host "  pnputil: $_" }
+          if (-not $seen) { throw "no 3440x1440 monitor 60 s after the driver install" }
+          Write-Host "  check: the driver installed with no reboot and Windows lists a 3440x1440 monitor"
+
+      - name: Record
+        timeout-minutes: 5
+        run: |
+          $choco = @(choco install ffmpeg --version 7.1.1 -y --no-progress)
+          if ($LASTEXITCODE -ne 0) {
+            $choco | Select-Object -Last 20 | ForEach-Object { Write-Host "  $_" }
+            throw "choco install ffmpeg 7.1.1 exited $LASTEXITCODE"
+          }
+          Write-Host "  $(@(& (Get-Command ffmpeg -ErrorAction Stop).Source -version)[0])"
+
+      - name: Probe the real ultrawide
+        timeout-minutes: 10
+        run: |
+          $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
+          function Probe([string[]] $probeArgs) {
+            $out = @(& $exe @probeArgs | ForEach-Object { $_ })
+            if ($LASTEXITCODE -ne 0) { throw "probe $probeArgs exited $LASTEXITCODE" }
+            $out | ForEach-Object { Write-Host "  $_" }
+            return ,$out
+          }
+          function Rect([string] $line, [string] $prefix) {
+            $n = [regex]::Match($line, [regex]::Escape($prefix) + '(-?\d+) (-?\d+) (\d+) (\d+)')
+            if (-not $n.Success) { throw "no rect after '$prefix' in: $line" }
+            ,@(1..4 | ForEach-Object { [int]$n.Groups[$_].Value })
+          }
+          function Off($a, $b) {
+            $off = 0
+            foreach ($i in 0..3) { $off = [Math]::Max($off, [Math]::Abs($a[$i] - $b[$i])) }
+            $off
+          }
+
+          Write-Host "probe monitors, no --screen"
+          $m = Probe @('--probe', 'monitors')
+          $wide = @($m -match '^monitor (\d+): full (-?\d+) (-?\d+) 3440 1440 ')[0]
+          if (-not $wide) { throw "no 3440x1440 monitor" }
+          $index = [regex]::Match($wide, '^monitor (\d+):').Groups[1].Value
+          $full = Rect $wide 'full '
+          if (-not ($m -match "^ultrawide: $index$")) { throw "the 3440x1440 monitor $index is not the ultrawide" }
+          if (-not ($m -match '^host: \d+ ultrawide true ')) { throw "the host is not an ultrawide" }
+          Write-Host "  check: monitor $index is 3440x1440 at $($full[0]) $($full[1]), primary $($wide -match 'primary true$'), and it hosts as the ultrawide"
+
+          Write-Host "probe moor with Notepad on the real ultrawide, recorded"
+          $video = Join-Path $env:RUNNER_TEMP 'display.mp4'
+          $ffmpeg = (Get-Command ffmpeg -ErrorAction Stop).Source
+          $ffArgs = @('-nostdin', '-hide_banner', '-loglevel', 'error', '-f', 'gdigrab', '-framerate', '5',
+            '-offset_x', "$($full[0])", '-offset_y', "$($full[1])", '-video_size', '3440x1440', '-i', 'desktop',
+            '-t', '20', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-y', $video)
+          $rec = Start-Process -FilePath $ffmpeg -ArgumentList $ffArgs -WindowStyle Hidden -RedirectStandardError "$video.err" -PassThru
+          $pad = Start-Process notepad -PassThru
+          Start-Sleep -Seconds 3
+          $n = Probe @('--probe', 'moor', '--seconds', '4')
+          $strip = Rect ($n -match '^strip: ')[0] 'strip: '
+          $final = @($n -match "^final \S+ pid $($pad.Id) frame ")[0]
+          if (-not $final) { throw "no final line for Notepad" }
+          $off = Off (Rect $final 'frame ') $strip
+          if ($off -gt 1) { throw "Notepad is $off px off the left strip: $final" }
+          if ($strip[2] -lt 1300) { throw "the strip is $($strip[2]) wide, not an ultrawide's" }
+          Stop-Process -Id $pad.Id
+          Write-Host "  check: Notepad pinned to the real ultrawide's left strip $($strip -join ' ') within 1 px"
+
+          $null = $rec.WaitForExit(30000)
+          if (-not $rec.HasExited) { Stop-Process -Id $rec.Id -Force }
+          $ffprobe = (Get-Command ffprobe -ErrorAction Stop).Source
+          $size = @(& $ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 $video | ForEach-Object { "$_" })
+          Write-Host "  video: $($size -join ' ')"
+          if ($size[0] -ne '3440,1440') { throw "the video is $($size[0]), not the virtual monitor's 3440,1440: $(Get-Content "$video.err" -Raw)" }
+          Write-Host "  check: the recording of the virtual monitor is 3440x1440"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: display-video
+          path: ${{ runner.temp }}/display.mp4
+          if-no-files-found: ignore
