@@ -155,12 +155,14 @@ public final class DragFollower {
 
     // ended finishes the drag: a drop in a zone runs its action, a drop on a slot anchors the app, and
     // a Command-drag at an edge stashes the window at the size it was dragged at, since Windows may have
-    // snapped it at that edge. A window that can no longer be read gets nothing.
+    // snapped it at that edge. A window that can no longer be read gets nothing. The end is a mouse up
+    // for the tiler, so a tiled window moved by hand floats on every platform.
     public func ended(held: Modifiers) {
         let (w, drop, screen, stashAt, start, moved) = (win, drop, screen, stashAt, start, moving == true)
         trace.append(
             "ended moving \(String(describing: moving)) done \(done) window \(String(describing: w?.id))")
         reset()
+        engine.tiler.mouseUp()
         guard moved, var w else { return }
         guard let f = platform.windows.frame(w.id) else {
             trace.append("ended window \(w.id) unreadable")

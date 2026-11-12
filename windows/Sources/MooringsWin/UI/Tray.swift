@@ -154,6 +154,7 @@ final class Tray {
             items.append(MenuItem(title: "Widths", submenu: widths))
         }
         items += organizeFolders(choices: choices, canUndo: canUndo)
+        items.append(tilingFolder(choices: choices))
         if let sizes = sizesFolder(choices: choices) {
             items.append(sizes)
         }
@@ -190,6 +191,21 @@ final class Tray {
         }
         channel += [.separator, undo]
         return [MenuItem(title: "Organize", submenu: organize), MenuItem(title: "Channel", submenu: channel)]
+    }
+
+    // tilingFolder builds the Tiling folder the way the Mac groups it: the layouts with the one in use
+    // checked, then cycle, grow and shrink the main pane, focus and swap. Every entry is off while
+    // paused.
+    static func tilingFolder(choices: Choices) -> MenuItem {
+        let on = !choices.paused
+        let active = Tiling.modePrefix + choices.tiling.mode.rawValue
+        let entry = { (name: String) in
+            MenuItem(title: Keymaps.label(name), checked: name == active, enabled: on, command: .action(name))
+        }
+        var items = Tiling.modeNames.map(entry)
+        items.append(.separator)
+        items += ([Tiling.cycleName, "grow-main", "shrink-main"] + Tiling.focusNames + Tiling.swapNames).map(entry)
+        return MenuItem(title: "Tiling", submenu: items)
     }
 
     // sizesFolder builds the Custom sizes folder from the valid custom sizes in menu order, each off

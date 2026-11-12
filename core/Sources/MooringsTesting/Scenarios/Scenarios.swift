@@ -355,6 +355,7 @@ public enum Scenarios {
         ("channelCycle", [.organize, .channelCycle], channelCycle),
         ("badgeCounts", .badge, badgeCounts),
         ("workspaceRecall", .workspaces, workspaceRecall),
+        ("tilingKeepsLayout", .tiling, tilingKeepsLayout),
     ]
 
     // featureNames names each feature the way a skip line says it.

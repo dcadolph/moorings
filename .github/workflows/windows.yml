@@ -1155,6 +1155,40 @@ jobs:
           }
           SizesCheck @('--min-aspect', '1.0')
 
+          # Tiling: columns chosen from the tray's Tiling folder hold the probe's own windows on the
+          # columns of every free window as a third opens and the first closes, each within 1 px and
+          # moved off where it was placed. The control with tiling off leaves each where it was placed.
+          function TilingCheck([string[]] $geo) {
+            Write-Host "probe tiling $geo"
+            $f = Probe (@('--probe', 'tiling') + $geo)
+            Expect $f '^menu \[ \] Tiling$' 'the Tiling folder'
+            Expect $f '^menu   \[x\] Columns layout$' 'Columns layout checked under Tiling'
+            Expect $f '^menu   \[ \] Grow main$' 'Grow main under Tiling'
+            Expect $f '^menu   \[ \] Shrink main$' 'Shrink main under Tiling'
+            Expect $f '^mode: columns$' 'the tray command chose columns'
+            $counts = @()
+            foreach ($step in @(@('two', 2), @('three', 3), @('closed', 2))) {
+              $label = $step[0]
+              $n = [int][regex]::Match(($f -match "^$label free: ")[0], '(\d+)$').Value
+              if ($n -lt $step[1]) { throw "${label}: $n free windows, want at least $($step[1])" }
+              if ((PadsAt $f $label $true) -ne $step[1]) { throw "${label}: not $($step[1]) windows read" }
+              $wants = @($f -match "^$label 0x" | ForEach-Object { [regex]::Match($_, ' want (.*) got ').Groups[1].Value })
+              if (@($wants | Sort-Object -Unique).Count -ne $wants.Count) { throw "${label}: two windows share one column: $($wants -join ', ')" }
+              [void](PadsAt $f "placed $label" $false)
+              $counts += $n
+            }
+            Expect $f '^closed: 0x[0-9a-f]+ gone$' 'the first window closed'
+            Write-Host "  check: equal columns of $($counts -join ', ') free windows after two, a third, and a close, each moved off where it was placed"
+
+            Write-Host "probe tiling --no-tiling $geo"
+            $f = Probe (@('--probe', 'tiling', '--no-tiling') + $geo)
+            Expect $f '^menu   \[x\] Tiling off$' 'Tiling off checked under Tiling'
+            Expect $f '^mode: off$' 'tiling left off'
+            foreach ($label in 'two', 'three', 'closed') { [void](PadsAt $f $label $true) }
+            Write-Host "  check: with tiling off every window stayed where it was placed, so the column checks read real moves"
+          }
+          TilingCheck @('--min-aspect', '1.0')
+
           function WorkspaceCheck([string[]] $geo, [bool] $tie) {
             $extra = if ($tie) { @('--tie') } else { @() }
             Write-Host "probe workspace $geo $extra"
@@ -1267,6 +1301,7 @@ jobs:
           OrganizeCheck $simApp
           BadgeCheck $simApp
           SizesCheck $simApp
+          TilingCheck $sim
           WorkspaceCheck $simApp $true
 
           HotkeyCheck $simApp
@@ -1486,13 +1521,13 @@ jobs:
 
           Write-Host "scenarios on the runner's screen"
           $s = Scenarios 'runner' @('--min-aspect', '1.0')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 17 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 18 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
           Write-Host "  check: 17 scenarios passed on the Win32 adapters, channelCycle and refusedWindowTriedOnce skipped, with report.html, 17 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
           $s = Scenarios 'sim' @('--screen', '3440x1440')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 17 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 18 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
           if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
           Written $s
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
@@ -1589,7 +1624,7 @@ jobs:
             $hook = @($out -match '^hook reinstalled: ')[0]
             Write-Host "  SIM run $i of ${n}: $sum, $hook, exit $code"
             $out -match '^scenario failed: ' | ForEach-Object { Write-Host "    $_" }
-            if ($code -ne 0 -or $sum -ne 'scenarios: 17 run, 2 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
+            if ($code -ne 0 -or $sum -ne 'scenarios: 18 run, 2 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
           }
           if ($failed -ne 0) { throw "$failed of $n SIM runs failed" }
           Write-Host "  check: $n SIM runs in a row passed every scenario with the hook never put back"

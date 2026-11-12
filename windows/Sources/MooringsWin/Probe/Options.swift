@@ -72,6 +72,8 @@ struct ProbeOptions {
     var activate = false
     // noBadge writes the stack badge off, the badge probe's negative control.
     var noBadge = false
+    // noTiling leaves tiling off, the tiling probe's negative control.
+    var noTiling = false
     // tie makes the workspace probe tie its workspace to the fake monitor and swap the monitor for
     // another size and back.
     var tie = false
@@ -169,6 +171,8 @@ struct ProbeOptions {
                 activate = true
             case "--no-badge":
                 noBadge = true
+            case "--no-tiling":
+                noTiling = true
             case "--tie":
                 tie = true
             case "--launch":

@@ -75,6 +75,10 @@ What it does
   side. Undo tidy puts them all back. Each runs on the window that was in front.
 - Stack badge: with "stacking": {"badge": true} in the settings file, resting the pointer
   on the corner of stacked windows shows how many there are.
+- Tiling, in the tray menu, keeps the free windows of each display in a tall, wide,
+  columns, rows or BSP layout as windows open and close. A window you drag or resize
+  floats until you choose a layout again. Grow main and Shrink main change the main
+  pane's share in the tall and wide layouts.
 - Workspaces, in the tray menu: Save workspace keeps where every free window sits, and
   Recall puts them back. Recall with these displays brings a workspace back by itself when
   the same monitors are plugged in again. Open apps that are not running starts the apps a
