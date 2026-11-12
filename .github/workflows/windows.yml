@@ -740,6 +740,30 @@ jobs:
           if ($n -match '^report: AltGr: ') { throw "with the rule off the report lists an AltGr line" }
           Write-Host "  check: with the rule off AltGr+E ran first-two-thirds, typed nothing, and the report lists no AltGr line"
 
+          # The menu action opens the tray menu at the pointer, and once it closes the foreground goes
+          # back to the window that was in front. The foreground read while the menu is open is the
+          # control: it shows the menu took the foreground, so the read after shows it came back.
+          Write-Host "probe pointermenu"
+          $pad = Pad
+          Start-Sleep -Seconds 3
+          $pm = Probe @('--probe', 'pointermenu', '--seconds', '10', '--min-aspect', '1.0')
+          Expect $pm '^chord: Ctrl\+Alt\+Shift\+F9 bound true$' 'show-menu bound on Windows'
+          $ids = [regex]::Match(($pm -match '^notepad: ')[0], '^notepad: (0x[0-9a-f]+) tray: (0x[0-9a-f]+)$')
+          if (-not $ids.Success) { throw "no notepad and tray ids" }
+          $note, $trayId = $ids.Groups[1].Value, $ids.Groups[2].Value
+          Expect $pm "^foreground before: $note$" 'Notepad in front before the chord'
+          Expect $pm '^hotkeys received: show-menu$' 'one show-menu press'
+          $box = Rect ($pm -match '^menu: ')[0] 'menu: '
+          $ptr = [regex]::Match(($pm -match '^pointer: ')[0], '^pointer: (-?\d+) (-?\d+)$')
+          if (-not $ptr.Success) { throw "no pointer line" }
+          $dx = [Math]::Abs($box[0] - [int]$ptr.Groups[1].Value); $dy = [Math]::Abs($box[1] - [int]$ptr.Groups[2].Value)
+          if ($dx -gt 2 -or $dy -gt 2) { throw "the menu opened at $($box[0]) $($box[1]), not at the pointer $($ptr.Groups[1].Value) $($ptr.Groups[2].Value)" }
+          Expect $pm "^foreground open: $trayId$" 'the menu took the foreground while open'
+          Expect $pm '^menu after: (none|hidden)$' 'the menu closed'
+          Expect $pm "^foreground after: $note$" 'the foreground went back to Notepad'
+          Write-Host "  check: show-menu opened the menu at the pointer with the foreground, and Notepad had it back after"
+          Stop-Process -Id $pad.Id -ErrorAction SilentlyContinue
+
           Write-Host "probe banner"
           $b = Probe @('--probe', 'banner', '--min-aspect', '1.0')
           $line = ($b -match '^banner: ')[0]
@@ -1105,6 +1129,32 @@ jobs:
             }
             $rows.Count
           }
+
+          # Custom sizes: the tray folder lists both sizes, each lands on the engine's frame for it with
+          # a 12 px gap, and the control with no gap moves Quarter's left and top edges by the whole gap.
+          function SizesCheck([string[]] $geo) {
+            Write-Host "probe sizes $geo"
+            $pad = Pad
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'sizes') + $geo)
+            Expect $f '^menu \[ \] Custom sizes$' 'the Custom sizes folder'
+            Expect $f '^menu   \[ \] Quarter$' 'Quarter under Custom sizes'
+            Expect $f '^menu   \[ \] Note$' 'Note under Custom sizes'
+            foreach ($label in 'Quarter', 'Note', 'nogap Quarter') {
+              $line = ($f -match "^${label}: ")[0]
+              $off = Gap $line $label
+              if ($off -gt 1) { throw "$label landed $off px off the engine's frame: $line" }
+            }
+            $gap = Rect ($f -match '^Quarter: ')[0] ' got '
+            $none = Rect ($f -match '^nogap Quarter: ')[0] ' got '
+            foreach ($i in 0, 1) {
+              if ([Math]::Abs($gap[$i] - $none[$i] - 12) -gt 1) { throw "the 12 px gap moved Quarter's edge $i from $($none[$i]) to $($gap[$i]), not by 12" }
+            }
+            Write-Host "  check: the folder lists both sizes, each landed on the engine's frame, and the gap moved Quarter from $($none -join ' ') to $($gap -join ' ')"
+            Stop-Process -Id $pad.Id -ErrorAction SilentlyContinue
+          }
+          SizesCheck @('--min-aspect', '1.0')
+
           function WorkspaceCheck([string[]] $geo, [bool] $tie) {
             $extra = if ($tie) { @('--tie') } else { @() }
             Write-Host "probe workspace $geo $extra"
@@ -1216,6 +1266,7 @@ jobs:
           StashCheck $simApp
           OrganizeCheck $simApp
           BadgeCheck $simApp
+          SizesCheck $simApp
           WorkspaceCheck $simApp $true
 
           HotkeyCheck $simApp

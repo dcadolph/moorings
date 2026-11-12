@@ -132,6 +132,9 @@ area.
   and it can open the apps that are not running. App rules in the settings file place an app's
   first window when it starts.
 - Pause and Launch at login are in the tray menu, and so are strip widths on an ultrawide.
+- Custom sizes from the settings file show in a Custom sizes folder in the tray menu, and the gap
+  applies to them as on the Mac. A shortcut set for `show-menu` opens the tray menu at the
+  pointer, and the window in front keeps the foreground once the menu closes.
 - Settings live in `%APPDATA%\Moorings\choices.json`. Open settings file in the tray menu opens
   it, and Moorings reads it again when it changes or on Reload settings, so shortcuts and chains
   edited there take hold without a restart.
