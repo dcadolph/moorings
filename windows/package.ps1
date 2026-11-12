@@ -59,6 +59,12 @@ What it does
   and K for quarters, Ctrl+Alt+D, F and G for thirds, Ctrl+Alt+Enter to maximize and
   Ctrl+Alt+C to center, all inside the channel. On a held window Ctrl+Alt+Enter lifts it
   over the channel, and pressing it again lowers it.
+- AltGr: on a layout with AltGr, such as German or Polish, AltGr still types its
+  characters (AltGr+E is the euro sign in German). Hold left Ctrl with left Alt for the
+  shortcut: a macro tool that sends the whole chord at once types the character instead.
+  A window run as administrator is the exception: Windows drops what Moorings types into
+  it, so the character is lost there. A shortcut on a key that AltGr makes a dead key is
+  left unbound. Save a report lists both.
 - Widths: on an ultrawide, pick the strip widths from the tray menu.
 - Organize, in the tray menu, tiles the free windows in columns, rows or a grid, cascades
   them, cycles through windows stacked on one spot, and mirrors them across the channel.
@@ -102,8 +108,9 @@ This build is checked on GitHub's Windows runner, not yet on a physical ultrawid
 
 Moorings keeps a log in %LOCALAPPDATA%\Moorings\moorings.log, with one older file beside
 it, so the two never pass 2 MB. Save a report in the tray menu writes one text file to
-your desktop with the version, your monitors, your settings and the end of the log, and
-opens the folder with the file selected. That file is the one to send back.
+your desktop with the version, your monitors, the shortcuts it gave up and why, your
+settings, and the end of the log, and opens the folder with the file selected. That file
+is the one to send back.
 
 Settings live in %APPDATA%\Moorings\choices.json. Open settings file in the tray menu
 opens it, and Moorings reads it again when it changes or on Reload settings. To quit,

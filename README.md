@@ -112,6 +112,12 @@ area.
   is released, and Ctrl+Alt+Backspace puts it back.
 - Most of the Mac's default keymap on Ctrl+Alt: Ctrl+Alt+Left gives a window the channel's left
   half, and Ctrl+Alt+Enter lifts a held window over the channel.
+- On a keyboard layout with AltGr, such as German or Polish, AltGr still types its characters,
+  so AltGr+E types the euro sign or ę. Left Ctrl with left Alt runs the shortcut while left Alt
+  is held, so a macro tool that sends the whole chord at once types the character instead. A
+  window run as administrator is the exception: Windows drops what Moorings types into it, so
+  the character is lost there. A shortcut on a key that AltGr makes a dead key on any installed
+  layout is left unbound. Save a report lists both.
 - Without an ultrawide, one anchored side takes half of the display. Both sides take a third each
   when the display is at least 1920 wide at its scale, and on a narrower one the right side waits
   in the channel.
@@ -130,8 +136,8 @@ area.
   it, and Moorings reads it again when it changes or on Reload settings, so shortcuts and chains
   edited there take hold without a restart.
 - Moorings keeps a log in `%LOCALAPPDATA%\Moorings\moorings.log`. Save a report in the tray menu
-  writes one text file to the desktop with the version, the monitors, the settings and the end
-  of the log.
+  writes one text file to the desktop with the version, the monitors, the shortcuts it could not
+  bind and why, the settings, and the end of the log.
 - When a newer release is out, the tray menu offers it at the top.
 
 Download `moorings_windows_x64.zip` from the

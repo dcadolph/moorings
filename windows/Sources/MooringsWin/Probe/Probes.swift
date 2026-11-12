@@ -27,6 +27,7 @@ let probes: [String: Probe] = [
     "menu": probeMenu,
     "tray": probeTray,
     "hotkeys": probeHotkeys,
+    "altgr": probeAltGr,
     "hold": probeHold,
     "banner": probeBanner,
     "skip": probeSkip,

@@ -4,8 +4,9 @@ import WinSDK
 import MooringsCore
 
 // Report is the one text file a person sends back about a build: the version, the Windows build,
-// each monitor, the choices file as written, how many windows each slot's app has open, and the end
-// of the log. It names no window title and no app beyond the ones the choices file already holds.
+// each monitor, how many windows each slot's app has open, the shortcuts given up and why, the
+// choices file as written, and the end of the log. It names no window title and no app beyond the
+// ones the choices file already holds.
 enum Report {
     // logLines is how many of the log's last lines a report carries.
     static let logLines = 200
@@ -32,6 +33,11 @@ enum Report {
             let count = open.filter { $0 == bundle }.count
             lines.append("slot \(key.title): \(Tray.appName(bundle)), \(count) open")
         }
+        lines.append("shortcuts given up:")
+        let given =
+            app.hotkeys.skipped.map { "skipped \($0.name): \($0.reason)" }
+            + app.hotkeys.typed.map { "AltGr: \($0)" }
+        lines += given.isEmpty ? ["none"] : given
         lines.append("choices: \(app.store.url.path)")
         if let file = try? String(contentsOf: app.store.url, encoding: .utf8) {
             lines.append(file.trimmingCharacters(in: .newlines))

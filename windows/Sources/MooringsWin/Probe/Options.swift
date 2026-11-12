@@ -79,6 +79,9 @@ struct ProbeOptions {
     var launch = false
     // noRule runs the app rule probe without the rule, its negative control.
     var noRule = false
+    // noAltGr runs every Ctrl+Alt chord as a shortcut even when AltGr types with it, the altgr probe's
+    // negative control.
+    var noAltGr = false
     // app is the end of the image path of the app whose window the probes act on: Notepad, or the
     // stand probe's window under the fake ultrawide, which Windows would not size past the desktop.
     var app = "\\notepad.exe"
@@ -154,6 +157,8 @@ struct ProbeOptions {
                 noHook = true
             case "--no-swallow":
                 noSwallow = true
+            case "--no-altgr":
+                noAltGr = true
             case "--other":
                 guard let value = rest.popFirst() else { throw ProbeError.missingValue(flag) }
                 guard let n = DWORD(value) else { throw ProbeError.badValue(flag, value) }
