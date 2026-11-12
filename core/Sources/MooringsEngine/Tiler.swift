@@ -14,8 +14,9 @@ public final class Tiler {
     private let organizer: Organizer
     // order is the tiling order of the tiled windows, main window first.
     public private(set) var order: [WindowID] = []
-    // assigned maps each tiled window to the frame it was last given and when.
-    private var assigned: [WindowID: (frame: Frame, at: Double)] = [:]
+    // assigned maps each tiled window to the frame it was last given, when, and the frame a pass last
+    // read it at, so a window that keeps its own size is not taken for one moved by hand.
+    private var assigned: [WindowID: (frame: Frame, at: Double, seen: Frame)] = [:]
     // floated holds the windows the owner moved out of the layout.
     public private(set) var floated: Set<WindowID> = []
     // released is when the primary mouse button last came up.
@@ -48,8 +49,8 @@ public final class Tiler {
 
     // pass lays out list, the windows on screen front-most first, after a moor pass. Each window gets
     // a frame only when its frame in the layout changed, so an app that keeps its own size is left
-    // alone, and a window found off its frame after a mouse up floats. It does nothing while tiling
-    // is off, while paused, or while the mouse button is down.
+    // alone, and a window found after a mouse up off both its frame and where a pass last read it
+    // floats. It does nothing while tiling is off, while paused, or while the mouse button is down.
     public func pass(_ list: [WindowInfo], screens: Screens, mouseHeld: Bool) {
         let tiling = anchors.choices.tiling
         guard tiling.mode != .off, !anchors.choices.paused, !mouseHeld else { return }
@@ -67,11 +68,16 @@ public final class Tiler {
             for (id, target) in zip(ids, frames) {
                 guard let w = byID[id] else { continue }
                 if let a = assigned[id], Actions.near(a.frame, target, tolerance: Actions.tolerance) {
-                    if released > a.at, !Actions.near(w.frame, a.frame, tolerance: Actions.tolerance) {
+                    let off =
+                        !Actions.near(w.frame, a.frame, tolerance: Actions.tolerance)
+                        && !Actions.near(w.frame, a.seen, tolerance: Actions.tolerance)
+                    if released > a.at, off {
                         floated.insert(id)
                         order.removeAll { $0 == id }
                         assigned[id] = nil
                         log("window \(id) moved by hand: floating until a mode is chosen again")
+                    } else {
+                        assigned[id]?.seen = w.frame
                     }
                     continue
                 }
@@ -79,7 +85,7 @@ public final class Tiler {
                     anchors.save(w)
                     platform.windows.move(id, to: target, from: nil, behavior: anchors.choices.behavior)
                 }
-                assigned[id] = (target, now)
+                assigned[id] = (target, now, target)
             }
         }
     }

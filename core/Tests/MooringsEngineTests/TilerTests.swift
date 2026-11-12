@@ -143,6 +143,31 @@ final class TileRig {
     #expect(TileRig.near(rig.frames([a, b, c]), rig.columns(3)))
 }
 
+// A window that keeps its own size, as a terminal holds its height to whole rows, stays tiled when
+// another window is dragged, and only the dragged one floats.
+@Test @MainActor func testTilerOwnSizeStaysTiledOnAnotherDrag() {
+    let rig = TileRig()
+    let a = rig.add(), b = rig.add(), c = rig.add()
+    #expect(rig.tiler.run("tiling-columns"))
+    rig.pass()
+    guard let given = rig.windows.frame(a) else {
+        Issue.record("window a is gone")
+        return
+    }
+    let own = Frame(x: given.x, y: given.y, w: given.w, h: given.h - 92)
+    rig.windows.nudge(a, to: own)
+    rig.pass()
+    #expect(rig.windows.frame(a) == own)
+    rig.clock.advance(by: 1)
+    rig.pointer.primaryDown = true
+    rig.windows.nudge(c, to: Frame(x: 900, y: 600, w: 700, h: 500))
+    rig.pointer.primaryDown = false
+    rig.tiler.mouseUp()
+    rig.pass()
+    #expect(rig.tiler.floated == [c])
+    #expect(Set(rig.tiler.order) == [a, b])
+}
+
 // Negative control: with tiling off a new window stays where it opened.
 @Test @MainActor func testTilerOffMovesNothing() {
     let rig = TileRig()
