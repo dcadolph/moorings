@@ -45,10 +45,13 @@ final class App {
         e.dragEnded = { [unowned self] in drag.ended() }
         return e
     }()
+    // menu opens the tray menu under the pointer for the show-menu action once a tray wires it.
+    let menu = WinMenu()
     // engine builds and runs every engine object on the Windows platform, with the routed actions
     // Windows carries so far.
     private(set) lazy var engine: Engine = {
-        let e = Engine(platform: platform, features: [.stash, .organize, .badge, .workspaces])
+        let e = Engine(
+            platform: platform, features: [.stash, .organize, .badge, .workspaces], platformActions: menu)
         e.passes.tellsRefused = true
         return e
     }()
@@ -168,6 +171,25 @@ final class App {
 final class WinClock: Clock {
     // now is the tick count in seconds.
     var now: Double { App.now }
+}
+
+// WinMenu is the Windows PlatformActions: show-menu opens the tray menu under the pointer. It
+// offers the action only while a tray is shown to open it, and has no strip editor.
+final class WinMenu: PlatformActions {
+    // open asks the shown tray to open its menu under the pointer and reports whether it will, nil
+    // while no tray is shown.
+    var open: (() -> Bool)?
+
+    // handles reports whether name is the menu action and a tray is shown to open it.
+    func handles(_ name: String) -> Bool {
+        name == Keymaps.menuName && open != nil
+    }
+
+    // run asks the tray to open the menu for the menu action and reports whether it will.
+    func run(_ name: String, window: WindowID?) -> Bool {
+        guard name == Keymaps.menuName, let open else { return false }
+        return open()
+    }
 }
 
 // WinNoGrid is the grid view of a platform with no grid action yet: it never shows and takes no clicks.

@@ -66,6 +66,9 @@ What it does
   it, so the character is lost there. A shortcut on a key that AltGr makes a dead key is
   left unbound. Save a report lists both.
 - Widths: on an ultrawide, pick the strip widths from the tray menu.
+- Custom sizes: sizes added under "sizes" in the settings file show in the Custom sizes
+  folder of the tray menu. A shortcut set for "show-menu" opens the tray menu at the
+  pointer.
 - Organize, in the tray menu, tiles the free windows in columns, rows or a grid, cascades
   them, cycles through windows stacked on one spot, and mirrors them across the channel.
   Channel fits every channel window in at once and lines up the front two or three side by

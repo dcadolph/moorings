@@ -25,6 +25,17 @@ enum Command: Equatable {
     case about
     case openRelease(URL)
     case quit
+
+    // opensWindow reports whether the command shows a window of its own, which keeps the foreground
+    // the menu took instead of handing it back.
+    var opensWindow: Bool {
+        switch self {
+        case .about, .openSettings, .saveReport, .openRelease:
+            return true
+        default:
+            return false
+        }
+    }
 }
 
 // MenuItem is one tray menu entry: a separator when title is empty, a folder when submenu is
@@ -76,6 +87,8 @@ final class Tray {
     static let link = UINT(WM_APP + 3)
     // again is the message a second plain launch posts before it exits, WM_APP + 4.
     static let again = UINT(WM_APP + 4)
+    // pointer is the message the menu action posts to open the menu under the pointer, WM_APP + 5.
+    static let pointer = UINT(WM_APP + 5)
     // updateTick is how often the tray asks whether an update check is due, in seconds.
     static let updateTick = 60.0
     // iconID names the one icon this process adds.
@@ -141,6 +154,9 @@ final class Tray {
             items.append(MenuItem(title: "Widths", submenu: widths))
         }
         items += organizeFolders(choices: choices, canUndo: canUndo)
+        if let sizes = sizesFolder(choices: choices) {
+            items.append(sizes)
+        }
         items.append(workspacesFolder(choices: choices, displays: displays))
         items.append(.separator)
         if stashed {
@@ -174,6 +190,15 @@ final class Tray {
         }
         channel += [.separator, undo]
         return [MenuItem(title: "Organize", submenu: organize), MenuItem(title: "Channel", submenu: channel)]
+    }
+
+    // sizesFolder builds the Custom sizes folder from the valid custom sizes in menu order, each off
+    // while paused, and nil when there are none.
+    static func sizesFolder(choices: Choices) -> MenuItem? {
+        let sizes = Bindings(choices).sizes.map {
+            MenuItem(title: Keymaps.label($0.name), enabled: !choices.paused, command: .action($0.name))
+        }
+        return sizes.isEmpty ? nil : MenuItem(title: "Custom sizes", submenu: sizes)
     }
 
     // workspacesFolder builds the Workspaces folder: Save workspace, then a folder per saved workspace
@@ -244,6 +269,10 @@ final class Tray {
         }
         window = CreateWindowExW(0, name, wide("Moorings"), 0, 0, 0, 0, 0, nil, nil, instance, nil)
         icon = Tray.loadIcon()
+        app.menu.open = { [weak self] in
+            guard let window = self?.window else { return false }
+            return PostMessageW(window, Tray.pointer, 0, 0)
+        }
         return add()
     }
 
@@ -282,6 +311,7 @@ final class Tray {
     // hide removes the icon and the hidden window.
     func hide() {
         updates?.cancel()
+        app.menu.open = nil
         guard let window else { return }
         var data = Self.notifyData(window)
         _ = Shell_NotifyIconW(DWORD(NIM_DELETE), &data)
@@ -357,6 +387,9 @@ final class Tray {
         case Tray.again:
             app.notify("Moorings is already running", "Its icon is in the notification area.")
             return 0
+        case Tray.pointer:
+            open(hwnd)
+            return 0
         case UINT(WM_ENDSESSION) where wParam != 0:
             app.engine.shutdown()
             return 0
@@ -409,8 +442,9 @@ final class Tray {
         _ = PostMessageW(window, Tray.link, 0, 0)
     }
 
-    // open shows the menu at the cursor. The window comes to the front first so the menu closes
-    // when the owner clicks elsewhere.
+    // open shows the menu at the cursor. The hidden window takes the foreground first so the menu
+    // closes when the owner clicks elsewhere. Once it closes, the foreground goes back to the window
+    // in front, unless the chosen command shows a window of its own, and then the command runs.
     private func open(_ hwnd: HWND) {
         let screens = Screens.current(minAspect: app.minAspect)
         let scan = WinWindows.scan(screens: screens)
@@ -428,6 +462,16 @@ final class Tray {
         _ = SetForegroundWindow(hwnd)
         _ = TrackPopupMenuEx(menu, UINT(TPM_RIGHTBUTTON), cursor.x, cursor.y, hwnd, nil)
         _ = PostMessageW(hwnd, UINT(WM_NULL), 0, 0)
+        var msg = MSG()
+        let picked = PeekMessageW(&msg, hwnd, UINT(WM_COMMAND), UINT(WM_COMMAND), UINT(PM_REMOVE))
+        let id = picked ? Int(msg.wParam & 0xFFFF) : 0
+        let command = id >= 1 && id <= commands.count ? commands[id - 1] : nil
+        if command?.opensWindow != true, let front, let back = WinWindows.hwnd(front) {
+            _ = SetForegroundWindow(back)
+        }
+        if let command {
+            perform(command)
+        }
     }
 
     // build turns items into a popup menu, numbering each command in commands.
