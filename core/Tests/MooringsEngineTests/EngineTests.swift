@@ -573,3 +573,24 @@ private func fillRig(
     #expect(told.count == 1)
     #expect(told.first?.hasPrefix("choices not saved") == true)
 }
+
+// A sync while paused reads no window, since a paused engine wants no keys.
+@Test func testChannelCyclePausedSyncReadsNothing() {
+    let rig = EngineRig(features: .all) { $0.paused = true }
+    let from = rig.windows.calls.count
+    rig.engine.channelCycle.sync()
+    #expect(rig.windows.calls.count == from, "\(rig.windows.calls.dropFirst(from))")
+    #expect(!rig.engine.channelCycle.claimed)
+}
+
+// A claimed cycle whose choices turn paused, with no save, lets the keys go on the next sync and
+// reads no window.
+@Test func testChannelCyclePausedSyncLetsTheKeysGo() {
+    let (rig, keys, _) = fillRig()
+    rig.engine.anchors.choices.paused = true
+    let from = rig.windows.calls.count
+    rig.engine.channelCycle.sync()
+    #expect(!rig.engine.channelCycle.claimed)
+    #expect(keys.claimed.isEmpty && keys.unclaims == 1)
+    #expect(rig.windows.calls.count == from, "\(rig.windows.calls.dropFirst(from))")
+}

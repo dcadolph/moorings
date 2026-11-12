@@ -208,8 +208,8 @@ expect bench-moorings-dies bench.sh "$tree" 2 "MOORINGS_DIES_AT=2" \
 expect use-steady use.sh "$tree" 0 "DRAGS=0" "^Use +PASS" "^Paused +PASS +measured 0 net" "!restarted"
 expect use-moorings-over-loop use.sh "$tree" 0 "DRAGS=0 LOOP_RATE=0" "^Use +PASS.*Loop 0.0000 s for information"
 expect use-over-the-baseline use.sh "$tree" 1 "DRAGS=0 MOORINGS_USE_BASELINE=0.0001" "^Use +FAIL"
-expect use-paused-at-the-bound use.sh "$tree" 0 "DRAGS=0 WALK_TRIPS=630" "^Paused +PASS +measured 630 net round trips, bound 630"
-expect use-paused-over-the-bound use.sh "$tree" 1 "DRAGS=0 WALK_TRIPS=631" "^Paused +FAIL +measured 631 net"
+expect use-paused-at-the-bound use.sh "$tree" 0 "DRAGS=0 WALK_TRIPS=20" "^Paused +PASS +measured 20 net round trips, bound 20"
+expect use-paused-over-the-bound use.sh "$tree" 1 "DRAGS=0 WALK_TRIPS=21" "^Paused +FAIL +measured 21 net"
 expect use-loop-crashes-in-a-walk use.sh "$tree" 0 "DRAGS=0 LOOP_CRASHES_IN_WALK=2" \
 	"^Loop restarted: pid 300 is now 301" "^use round 2:.*Loop 0\.0000 s" "^use round 3:.*Loop 0\.0[0-9]" "^Use +PASS"
 
