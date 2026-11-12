@@ -699,6 +699,47 @@ jobs:
           LinkCheck @('--min-aspect', '1.0')
           ButtonCheck @('--min-aspect', '1.0')
 
+          # On German, AltGr and E is the euro sign and Ctrl+Alt+E is first-two-thirds. AltGr must type
+          # the character and move nothing, left Ctrl with left Alt must still run the shortcut, and so
+          # must Ctrl with right Alt on US, which has no AltGr. The control turns the rule off, and the
+          # same AltGr press must then run the shortcut and type nothing.
+          function AltGrProbe([string[]] $extra) {
+            Probe (@('--probe', 'altgr', '--seconds', '30', '--min-aspect', '1.0') + $extra)
+          }
+          function PhaseFrame($lines, [string] $phase) { Rect ($lines -match "^$phase frame: ")[0] "$phase frame: " }
+          Write-Host "probe altgr"
+          $a = AltGrProbe @()
+          Expect $a '^altgr rule: on$' 'the AltGr rule is on'
+          Expect $a '^chord: first-two-thirds Ctrl\+Alt\+E$' 'Ctrl+Alt+E is first-two-thirds'
+          foreach ($p in 'altgr', 'ctrl-alt') { Expect $a "^$p layout: 04070407$" "German in front for $p" }
+          Expect $a '^us layout: 04090409$' 'US in front for the US phase'
+          foreach ($p in 'altgr', 'ctrl-alt', 'us') { Expect $a "^$p foreground: true$" "the stand-in in front for $p" }
+          $start = Rect ($a -match '^start: ')[0] 'start: '
+          Expect $a '^altgr text: U\+20AC$' 'AltGr and E typed the euro sign'
+          $off = Off (PhaseFrame $a 'altgr') $start
+          if ($off -gt 1) { throw "AltGr and E moved the stand-in by $off px" }
+          Expect $a '^ctrl-alt text: empty$' 'left Ctrl, left Alt and E typed nothing'
+          Expect $a '^us text: empty$' 'Ctrl, right Alt and E on US typed nothing'
+          $ca = PhaseFrame $a 'ctrl-alt'
+          $us = PhaseFrame $a 'us'
+          if ((Off $ca $start) -le 20) { throw "left Ctrl, left Alt and E left the stand-in where it started" }
+          $off = Off $ca $us
+          if ($off -gt 1) { throw "the German and US shortcut frames differ by $off px" }
+          Expect $a '^hotkeys received: first-two-thirds,first-two-thirds$' 'two shortcut presses and none for AltGr'
+          Expect $a '^report: shortcuts given up:$' 'the shortcuts given up section of the report'
+          Expect $a '^report: AltGr: first-two-thirds Ctrl\+Alt\+E typed U\+20AC on layout 04070407$' 'the AltGr line in the report'
+          Write-Host "  check: AltGr+E typed U+20AC and moved nothing, left Ctrl+Alt+E and US Ctrl+right Alt+E ran first-two-thirds to $($ca -join ' ')"
+
+          Write-Host "altgr negative control: --no-altgr"
+          $n = AltGrProbe @('--no-altgr')
+          Expect $n '^altgr rule: off$' 'the AltGr rule is off'
+          Expect $n '^altgr text: empty$' 'with the rule off AltGr and E typed nothing'
+          if ((Off (PhaseFrame $n 'altgr') $start) -le 20) { throw "with the rule off AltGr and E did not run the shortcut" }
+          Expect $n '^hotkeys received: first-two-thirds,first-two-thirds,first-two-thirds$' 'three shortcut presses with the rule off'
+          Expect $n '^report: shortcuts given up:$' 'the shortcuts given up section of the report with the rule off'
+          if ($n -match '^report: AltGr: ') { throw "with the rule off the report lists an AltGr line" }
+          Write-Host "  check: with the rule off AltGr+E ran first-two-thirds, typed nothing, and the report lists no AltGr line"
+
           Write-Host "probe banner"
           $b = Probe @('--probe', 'banner', '--min-aspect', '1.0')
           $line = ($b -match '^banner: ')[0]
@@ -1335,7 +1376,10 @@ jobs:
           if ($monitors -lt 1) { throw "the report has no monitor line" }
           if (-not ($text -match '^host: ')) { throw "the report has no host line" }
           if (-not ($text -match '^log: ')) { throw "the report has no log section" }
-          Write-Host "  check: the report names the version, $monitors monitor(s) and the log"
+          $given = [array]::IndexOf($text, 'shortcuts given up:')
+          if ($given -lt 0) { throw "the report has no shortcuts given up section" }
+          if ($text[$given + 1] -ne 'none') { throw "a report from a run that bound no shortcut gives up '$($text[$given + 1])'" }
+          Write-Host "  check: the report names the version, $monitors monitor(s) and the log, and its shortcuts given up section reads none"
 
           Write-Host "report negative control: LOCALAPPDATA unset"
           $saved = $env:LOCALAPPDATA
