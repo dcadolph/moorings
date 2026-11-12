@@ -57,9 +57,10 @@ public final class ChannelCycle {
     // sync reads the windows now and syncs on them, for the actions and clicks that change the front
     // window between passes. wanted reads only the focused window, so it reads that window alone where
     // the store can, since a scan of every app would answer a one-window question, and scans when the
-    // store has no cheaper read or the focused window is one a scan would drop.
+    // store has no cheaper read or the focused window is one a scan would drop. A paused engine wants
+    // no keys, so it lets them go and reads nothing.
     public func sync() {
-        guard platform.windows.ready else {
+        guard platform.windows.ready, !anchors.choices.paused else {
             unclaim()
             return
         }

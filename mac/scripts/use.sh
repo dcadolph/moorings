@@ -39,9 +39,9 @@ set -u
 # BASELINE is the Moorings bound in seconds, the highest round of the 11-04 run on v1.18.1 rounded up
 # to 0.01 s. It only ever goes down.
 BASELINE=1.28
-# PAUSED_TRIPS is the paused walk's bound for a 120 s walk, that run's 620 plus the rounds' spread of
-# 10. It only ever goes down.
-PAUSED_TRIPS=630
+# PAUSED_TRIPS is the paused walk's bound for a 120 s walk. A paused Moorings reads no window, so the
+# 11-12 walk read 0 net, and 20 leaves room for a stray status read. It only ever goes down.
+PAUSED_TRIPS=20
 
 WALK=${WALK:-120}
 DRAGS=${DRAGS:-60}
