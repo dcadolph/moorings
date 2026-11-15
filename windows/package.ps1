@@ -82,6 +82,11 @@ What it does
 - App rules: in the settings file, "appRules": [{"bundle": "C:\\Windows\\System32\\notepad.exe",
   "action": "left-half"}] places an app's first window each time the app starts, by an
   action or by a "frame".
+- Profiles, in the tray menu, switch the shortcuts, sizes, snapping and app rules at once.
+  Profiles come from the settings file or from a file exported on a Mac.
+- Import settings file reads a file exported from Moorings on a Mac or Windows. A file that
+  is not a Moorings settings file is refused and changes nothing. Export settings file
+  writes one either can import.
 - Pause stops everything until you choose it again. Launch at login starts Moorings when
   you sign in.
 

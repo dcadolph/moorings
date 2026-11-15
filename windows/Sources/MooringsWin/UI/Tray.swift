@@ -20,6 +20,8 @@ enum Command: Equatable {
     case unstashAll
     case openSettings
     case reloadSettings
+    case importSettings
+    case exportSettings
     case atLogin
     case saveReport
     case about
@@ -30,7 +32,7 @@ enum Command: Equatable {
     // the menu took instead of handing it back.
     var opensWindow: Bool {
         switch self {
-        case .about, .openSettings, .saveReport, .openRelease:
+        case .about, .openSettings, .saveReport, .openRelease, .importSettings, .exportSettings:
             return true
         default:
             return false
@@ -158,6 +160,7 @@ final class Tray {
             items.append(sizes)
         }
         items.append(workspacesFolder(choices: choices, displays: displays))
+        items.append(profilesFolder(choices: choices))
         items.append(.separator)
         if stashed {
             items.append(MenuItem(title: "Unstash all windows", command: .unstashAll))
@@ -166,6 +169,8 @@ final class Tray {
             MenuItem(title: "Pause", checked: choices.paused, command: .pause),
             MenuItem(title: "Open settings file", command: .openSettings),
             MenuItem(title: "Reload settings", command: .reloadSettings),
+            MenuItem(title: "Import settings file...", command: .importSettings),
+            MenuItem(title: "Export settings file...", command: .exportSettings),
             MenuItem(title: "Launch at login", checked: atLogin, command: .atLogin),
             .separator,
             MenuItem(title: "Save a report", command: .saveReport),
@@ -190,6 +195,18 @@ final class Tray {
         }
         channel += [.separator, undo]
         return [MenuItem(title: "Organize", submenu: organize), MenuItem(title: "Channel", submenu: channel)]
+    }
+
+    // profilesFolder builds the Profiles folder: an entry per saved profile that switches to it, checked
+    // on the active one and off while paused, or a note that profiles come from the settings file.
+    static func profilesFolder(choices: Choices) -> MenuItem {
+        let items = choices.profiles.map {
+            MenuItem(
+                title: $0.name, checked: choices.activeProfile == $0.name, enabled: !choices.paused,
+                command: .action($0.actionName))
+        }
+        let none = [MenuItem(title: "Add profiles in the settings file or import them", enabled: false)]
+        return MenuItem(title: "Profiles", submenu: items.isEmpty ? none : items)
     }
 
     // sizesFolder builds the Custom sizes folder from the valid custom sizes in menu order, each off
@@ -554,6 +571,16 @@ final class Tray {
         case .reloadSettings:
             app.engine.reload()
             return
+        case .importSettings:
+            if let path = FileDialog.pick(saving: false, owner: window) {
+                importSettings(from: path)
+            }
+            return
+        case .exportSettings:
+            if let path = FileDialog.pick(saving: true, name: SettingsBackup.fileName, owner: window) {
+                exportSettings(to: path)
+            }
+            return
         case .atLogin:
             LoginItem.enabled.toggle()
             return
@@ -593,6 +620,35 @@ final class Tray {
             }
         } catch {
             FileHandle.standardError.write(Data("tray: report not saved: \(error)\n".utf8))
+        }
+    }
+
+    // importSettings replaces the choices with the settings file at path, the shape the Mac exports,
+    // and saves them, which binds the shortcuts and runs a pass. A refused file changes nothing. It
+    // tells the owner how it went and reports whether the file was taken.
+    @discardableResult
+    func importSettings(from path: String) -> Bool {
+        let name = URL(fileURLWithPath: path).lastPathComponent
+        do {
+            app.engine.anchors.choices = try Store.imported(path)
+        } catch {
+            app.notify("Settings not imported", Store.refusal(error, path))
+            return false
+        }
+        app.engine.save()
+        app.notify("Settings imported", "Moorings now uses the settings in \(name).")
+        return true
+    }
+
+    // exportSettings writes the choices to path as a settings file the Mac imports too, and tells the
+    // owner how it went.
+    private func exportSettings(to path: String) {
+        let name = URL(fileURLWithPath: path).lastPathComponent
+        do {
+            try Store.export(app.engine.anchors.choices, to: path)
+            app.notify("Settings exported", "Saved to \(name).")
+        } catch {
+            app.notify("Settings not exported", "\(name) was not written: \(error)")
         }
     }
 
