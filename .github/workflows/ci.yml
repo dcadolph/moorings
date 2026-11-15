@@ -54,6 +54,9 @@ jobs:
       - name: Bench verdicts against stub apps
         run: make bench-test
 
+      - name: Shortcuts metadata inputs against stub build trees
+        run: make intents-test
+
       - name: Build
         run: swift build -Xswiftc -warnings-as-errors
 

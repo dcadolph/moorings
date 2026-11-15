@@ -24,12 +24,10 @@ INTENTS_PROTOCOLS := .build/intents-protocols.json
 INTENTS_FLAGS := -Xswiftc -emit-const-values -Xswiftc -Xfrontend -Xswiftc -const-gather-protocols-file \
 	-Xswiftc -Xfrontend -Xswiftc $(INTENTS_PROTOCOLS)
 INTENTS_OUT := .build/intents
-# INTENTS_CONSTS_DIR is where the compiler leaves the app module's recorded conformances, one file per
-# source or per batch depending on the toolchain, which differs between a one-architecture build and
-# a universal one.
-INTENTS_CONSTS_DIR := $(if $(ARCHS),.build/apple/Intermediates.noindex/Moorings.build/Release/Moorings.build,.build/$(shell uname -m)-apple-macosx/release/Moorings.build)
+# INTENTS_ARCH is the architecture whose recorded conformances feed the Shortcuts metadata.
+INTENTS_ARCH := $(if $(ARCHS),arm64,$(shell uname -m))
 
-.PHONY: build test bench bench-test use probe app sandbox zip dmg notarize run clean
+.PHONY: build test bench bench-test intents-test use probe app sandbox zip dmg notarize run clean
 
 build:
 	swift build
@@ -44,6 +42,11 @@ bench: probe
 # bench-test checks the verdicts of bench.sh and use.sh against stub apps, moving no windows.
 bench-test:
 	scripts/bench_test.sh
+
+# intents-test checks which recorded conformances scripts/intents_consts.sh picks from stub build
+# trees, running no compiler.
+intents-test:
+	scripts/intents_consts_test.sh
 
 # use measures all three apps over a scripted desk with mac/scripts/use.sh.
 use: probe
@@ -79,9 +82,8 @@ app: $(ICNS) $(INTENTS_PROTOCOLS)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources $(INTENTS_OUT)
 	cp $(ICNS) $(APP)/Contents/Resources/AppIcon.icns
 	find "$$PWD/Sources/Moorings" -name '*.swift' | sort > $(INTENTS_OUT)/sources.txt
-	find "$$PWD/$(INTENTS_CONSTS_DIR)" -name '*.swiftconstvalues' $(if $(ARCHS),-path '*/arm64/*') \
-		> $(INTENTS_OUT)/consts.txt 2>/dev/null || true
-	test -s $(INTENTS_OUT)/consts.txt || { find .build -name '*.swiftconstvalues'; exit 1; }
+	scripts/intents_consts.sh "$$(swift build -c release $(ARCH_FLAGS) --show-bin-path)" $(INTENTS_ARCH) Moorings \
+		"$$PWD/Sources/Moorings" > $(INTENTS_OUT)/consts.txt
 	xcrun appintentsmetadataprocessor --output $(APP)/Contents/Resources \
 		--toolchain-dir "$$(dirname "$$(dirname "$$(dirname "$$(xcrun --find swift)")")")" --module-name Moorings \
 		--sdk-root "$$(xcrun --sdk macosx --show-sdk-path)" \
