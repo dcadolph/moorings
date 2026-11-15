@@ -131,6 +131,9 @@ area.
   workspace tied to the displays attached now comes back by itself when they are plugged in again,
   and it can open the apps that are not running. App rules in the settings file place an app's
   first window when it starts.
+- Profiles in the tray menu switch the shortcuts, sizes, snapping and app rules at once, as on the
+  Mac. Import settings file reads a file exported from Moorings on a Mac or Windows, and Export
+  settings file writes one either can import.
 - Pause and Launch at login are in the tray menu, and so are strip widths on an ultrawide.
 - Custom sizes from the settings file show in a Custom sizes folder in the tray menu, and the gap
   applies to them as on the Mac. A shortcut set for `show-menu` opens the tray menu at the

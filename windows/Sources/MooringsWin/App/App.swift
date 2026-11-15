@@ -51,7 +51,7 @@ final class App {
     // Windows carries so far.
     private(set) lazy var engine: Engine = {
         let e = Engine(
-            platform: platform, features: [.stash, .organize, .badge, .workspaces], platformActions: menu)
+            platform: platform, features: [.stash, .organize, .badge, .workspaces, .profiles], platformActions: menu)
         e.passes.tellsRefused = true
         return e
     }()
