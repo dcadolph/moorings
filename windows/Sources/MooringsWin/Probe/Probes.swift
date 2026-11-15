@@ -40,6 +40,8 @@ let probes: [String: Probe] = [
     "sizes": probeSizes,
     "badge": probeBadge,
     "workspace": probeWorkspace,
+    "profile": probeProfile,
+    "import": probeImport,
     "apprule": probeAppRule,
     "footprint": probeFootprint,
     "stand": probeStand,

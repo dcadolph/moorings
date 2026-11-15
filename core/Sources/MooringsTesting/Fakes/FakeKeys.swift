@@ -11,6 +11,9 @@ public final class FakeKeys: Keys {
     public private(set) var bound: [String: Shortcut] = [:]
     // actions lists the action names bound shortcuts delivered, in order.
     public private(set) var actions: [String] = []
+    // runs is handed each action name a bound shortcut delivers, as a platform runs it, nil to only
+    // record it.
+    public var runs: ((String) -> Void)?
     // grabbed lists the keys the current grab holds.
     public private(set) var grabbed: [GrabKey] = []
     // grabs counts the grabs.
@@ -88,6 +91,7 @@ public final class FakeKeys: Keys {
             .first(where: { $0.value.key == key.key && Set($0.value.mods) == mods })?.key
         {
             actions.append(name)
+            runs?(name)
         }
     }
 }

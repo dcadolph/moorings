@@ -1155,6 +1155,44 @@ jobs:
           }
           SizesCheck @('--min-aspect', '1.0')
 
+          # Profiles: switching to a profile that clears two shortcuts drops the bound count by two and
+          # left-half with it, and switching back restores both. The tray lists the profiles with the
+          # active one checked.
+          Write-Host "probe profile"
+          $f = Probe @('--probe', 'profile')
+          $rows = @($f -match '^(Halves|Few): ran ')
+          if ($rows.Count -ne 3) { throw "want three switch lines, got $($rows.Count)" }
+          $m = @($rows | ForEach-Object { [regex]::Match($_, '^(\w+): ran (\w+) active (\w+) bound (\d+) left-half (\w+)$') })
+          foreach ($r in $m) {
+            if (-not $r.Success -or $r.Groups[2].Value -ne 'true' -or $r.Groups[3].Value -ne $r.Groups[1].Value) { throw "a switch did not take: $($r.Value)" }
+          }
+          $halves = [int]$m[0].Groups[4].Value; $few = [int]$m[1].Groups[4].Value; $back = [int]$m[2].Groups[4].Value
+          if ($few -ne $halves - 2) { throw "Few binds $few shortcuts, want two fewer than Halves' $halves" }
+          if ($back -ne $halves) { throw "back on Halves binds $back shortcuts, want $halves" }
+          if ($m[0].Groups[5].Value -ne 'true' -or $m[1].Groups[5].Value -ne 'false' -or $m[2].Groups[5].Value -ne 'true') { throw "left-half did not follow the profile: $($rows -join '; ')" }
+          Expect $f '^menu \[ \] Profiles$' 'the Profiles folder'
+          Expect $f '^menu   \[x\] Halves$' 'Halves checked under Profiles'
+          Expect $f '^menu   \[ \] Few$' 'Few under Profiles'
+          Write-Host "  check: Halves binds $halves, Few $few without left-half, Halves again $back, the folder checks the active one"
+
+          # Import: a file that is not JSON is refused and leaves the choices file as it was, the
+          # control. A Mac export with keys this build does not know anchors the window in the left
+          # strip its widths give, on the next pass. Strip widths apply only on an ultrawide, so this
+          # runs on the fake one.
+          function ImportCheck([string[]] $geo) {
+            Write-Host "probe import $geo"
+            $pad = Pad
+            Start-Sleep -Seconds 3
+            $f = Probe (@('--probe', 'import') + $geo)
+            Expect $f '^invalid: refused true file unchanged true$' 'the invalid file refused with the choices file unchanged'
+            Expect $f '^notice: Settings not imported: .* is not a Moorings settings file\.$' 'the refusal told in plain words'
+            Expect $f '^mac: imported true widths 30 25$' 'the Mac export imported with its widths'
+            $off = Gap ($f -match '^strip: ')[0] 'strip'
+            if ($off -gt 1) { throw "the imported slot left the window $off px off the left strip: $(($f -match '^strip: ')[0])" }
+            Write-Host "  check: invalid file refused and the choices file unchanged, the Mac export anchored the window on its 30 25 left strip"
+            Stop-Process -Id $pad.Id -ErrorAction SilentlyContinue
+          }
+
           function WorkspaceCheck([string[]] $geo, [bool] $tie) {
             $extra = if ($tie) { @('--tie') } else { @() }
             Write-Host "probe workspace $geo $extra"
@@ -1267,6 +1305,7 @@ jobs:
           OrganizeCheck $simApp
           BadgeCheck $simApp
           SizesCheck $simApp
+          ImportCheck $simApp
           WorkspaceCheck $simApp $true
 
           HotkeyCheck $simApp
@@ -1486,13 +1525,13 @@ jobs:
 
           Write-Host "scenarios on the runner's screen"
           $s = Scenarios 'runner' @('--min-aspect', '1.0')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 17 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 18 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
           Write-Host "  check: 17 scenarios passed on the Win32 adapters, channelCycle and refusedWindowTriedOnce skipped, with report.html, 17 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
           $s = Scenarios 'sim' @('--screen', '3440x1440')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 17 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 18 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
           if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
           Written $s
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
@@ -1589,7 +1628,7 @@ jobs:
             $hook = @($out -match '^hook reinstalled: ')[0]
             Write-Host "  SIM run $i of ${n}: $sum, $hook, exit $code"
             $out -match '^scenario failed: ' | ForEach-Object { Write-Host "    $_" }
-            if ($code -ne 0 -or $sum -ne 'scenarios: 17 run, 2 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
+            if ($code -ne 0 -or $sum -ne 'scenarios: 18 run, 2 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
           }
           if ($failed -ne 0) { throw "$failed of $n SIM runs failed" }
           Write-Host "  check: $n SIM runs in a row passed every scenario with the hook never put back"
