@@ -79,6 +79,9 @@ struct ProbeOptions {
     var cycleHold = false
     // edit gives the stand probe's window an Edit control that holds its focus.
     var edit = false
+    // anyRefusing lets the scenarios take a stand-in that does not outrank the probe as the window
+    // that refuses every move, their refusing scenario's negative control.
+    var anyRefusing = false
     // tie makes the workspace probe tie its workspace to the fake monitor and swap the monitor for
     // another size and back.
     var tie = false
@@ -182,6 +185,8 @@ struct ProbeOptions {
                 cycleHold = true
             case "--edit":
                 edit = true
+            case "--any-refusing":
+                anyRefusing = true
             case "--tie":
                 tie = true
             case "--launch":

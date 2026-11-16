@@ -781,64 +781,7 @@ jobs:
           Expect $b '^closed: true$' 'the banner closed itself after the fade'
           Write-Host "  check: banner at the top center, not the foreground, closed after the fade"
 
-          Add-Type -TypeDefinition @'
-          using System;
-          using System.ComponentModel;
-          using System.Runtime.InteropServices;
-
-          // Medium starts a command with a copy of this process's token lowered to medium integrity,
-          // so windows of the runner's high integrity processes outrank it as an elevated app does.
-          public static class Medium {
-              [StructLayout(LayoutKind.Sequential)]
-              struct SidAndAttributes { public IntPtr Sid; public uint Attributes; }
-              [StructLayout(LayoutKind.Sequential)]
-              struct MandatoryLabel { public SidAndAttributes Label; }
-              [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-              struct StartupInfo {
-                  public int cb; public string reserved, desktop, title;
-                  public int x, y, xSize, ySize, xChars, yChars, fill, flags;
-                  public short show, reserved2; public IntPtr reserved3, stdIn, stdOut, stdErr;
-              }
-              [StructLayout(LayoutKind.Sequential)]
-              struct ProcessInfo { public IntPtr process, thread; public int pid, tid; }
-
-              [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
-              [DllImport("kernel32.dll")] static extern uint WaitForSingleObject(IntPtr h, uint ms);
-              [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr h, out uint code);
-              [DllImport("advapi32.dll", SetLastError = true)]
-              static extern bool OpenProcessToken(IntPtr process, uint access, out IntPtr token);
-              [DllImport("advapi32.dll", SetLastError = true)]
-              static extern bool DuplicateTokenEx(IntPtr token, uint access, IntPtr attrs, int level, int type, out IntPtr dup);
-              [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-              static extern bool ConvertStringSidToSid(string sid, out IntPtr psid);
-              [DllImport("advapi32.dll")] static extern int GetLengthSid(IntPtr sid);
-              [DllImport("advapi32.dll", SetLastError = true)]
-              static extern bool SetTokenInformation(IntPtr token, int cls, ref MandatoryLabel info, int length);
-              [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-              static extern bool CreateProcessAsUser(IntPtr token, string app, string cmd, IntPtr pa, IntPtr ta,
-                  bool inherit, uint flags, IntPtr env, string dir, ref StartupInfo si, out ProcessInfo pi);
-
-              // Run starts cmd at medium integrity, waits up to ms, and returns its exit code.
-              public static uint Run(string cmd, uint ms) {
-                  IntPtr token, dup, sid;
-                  if (!OpenProcessToken(GetCurrentProcess(), 0xF01FF, out token)) throw new Win32Exception();
-                  if (!DuplicateTokenEx(token, 0xF01FF, IntPtr.Zero, 2, 1, out dup)) throw new Win32Exception();
-                  if (!ConvertStringSidToSid("S-1-16-8192", out sid)) throw new Win32Exception();
-                  var label = new MandatoryLabel();
-                  label.Label.Sid = sid;
-                  label.Label.Attributes = 0x20;
-                  if (!SetTokenInformation(dup, 25, ref label, Marshal.SizeOf(label) + GetLengthSid(sid))) throw new Win32Exception();
-                  var si = new StartupInfo();
-                  si.cb = Marshal.SizeOf(si);
-                  ProcessInfo pi;
-                  if (!CreateProcessAsUser(dup, null, cmd, IntPtr.Zero, IntPtr.Zero, false, 0, IntPtr.Zero, null, ref si, out pi)) throw new Win32Exception();
-                  if (WaitForSingleObject(pi.process, ms) != 0) throw new TimeoutException("medium run did not finish");
-                  uint code;
-                  GetExitCodeProcess(pi.process, out code);
-                  return code;
-              }
-          }
-          '@
+          . .\medium.ps1
           function Skip([string] $name, [bool] $medium, [string] $geo) {
             $log = Join-Path $env:RUNNER_TEMP "$name.txt"
             $cmd = Join-Path $env:RUNNER_TEMP "$name.cmd"
@@ -1519,11 +1462,20 @@ jobs:
         timeout-minutes: 5
         run: |
           $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
-          $out = @(& $exe --probe contracts | ForEach-Object { $_ })
-          $code = $LASTEXITCODE
+          . .\medium.ps1
+          $stand = Start-Process $exe -ArgumentList '--probe', 'stand', '--seconds', '280' -NoNewWindow -PassThru
+          Start-Sleep -Seconds 3
+          try {
+            $r = AtMedium 'contracts' "`"$exe`" --probe contracts" 240000
+          } finally {
+            Stop-Process -Id $stand.Id -ErrorAction SilentlyContinue
+          }
+          $out = $r.Lines
+          $code = $r.Code
           $out | ForEach-Object { Write-Host "  $_" }
           if ($code -ne 0 -or -not ($out -match '^contracts: 14 suites, 0 failures$')) { throw "a Win32 adapter broke a contract rule ($code)" }
-          Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Badge, Notifier, Scheduler, Pointer, Keys, Log, Timers, EventSource, Apps, ScreenSource, ChoicesStore and Clock rule"
+          if (-not ($out -match '^refusing: 0x[0-9a-f]+ integrity high$')) { throw "no elevated stand-in reached the contracts, so the refused move rule never ran" }
+          Write-Host "  check: the Win32 adapters kept every WindowStore, Overlay, Badge, Notifier, Scheduler, Pointer, Keys, Log, Timers, EventSource, Apps, ScreenSource, ChoicesStore and Clock rule at medium integrity, a move an elevated window refused included"
 
       - name: Report
         timeout-minutes: 5
@@ -1591,11 +1543,17 @@ jobs:
         timeout-minutes: 20
         run: |
           $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
-          function Scenarios([string] $name, [string[]] $more) {
+          function Scenarios([string] $name, [string[]] $more, [bool] $medium = $false) {
             $dir = Join-Path $env:RUNNER_TEMP "scenarios\$name"
-            $out = @(& $exe (@('--scenarios') + $more + @('--report', $dir)) | ForEach-Object { $_ })
-            $code = $LASTEXITCODE
-            $global:LASTEXITCODE = 0
+            if ($medium) {
+              $r = AtMedium "scenarios-$name" ("`"$exe`" --scenarios $($more -join ' ') --report `"$dir`"") 600000
+              $out = $r.Lines
+              $code = $r.Code
+            } else {
+              $out = @(& $exe (@('--scenarios') + $more + @('--report', $dir)) | ForEach-Object { $_ })
+              $code = $LASTEXITCODE
+              $global:LASTEXITCODE = 0
+            }
             $out | ForEach-Object { Write-Host "  $_" }
             New-Item -ItemType Directory -Force -Path $dir | Out-Null
             $sum = @($out -match '^scenarios: ')[0]
@@ -1605,19 +1563,23 @@ jobs:
           }
           function Written($run) {
             $shots = @(Get-ChildItem (Join-Path $run.Dir '*.png') -ErrorAction SilentlyContinue)
-            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 20) { throw "want report.html and 20 pictures in $($run.Dir), got $($shots.Count)" }
+            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 21) { throw "want report.html and 21 pictures in $($run.Dir), got $($shots.Count)" }
             if (-not ($run.Lines -match '^hook reinstalled: 0$')) { throw "the mouse hook was put back during the scenarios in $($run.Dir)" }
           }
 
-          Write-Host "scenarios on the runner's screen"
-          $s = Scenarios 'runner' @('--min-aspect', '1.0')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 20 run, 1 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          . .\medium.ps1
+          $stand = Start-Process $exe -ArgumentList '--probe', 'stand', '--seconds', '1100' -NoNewWindow -PassThru
+          Start-Sleep -Seconds 3
+          Write-Host "scenarios on the runner's screen at medium integrity, as a user runs Moorings, with an elevated stand-in"
+          $s = Scenarios 'runner' @('--min-aspect', '1.0') $true
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 21 run, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
-          Write-Host "  check: 20 scenarios passed on the Win32 adapters, refusedWindowTriedOnce skipped, with report.html, 20 pictures and the hook never put back"
+          if (-not ($s.Lines -match '^refusing: 0x[0-9a-f]+ integrity high$') -or -not ($s.Lines -match '^scenario refusedWindowTriedOnce: 1 tries in 5 s$')) { throw "the elevated stand-in was not tried exactly once" }
+          Write-Host "  check: 21 scenarios passed on the Win32 adapters at medium integrity, the elevated stand-in tried once and left in place, with report.html, 21 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
-          $s = Scenarios 'sim' @('--screen', '3440x1440')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 20 run, 1 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          $s = Scenarios 'sim' @('--screen', '3440x1440') $true
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 21 run, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
           if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
           Written $s
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
@@ -1628,6 +1590,15 @@ jobs:
           $n = ($ch -replace '^scenario dragSnapsToZone frame channel: ', '').Split(' ')
           if (-not $html.Contains("<rect data-name=`"channel`" x=`"$($n[0])`" y=`"$($n[1])`" width=`"$($n[2])`" height=`"$($n[3])`">")) { throw "the SIM report's channel box is not the printed channel $($n -join ' ')" }
           Write-Host "  check: the SIM report draws the strip at 0 0 1376 1392 and the channel at $($n -join ' ') as printed"
+
+          Write-Host "refusing negative control: the stand-in at the probe's own level"
+          $s = Scenarios 'refusing-same' @('refusedWindowTriedOnce', '--any-refusing', '--min-aspect', '1.0')
+          Stop-Process -Id $stand.Id -ErrorAction SilentlyContinue
+          $null = $stand.WaitForExit(5000)
+          if ($s.Code -eq 0 -or -not ($s.Lines -match '^scenario failed: refusedWindowTriedOnce: a window that refuses stays at its frame, 1 point: ')) { throw "a stand-in that does not refuse passed, so the refusing scenario cannot fail" }
+          $s = Scenarios 'refusing-none' @('refusedWindowTriedOnce', '--min-aspect', '1.0') $true
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 0 run, 1 skipped, 0 failed$')) { throw "the refusing scenario ran with no elevated stand-in ($($s.Code))" }
+          Write-Host "  check: a stand-in at the probe's level was moved and failed the scenario, and with none elevated it skipped"
 
           Write-Host "scenarios negative control: the strip expected 2 px wider"
           $s = Scenarios 'skew' @('pinPlacesOnStrip', '--skew', '2', '--min-aspect', '1.0')
@@ -1703,19 +1674,23 @@ jobs:
           SIM_REPEAT: ${{ inputs.sim_repeat }}
         run: |
           $exe = Join-Path (swift build -Xswiftc -warnings-as-errors --show-bin-path) 'MooringsWin.exe'
+          . .\medium.ps1
+          $stand = Start-Process $exe -ArgumentList '--probe', 'stand', '--seconds', '2600' -NoNewWindow -PassThru
+          Start-Sleep -Seconds 3
           $n = [int]$env:SIM_REPEAT
           $failed = 0
           for ($i = 1; $i -le $n; $i++) {
             $dir = Join-Path $env:RUNNER_TEMP "sim-repeat\$i"
-            $out = @(& $exe --scenarios --screen 3440x1440 --report $dir | ForEach-Object { $_ })
-            $code = $LASTEXITCODE
-            $global:LASTEXITCODE = 0
+            $r = AtMedium "sim-repeat-$i" "`"$exe`" --scenarios --screen 3440x1440 --report `"$dir`"" 600000
+            $out = $r.Lines
+            $code = $r.Code
             $sum = @($out -match '^scenarios: ')[0]
             $hook = @($out -match '^hook reinstalled: ')[0]
             Write-Host "  SIM run $i of ${n}: $sum, $hook, exit $code"
             $out -match '^scenario failed: ' | ForEach-Object { Write-Host "    $_" }
-            if ($code -ne 0 -or $sum -ne 'scenarios: 20 run, 1 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
+            if ($code -ne 0 -or $sum -ne 'scenarios: 21 run, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
           }
+          Stop-Process -Id $stand.Id -ErrorAction SilentlyContinue
           if ($failed -ne 0) { throw "$failed of $n SIM runs failed" }
           Write-Host "  check: $n SIM runs in a row passed every scenario with the hook never put back"
 
