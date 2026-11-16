@@ -42,6 +42,7 @@ func probeScenarios(_ opts: ProbeOptions) -> Int32 {
     host.shots = dir
     host.choices = file
     host.standIn = opts.standIn
+    host.anyRefusing = opts.anyRefusing
     if opts.standIn != nil {
         host.measureStandIn()
     }

@@ -101,6 +101,9 @@ final class WinHost: ContractHost {
     // standIn is the lowercased path of the browser open launches in place of the stand probe, nil for
     // the stand probe's window.
     var standIn: String?
+    // anyRefusing makes openRefusing take a stand-in that does not outrank this process, the refusing
+    // scenario's negative control.
+    var anyRefusing = false
     // browsers lists the processes that own the browser windows the host opened.
     var browsers: [DWORD] = []
     // profiles lists the fresh browser profile folders the host made.
@@ -167,9 +170,23 @@ final class WinHost: ContractHost {
         return found.map(WinWindows.id)
     }
 
-    // openRefusing is nil: a window that refuses every move needs an elevated process.
+    // openRefusing returns a stand-in window that another process started at a higher integrity level
+    // than this one, which refuses every move as a window run as administrator refuses a standard
+    // Moorings, and prints it. The host cannot start such a process itself, so it is nil unless the
+    // workflow started one. Under anyRefusing the level is not compared, the negative control.
     func openRefusing() -> WindowID? {
-        nil
+        let own = Set(stands.map { DWORD($0.processIdentifier) })
+        guard let mine = AltGr.levels.firstIndex(of: AltGr.own) else { return nil }
+        for hwnd in WinWindows.topLevel() where WinWindows.className(hwnd) == standClass && IsWindowVisible(hwnd) {
+            let pid = WinWindows.processID(hwnd)
+            guard !own.contains(pid) else { continue }
+            let level = integrity(pid)
+            let outranks = AltGr.levels.firstIndex(of: level).map { $0 > mine } ?? true
+            guard outranks || anyRefusing else { continue }
+            print("refusing: \(hex(WinWindows.id(hwnd))) integrity \(level)")
+            return WinWindows.id(hwnd)
+        }
+        return nil
     }
 
     // knownApp is the stand-in browser's image path, else Notepad's, the identity the store gives
