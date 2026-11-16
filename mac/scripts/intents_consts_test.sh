@@ -4,13 +4,22 @@
 # Usage: intents_consts_test.sh
 #
 # Each case lays out empty const values files with set times under a scratch build folder, beside one
-# app source dated 2026-11-09, so no compiler runs.
+# app source dated 2026-11-09, so no compiler runs. A case that sets rebuild passes it as the rebuild
+# command, and regen stands in for the build: it writes a missing file fresh and leaves an existing one
+# alone.
 set -u
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(mktemp -d)
 trap 'rm -rf "$root"' EXIT
 failed=0
+rebuild=""
+regen=$root/regen.sh
+cat >"$regen" <<'EOF'
+#!/bin/sh
+for file; do [ -e "$file" ] || touch -t 202611120000 "$file"; done
+EOF
+chmod +x "$regen"
 
 fresh=202611120000
 stale=202610290000
@@ -41,9 +50,11 @@ expect() {
 	build=$root/$1/.build
 	want=$(for file in $4; do echo "$build/$file"; done | sort)
 	code=$5
+	# shellcheck disable=SC2086 # The rebuild command splits into its words.
 	got=$("$here/intents_consts.sh" "$build/$2" "$3" Moorings "$root/$1/Sources/Moorings" \
-		2>"$root/$1/err")
+		${rebuild:+-- $rebuild} 2>"$root/$1/err")
 	gotcode=$?
+	rebuild=""
 	shift 5
 	bad=""
 	[ "$gotcode" = "$code" ] || bad="exit $gotcode, want $code"
@@ -112,6 +123,32 @@ expect probe-alone out/Products/Release arm64 "" 1 "no const values for Moorings
 
 put other-arch-alone $fresh $universal/Moorings.build/$intel/$primary
 expect other-arch-alone apple/Products/Release arm64 "" 1 "no const values for Moorings \(arm64\)"
+
+put stale-rebuilt $stale $swiftbuild/Moorings-p.build/$arm/$primary
+rebuild="$regen $root/stale-rebuilt/.build/$swiftbuild/Moorings-p.build/$arm/$primary"
+expect stale-rebuilt out/Products/Release arm64 "$swiftbuild/Moorings-p.build/$arm/$primary" 0 \
+	"building them again" "!stale const values,"
+
+put stale-among-fresh-rebuilt $fresh $native/Moorings.build/AppDelegate.swiftconstvalues
+put stale-among-fresh-rebuilt $stale $native/Moorings.build/Intents.swiftconstvalues
+rebuild="$regen $root/stale-among-fresh-rebuilt/.build/$native/Moorings.build/Intents.swiftconstvalues"
+expect stale-among-fresh-rebuilt $native arm64 \
+	"$native/Moorings.build/AppDelegate.swiftconstvalues $native/Moorings.build/Intents.swiftconstvalues" 0 \
+	"Intents.swiftconstvalues" "!AppDelegate.swiftconstvalues"
+
+put stale-rebuild-writes-nothing $stale $swiftbuild/Moorings-p.build/$arm/$primary
+rebuild=true
+expect stale-rebuild-writes-nothing out/Products/Release arm64 "" 1 "building them again" \
+	"no const values for Moorings \(arm64\)"
+
+put stale-rebuild-fails $stale $swiftbuild/Moorings-p.build/$arm/$primary
+rebuild=false
+expect stale-rebuild-fails out/Products/Release arm64 "" 1 "rebuild failed: false"
+
+put fresh-rebuild-unused $fresh $swiftbuild/Moorings-p.build/$arm/$primary
+rebuild=false
+expect fresh-rebuild-unused out/Products/Release arm64 "$swiftbuild/Moorings-p.build/$arm/$primary" 0 \
+	"!building them again"
 
 if [ "$failed" -gt 0 ]; then
 	echo "$failed failed"
