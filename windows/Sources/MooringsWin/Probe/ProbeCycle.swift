@@ -14,8 +14,9 @@ let cycleSteps: [(label: String, wait: DWORD)] = [("fast", 50), ("slow", 500)]
 
 // probeCycle proves the channel cycle's claim on Windows from a fresh choices file. It opens a stand-in
 // with an Edit control in its own process, then three stand-ins in the channel, fills the channel with
-// the first and prints whether the keys are claimed. While the loop runs, a second thread presses
-// Control-Right and Control-Left and prints the window in front after each, then for each step brings
+// the first and prints whether the keys are claimed. While the loop runs, a second thread brings the
+// fill forward before each of Control-Right and Control-Left, since the window a walk lands on may not
+// take the fill, and prints the window in front after each press. Then for each step it brings
 // the Edit stand-in back where it opened, since the walk may have filled the channel with it, brings
 // the fill forward, brings the Edit stand-in forward, presses Control-Right after the step's wait and
 // prints where the caret landed. Under --cycle-hold the claim stays through the focus change until the
@@ -81,17 +82,19 @@ func probeCycle(_ opts: ProbeOptions) -> Int32 {
     print("edit home: \(home.x) \(home.y) \(home.w) \(home.h)")
     Thread {
         Sleep(500)
-        for (label, vk) in [("right", WORD(0x27)), ("left", WORD(0x25))] {
-            print("\(label) sent: \(press([0x11, vk]))")
-            Sleep(800)
-            print("\(label) front: \(foreground())")
-        }
         guard let top = HWND(bitPattern: topBits), let edit = HWND(bitPattern: editBits),
             let filled = WinWindows.hwnd(fill)
         else {
             print("cycle: a stand-in is gone")
             _ = PostThreadMessageW(loop, UINT(WM_QUIT), 0, 0)
             return
+        }
+        for (label, vk) in [("right", WORD(0x27)), ("left", WORD(0x25))] {
+            print("\(label) fill forward: \(bringForward(filled))")
+            Sleep(800)
+            print("\(label) sent: \(press([0x11, vk]))")
+            Sleep(800)
+            print("\(label) front: \(foreground())")
         }
         for step in cycleSteps {
             // 0x0014 is SWP_NOZORDER and SWP_NOACTIVATE.

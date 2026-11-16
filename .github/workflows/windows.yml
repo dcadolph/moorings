@@ -1242,14 +1242,19 @@ jobs:
             if (-not $edit) { throw 'cycle: no edit stand-in' }
             Expect $f '^claimed: true keys 2$' 'a fill in front claims Ctrl+Left and Ctrl+Right'
             Expect $f "^front: $($pads[0])$" 'the fill in front before the presses'
-            Expect $f '^right sent: 4$' 'Ctrl+Right sent'
             # The walk takes every free window on the display in id order, the runner's own and the edit
-            # control's among them, so the next one may be any of them. The probe puts the edit control
-            # back where it opened before each caret step.
-            $next = [regex]::Match(($f -match '^right front: ')[0], '^right front: (0x[0-9a-f]+)$').Groups[1].Value
-            if (-not $next -or $next -eq $pads[0]) { throw "cycle: Ctrl+Right left $next in front, want the next channel window" }
-            Expect $f '^left sent: 4$' 'Ctrl+Left sent'
-            Expect $f "^left front: $($pads[0])$" 'Ctrl+Left brings the first back'
+            # control's among them, so the next one may be any of them, and one the runner caps below
+            # the fill lets the keys go. The probe brings the fill forward before each press, and puts
+            # the edit control back where it opened before each caret step.
+            $walked = @()
+            foreach ($dir in 'right', 'left') {
+              Expect $f "^$dir fill forward: true$" "the fill brought forward before Ctrl+$dir"
+              Expect $f "^$dir sent: 4$" "Ctrl+$dir sent"
+              $to = [regex]::Match(($f -match "^$dir front: ")[0], "^$dir front: (0x[0-9a-f]+)$").Groups[1].Value
+              if (-not $to -or $to -eq $pads[0]) { throw "cycle: Ctrl+$dir left $to in front, want another channel window" }
+              $walked += $to
+            }
+            $next = $walked -join ' and '
             foreach ($step in @(@('fast', 50), @('slow', 500))) {
               $label = $step[0]
               Expect $f "^$label fill forward: true$" "the fill brought forward before the $label press"
@@ -1259,7 +1264,7 @@ jobs:
               Expect $f "^$label front: $edit$" "the edit control stayed in front after the $label press"
             }
             Expect $f '^hotkeys received: cycle-channel-windows,cycle-channel-windows-backward$' 'only the two cycle presses were claimed'
-            Write-Host "  check: Ctrl+Right walked the channel to $next and Ctrl+Left back, and the caret moved one word 50 ms and 500 ms after the switch"
+            Write-Host "  check: Ctrl+Right and Ctrl+Left walked the channel from the fill to $next, and the caret moved one word 50 ms and 500 ms after the switch"
 
             Write-Host "probe cycle --cycle-hold $geo"
             $f = Probe (@('--probe', 'cycle', '--cycle-hold') + $geo)
