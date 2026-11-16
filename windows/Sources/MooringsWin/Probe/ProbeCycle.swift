@@ -16,6 +16,7 @@ let cycleSteps: [(label: String, wait: DWORD)] = [("fast", 50), ("slow", 500)]
 // with an Edit control in its own process, then three stand-ins in the channel, fills the channel with
 // the first and prints whether the keys are claimed. While the loop runs, a second thread presses
 // Control-Right and Control-Left and prints the window in front after each, then for each step brings
+// the Edit stand-in back where it opened, since the walk may have filled the channel with it, brings
 // the fill forward, brings the Edit stand-in forward, presses Control-Right after the step's wait and
 // prints where the caret landed. Under --cycle-hold the claim stays through the focus change until the
 // next pass, the control, so the fast press is swallowed.
@@ -74,6 +75,10 @@ func probeCycle(_ opts: ProbeOptions) -> Int32 {
     let loop = GetCurrentThreadId()
     let topBits = UInt(bitPattern: stand.top), editBits = UInt(bitPattern: stand.edit)
     let fill = pads[0]
+    var opened = RECT()
+    _ = GetWindowRect(stand.top, &opened)
+    let home = (x: opened.left, y: opened.top, w: opened.right - opened.left, h: opened.bottom - opened.top)
+    print("edit home: \(home.x) \(home.y) \(home.w) \(home.h)")
     Thread {
         Sleep(500)
         for (label, vk) in [("right", WORD(0x27)), ("left", WORD(0x25))] {
@@ -89,6 +94,8 @@ func probeCycle(_ opts: ProbeOptions) -> Int32 {
             return
         }
         for step in cycleSteps {
+            // 0x0014 is SWP_NOZORDER and SWP_NOACTIVATE.
+            _ = SetWindowPos(top, nil, home.x, home.y, home.w, home.h, 0x0014)
             print("\(step.label) fill forward: \(bringForward(filled))")
             Sleep(800)
             resetEdit(edit)

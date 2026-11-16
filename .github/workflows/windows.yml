@@ -1243,9 +1243,11 @@ jobs:
             Expect $f '^claimed: true keys 2$' 'a fill in front claims Ctrl+Left and Ctrl+Right'
             Expect $f "^front: $($pads[0])$" 'the fill in front before the presses'
             Expect $f '^right sent: 4$' 'Ctrl+Right sent'
-            # The runner keeps windows of its own in the channel, so the next one may be any of them.
+            # The walk takes every free window on the display in id order, the runner's own and the edit
+            # control's among them, so the next one may be any of them. The probe puts the edit control
+            # back where it opened before each caret step.
             $next = [regex]::Match(($f -match '^right front: ')[0], '^right front: (0x[0-9a-f]+)$').Groups[1].Value
-            if (-not $next -or $next -eq $pads[0] -or $next -eq $edit) { throw "cycle: Ctrl+Right left $next in front, want the next channel window" }
+            if (-not $next -or $next -eq $pads[0]) { throw "cycle: Ctrl+Right left $next in front, want the next channel window" }
             Expect $f '^left sent: 4$' 'Ctrl+Left sent'
             Expect $f "^left front: $($pads[0])$" 'Ctrl+Left brings the first back'
             foreach ($step in @(@('fast', 50), @('slow', 500))) {
