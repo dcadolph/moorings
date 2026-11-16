@@ -1701,7 +1701,7 @@ jobs:
             }
             $pngs = @(Get-ChildItem (Join-Path $r.FullName '*.png') -ErrorAction SilentlyContinue).Count
             $ok = $false
-            if ($r.Name -eq 'skew' -or $r.Name -like 'nodelta-*') {
+            if ($r.Name -eq 'skew' -or $r.Name -eq 'refusing-same' -or $r.Name -like 'nodelta-*') {
               if ($exit -ne 'none' -and $exit -ne '0') { $ok = $true; $verdict = 'failed, as the negative control must' }
               else { $verdict = 'PASSED, the negative control is broken' }
             } else {
