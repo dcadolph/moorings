@@ -1554,7 +1554,7 @@ jobs:
           }
           function Written($run) {
             $shots = @(Get-ChildItem (Join-Path $run.Dir '*.png') -ErrorAction SilentlyContinue)
-            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 18) { throw "want report.html and 18 pictures in $($run.Dir), got $($shots.Count)" }
+            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 19) { throw "want report.html and 19 pictures in $($run.Dir), got $($shots.Count)" }
             if (-not ($run.Lines -match '^hook reinstalled: 0$')) { throw "the mouse hook was put back during the scenarios in $($run.Dir)" }
           }
 
@@ -1562,7 +1562,7 @@ jobs:
           $s = Scenarios 'runner' @('--min-aspect', '1.0')
           if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 19 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
-          Write-Host "  check: 18 scenarios passed on the Win32 adapters, channelCycle and refusedWindowTriedOnce skipped, with report.html, 18 pictures and the hook never put back"
+          Write-Host "  check: 19 scenarios passed on the Win32 adapters, channelCycle and refusedWindowTriedOnce skipped, with report.html, 19 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
           $s = Scenarios 'sim' @('--screen', '3440x1440')
