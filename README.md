@@ -127,6 +127,8 @@ area.
 - Organize and Channel in the tray menu tile, cascade, mirror and cycle the free windows, fit the
   channel's windows, and line up the front two or three, with Undo tidy to put them back. The stack
   badge counts windows stacked on one corner when `stacking.badge` is on in the settings file.
+- With a window filling the channel in front, Ctrl+Left and Ctrl+Right walk the channel's windows.
+  Everywhere else they move by a word as usual, from the moment another window comes to the front.
 - Tiling in the tray menu keeps the free windows of each display in a tall, wide, columns, rows or
   BSP layout as windows open and close, as on the Mac. A window you drag, resize or move with an
   action floats until you choose a layout again.

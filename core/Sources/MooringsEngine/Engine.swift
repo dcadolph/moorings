@@ -303,10 +303,10 @@ public final class Engine {
     }
 
     // handle wakes the passes for one window event and keeps what the event changes: the displays,
-    // and the launch window that reads every app while a new app shows its first window. An event
-    // that names its window wakes narrow, since the source marked that window's app. While paused
-    // nothing wakes, and an event only looks for choices another program saved, since no pass runs
-    // to read them.
+    // the launch window that reads every app while a new app shows its first window, and the channel
+    // cycle's claim, which a new front window ends at once. An event that names its window wakes
+    // narrow, since the source marked that window's app. While paused nothing wakes, and an event
+    // only looks for choices another program saved, since no pass runs to read them.
     public func handle(_ event: WindowEvent) {
         let t = platform.clock.now
         observers.noticed(event, t)
@@ -314,7 +314,10 @@ public final class Engine {
             reload()
         }
         switch event {
-        case .moved, .shown, .destroyed, .focused:
+        case .moved, .shown, .destroyed:
+            passes.wake(full: false)
+        case .focused(let id):
+            channelCycle.focused(id)
             passes.wake(full: false)
         case .appLaunched:
             passes.launching = t + Pace.launchSeconds

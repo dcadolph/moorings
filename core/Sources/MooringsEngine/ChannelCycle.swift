@@ -19,6 +19,12 @@ public final class ChannelCycle {
     private let anchors: Anchors
     // claimed reports whether the keys are claimed now.
     public private(set) var claimed = false
+    // claimedFor is the front window the claim was taken or kept for, so the keys go back the moment
+    // another window comes to the front, before the pass that event wakes.
+    private var claimedFor: WindowID?
+    // letsGoOnFocus is false only in the Windows cycle probe's control, which keeps the claim through a
+    // focus change until the next pass, as the passes alone did.
+    public var letsGoOnFocus = true
 
     // init builds a channel cycle on engine's platform and anchors, with nothing claimed.
     public init(engine: Engine, platform: Platform, anchors: Anchors) {
@@ -39,13 +45,19 @@ public final class ChannelCycle {
     }
 
     // sync claims the keys when scan on screens wants them and lets them go when it does not. It
-    // calls the platform only on a change, so passes do not churn the keys.
+    // calls the platform only on a change, so passes do not churn the keys. A claimed press syncs
+    // after its cycle, so the claim follows the window the cycle brought forward before that
+    // window's focus event arrives.
     public func sync(_ scan: Scan, screens: Screens) {
         let want = wanted(scan, screens: screens)
+        if want {
+            claimedFor = scan.focused?.id
+        }
         guard want != claimed else { return }
         if want {
             let taken = platform.keys.claim(Self.keys) { [unowned self] tag in
                 _ = engine.route(tag, window: nil)
+                sync()
             }
             claimed = true
             platform.log.note(.actions, "channel cycle: claimed \(taken) keys")
@@ -72,11 +84,20 @@ public final class ChannelCycle {
         sync(platform.windows.scan(screens, full: false), screens: screens)
     }
 
+    // focused lets the keys go when window id comes to the front while they are claimed for another
+    // window, so a Control-Left or Control-Right typed there moves the caret by a word. The pass the
+    // event wakes claims them again when the new front window fills the channel too.
+    public func focused(_ id: WindowID) {
+        guard letsGoOnFocus, claimed, id != claimedFor else { return }
+        unclaim()
+    }
+
     // unclaim lets the keys go back to the platform when they are claimed.
     public func unclaim() {
         guard claimed else { return }
         platform.keys.unclaim()
         claimed = false
+        claimedFor = nil
         platform.log.note(.actions, "channel cycle: let the keys go")
     }
 }
