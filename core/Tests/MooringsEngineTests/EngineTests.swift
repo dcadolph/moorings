@@ -594,3 +594,35 @@ private func fillRig(
     #expect(keys.claimed.isEmpty && keys.unclaims == 1)
     #expect(rig.windows.calls.count == from, "\(rig.windows.calls.dropFirst(from))")
 }
+
+// A claimed cycle lets the keys go the moment another window comes to the front, before any pass
+// runs, so the press typed there moves the caret. The probe's control keeps them until the pass.
+@Test func testChannelCycleFocusElsewhereLetsTheKeysGo() {
+    let (rig, keys, other) = fillRig()
+    rig.engine.handle(.focused(other))
+    #expect(!rig.engine.channelCycle.claimed)
+    #expect(keys.claimed.isEmpty && keys.unclaims == 1)
+    let (held, heldKeys, heldOther) = fillRig()
+    held.engine.channelCycle.letsGoOnFocus = false
+    held.engine.handle(.focused(heldOther))
+    #expect(held.engine.channelCycle.claimed && heldKeys.unclaims == 0)
+}
+
+// The fill's own focus event keeps the claim.
+@Test func testChannelCycleFocusOnTheFillKeepsTheKeys() {
+    let (rig, keys, _) = fillRig()
+    rig.engine.handle(.focused(rig.pad))
+    #expect(rig.engine.channelCycle.claimed)
+    #expect(keys.claimed == ChannelCycle.keys && keys.unclaims == 0)
+}
+
+// Control-Right fills the channel with the next window and the claim follows it, so the focus event
+// that window's raise sends keeps the keys.
+@Test func testChannelCycleFocusAfterACycleKeepsTheKeys() {
+    let (rig, keys, other) = fillRig()
+    keys.press(GrabKey(key: "right", modifiers: .control, tag: ""))
+    #expect(rig.windows.focusedID == other)
+    rig.engine.handle(.focused(other))
+    #expect(rig.engine.channelCycle.claimed)
+    #expect(keys.claimed == ChannelCycle.keys && keys.unclaims == 0)
+}

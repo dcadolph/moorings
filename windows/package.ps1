@@ -74,6 +74,8 @@ What it does
   them, cycles through windows stacked on one spot, and mirrors them across the channel.
   Channel fits every channel window in at once and lines up the front two or three side by
   side. Undo tidy puts them all back. Each runs on the window that was in front.
+- With a window filling the channel in front, Ctrl+Left and Ctrl+Right walk the channel's
+  windows. Everywhere else they move by a word as usual.
 - Stack badge: with "stacking": {"badge": true} in the settings file, resting the pointer
   on the corner of stacked windows shows how many there are.
 - Tiling, in the tray menu, keeps the free windows of each display in a tall, wide,

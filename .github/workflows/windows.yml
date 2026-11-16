@@ -1227,6 +1227,47 @@ jobs:
           }
           TilingCheck @('--min-aspect', '1.0')
 
+          # Channel cycle: with a stand-in filling the channel in front, Ctrl+Right and Ctrl+Left are
+          # claimed and walk the channel's windows. Bringing an edit control forward lets them go at
+          # once, so Ctrl+Right 50 ms after the switch moves its caret one word, and again 500 ms after.
+          # The control keeps the claim through the switch until the next pass, which swallows the
+          # 50 ms press and runs one more cycle, so the caret checks read a real release.
+          function CycleCheck([string[]] $geo) {
+            Write-Host "probe cycle $geo"
+            $f = Probe (@('--probe', 'cycle') + $geo)
+            Expect $f '^hold: false$' 'the claim lets go on a focus change'
+            $pads = @(([regex]::Match(($f -match '^pads: ')[0], '^pads: (.*)$').Groups[1].Value) -split ' ')
+            if ($pads.Count -ne 3) { throw "cycle: want three stand-ins, got $($pads -join ' ')" }
+            $edit = [regex]::Match(($f -match '^edit stand-in: ')[0], '^edit stand-in: (0x[0-9a-f]+)$').Groups[1].Value
+            if (-not $edit) { throw 'cycle: no edit stand-in' }
+            Expect $f '^claimed: true keys 2$' 'a fill in front claims Ctrl+Left and Ctrl+Right'
+            Expect $f "^front: $($pads[0])$" 'the fill in front before the presses'
+            Expect $f '^right sent: 4$' 'Ctrl+Right sent'
+            Expect $f "^right front: $($pads[1])$" 'Ctrl+Right brings the next channel window forward'
+            Expect $f '^left sent: 4$' 'Ctrl+Left sent'
+            Expect $f "^left front: $($pads[0])$" 'Ctrl+Left brings the first back'
+            foreach ($step in @(@('fast', 50), @('slow', 500))) {
+              $label = $step[0]
+              Expect $f "^$label fill forward: true$" "the fill brought forward before the $label press"
+              Expect $f "^$label edit forward: true$" "the edit control brought forward before the $label press"
+              Expect $f "^$label sent: 4$" "Ctrl+Right sent $($step[1]) ms after the switch"
+              Expect $f "^$label caret: 6$" "Ctrl+Right $($step[1]) ms after the switch moved the caret one word"
+              Expect $f "^$label front: $edit$" "the edit control stayed in front after the $label press"
+            }
+            Expect $f '^hotkeys received: cycle-channel-windows,cycle-channel-windows-backward$' 'only the two cycle presses were claimed'
+            Write-Host "  check: Ctrl+Right and Ctrl+Left walked the channel, and the caret moved one word 50 ms and 500 ms after the switch"
+
+            Write-Host "probe cycle --cycle-hold $geo"
+            $f = Probe (@('--probe', 'cycle', '--cycle-hold') + $geo)
+            Expect $f '^hold: true$' 'the control keeps the claim until the pass'
+            Expect $f '^claimed: true keys 2$' 'the control claims the keys too'
+            Expect $f '^fast caret: 0$' 'a claim held through the switch swallowed the 50 ms press'
+            Expect $f '^slow caret: 6$' 'the pass let the keys go before the 500 ms press'
+            Expect $f '^hotkeys received: cycle-channel-windows,cycle-channel-windows-backward,cycle-channel-windows$' 'the swallowed press ran a cycle'
+            Write-Host "  check: with the claim held until the pass the 50 ms press was swallowed, so the release on focus is what moves the caret"
+          }
+          CycleCheck @('--min-aspect', '1.0')
+
           function WorkspaceCheck([string[]] $geo, [bool] $tie) {
             $extra = if ($tie) { @('--tie') } else { @() }
             Write-Host "probe workspace $geo $extra"
@@ -1341,6 +1382,7 @@ jobs:
           SizesCheck $simApp
           ImportCheck $simApp
           TilingCheck $sim
+          CycleCheck $sim
           WorkspaceCheck $simApp $true
 
           HotkeyCheck $simApp
@@ -1554,19 +1596,19 @@ jobs:
           }
           function Written($run) {
             $shots = @(Get-ChildItem (Join-Path $run.Dir '*.png') -ErrorAction SilentlyContinue)
-            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 19) { throw "want report.html and 19 pictures in $($run.Dir), got $($shots.Count)" }
+            if (-not (Test-Path (Join-Path $run.Dir 'report.html')) -or $shots.Count -ne 20) { throw "want report.html and 20 pictures in $($run.Dir), got $($shots.Count)" }
             if (-not ($run.Lines -match '^hook reinstalled: 0$')) { throw "the mouse hook was put back during the scenarios in $($run.Dir)" }
           }
 
           Write-Host "scenarios on the runner's screen"
           $s = Scenarios 'runner' @('--min-aspect', '1.0')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 19 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 20 run, 1 skipped, 0 failed$')) { throw "a scenario failed on the Win32 adapters ($($s.Code))" }
           Written $s
-          Write-Host "  check: 19 scenarios passed on the Win32 adapters, channelCycle and refusedWindowTriedOnce skipped, with report.html, 19 pictures and the hook never put back"
+          Write-Host "  check: 20 scenarios passed on the Win32 adapters, refusedWindowTriedOnce skipped, with report.html, 20 pictures and the hook never put back"
 
           Write-Host "scenarios on a fake 3440x1440 ultrawide"
           $s = Scenarios 'sim' @('--screen', '3440x1440')
-          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 19 run, 2 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
+          if ($s.Code -ne 0 -or -not ($s.Lines -match '^scenarios: 20 run, 1 skipped, 0 failed$')) { throw "a scenario failed on the fake ultrawide ($($s.Code))" }
           if (-not ($s.Lines -match '^scenario pinPlacesOnStrip frame strip: 0 0 1376 1392$')) { throw "SIM strip is not the left 40 percent of 3440x1392" }
           Written $s
           Write-Host "  check: SIM pin held at the 3440x1440 left strip 0 0 1376 1392 and every scenario passed there"
@@ -1663,7 +1705,7 @@ jobs:
             $hook = @($out -match '^hook reinstalled: ')[0]
             Write-Host "  SIM run $i of ${n}: $sum, $hook, exit $code"
             $out -match '^scenario failed: ' | ForEach-Object { Write-Host "    $_" }
-            if ($code -ne 0 -or $sum -ne 'scenarios: 19 run, 2 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
+            if ($code -ne 0 -or $sum -ne 'scenarios: 20 run, 1 skipped, 0 failed' -or $hook -ne 'hook reinstalled: 0') { $failed++ }
           }
           if ($failed -ne 0) { throw "$failed of $n SIM runs failed" }
           Write-Host "  check: $n SIM runs in a row passed every scenario with the hook never put back"

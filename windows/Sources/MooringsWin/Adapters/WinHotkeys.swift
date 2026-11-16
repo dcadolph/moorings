@@ -183,6 +183,9 @@ final class WinHotkeys {
         return claimTags.count
     }
 
+    // claimedKeys counts the keys claimed now.
+    var claimedKeys: Int { claimTags.count }
+
     // unclaim removes every claimed key.
     func unclaim() {
         for id in claimTags.keys {
@@ -198,6 +201,7 @@ final class WinHotkeys {
     func fire(_ wParam: WPARAM) {
         let id = Int32(truncatingIfNeeded: wParam)
         if let tag = claimTags[id] {
+            pressed.append(tag)
             claimHandler?(tag)
             return
         }

@@ -74,6 +74,11 @@ struct ProbeOptions {
     var noBadge = false
     // noTiling leaves tiling off, the tiling probe's negative control.
     var noTiling = false
+    // cycleHold keeps the channel cycle's claim through a focus change until the next pass, the cycle
+    // probe's negative control.
+    var cycleHold = false
+    // edit gives the stand probe's window an Edit control that holds its focus.
+    var edit = false
     // tie makes the workspace probe tie its workspace to the fake monitor and swap the monitor for
     // another size and back.
     var tie = false
@@ -173,6 +178,10 @@ struct ProbeOptions {
                 noBadge = true
             case "--no-tiling":
                 noTiling = true
+            case "--cycle-hold":
+                cycleHold = true
+            case "--edit":
+                edit = true
             case "--tie":
                 tie = true
             case "--launch":
