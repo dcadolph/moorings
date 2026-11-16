@@ -51,7 +51,8 @@ final class App {
     // Windows carries so far.
     private(set) lazy var engine: Engine = {
         let e = Engine(
-            platform: platform, features: [.stash, .organize, .badge, .workspaces, .profiles], platformActions: menu)
+            platform: platform, features: [.stash, .organize, .badge, .workspaces, .profiles, .tiling],
+            platformActions: menu)
         e.passes.tellsRefused = true
         return e
     }()
@@ -143,7 +144,8 @@ final class App {
         }
     }
 
-    // mouseEvent hands one hook message to what follows the pointer: the drag and the stash.
+    // mouseEvent hands one hook message to what follows the pointer: the drag, the stash, and the
+    // tiler, which floats a tiled window the owner moved or sized by hand once the button comes up.
     private func mouseEvent(_ message: UINT, _ p: SnapPoint) {
         pointer.hooked = Point(x: p.x, y: p.y)
         defer { pointer.hooked = nil }
@@ -153,7 +155,10 @@ final class App {
             pointer.moved?()
         case UINT(WM_LBUTTONDOWN):
             engine.stasher.clicked(Point(x: p.x, y: p.y))
-        case UINT(WM_LBUTTONUP), UINT(WM_RBUTTONUP), UINT(WM_MBUTTONUP), UINT(WM_XBUTTONUP):
+        case UINT(WM_LBUTTONUP):
+            engine.tiler.mouseUp()
+            pointer.moved?()
+        case UINT(WM_RBUTTONUP), UINT(WM_MBUTTONUP), UINT(WM_XBUTTONUP):
             pointer.moved?()
         default:
             break

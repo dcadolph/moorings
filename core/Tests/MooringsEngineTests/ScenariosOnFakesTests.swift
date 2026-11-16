@@ -43,7 +43,7 @@ final class ScenarioRig {
     for r in results {
         print("scenario \(r.name): \(r.notes.joined(separator: "; "))")
     }
-    #expect(report.summary == "scenarios: 20 run, 0 failed")
+    #expect(report.summary == "scenarios: 21 run, 0 failed")
     #expect(report.failures.isEmpty, "\(report.failures)")
     #expect(Set(results.map(\.name)) == Set(Scenarios.all.map(\.name)))
 }
@@ -68,14 +68,14 @@ final class ScenarioRig {
     #expect(
         skipped.map(\.name) == [
             "quitRestoresStash", "organize", "channelCycle", "badgeCounts", "workspaceRecall",
-            "profileSwitchChangesKeymap",
+            "profileSwitchChangesKeymap", "tilingKeepsLayout",
         ])
     #expect(
         skipped.map(\.skipped) == [
             "needs stash", "needs organize", "needs organize and channel cycle", "needs badge", "needs workspaces",
-            "needs profiles",
+            "needs profiles", "needs tiling",
         ])
-    #expect(ScenarioReport(host: "fakes", results: results).summary == "scenarios: 14 run, 6 skipped, 0 failed")
+    #expect(ScenarioReport(host: "fakes", results: results).summary == "scenarios: 14 run, 7 skipped, 0 failed")
 }
 
 // Test 7: An engine with organize but not the channel cycle, as Windows declares, skips the channel

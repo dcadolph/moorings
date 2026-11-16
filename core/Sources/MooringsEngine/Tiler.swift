@@ -1,8 +1,9 @@
 import MooringsCore
 
 // Tiler keeps the free windows of each display in the tiling mode's layout as windows come and go,
-// and runs the tiling actions. A window the owner drags or resizes floats until a mode is chosen
-// again. On the ultrawide it tiles the channel, so push back never has a tiled window to move.
+// and runs the tiling actions. A window the owner drags, resizes, or moves with an action floats
+// until a mode is chosen again. On the ultrawide it tiles the channel, so push back never has a
+// tiled window to move.
 public final class Tiler {
     // engine is the orchestration this object calls: wake, moor, save, landed.
     unowned let engine: Engine
@@ -14,12 +15,20 @@ public final class Tiler {
     private let organizer: Organizer
     // order is the tiling order of the tiled windows, main window first.
     public private(set) var order: [WindowID] = []
-    // assigned maps each tiled window to the frame it was last given and when.
-    private var assigned: [WindowID: (frame: Frame, at: Double)] = [:]
+    // assigned maps each tiled window to the frame it was last given, when, and the frame a pass last
+    // read it at, so a window that keeps its own size is not taken for one moved by hand.
+    private var assigned: [WindowID: (frame: Frame, at: Double, seen: Frame)] = [:]
     // floated holds the windows the owner moved out of the layout.
     public private(set) var floated: Set<WindowID> = []
     // released is when the primary mouse button last came up.
     private var released = 0.0
+    // held holds the windows the last press took hold of, judged by the first pass after the
+    // button comes up.
+    private var held: Set<WindowID> = []
+    // heldAt is when the last press took hold of held.
+    private var heldAt = 0.0
+    // acted maps each tiled window an action moved to when it did.
+    private var acted: [WindowID: Double] = [:]
 
     // init builds a tiler on engine's platform and anchors that lays out in organizer's areas.
     public init(engine: Engine, platform: Platform, anchors: Anchors, organizer: Organizer) {
@@ -34,9 +43,34 @@ public final class Tiler {
         platform.log.note(.tiling, line)
     }
 
-    // mouseUp records a mouse up, so a tiled window found off its frame after it was moved by hand.
+    // mouseUp records a mouse up, so a held window found off its frame after it was moved by hand.
     public func mouseUp() {
         released = platform.clock.now
+    }
+
+    // pressed records the window a press took hold of: window when the platform named it, else the
+    // window under at. It reads nothing while tiling is off or paused.
+    public func pressed(_ window: WindowID?, at: Point?) {
+        let choices = anchors.choices
+        guard choices.tiling.mode != .off, !choices.paused else { return }
+        if let window {
+            grab(window)
+        } else if let id = at.flatMap({ platform.windows.hit($0) }) {
+            grab(id)
+        } else {
+            grab()
+        }
+    }
+
+    // grab records ids as the windows the press under way holds, as a drag of a shared edge holds two.
+    public func grab(_ ids: WindowID...) {
+        held = Set(ids)
+        heldAt = platform.clock.now
+    }
+
+    // landed records that an action moved the window with id, so a tiled one floats where it landed.
+    public func landed(_ id: WindowID) {
+        acted[id] = platform.clock.now
     }
 
     // tileable reports whether w joins the layout: not anchored, fullscreen, a file panel, stashed or
@@ -48,8 +82,9 @@ public final class Tiler {
 
     // pass lays out list, the windows on screen front-most first, after a moor pass. Each window gets
     // a frame only when its frame in the layout changed, so an app that keeps its own size is left
-    // alone, and a window found off its frame after a mouse up floats. It does nothing while tiling
-    // is off, while paused, or while the mouse button is down.
+    // alone. A window found off both its frame and where a pass last read it floats when a press held
+    // it and the button came up after its frame was given, or when an action moved it since. It does
+    // nothing while tiling is off, while paused, or while the mouse button is down.
     public func pass(_ list: [WindowInfo], screens: Screens, mouseHeld: Bool) {
         let tiling = anchors.choices.tiling
         guard tiling.mode != .off, !anchors.choices.paused, !mouseHeld else { return }
@@ -58,6 +93,12 @@ public final class Tiler {
         floated.formIntersection(free.map(\.id))
         order = Tiling.order(order, free.map(\.id).filter { !floated.contains($0) })
         assigned = assigned.filter { id, _ in order.contains(id) }
+        acted = acted.filter { id, _ in order.contains(id) }
+        defer {
+            if released >= heldAt {
+                held = []
+            }
+        }
         let byID = Dictionary(free.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         for i in screens.full.indices {
             let ids = order.filter { byID[$0].flatMap { screens.index($0.frame) } == i }
@@ -67,11 +108,20 @@ public final class Tiler {
             for (id, target) in zip(ids, frames) {
                 guard let w = byID[id] else { continue }
                 if let a = assigned[id], Actions.near(a.frame, target, tolerance: Actions.tolerance) {
-                    if released > a.at, !Actions.near(w.frame, a.frame, tolerance: Actions.tolerance) {
+                    let off =
+                        !Actions.near(w.frame, a.frame, tolerance: Actions.tolerance)
+                        && !Actions.near(w.frame, a.seen, tolerance: Actions.tolerance)
+                    let hand = held.contains(id) && released > a.at
+                    let action = acted[id].map { $0 > a.at } ?? false
+                    if off, hand || action {
                         floated.insert(id)
                         order.removeAll { $0 == id }
                         assigned[id] = nil
-                        log("window \(id) moved by hand: floating until a mode is chosen again")
+                        acted[id] = nil
+                        let how = hand ? "by hand" : "by an action"
+                        log("window \(id) moved \(how): floating until a mode is chosen again")
+                    } else {
+                        assigned[id]?.seen = w.frame
                     }
                     continue
                 }
@@ -79,7 +129,7 @@ public final class Tiler {
                     anchors.save(w)
                     platform.windows.move(id, to: target, from: nil, behavior: anchors.choices.behavior)
                 }
-                assigned[id] = (target, now)
+                assigned[id] = (target, now, target)
             }
         }
     }

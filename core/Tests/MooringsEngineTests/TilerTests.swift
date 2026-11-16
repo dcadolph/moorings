@@ -121,14 +121,15 @@ final class TileRig {
     #expect(rig.moves == moved)
 }
 
-// A window moved by hand after a mouse up floats, and the rest close up around it; choosing a mode
-// again brings it back.
+// A window a press held and moved by hand floats after the mouse up, and the rest close up around
+// it; choosing a mode again brings it back.
 @Test @MainActor func testTilerDraggedWindowFloats() {
     let rig = TileRig()
     let a = rig.add(), b = rig.add(), c = rig.add()
     #expect(rig.tiler.run("tiling-columns"))
     rig.pass()
     rig.clock.advance(by: 1)
+    rig.tiler.grab(b)
     let dropped = Frame(x: 900, y: 600, w: 700, h: 500)
     rig.windows.nudge(b, to: dropped)
     rig.tiler.mouseUp()
@@ -141,6 +142,119 @@ final class TileRig {
     rig.pass()
     #expect(rig.tiler.floated.isEmpty)
     #expect(TileRig.near(rig.frames([a, b, c]), rig.columns(3)))
+}
+
+// A window that keeps its own size, as a terminal holds its height to whole rows, stays tiled when
+// another window is dragged, and only the dragged one floats.
+@Test @MainActor func testTilerOwnSizeStaysTiledOnAnotherDrag() {
+    let rig = TileRig()
+    let a = rig.add(), b = rig.add(), c = rig.add()
+    #expect(rig.tiler.run("tiling-columns"))
+    rig.pass()
+    guard let given = rig.windows.frame(a) else {
+        Issue.record("window a is gone")
+        return
+    }
+    let own = Frame(x: given.x, y: given.y, w: given.w, h: given.h - 92)
+    rig.windows.nudge(a, to: own)
+    rig.pass()
+    #expect(rig.windows.frame(a) == own)
+    rig.clock.advance(by: 1)
+    rig.pointer.primaryDown = true
+    rig.tiler.grab(c)
+    rig.windows.nudge(c, to: Frame(x: 900, y: 600, w: 700, h: 500))
+    rig.pointer.primaryDown = false
+    rig.tiler.mouseUp()
+    rig.pass()
+    #expect(rig.tiler.floated == [c])
+    #expect(Set(rig.tiler.order) == [a, b])
+}
+
+// A window its app resizes while another is dragged, with no pass between, stays tiled: only the
+// window the press held floats, as on a runner whose terminal snaps to whole rows late.
+@Test @MainActor func testTilerUngrabbedWindowStaysTiled() {
+    let rig = TileRig()
+    let a = rig.add(), b = rig.add(), c = rig.add()
+    #expect(rig.tiler.run("tiling-columns"))
+    rig.pass()
+    guard let given = rig.windows.frame(a) else {
+        Issue.record("window a is gone")
+        return
+    }
+    rig.clock.advance(by: 1)
+    rig.tiler.grab(c)
+    rig.pointer.primaryDown = true
+    let own = Frame(x: given.x, y: given.y + 26, w: given.w, h: given.h - 92)
+    rig.windows.nudge(a, to: own)
+    rig.windows.nudge(c, to: Frame(x: 900, y: 600, w: 700, h: 500))
+    rig.pointer.primaryDown = false
+    rig.tiler.mouseUp()
+    rig.pass()
+    #expect(rig.tiler.floated == [c])
+    #expect(Set(rig.tiler.order) == [a, b])
+    #expect(rig.windows.frame(a) == own)
+}
+
+// A press on a shared edge holds both windows, so both float once the edge is moved.
+@Test @MainActor func testTilerEdgeGrabFloatsBoth() {
+    let rig = TileRig()
+    let a = rig.add(), b = rig.add(), c = rig.add()
+    #expect(rig.tiler.run("tiling-columns"))
+    rig.pass()
+    guard let fa = rig.windows.frame(a), let fb = rig.windows.frame(b) else {
+        Issue.record("a window is gone")
+        return
+    }
+    rig.clock.advance(by: 1)
+    rig.tiler.grab(a, b)
+    rig.windows.nudge(a, to: Frame(x: fa.x, y: fa.y, w: fa.w + 200, h: fa.h))
+    rig.windows.nudge(b, to: Frame(x: fb.x + 200, y: fb.y, w: fb.w - 200, h: fb.h))
+    rig.tiler.mouseUp()
+    rig.pass()
+    #expect(rig.tiler.floated == [a, b])
+    #expect(rig.tiler.order == [c])
+}
+
+// A press is judged by the first pass after its mouse up only, so a held window its app resizes
+// later, after an unrelated click, stays tiled.
+@Test @MainActor func testTilerGrabIsJudgedOnce() {
+    let rig = TileRig()
+    let a = rig.add(), b = rig.add()
+    #expect(rig.tiler.run("tiling-columns"))
+    rig.pass()
+    rig.clock.advance(by: 1)
+    rig.tiler.grab(b)
+    rig.tiler.mouseUp()
+    rig.pass()
+    #expect(rig.tiler.floated.isEmpty)
+    guard let given = rig.windows.frame(b) else {
+        Issue.record("window b is gone")
+        return
+    }
+    rig.clock.advance(by: 1)
+    rig.windows.nudge(b, to: Frame(x: given.x, y: given.y, w: given.w, h: given.h - 92))
+    rig.tiler.mouseUp()
+    rig.pass()
+    #expect(rig.tiler.floated.isEmpty)
+    #expect(Set(rig.tiler.order) == [a, b])
+}
+
+// A tiled window an action moves floats where the action put it instead of being pulled back.
+@Test @MainActor func testTilerActionFloats() {
+    let rig = TileRig()
+    let a = rig.add(), b = rig.add(focus: true)
+    #expect(rig.tiler.run("tiling-columns"))
+    rig.pass()
+    rig.clock.advance(by: 1)
+    let given = rig.windows.frame(b)
+    #expect(rig.engine.actions.run("top-half"))
+    let placed = rig.windows.frame(b)
+    #expect(placed != given)
+    rig.pass()
+    #expect(rig.tiler.floated == [b])
+    #expect(rig.tiler.order == [a])
+    rig.pass()
+    #expect(rig.windows.frame(b) == placed)
 }
 
 // Negative control: with tiling off a new window stays where it opened.
