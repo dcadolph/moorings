@@ -216,10 +216,11 @@ public final class Engine {
     }
 
     // landed records frame as where an action just read the window with id back after moving it,
-    // so a pass reads it at rest. It wakes nothing: the action read the window, and a pass after it
-    // comes only from an event that is not the move's own echo.
+    // so a pass reads it at rest and a tiled window floats there. It wakes nothing: the action read
+    // the window, and a pass after it comes only from an event that is not the move's own echo.
     public func landed(_ id: WindowID, at frame: Frame) {
         passes.landed(id, at: frame)
+        tiler.landed(id)
     }
 
     // save writes the choices to the store, binds the shortcuts again, and runs a pass so the change

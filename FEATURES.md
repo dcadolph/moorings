@@ -100,8 +100,8 @@ each part.
 - Tidy lines up the two or three front windows, and Undo tidy puts everything back. Organize
   and channel actions leave stashed and cast-off windows where they are.
 - Tiling keeps the free windows of each display in a tall, wide, columns, rows or BSP layout
-  as windows open and close, in the channel on the ultrawide. A window you drag floats until you
-  choose a layout again. Grow or shrink the main window, and focus or swap the window to the
+  as windows open and close, in the channel on the ultrawide. A window you drag, resize or move
+  with an action floats until you choose a layout again. Grow or shrink the main window, and focus or swap the window to the
   left, right, above or below, with tiling on or off.
 
 ## Workspaces

@@ -186,7 +186,8 @@ final class EdgeResizer {
 
     // pressed starts moving the shared edge under p when the edge resize keys are exactly the
     // modifiers in flags, and reports whether it did, so the press is swallowed. Anchored, stashed,
-    // fullscreen windows and file panels never take part.
+    // fullscreen windows and file panels never take part. The tiler learns the press holds both
+    // windows, so both float once the button comes up.
     func pressed(_ p: CGPoint, flags: CGEventFlags) -> Bool {
         let anchors = app.engine.anchors
         guard !anchors.choices.paused, Hover.holds(Modifiers(flags: flags), anchors.choices.overlay.edgeResize) else {
@@ -202,6 +203,7 @@ final class EdgeResizer {
         anchors.save(a)
         anchors.save(b)
         drag = Drag(a: a.id, b: b.id, fa: a.frame, fb: b.frame, vertical: e.vertical, start: p)
+        app.engine.tiler.grab(a.id, b.id)
         return true
     }
 

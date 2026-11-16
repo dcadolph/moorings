@@ -76,9 +76,11 @@ public final class DragFollower {
     public var following: Bool { down }
 
     // began starts following a drag. window is the dragged window when the platform knows it and
-    // moving its answer to move versus size when it has one; at is where the button went down.
+    // moving its answer to move versus size when it has one; at is where the button went down. The
+    // tiler learns which window the press holds, so only that one can float.
     public func began(window: WindowID? = nil, moving: Bool? = nil, at: Point? = nil) {
         reset()
+        engine.tiler.pressed(window, at: at)
         trace = [
             "began window \(String(describing: window)) moving \(String(describing: moving)) "
                 + "at \(String(describing: at))"
@@ -155,12 +157,14 @@ public final class DragFollower {
 
     // ended finishes the drag: a drop in a zone runs its action, a drop on a slot anchors the app, and
     // a Command-drag at an edge stashes the window at the size it was dragged at, since Windows may have
-    // snapped it at that edge. A window that can no longer be read gets nothing.
+    // snapped it at that edge. A window that can no longer be read gets nothing. The end is a mouse up
+    // for the tiler, so a tiled window moved by hand floats on every platform.
     public func ended(held: Modifiers) {
         let (w, drop, screen, stashAt, start, moved) = (win, drop, screen, stashAt, start, moving == true)
         trace.append(
             "ended moving \(String(describing: moving)) done \(done) window \(String(describing: w?.id))")
         reset()
+        engine.tiler.mouseUp()
         guard moved, var w else { return }
         guard let f = platform.windows.frame(w.id) else {
             trace.append("ended window \(w.id) unreadable")
