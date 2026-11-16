@@ -46,6 +46,13 @@ public final class Organizer {
         }
     }
 
+    // walk returns the windows Cycle channel windows walks on screens in the order it walks them, every
+    // organizable window on the anchoring display by id, and nil when no display anchors.
+    public func walk(_ windows: [WindowInfo], _ screens: Screens) -> [WindowInfo]? {
+        guard let u = anchors.stage(screens) else { return nil }
+        return organizable(windows, screens, u).sorted { $0.id < $1.id }
+    }
+
     // stage returns the screen the channel actions work on, the ultrawide while it is attached and
     // the focused window's screen otherwise, with its organizable windows.
     private func stage(_ scan: Scan, _ screens: Screens) -> (i: Int, list: [WindowInfo])? {
@@ -120,11 +127,10 @@ public final class Organizer {
     // stage, or a stage of one, moves nothing.
     private func cycleChannel(_ scan: Scan, _ win: WindowInfo, _ screens: Screens, backward: Bool) -> Bool {
         let name = backward ? "cycle-channel-windows-backward" : "cycle-channel-windows"
-        guard let u = anchors.stage(screens) else {
+        guard let stage = walk(scan.windows, screens) else {
             platform.log.note(.actions, "\(name): no anchoring display")
             return false
         }
-        let stage = organizable(scan.windows, screens, u).sorted { $0.id < $1.id }
         guard stage.count > 1, let at = stage.firstIndex(where: { $0.id == win.id }) else {
             platform.log.note(.actions, "\(name): the front window is not one of two or more in the channel")
             return false
