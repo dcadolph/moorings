@@ -745,3 +745,16 @@ let fillArea = F(0, 0, 1000, 800)
     let grown = Geometry.fill(cur, .right, area: fillArea, others: [])
     #expect(grown.x == cur.x && grown.y == cur.y && grown.h == cur.h)
 }
+
+// Test: Fence moves only the edge facing the other side back to the bound, shrinks a window only
+// when it is wider than the bound, and leaves the top, the bottom and the outer edge alone.
+@Test func testFence() {
+    let left = F(0, 25, 2816, 1415)
+    let right = F(512, 25, 4608, 1415)
+    #expect(Geometry.fence(F(2000, 300, 1200, 600), .left, left) == F(1616, 300, 1200, 600))
+    #expect(Geometry.fence(F(300, 300, 1200, 600), .right, right) == F(512, 300, 1200, 600))
+    #expect(Geometry.fence(F(-100, 1300, 800, 600), .left, left) == F(-100, 1300, 800, 600))
+    #expect(Geometry.fence(F(4800, 25, 900, 1415), .right, right) == F(4800, 25, 900, 1415))
+    #expect(Geometry.fence(F(0, 25, 5120, 1415), .left, left) == left)
+    #expect(Geometry.fence(F(0, 25, 5120, 1415), .right, right) == right)
+}

@@ -143,7 +143,7 @@ each part.
 - Click an anchored window's green button to lift it over the channel at full height, and click
   again to lower it.
 - Drag an anchored window away and Moorings lets it go, with a message that says how to bring it
-  back.
+  back. It can cover its own strip and the channel but never the other side's strip.
 - A slot holds every window of its app on the ultrawide, such as a second Finder or terminal
   window, stacked with the newest in front. Its row in Anchored apps says how many windows it
   holds. A half or a third on a slot window places it inside the slot, Restore gives it the whole

@@ -1084,7 +1084,10 @@ public final class Anchors {
                     lifted.contains(w.id)
                     ? Geometry.lift(screen, side, use.left, use.right)
                     : parts[w.id].map { $0.frame(in: area) } ?? area
-                if let move = moorPin(w, target, Edges(right: side == .right, bottom: row == .bottom)) {
+                let bound =
+                    holders[pin.bundle] == w.id && w.onHost ? Geometry.lift(screen, side, use.left, use.right) : nil
+                let anchor = Edges(right: side == .right, bottom: row == .bottom)
+                if let move = moorPin(w, target, anchor, bound: bound) {
                     moves.append(move)
                 }
             } else if w.onHost, !w.isFilePanel {

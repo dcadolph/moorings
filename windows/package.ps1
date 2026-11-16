@@ -54,7 +54,8 @@ What it does
 - Slots: in the tray menu, choose an app for Left top, Left bottom, Right top or Right
   bottom. Moorings holds its window in that strip.
 - Any other window that lands on a strip is pushed back into the channel.
-- Moving a held window by hand releases it. Ctrl+Alt+Backspace on it puts it back.
+- Moving a held window by hand releases it, but it stays out of the other side's strip.
+  Ctrl+Alt+Backspace on it puts it back.
 - Window shortcuts from Rectangle: Ctrl+Alt+Left and Right for halves, Ctrl+Alt+U, I, J
   and K for quarters, Ctrl+Alt+D, F and G for thirds, Ctrl+Alt+Enter to maximize and
   Ctrl+Alt+C to center, all inside the channel. On a held window Ctrl+Alt+Enter lifts it

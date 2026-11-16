@@ -845,3 +845,92 @@ func liftAnchors(_ choices: Choices = Choices(slots: [.leftTop: slack, .rightTop
     }
     #expect(anchors.floors[s] == Floor(w: 0, h: 900))
 }
+
+// Test: A holder dragged over the other strip is released and comes back to its own edge, keeping
+// its size and height, and stays there.
+@Test func testLiftHolderFenced() {
+    let anchors = liftAnchors()
+    var world = LiftWorld()
+    let s = world.add(slack, leftFull)
+    let term = world.add(iterm, rightFull)
+    world.pass(anchors)
+    world.clock += 3
+    world.pass(anchors)
+    world.set(s, Frame(x: 2000, y: 200, w: 1200, h: 600))
+    world.set(term, Frame(x: 200, y: 100, w: 1500, h: 800))
+    world.pass(anchors)
+    #expect(world.released == [s, term])
+    #expect(world.frame(s) == Frame(x: 1616, y: 200, w: 1200, h: 600))
+    #expect(world.frame(term) == Frame(x: 512, y: 100, w: 1500, h: 800))
+    let moves = world.moves
+    world.clock += 10
+    world.pass(anchors)
+    #expect(world.moves == moves)
+    #expect(anchors.isReleased(s) && anchors.isReleased(term))
+    #expect(world.click(anchors, 1616 + 60, 215) == .remoor(s))
+}
+
+// Test: A holder resized or moved by hand inside its own strip and the channel is released and left
+// where the hand put it, even partly off the bottom of the screen.
+@Test func testLiftHolderInsideNotFenced() {
+    let anchors = liftAnchors()
+    var world = LiftWorld()
+    let s = world.add(slack, leftFull)
+    world.pass(anchors)
+    world.clock += 3
+    world.pass(anchors)
+    let resized = Frame(x: 0, y: 25, w: 400, h: 1000)
+    world.set(s, resized)
+    world.pass(anchors)
+    #expect(world.released == [s])
+    #expect(world.frame(s) == resized)
+    let low = Frame(x: 1500, y: 1200, w: 1316, h: 600)
+    world.set(s, low)
+    world.clock += 3
+    world.pass(anchors)
+    #expect(world.frame(s) == low)
+}
+
+// Test: A holder dragged to another display, and a stacked window of the app that is not the
+// holder, are left where the hand put them.
+@Test func testLiftFenceHolderOnlyOnHost() {
+    let anchors = liftAnchors()
+    var world = LiftWorld()
+    let s = world.add(slack, leftFull)
+    let second = world.add(slack, Frame(x: 600, y: 100, w: 700, h: 500), main: false)
+    world.pass(anchors)
+    #expect(world.frame(second) == leftFull)
+    world.clock += 3
+    world.pass(anchors)
+    let away = Frame(x: 6000, y: 100, w: 1200, h: 600)
+    world.set(s, away)
+    world.windows[world.windows.firstIndex { $0.id == s }!].onHost = false
+    let over = Frame(x: 2000, y: 200, w: 1200, h: 600)
+    world.set(second, over)
+    world.pass(anchors)
+    #expect(world.released == [s, second])
+    #expect(world.frame(s) == away)
+    #expect(world.frame(second) == over)
+}
+
+// Test: A holder that will not shrink to the bound keeps its floor with its edge at the other
+// strip, and the pass after finds nothing to move.
+@Test func testLiftFenceFloorSettles() {
+    let anchors = liftAnchors()
+    var world = LiftWorld()
+    let s = world.add(slack, leftFull)
+    world.pass(anchors)
+    world.clock += 3
+    world.pass(anchors)
+    world.minSize[s] = (w: 3000, h: 100)
+    world.set(s, Frame(x: 1000, y: 200, w: 3000, h: 600))
+    world.pass(anchors)
+    #expect(world.frame(s) == Frame(x: -184, y: 200, w: 3000, h: 600))
+    let moves = world.moves[s]
+    for _ in 1...3 {
+        world.clock += 1
+        world.pass(anchors)
+    }
+    #expect(world.moves[s] == moves)
+    #expect(world.frame(s) == Frame(x: -184, y: 200, w: 3000, h: 600))
+}
