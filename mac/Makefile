@@ -83,7 +83,7 @@ app: $(ICNS) $(INTENTS_PROTOCOLS)
 	cp $(ICNS) $(APP)/Contents/Resources/AppIcon.icns
 	find "$$PWD/Sources/Moorings" -name '*.swift' | sort > $(INTENTS_OUT)/sources.txt
 	scripts/intents_consts.sh "$$(swift build -c release $(ARCH_FLAGS) --show-bin-path)" $(INTENTS_ARCH) Moorings \
-		"$$PWD/Sources/Moorings" > $(INTENTS_OUT)/consts.txt
+		"$$PWD/Sources/Moorings" -- swift build -c release $(ARCH_FLAGS) $(INTENTS_FLAGS) > $(INTENTS_OUT)/consts.txt
 	xcrun appintentsmetadataprocessor --output $(APP)/Contents/Resources \
 		--toolchain-dir "$$(dirname "$$(dirname "$$(dirname "$$(xcrun --find swift)")")")" --module-name Moorings \
 		--sdk-root "$$(xcrun --sdk macosx --show-sdk-path)" \
