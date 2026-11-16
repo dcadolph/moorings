@@ -6,9 +6,10 @@ extension Scenarios {
     // proves that Control-Left and Right are claimed while a fill is in front: Cycle channel windows
     // fills the channel with the next window and focuses it, and backward brings the first back. A
     // window that does not fill in front, a pause and a Restore of the fill each let the keys go, and
-    // a resume with the fill in front claims them again. Each rule holds within 1 s. It cycles only
-    // between its own first two windows, so on a host with other windows in the channel none of
-    // them is filled.
+    // a resume with the fill in front claims them again. Each rule holds within 1 s. The walk takes
+    // every free window on the display by id, so on a host with windows of its own the next one may be
+    // the host's: the scenario expects the window the walk names, and judges its fill only when it is
+    // one of its own, since a host may cap its windows below the channel.
     static func channelCycle(_ s: Stage) {
         s.choose { _ in }
         let screens = s.host.screens()
@@ -47,20 +48,29 @@ extension Scenarios {
         }
         s.note("fill", fill)
         claimed(true, "a fill in front claims Control-Left and Right within 1 s")
+        let all = s.engine.platform.windows.scan(screens, full: true).windows
+        let order = s.engine.organizer.walk(all, screens)?.map(\.id) ?? []
+        guard let at = order.firstIndex(of: pads[0].id), order.count > 1 else {
+            s.fail("the walk takes the fill and another window", "walk \(order)")
+            return
+        }
+        let next = order[(at + 1) % order.count]
+        let own = pads.contains { $0.id == next }
         s.engine.actions.run("cycle-channel-windows")
         if !s.host.wait(
             until: s.host.now + 1,
             {
-                Contract.near(s.frame(pads[1].id), fill) && focused(s, screens) == pads[1].id
+                focused(s, screens) == next && (!own || Contract.near(s.frame(next), fill))
             })
         {
             s.fail(
-                "cycle channel windows fills the channel with the next window and focuses it within 1 s, 1 point",
-                "fill \(fill), second \(Contract.show(s.frame(pads[1].id))), "
+                "cycle channel windows focuses the next window of the walk within 1 s, and fills the channel "
+                    + "with it within 1 point when it is the scenario's own",
+                "fill \(fill), next \(next) \(Contract.show(s.frame(next))), "
                     + "focused \(String(describing: focused(s, screens)))"
             )
         }
-        s.note("second", s.frame(pads[1].id))
+        s.note(own ? "second" : "next, the host's", s.frame(next))
         s.engine.actions.run("cycle-channel-windows-backward")
         if !s.host.wait(until: s.host.now + 1, { focused(s, screens) == pads[0].id }) {
             s.fail(
