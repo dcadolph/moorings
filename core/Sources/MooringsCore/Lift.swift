@@ -167,8 +167,9 @@ extension Anchors {
 
     // moorPin places pinned window w at target, or releases it when the owner has moved it since
     // moorings last left it. A pin on the frame moorings last asked for is where moorings put it, even
-    // when the read-back caught it partway through its own animation.
-    func moorPin(_ w: WindowInfo, _ target: Frame, _ anchor: Edges) -> Move? {
+    // when the read-back caught it partway through its own animation. A released pin given a bound is
+    // kept off the far side of it, so a holder moved by hand never covers the other strip.
+    func moorPin(_ w: WindowInfo, _ target: Frame, _ anchor: Edges, bound: Frame? = nil) -> Move? {
         var last = placed[w.id]
         if let p = last,
             Actions.near(w.frame, p.target, tolerance: Self.tolerance)
@@ -185,8 +186,11 @@ extension Anchors {
             justReleased.append(w.id)
         }
         if released.contains(w.id) {
-            cacheZoom(w, w.frame, free: false)
-            return nil
+            guard let bound else {
+                cacheZoom(w, w.frame, free: false)
+                return nil
+            }
+            return fence(w, anchor.right ? .right : .left, bound)
         }
         let move = place(w, target, anchor)
         let at = move?.frame ?? w.frame
@@ -197,6 +201,21 @@ extension Anchors {
         }
         cacheZoom(w, at, free: false)
         return move
+    }
+
+    // fence moves released pin w on side back off the far side of bound, or returns nil when it is
+    // already clear. The edge facing the other side is the one kept when w will not shrink, so the
+    // floor it keeps grows away from the other strip and the next pass finds nothing to move.
+    func fence(_ w: WindowInfo, _ side: Side, _ bound: Frame) -> Move? {
+        let fenced = Geometry.fence(w.frame, side, bound)
+        let anchor = Edges(right: side == .left)
+        let want = fit(w.id, fenced, anchor)
+        if Actions.near(want, w.frame, tolerance: Self.tolerance) {
+            cacheZoom(w, w.frame, free: false)
+            return nil
+        }
+        cacheZoom(w, want, free: false)
+        return Move(id: w.id, frame: want, target: fenced, anchor: anchor)
     }
 
     // leaveFullScreen asks fullscreen window w to leave native fullscreen, once per pendingSeconds.

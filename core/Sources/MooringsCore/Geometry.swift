@@ -164,6 +164,22 @@ public enum Geometry {
         return Frame(x: f.x, y: f.y, w: r.right.x - f.x, h: f.h)
     }
 
+    // fence keeps f, a window on side, off the far side of bound. Only the edge facing the other side
+    // moves back to bound's edge, and f shrinks only when it is wider than bound. The top, the bottom
+    // and the outer edge are left where they are.
+    public static func fence(_ f: Frame, _ side: Side, _ bound: Frame) -> Frame {
+        var out = f
+        out.w = min(f.w, bound.w)
+        if side == .right {
+            guard f.x < bound.x else { return f }
+            out.x = bound.x
+            return out
+        }
+        guard f.x + f.w > bound.x + bound.w else { return f }
+        out.x = bound.x + bound.w - out.w
+        return out
+    }
+
     // clamp fits f inside ch, shrinking it only when it is larger than ch.
     public static func clamp(_ f: Frame, _ ch: Frame) -> Frame {
         let w = min(f.w, ch.w)

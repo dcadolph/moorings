@@ -109,7 +109,7 @@ area.
 - Anchor an app from the tray menu to Left top, Left bottom, Right top or Right bottom, and its
   window stays in that strip.
 - Any other window that lands on a strip goes back into the channel. A held window moved by hand
-  is released, and Ctrl+Alt+Backspace puts it back.
+  is released, kept out of the other side's strip, and Ctrl+Alt+Backspace puts it back.
 - Most of the Mac's default keymap on Ctrl+Alt: Ctrl+Alt+Left gives a window the channel's left
   half, and Ctrl+Alt+Enter lifts a held window over the channel.
 - On a keyboard layout with AltGr, such as German or Polish, AltGr still types its characters,
@@ -462,7 +462,8 @@ names the app and disables the presets that would squeeze it.
 Click an anchored window's green button, or use the Lift folder, to lift it over its strip and
 the channel at full height. Click again to lower it. Drag an anchored window away and Moorings
 lets it go, with a banner that says to click its green button or press Restore. The Re-moor entry
-and Re-moor now also bring it back.
+and Re-moor now also bring it back. A window let go this way can cover its own strip and the
+channel but not the other side's strip. Drag it over and it comes back to that strip's edge.
 
 ### The channel
 
