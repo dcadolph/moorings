@@ -449,6 +449,15 @@ the channel, with one message that says so. Widths and Adjust strips belong to t
 are hidden on other displays, and the widths you set there are kept for it. With nothing anchored,
 a normal display behaves like any other.
 
+An ultrawide split between two computers, often called picture by picture, shows your Mac only its
+share, and Moorings anchors on that share like any other display. Tie one workspace to the whole
+panel and one to the split, and each puts the windows back when the monitor switches. Some
+monitors keep the whole panel's mode after the switch, so pick the share's resolution once in
+System Settings > Displays. Half of a 3440 by 1440 panel is 1720 points wide, narrower than a
+16 inch MacBook Pro at its default 1728 points, so the anchors go to the laptop unless its lid is
+closed or it uses a larger text size. Picture in picture is not supported, since the Mac still
+sees the whole panel.
+
 Adjust strips, in either menu, a bindable shortcut action named adjust-strips, opens an editor
 over the ultrawide. Each inner strip edge has a drag bar, arrows and a typed percent field, and
 each strip's row line has up and down arrows and a field. Arrow keys step 1 percent and Shift

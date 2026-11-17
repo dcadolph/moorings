@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>How to use moorings</title>
-<meta name="description" content="Short guides for moorings: set up an ultrawide, record shortcuts, change the snap map, throw windows, save workspaces and move your settings.">
+<meta name="description" content="Short guides for moorings: set up an ultrawide, share it with another computer, record shortcuts, change the snap map, throw windows, save workspaces and move your settings.">
 <meta name="color-scheme" content="dark light">
 <link rel="icon" href="/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -28,6 +28,7 @@
 <ul class="toc cream">
   <li><a href="#accessibility">Allow Accessibility</a></li>
   <li><a href="#ultrawide">Set up your ultrawide</a></li>
+  <li><a href="#split">Share your ultrawide with another computer</a></li>
   <li><a href="#shortcuts">Set your shortcuts</a></li>
   <li><a href="#snapping">Change what a drag snaps to</a></li>
   <li><a href="#throw">Throw a window with a held key</a></li>
@@ -67,6 +68,20 @@
 <details><summary>How do I see an anchored app bigger for a moment?</summary><p>Click its green button. It lifts over the channel at full height, and a second click lowers it.</p></details>
 <details><summary>I opened a second window of an anchored app. Where did it go?</summary><p>Into the same slot, in front of the first. The app's row in Anchored apps says how many windows the slot holds. A half or a third on one of them places it inside the slot, and Restore gives it the whole slot back. Control-Option-Command-Down brings the next window in the slot forward, and Control-Option-Command-Up goes back. To keep the extra windows in the channel instead, turn off <b>A slot holds all of an app's windows</b> in Settings, Behavior.</p></details>
 <details><summary>How do I stop anchoring an app?</summary><p>Bring it to the front and choose Unanchor <i>app</i> from the menu, or pick Empty for its slot in Anchored apps. Its window stays where it is.</p></details>
+
+<h2 id="split">Share your ultrawide with another computer</h2>
+<p>Many ultrawides can show two computers side by side, a mode often called picture by picture. Your Mac then sees only its share of the panel, and Moorings anchors on that share like any other display.</p>
+<h3>Steps</h3>
+<ol>
+  <li>With the whole panel showing your Mac, arrange your windows. Open <b>Workspaces</b>, choose <b>Save workspace</b> and name it, then choose <b>Recall with these displays</b> under that name.</li>
+  <li>Turn on the split from the monitor's own menu. After a moment Moorings moves your anchored apps to the edges of your share.</li>
+  <li>Arrange your windows for the split, then save a second workspace and choose <b>Recall with these displays</b> for it too.</li>
+  <li>From then on, each time the split turns on or off, the workspace for that shape puts your windows back by itself. A change you made to anchors, widths or heights is not undone by the switch.</li>
+</ol>
+<h3>Questions</h3>
+<details><summary>My share looks stretched or shows the whole panel's size.</summary><p>Some monitors keep the whole panel's mode after the split. Open System Settings, then Displays, select the monitor and pick the resolution that matches your share, such as 2560 by 1440 on a 5120 by 1440 panel. This is needed once.</p></details>
+<details><summary>My anchored apps went to my laptop instead of the share.</summary><p>With no ultrawide attached, Moorings anchors on the widest display, measured in points. Half of a 3440 by 1440 panel is 1720 points wide, narrower than a 16 inch MacBook Pro at its default 1728 points. Close the laptop's lid, or choose a larger text size for the laptop in System Settings, Displays, so the share is the wider of the two.</p></details>
+<details><summary>Does picture in picture work?</summary><p>No. In picture in picture the other computer's picture sits over a corner of yours while your Mac still sees the whole panel, so Moorings cannot tell which part is covered.</p></details>
 
 <h2 id="shortcuts">Set your shortcuts</h2>
 <p>A full set of shortcuts works from the first launch, such as Control-Option-Left for the left half. The Window folder in the menu lists every action with its shortcut.</p>
