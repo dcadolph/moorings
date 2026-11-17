@@ -105,12 +105,20 @@ public final class WorkspaceKeeper {
         engine.save()
     }
 
-    // recall puts back the workspace saved as name and reports whether it existed. Apps it opens get
-    // their windows placed once they show. Other windows whose app is not running stay where they are,
-    // and a window whose display is gone lands on the main screen where it sat in the saved setup.
+    // recall puts back the workspace saved as name, its anchors, widths and heights with its windows,
+    // and reports whether it existed. Apps it opens get their windows placed once they show. Other
+    // windows whose app is not running stay where they are, and a window whose display is gone lands on
+    // the main screen where it sat in the saved setup.
     @discardableResult
     public func recall(_ name: String) -> Bool {
-        guard let (missed, opened) = place(name) else { return false }
+        recall(name, choices: true)
+    }
+
+    // recall puts back the workspace saved as name, and its anchors, widths and heights only when
+    // choices is true, and reports whether it existed.
+    @discardableResult
+    private func recall(_ name: String, choices: Bool) -> Bool {
+        guard let (missed, opened) = place(name, choices: choices) else { return false }
         var text = missed > 0 ? "Recalled. \(missed) windows had no running app or display." : "Recalled."
         if opened > 0 {
             text += opened == 1 ? " Opening 1 app." : " Opening \(opened) apps."
@@ -119,22 +127,25 @@ public final class WorkspaceKeeper {
         return true
     }
 
-    // place puts back the workspace saved as name without a banner and returns how many of its
-    // windows had no running app or display and how many it waits for from apps it opened, or nil when
-    // paused or no workspace has that name. The counts are taken before the save's pass, which may
-    // already place an opened app's window.
-    private func place(_ name: String) -> (missed: Int, opened: Int)? {
+    // place puts back the workspace saved as name without a banner, and its anchors, widths and
+    // heights only when choices is true, and returns how many of its windows had no running app or
+    // display and how many it waits for from apps it opened, or nil when paused or no workspace has
+    // that name. The counts are taken before the save's pass, which may already place an opened app's
+    // window.
+    private func place(_ name: String, choices: Bool) -> (missed: Int, opened: Int)? {
         guard !anchors.choices.paused else { return nil }
         guard let ws = anchors.choices.workspaces[name] else {
             log("no workspace is named \(name)")
             return nil
         }
-        anchors.choices.slots = ws.slots
-        if let w = ws.widths, Layout.validSplit(w) {
-            anchors.choices.widths = w
-        }
-        if let h = ws.heights, Layout.validTop(h.left), Layout.validTop(h.right) {
-            anchors.choices.heights = h
+        if choices {
+            anchors.choices.slots = ws.slots
+            if let w = ws.widths, Layout.validSplit(w) {
+                anchors.choices.widths = w
+            }
+            if let h = ws.heights, Layout.validTop(h.left), Layout.validTop(h.right) {
+                anchors.choices.heights = h
+            }
         }
         let screens = platform.screens.current()
         let live = freeWindows(screens)
@@ -214,17 +225,19 @@ public final class WorkspaceKeeper {
     }
 
     // recallForScreens recalls the workspace tied to the display set now plugged in, then each
-    // workspace marked to come back on any display change, in name order.
+    // workspace marked to come back on any display change, in name order. It moves windows only and
+    // leaves the anchors, widths and heights as they are, so a display that comes and goes, such as
+    // a monitor split between two computers, never undoes what was chosen in the other mode.
     private func recallForScreens() {
         let now = key
         guard now != setup else { return }
         setup = now
         let tied = anchors.choices.workspaces.keys.sorted().first { anchors.choices.workspaces[$0]?.setup == now }
         if let tied {
-            recall(tied)
+            recall(tied, choices: false)
         }
         for ws in Workspaces.recalling(anchors.choices.workspaces) where ws.name != tied {
-            recall(ws.name)
+            recall(ws.name, choices: false)
         }
     }
 
@@ -312,7 +325,7 @@ public final class WorkspaceKeeper {
         var missing: [String] = []
         var missed = 0
         for ws in profile.workspaces where !paused {
-            if let (n, _) = place(ws) {
+            if let (n, _) = place(ws, choices: true) {
                 recalled.append(ws)
                 missed += n
             } else {
