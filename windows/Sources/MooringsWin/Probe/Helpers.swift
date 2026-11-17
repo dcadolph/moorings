@@ -221,6 +221,22 @@ struct Monitor {
             device: device)
     }
 
+    // describe returns the name and device id Windows lists for the monitor on device, such as
+    // \\.\DISPLAY1, both empty when it lists none.
+    static func describe(_ device: String) -> (name: String, id: String) {
+        var info = DISPLAY_DEVICEW()
+        info.cb = DWORD(MemoryLayout<DISPLAY_DEVICEW>.size)
+        guard EnumDisplayDevicesW(wide(device), 0, &info, 0) else { return ("", "") }
+        return (text(info.DeviceString), text(info.DeviceID))
+    }
+
+    // text reads a fixed WCHAR array up to its first zero.
+    static func text<T>(_ chars: T) -> String {
+        withUnsafeBytes(of: chars) { raw in
+            String(decoding: raw.bindMemory(to: WCHAR.self).prefix { $0 != 0 }, as: UTF16.self)
+        }
+    }
+
     // all returns every monitor in EnumDisplayMonitors order, or the fake one alone when set.
     static func all() -> [Monitor] {
         if let fake {

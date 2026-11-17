@@ -323,12 +323,24 @@ public final class Engine {
             passes.launching = t + Pace.launchSeconds
             passes.wake()
         case .screensChanged:
+            noteScreens()
             anchors.screensChanged()
             workspaces.screensChanged()
             passes.wake()
         case .appQuit, .wake:
             passes.wake()
         }
+    }
+
+    // noteScreens logs one line for a screen change: the clock, the host, and each display's maker,
+    // model, frame in points, size in pixels, and scale. Two lines' clocks give how long a display
+    // was gone, and their facts show which display came back. It changes nothing.
+    public func noteScreens() {
+        let screens = platform.screens.current()
+        let facts = platform.screens.facts(screens)
+        let host = screens.host.map { "host \($0) \(screens.isUltrawide ? "ultrawide" : "normal")" } ?? "no host"
+        let head = "displays changed at \(DisplayFacts.number(platform.clock.now)) s: \(facts.count) attached, \(host)"
+        platform.log.note(.anchors, ([head] + facts.enumerated().map { $1.line($0) }).joined(separator: "; "))
     }
 
     // bind registers every shortcut in effect that this platform supports, logs the problems with

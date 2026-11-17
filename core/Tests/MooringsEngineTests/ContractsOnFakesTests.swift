@@ -287,6 +287,35 @@ final class DroppingEvents: EventSource {
     #expect(failures.isEmpty, "\(failures)")
 }
 
+// BlindScreens is a ScreenSource that describes no display, for the screen contract's negative
+// control.
+final class BlindScreens: ScreenSource {
+    // inner gives the displays.
+    let inner = FakeScreens.ultrawide()
+
+    // current returns the inner displays.
+    func current() -> Screens {
+        inner.current()
+    }
+
+    // quirks returns the inner quirks.
+    func quirks(_ screens: Screens) -> ScreenQuirks {
+        inner.quirks(screens)
+    }
+
+    // facts describes nothing.
+    func facts(_ screens: Screens) -> [DisplayFacts] {
+        []
+    }
+}
+
+// A source that describes no display breaks that rule, by name.
+@Test func testScreenSourceContractCatchesMissingFacts() {
+    let (_, _, host) = fakeHost()
+    let failures = ScreenSourceContract.run(BlindScreens(), host: host)
+    #expect(failures.map(\.rule) == ["facts describes every screen"])
+}
+
 // The fake store keeps every ChoicesStore rule, with the host rewriting it from outside.
 @Test func testChoicesStoreContractOnFake() {
     let (_, _, host) = fakeHost()

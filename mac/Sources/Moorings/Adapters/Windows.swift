@@ -1033,6 +1033,29 @@ final class MacScreens: @preconcurrency ScreenSource {
         return q
     }
 
+    // facts reads each display's name, maker and model numbers, pixels, and scale from the NSScreen
+    // whose frame it is. A display gone since screens was read keeps its frame alone.
+    func facts(_ screens: Screens) -> [DisplayFacts] {
+        let all = NSScreen.screens
+        let primary = all.first?.frame.height ?? 0
+        return screens.full.map { full in
+            guard
+                let s = all.first(where: {
+                    Frame(x: $0.frame.minX, y: primary - $0.frame.maxY, w: $0.frame.width, h: $0.frame.height) == full
+                })
+            else { return DisplayFacts(points: full, pixelWidth: full.w, pixelHeight: full.h, scale: 1) }
+            let scale = s.backingScaleFactor
+            let number = s.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+            let id = number.map { CGDirectDisplayID($0.uint32Value) }
+            let mode = id.flatMap { CGDisplayCopyDisplayMode($0) }
+            return DisplayFacts(
+                name: s.localizedName, vendor: id.map { String(CGDisplayVendorNumber($0)) } ?? "",
+                model: id.map { String(CGDisplayModelNumber($0)) } ?? "", points: full,
+                pixelWidth: mode.map { Double($0.pixelWidth) } ?? full.w * scale,
+                pixelHeight: mode.map { Double($0.pixelHeight) } ?? full.h * scale, scale: scale)
+        }
+    }
+
     // system reads the notched screens, the screens showing the Stage Manager strip and its side.
     private static func system(_ screens: Screens) -> ScreenQuirks {
         let right = Self.stageOnRight()
