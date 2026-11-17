@@ -212,3 +212,110 @@ final class KeeperRig {
     rig.keeper.tie("desk")
     #expect(rig.anchors.choices.workspaces["desk"]?.setup == Workspaces.signature(rig.screens.screens.full))
 }
+
+// SplitRig drives a keeper through the displays a monitor split into two halves shows one computer:
+// the whole panel, one 1920x1440 half of it shared with another computer (a 3840 wide panel split
+// evenly, wide enough for both sides to hold), and the laptop alone while the panel goes dark
+// between modes. A mail window waits for the anchor the edit adds.
+final class SplitRig {
+    // rig is the keeper on fakes, starting on the whole panel.
+    let rig = KeeperRig()
+    // mail is the window the full mode edit anchors on the right.
+    let mail: WindowID
+    // full is the whole panel.
+    let full = FakeScreens.ultrawide().screens
+    // share is the half of the panel this computer keeps in the split.
+    let share = Screens(
+        full: [Frame(x: 0, y: 0, w: 1920, h: 1440)], usable: [Frame(x: 0, y: 25, w: 1920, h: 1415)],
+        host: 0, isUltrawide: false)
+    // laptop is the laptop display alone.
+    let laptop = FakeScreens.laptop().screens
+
+    // init adds the mail window behind the pads.
+    init() {
+        mail = rig.windows.add(
+            bundle: "com.example.mail", frame: Frame(x: 600, y: 200, w: 600, h: 400), title: "inbox")
+    }
+
+    // show plugs in screens the way the platform reports it, then waits out the settle and the passes
+    // it wakes, so a tied workspace comes back and the anchors hold on the new displays.
+    func show(_ screens: Screens) {
+        rig.screens.screens = screens
+        rig.engine.handle(.screensChanged)
+        rig.clock.advance(by: WorkspaceKeeper.settleSeconds)
+        rig.clock.advance(by: Pace.settleSeconds + 1)
+    }
+
+    // setUp saves and ties a workspace to each of the three display sets: chosen widths and an anchor
+    // on the whole panel, the windows as they rest on the share, and the laptop's own anchor.
+    func setUp() {
+        rig.anchors.choices.widths = Widths(left: 30, right: 25)
+        rig.anchors.choices.slots[.leftTop] = "com.example.pad"
+        rig.keeper.saveWorkspace("full")
+        rig.keeper.tie("full")
+        show(share)
+        rig.keeper.saveWorkspace("share")
+        rig.keeper.tie("share")
+        show(laptop)
+        rig.anchors.choices.slots = [.rightTop: "com.example.pad"]
+        rig.keeper.saveWorkspace("laptop")
+        rig.keeper.tie("laptop")
+        rig.anchors.choices.slots = [.leftTop: "com.example.pad"]
+        show(full)
+    }
+
+    // edit changes the widths and adds an anchor the way the owner would in full mode.
+    func edit() {
+        rig.anchors.choices.widths = Widths(left: 35, right: 30)
+        rig.anchors.choices.slots[.rightTop] = "com.example.mail"
+    }
+
+    // expectEdits checks the full mode edit and its new anchor are still the choices.
+    func expectEdits(_ comment: Comment) {
+        #expect(rig.anchors.choices.widths == Widths(left: 35, right: 30), comment)
+        #expect(rig.anchors.choices.slots[.rightTop] == "com.example.mail", comment)
+        #expect(rig.anchors.choices.slots[.leftTop] == "com.example.pad", comment)
+    }
+}
+
+// Test 9: A workspace a display change brings back moves its windows and leaves the widths and
+// anchors chosen in the other mode alone, so toggling a split monitor twice keeps a full mode edit
+// while the share holds the edited anchors in thirds.
+@Test func testKeeperDisplayChangeKeepsEdits() {
+    let s = SplitRig()
+    s.setUp()
+    s.edit()
+    s.show(s.share)
+    let third = 1920 * Layout.hostPair.right / 100
+    let right = s.rig.frame(s.mail)
+    let left = s.rig.pads.map(s.rig.frame)
+    #expect(abs(right.w - third) < 1 && abs(right.x + right.w - 1920) < 1, "the share shows thirds: mail \(right)")
+    #expect(left.contains { abs($0.w - third) < 1 && $0.x < 1 }, "the share shows thirds: pads \(left)")
+    s.show(s.full)
+    s.show(s.share)
+    s.show(s.full)
+    s.expectEdits("two toggles")
+}
+
+// Test 10: A blackout longer than the settle, with only the laptop showing between modes, brings
+// back the laptop's workspace and still leaves the full mode edit alone.
+@Test func testKeeperDisplayGapKeepsEdits() {
+    let s = SplitRig()
+    s.setUp()
+    s.edit()
+    s.show(s.laptop)
+    s.show(s.share)
+    s.show(s.laptop)
+    s.show(s.full)
+    s.expectEdits("laptop only between modes")
+}
+
+// Test 11: Recall by hand still restores the widths and anchors the workspace saved.
+@Test func testKeeperManualRecallRestoresChoices() {
+    let s = SplitRig()
+    s.setUp()
+    s.edit()
+    #expect(s.rig.keeper.recall("full"))
+    #expect(s.rig.anchors.choices.widths == Widths(left: 30, right: 25))
+    #expect(s.rig.anchors.choices.slots == [.leftTop: "com.example.pad"])
+}
