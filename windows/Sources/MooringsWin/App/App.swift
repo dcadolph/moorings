@@ -87,10 +87,12 @@ final class App {
         "\(screens.hostFrame.map(pixels) ?? "none") \(screens.isUltrawide) \(screens.hostScale)"
     }
 
-    // displaysChanged tells the workspaces, which recall the one tied to a new set of displays once
-    // they settle, then places everything again when the host changed, and reports whether it did.
+    // displaysChanged logs the displays, tells the workspaces, which recall the one tied to a new set
+    // of displays once they settle, then places everything again when the host changed, and reports
+    // whether it did.
     @discardableResult
     func displaysChanged() -> Bool {
+        engine.noteScreens()
         engine.workspaces.screensChanged()
         let host = Self.hostKey(Screens.current(minAspect: minAspect))
         guard host != lastHost else { return false }

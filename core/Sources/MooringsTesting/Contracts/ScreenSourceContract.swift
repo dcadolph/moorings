@@ -1,8 +1,8 @@
 import MooringsCore
 import MooringsEngine
 
-// ScreenSourceContract checks that a ScreenSource lists at least one display with sane frames and gives
-// the same quirks and display set key for the same screens.
+// ScreenSourceContract checks that a ScreenSource lists at least one display with sane frames, gives
+// the same quirks and display set key for the same screens, and describes every display it lists.
 public enum ScreenSourceContract {
     // run checks subject and returns every rule it broke.
     public static func run(_ subject: ScreenSource, host: ContractHost) -> [ContractFailure] {
@@ -43,6 +43,13 @@ public enum ScreenSourceContract {
         let keyB = subject.displaySetKey(screens)
         if keyA != keyB {
             fail("displaySetKey gives the same key for the same screens", "first \(keyA) second \(keyB)")
+        }
+        let facts = subject.facts(screens)
+        if facts.count != screens.full.count {
+            fail("facts describes every screen", "screens \(screens.full.count) facts \(facts.count)")
+        }
+        for (i, f) in facts.enumerated() where f.pixelWidth <= 0 || f.pixelHeight <= 0 || f.scale <= 0 {
+            fail("every display has pixels and a scale", f.line(i))
         }
         return out
     }

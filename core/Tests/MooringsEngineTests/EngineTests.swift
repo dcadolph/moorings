@@ -626,3 +626,32 @@ private func fillRig(
     #expect(rig.engine.channelCycle.claimed)
     #expect(keys.claimed == ChannelCycle.keys && keys.unclaims == 0)
 }
+
+// A screen change writes one anchors line naming the clock, the host, and every display's frame, so
+// a log shows how long a display was gone. A window event writes none.
+@Test func testEngineScreensChangedLogsDisplays() {
+    let rig = EngineRig(features: .all)
+    rig.screens.screens = Screens(
+        full: [Frame(x: 0, y: 0, w: 1512, h: 982), Frame(x: 1512, y: 0, w: 3440, h: 1440)],
+        usable: [Frame(x: 0, y: 38, w: 1512, h: 944), Frame(x: 1512, y: 25, w: 3440, h: 1415)])
+    let anchors = { rig.log.lines.filter { $0.category == .anchors }.map(\.text) }
+    rig.engine.handle(.moved(rig.pad))
+    #expect(anchors().isEmpty, "\(anchors())")
+    rig.engine.handle(.screensChanged)
+    #expect(
+        anchors() == [
+            "displays changed at 100 s: 2 attached, host 1 ultrawide;"
+                + " 0 vendor - model - points 0,0 1512x982 pixels 1512x982 scale 1;"
+                + " 1 vendor - model - points 1512,0 3440x1440 pixels 3440x1440 scale 1"
+        ], "\(anchors())")
+}
+
+// A Windows monitor device id gives its maker and product codes, and an id of another shape gives
+// neither.
+@Test func testDisplayFactsReadsPnpIds() {
+    let dell = DisplayFacts.pnp("MONITOR\\DEL4127\\{4d36e96e-e325-11ce-bfc1-08002be10318}\\0004")
+    #expect(dell.vendor == "DEL" && dell.model == "4127")
+    let other = DisplayFacts.pnp("DISPLAY\\Default_Monitor\\1")
+    #expect(other.vendor.isEmpty && other.model.isEmpty)
+    #expect(DisplayFacts.pnp("").vendor.isEmpty)
+}

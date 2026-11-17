@@ -358,4 +358,22 @@ final class WinScreens: ScreenSource {
             "\(monitors.first { $0.full == f }?.device ?? "")@\(Workspaces.signature([f]))"
         }.sorted().joined(separator: " ")
     }
+
+    // facts names each monitor from the device Windows lists for it and gives its frame in pixels and,
+    // divided by its scale, in points. A frame no attached monitor has keeps its frame alone.
+    func facts(_ screens: Screens) -> [DisplayFacts] {
+        let monitors = Monitor.all()
+        return screens.full.map { f in
+            guard let m = monitors.first(where: { $0.full == f }) else {
+                return DisplayFacts(points: f, pixelWidth: f.w, pixelHeight: f.h, scale: 1)
+            }
+            let device = Monitor.describe(m.device)
+            let codes = DisplayFacts.pnp(device.id)
+            let s = m.scale
+            return DisplayFacts(
+                name: device.name, vendor: codes.vendor, model: codes.model,
+                points: Frame(x: f.x / s, y: f.y / s, w: f.w / s, h: f.h / s), pixelWidth: f.w, pixelHeight: f.h,
+                scale: s)
+        }
+    }
 }
