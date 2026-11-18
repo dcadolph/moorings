@@ -306,23 +306,72 @@ func testSlotFrames(test: SlotCase) {
     }
 }
 
-// Test 11: A side whose anchored app has no window joins the channel, and the app's window
-// takes the strip back when it shows, as anchors_test.lua tests 56 and 184.
-@Test func testEmptySideJoinsChannel() {
+// Test 11: On an ultrawide a side whose anchored app has no window keeps its strip, so the
+// channel is the same before and after the app's window shows.
+@Test func testClosedSideKeepsStrip() {
     let anchors = anchored()
     var world = TestWorld()
     world.add(slack, leftFull)
     world.pass(anchors)
     let ch = anchors.channel(wide)
-    #expect(ch.x == 512 && ch.x + ch.w == 5120)
-    #expect(anchors.emptySides() == [.right])
+    #expect(ch.x == 512 && ch.x + ch.w == 2816)
+    #expect(anchors.emptySides().isEmpty)
     world.add(iterm, Frame(x: 1000, y: 200, w: 800, h: 600))
     world.pass(anchors)
-    #expect(anchors.channel(wide).w == 2304)
+    #expect(anchors.channel(wide) == ch)
 }
 
-// Test 12: An app moorings just opened keeps its strip for 30 seconds while its window is on the
-// way, then gives it to the channel.
+// testQuitLeavesStripEmpty checks that when an anchored app quits on an ultrawide its strip stays
+// empty: the channel keeps its edges and no free window moves, so nothing jumps.
+@Test func testQuitLeavesStripEmpty() {
+    let anchors = anchored()
+    var world = TestWorld()
+    world.add(slack, leftFull)
+    let term = world.add(iterm, rightFull)
+    let fill = world.add("com.apple.TextEdit", Frame(x: 512, y: 25, w: 2304, h: 1415))
+    let edge = world.add("com.apple.Safari", Frame(x: 1816, y: 100, w: 1000, h: 800))
+    world.pass(anchors)
+    let ch = anchors.channel(wide)
+    #expect(world.moves.isEmpty)
+    world.windows.removeAll { $0.id == term }
+    world.clock += 1
+    world.pass(anchors)
+    world.clock += 1
+    world.pass(anchors)
+    #expect(anchors.channel(wide) == ch)
+    #expect(anchors.emptySides().isEmpty)
+    #expect(world.moves[fill] == nil && world.moves[edge] == nil)
+}
+
+// testStrayIntoClosedStrip checks that a free window the owner moves into a closed app's strip
+// stays there, and that the app's window takes the strip back when it shows, sending the free
+// window into the channel.
+@Test func testStrayIntoClosedStrip() {
+    let anchors = anchored()
+    var world = TestWorld()
+    world.add(slack, leftFull)
+    let term = world.add(iterm, rightFull)
+    let stray = world.add("com.apple.Safari", Frame(x: 1000, y: 100, w: 1000, h: 800))
+    world.pass(anchors)
+    world.windows.removeAll { $0.id == term }
+    world.clock += 1
+    world.pass(anchors)
+    let inStrip = Frame(x: 3200, y: 100, w: 1000, h: 800)
+    world.set(stray, inStrip)
+    world.clock += 1
+    world.pass(anchors)
+    #expect(world.frame(stray) == inStrip)
+    #expect(world.moves[stray] == nil)
+    world.windows.append(
+        WindowInfo(id: WindowID(99), bundle: iterm, frame: rightFull, onHost: true, isMain: true, isFilePanel: false))
+    world.clock += 1
+    world.pass(anchors)
+    #expect(inChannel(anchors, world.frame(stray)))
+    #expect(world.frame(WindowID(99)) == rightFull)
+}
+
+// Test 12: An app moorings just opened keeps its strip on an ultrawide while its window is on the
+// way, and after, since an anchored app's strip never goes to the channel there.
 @Test func testOpeningKeepsSpace() {
     let anchors = Anchors()
     var world = TestWorld()
@@ -332,11 +381,11 @@ func testSlotFrames(test: SlotCase) {
     #expect(anchors.channel(wide).w == 2816)
     world.clock += 31
     world.pass(anchors)
-    #expect(anchors.channel(wide).w == 5120)
+    #expect(anchors.channel(wide).w == 2816)
 }
 
-// Test 13: A launch keeps every anchored app's strip through the first pass and lists the apps
-// with no window to open, as anchors_test.lua test 187.
+// Test 13: A launch keeps every anchored app's strip and lists the apps with no window to open, as
+// anchors_test.lua test 187. On an ultrawide the strip stays after the wait too.
 @Test func testLaunchOpensMissing() {
     let anchors = anchored()
     var world = TestWorld()
@@ -347,7 +396,7 @@ func testSlotFrames(test: SlotCase) {
     #expect(anchors.channel(wide).x + anchors.channel(wide).w == 2816)
     world.clock += 31
     world.pass(anchors)
-    #expect(anchors.channel(wide).x + anchors.channel(wide).w == 5120)
+    #expect(anchors.channel(wide).x + anchors.channel(wide).w == 2816)
 }
 
 // Test 14: Assigning an app that sits in another slot moves it, emptying a slot frees its app,
@@ -600,7 +649,8 @@ func testCastReason(test: CastReasonCase) {
     }
 }
 
-// testSplitSides checks that only a side with two anchored apps showing splits into rows.
+// testSplitSides checks that a side with two anchored apps splits into rows on an ultrawide whether
+// or not both show, so a row does not jump when its app quits or comes back.
 @Test func testSplitSides() {
     let anchors = Anchors(
         choices: Choices(slots: [.leftTop: slack, .leftBottom: "com.apple.finder", .rightTop: iterm]))
@@ -608,7 +658,7 @@ func testCastReason(test: CastReasonCase) {
     world.add(slack, leftFull)
     world.add(iterm, rightFull)
     world.pass(anchors)
-    #expect(anchors.splitSides().isEmpty)
+    #expect(anchors.splitSides() == [.left])
     world.add("com.apple.finder", Frame(x: 1000, y: 300, w: 900, h: 400))
     world.pass(anchors)
     #expect(anchors.splitSides() == [.left])
@@ -984,6 +1034,21 @@ func normalWorld(_ screen: Frame) -> TestWorld {
     world.pass(anchors)
     #expect(anchors.justWaiting.isEmpty)
     #expect(anchors.waitingSide() == .right)
+}
+
+// testNormalHostClosedSideJoinsChannel checks that on a normal display wide enough for both sides a
+// side whose anchored app has no window still gives its strip to the channel, and takes it back
+// when the app's window shows.
+@Test func testNormalHostClosedSideJoinsChannel() {
+    let laptop = Frame(x: 0, y: 0, w: 2880, h: 1872)
+    let anchors = anchored()
+    var world = normalWorld(laptop)
+    world.add(slack, Frame(x: 600, y: 200, w: 500, h: 400))
+    world.pass(anchors)
+    #expect(anchors.emptySides() == [.right])
+    world.add(iterm, Frame(x: 900, y: 200, w: 500, h: 400))
+    world.pass(anchors)
+    #expect(anchors.emptySides().isEmpty)
 }
 
 // testNormalHostWaitsInPoints checks that the fit reads points, not frame units: a 2880 pixel laptop

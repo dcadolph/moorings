@@ -101,7 +101,9 @@ extension Anchors {
         floors[id] = fl
     }
 
-    // measure records the widest floor among the pinned windows on each side.
+    // measure records the widest floor among the pinned windows on each side. On an ultrawide a side
+    // keeps the floor it had while the app that set it is still anchored there with no window, so
+    // its strip does not shrink when the app quits.
     func measure(_ windows: [WindowInfo], _ pins: [Pin]) {
         var mins: [Side: Double] = [:]
         var by: [Side: String] = [:]
@@ -111,6 +113,14 @@ extension Anchors {
             else { continue }
             mins[pin.slot.side] = fl.w
             by[pin.slot.side] = w.bundle
+        }
+        for side in [Side.left, .right] where hostIsUltrawide && mins[side] == nil {
+            guard let bundle = minBy[side], let points = minPoints[side],
+                pins.contains(where: { $0.bundle == bundle && $0.slot.side == side }),
+                !windows.contains(where: { $0.bundle == bundle })
+            else { continue }
+            mins[side] = points
+            by[side] = bundle
         }
         minPoints = mins
         minBy = by

@@ -156,6 +156,8 @@ each part.
 - An app with a minimum width keeps it, and its strip grows to fit.
 - Anchored apps that are not running open in the background at launch.
 - A side with nothing anchored gives its space to the channel.
+- On an ultrawide, an anchored app that quits leaves its strip empty, so nothing else moves. A
+  window you drag there stays, and the app takes the strip back when it opens again.
 
 ## The channel
 
