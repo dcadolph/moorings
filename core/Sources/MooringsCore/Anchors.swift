@@ -658,6 +658,45 @@ public final class Anchors {
         return now - started <= Self.openSeconds
     }
 
+    // keepsStrip reports whether bundle's pin keeps its strip in the layout. On an ultrawide every pin
+    // does, open or not, so an app that quits leaves its strip empty and nothing in the channel moves
+    // when it quits or comes back. On a normal display a pin keeps it only while holdsSpace does,
+    // since a strip there is a large share of the screen.
+    func keepsStrip(_ bundle: String) -> Bool {
+        hostIsUltrawide || holdsSpace(bundle)
+    }
+
+    // closedSides returns the sides of an ultrawide whose pins all have no window, so their strips
+    // sit empty. A free window the owner moves there is left alone.
+    func closedSides(_ pins: [Pin]) -> [Side] {
+        guard hostIsUltrawide else { return [] }
+        return [Side.left, .right].filter { side in
+            let on = pins.filter { $0.slot.side == side }
+            return !on.isEmpty && !on.contains { holdsSpace($0.bundle) }
+        }
+    }
+
+    // room returns channel ch on screen widened over the closed sides, where free windows may sit
+    // but Moorings never moves one.
+    static func room(_ ch: Frame, _ screen: Frame, closed: [Side]) -> Frame {
+        var r = ch
+        if closed.contains(.left) {
+            r.w += r.x - screen.x
+            r.x = screen.x
+        }
+        if closed.contains(.right) {
+            r.w = screen.x + screen.w - r.x
+        }
+        return r
+    }
+
+    // strayed reports whether frame f sits in room but outside channel ch, so the owner moved it into
+    // an empty strip and it stays there.
+    static func strayed(_ f: Frame, _ ch: Frame, _ room: Frame, open: Bool) -> Bool {
+        room != ch && Actions.near(keep(f, room, open: open), f, tolerance: tolerance)
+            && !Actions.near(keep(f, ch, open: open), f, tolerance: tolerance)
+    }
+
     // stage returns the display moorings lays out: the host when it is an ultrawide or an app is
     // anchored, else nil, so a normal display with nothing anchored behaves like any other display.
     public func stage(_ screens: Screens) -> Int? {
@@ -682,13 +721,13 @@ public final class Anchors {
     // emptySides returns the sides with no anchored app keeping its strip, which the channel takes.
     // A waiting side is empty.
     public func emptySides() -> [Side] {
-        let held = Set(activePins().filter { holdsSpace($0.bundle) }.map(\.slot.side))
+        let held = Set(activePins().filter { keepsStrip($0.bundle) }.map(\.slot.side))
         return [Side.left, .right].filter { !held.contains($0) }
     }
 
     // splitSides returns the sides where two anchored apps keep their strip, so each takes a row.
     public func splitSides() -> [Side] {
-        let held = activePins().filter { holdsSpace($0.bundle) }.map(\.slot.side)
+        let held = activePins().filter { keepsStrip($0.bundle) }.map(\.slot.side)
         return [Side.left, .right].filter { side in held.filter { $0 == side }.count > 1 }
     }
 
@@ -1047,7 +1086,7 @@ public final class Anchors {
         lastWaiting = waiting
         let pins = all.filter { $0.slot.side != waiting }
         held = held.filter { id in pins.contains { $0.bundle == id.value } }
-        let rows = rows(pins.filter { holdsSpace($0.bundle) })
+        let rows = rows(pins.filter { keepsStrip($0.bundle) })
         for w in scene.windows {
             doubt(w)
         }
@@ -1055,6 +1094,7 @@ public final class Anchors {
         let use = inUse(screen)
         let h = heights
         let ch = Geometry.regions(screen, use.left, use.right).channel
+        let room = Self.room(ch, screen, closed: closedSides(pins))
         let old = lastChannel
         lastChannel = ch
         var moves: [Move] = []
@@ -1112,6 +1152,11 @@ public final class Anchors {
                     clamped[w.id] = nil
                 } else if castOff.contains(w.id) {
                     // A cast-off window loses its clamped width, so it never grows back to it later.
+                    clamped[w.id] = nil
+                    cacheZoom(w, w.frame, free: true)
+                } else if !(w.id == scene.focused && Self.spans(w.frame, ch)),
+                    Self.strayed(w.frame, ch, room, open: hung.contains(w.id))
+                {
                     clamped[w.id] = nil
                     cacheZoom(w, w.frame, free: true)
                 } else if let move = settle(w, ch, zoomed: w.id == scene.focused && Self.spans(w.frame, ch), old: old) {

@@ -442,10 +442,15 @@ full height. A side with nothing anchored gives its width to the channel. Widths
 the strip widths and the split between rows, with presets. Anchored apps that are not running
 open in the background at launch.
 
+When an anchored app quits, its strip stays empty and the channel keeps its width, so no other
+window moves. A window you drag into the empty strip stays there. When the app opens again it
+takes its strip back, and a window in the strip moves into the channel.
+
 With no ultrawide attached, Moorings anchors on the widest display instead, the main one on a tie.
 One anchored side takes half of it. Both sides take a third each on a display at least 1920 points
 wide. On a narrower one, such as a laptop, the left side holds and the right side's apps stay in
-the channel, with one message that says so. Widths and Adjust strips belong to the ultrawide and
+the channel, with one message that says so. On a display that is not an ultrawide, a side whose
+anchored apps are all closed gives its width to the channel until one opens. Widths and Adjust strips belong to the ultrawide and
 are hidden on other displays, and the widths you set there are kept for it. With nothing anchored,
 a normal display behaves like any other.
 
