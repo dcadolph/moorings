@@ -83,8 +83,9 @@ public final class Tiler {
     // pass lays out list, the windows on screen front-most first, after a moor pass. Each window gets
     // a frame only when its frame in the layout changed, so an app that keeps its own size is left
     // alone. A window found off both its frame and where a pass last read it floats when a press held
-    // it and the button came up after its frame was given, or when an action moved it since. It does
-    // nothing while tiling is off, while paused, or while the mouse button is down.
+    // it and the button came up after its frame was given, or when an action moved it since, and the
+    // rest of its screen closes up in the same pass. It does nothing while tiling is off, while
+    // paused, or while the mouse button is down.
     public func pass(_ list: [WindowInfo], screens: Screens, mouseHeld: Bool) {
         let tiling = anchors.choices.tiling
         guard tiling.mode != .off, !anchors.choices.paused, !mouseHeld else { return }
@@ -101,28 +102,18 @@ public final class Tiler {
         }
         let byID = Dictionary(free.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         for i in screens.full.indices {
-            let ids = order.filter { byID[$0].flatMap { screens.index($0.frame) } == i }
-            let frames = Tiling.layout(
-                tiling.mode, organizer.area(screens, i), ids.count, ratio: tiling.ratio,
-                gap: anchors.choices.gapPx)
+            let area = organizer.area(screens, i)
+            let onScreen = { self.order.filter { byID[$0].flatMap { screens.index($0.frame) } == i } }
+            var ids = onScreen()
+            var frames = Tiling.layout(tiling.mode, area, ids.count, ratio: tiling.ratio, gap: anchors.choices.gapPx)
+            if float(zip(ids, frames), byID) {
+                ids = onScreen()
+                frames = Tiling.layout(tiling.mode, area, ids.count, ratio: tiling.ratio, gap: anchors.choices.gapPx)
+            }
             for (id, target) in zip(ids, frames) {
                 guard let w = byID[id] else { continue }
                 if let a = assigned[id], Actions.near(a.frame, target, tolerance: Actions.tolerance) {
-                    let off =
-                        !Actions.near(w.frame, a.frame, tolerance: Actions.tolerance)
-                        && !Actions.near(w.frame, a.seen, tolerance: Actions.tolerance)
-                    let hand = held.contains(id) && released > a.at
-                    let action = acted[id].map { $0 > a.at } ?? false
-                    if off, hand || action {
-                        floated.insert(id)
-                        order.removeAll { $0 == id }
-                        assigned[id] = nil
-                        acted[id] = nil
-                        let how = hand ? "by hand" : "by an action"
-                        log("window \(id) moved \(how): floating until a mode is chosen again")
-                    } else {
-                        assigned[id]?.seen = w.frame
-                    }
+                    assigned[id]?.seen = w.frame
                     continue
                 }
                 if !Actions.near(w.frame, target, tolerance: Actions.tolerance) {
@@ -132,6 +123,31 @@ public final class Tiler {
                 assigned[id] = (target, now, target)
             }
         }
+    }
+
+    // float judges each window against the frame the layout gives it: one still on its given frame
+    // that is found off both that frame and where a pass last read it floats when a press held it
+    // and the button came up after its frame was given, or when an action moved it since. It reports
+    // whether any window floated, so the pass lays the rest out again without it.
+    private func float(_ targets: Zip2Sequence<[WindowID], [Frame]>, _ byID: [WindowID: WindowInfo]) -> Bool {
+        var any = false
+        for (id, target) in targets {
+            guard let w = byID[id], let a = assigned[id], Actions.near(a.frame, target, tolerance: Actions.tolerance)
+            else { continue }
+            let off =
+                !Actions.near(w.frame, a.frame, tolerance: Actions.tolerance)
+                && !Actions.near(w.frame, a.seen, tolerance: Actions.tolerance)
+            let hand = held.contains(id) && released > a.at
+            let action = acted[id].map { $0 > a.at } ?? false
+            guard off, hand || action else { continue }
+            floated.insert(id)
+            order.removeAll { $0 == id }
+            assigned[id] = nil
+            acted[id] = nil
+            any = true
+            log("window \(id) moved \(hand ? "by hand" : "by an action"): floating until a mode is chosen again")
+        }
+        return any
     }
 
     // run applies tiling action name and reports whether it did anything. Choosing a mode, even the
