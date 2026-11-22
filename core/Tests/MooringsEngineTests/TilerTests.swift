@@ -122,7 +122,7 @@ final class TileRig {
 }
 
 // A window a press held and moved by hand floats after the mouse up, and the rest close up around
-// it; choosing a mode again brings it back.
+// it in the same pass; choosing a mode again brings it back.
 @Test @MainActor func testTilerDraggedWindowFloats() {
     let rig = TileRig()
     let a = rig.add(), b = rig.add(), c = rig.add()
@@ -135,9 +135,11 @@ final class TileRig {
     rig.tiler.mouseUp()
     rig.pass()
     #expect(rig.tiler.floated == [b])
-    rig.pass()
     #expect(rig.windows.frame(b) == dropped)
     #expect(TileRig.near(rig.frames([a, c]), rig.columns(2)))
+    let moved = rig.moves
+    rig.pass()
+    #expect(rig.moves == moved)
     #expect(rig.tiler.run("tiling-columns"))
     rig.pass()
     #expect(rig.tiler.floated.isEmpty)
@@ -171,7 +173,8 @@ final class TileRig {
 }
 
 // A window its app resizes while another is dragged, with no pass between, stays tiled: only the
-// window the press held floats, as on a runner whose terminal snaps to whole rows late.
+// window the press held floats, as on a runner whose terminal snaps to whole rows late, and the
+// resized window closes up with the rest in the same pass.
 @Test @MainActor func testTilerUngrabbedWindowStaysTiled() {
     let rig = TileRig()
     let a = rig.add(), b = rig.add(), c = rig.add()
@@ -192,10 +195,12 @@ final class TileRig {
     rig.pass()
     #expect(rig.tiler.floated == [c])
     #expect(Set(rig.tiler.order) == [a, b])
-    #expect(rig.windows.frame(a) == own)
+    #expect(rig.windows.frame(a) != own)
+    #expect(TileRig.near(rig.frames([a, b]), rig.columns(2)))
 }
 
-// A press on a shared edge holds both windows, so both float once the edge is moved.
+// A press on a shared edge holds both windows, so both float once the edge is moved, and the one left
+// fills the area in the same pass.
 @Test @MainActor func testTilerEdgeGrabFloatsBoth() {
     let rig = TileRig()
     let a = rig.add(), b = rig.add(), c = rig.add()
@@ -213,6 +218,7 @@ final class TileRig {
     rig.pass()
     #expect(rig.tiler.floated == [a, b])
     #expect(rig.tiler.order == [c])
+    #expect(TileRig.near(rig.frames([c]), rig.columns(1)))
 }
 
 // A press is judged by the first pass after its mouse up only, so a held window its app resizes
@@ -239,7 +245,8 @@ final class TileRig {
     #expect(Set(rig.tiler.order) == [a, b])
 }
 
-// A tiled window an action moves floats where the action put it instead of being pulled back.
+// A tiled window an action moves floats where the action put it instead of being pulled back, and the
+// rest close up in the same pass.
 @Test @MainActor func testTilerActionFloats() {
     let rig = TileRig()
     let a = rig.add(), b = rig.add(focus: true)
@@ -253,6 +260,7 @@ final class TileRig {
     rig.pass()
     #expect(rig.tiler.floated == [b])
     #expect(rig.tiler.order == [a])
+    #expect(TileRig.near(rig.frames([a]), rig.columns(1)))
     rig.pass()
     #expect(rig.windows.frame(b) == placed)
 }
