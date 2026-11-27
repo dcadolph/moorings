@@ -1,9 +1,12 @@
 {
   "name": "macmoorings",
+  "main": "site-worker.js",
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "site",
-    "not_found_handling": "404-page"
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/promo.mp4"]
   },
   "routes": [
     { "pattern": "macmoorings.com", "custom_domain": true },
