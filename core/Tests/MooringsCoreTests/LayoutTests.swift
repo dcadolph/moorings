@@ -242,6 +242,22 @@ let hostCases: [HostCase] = [
         usable: [F(0, 25, 1920, 1055), F(1920, 0, 1920, 1080)], wantIndex: 0, wantUltrawide: false),
     // Test 4: No displays, no host.
     HostCase(name: "none", full: [], usable: [], wantIndex: nil, wantUltrawide: false),
+    // Test 5: The 21:9 share of a split 5120x1440 panel beside a laptop is an ultrawide host.
+    HostCase(
+        name: "21:9 share beside laptop", full: [F(0, 0, 1512, 982), F(1512, 0, 3360, 1440)],
+        usable: [F(0, 38, 1512, 944), F(1512, 25, 3360, 1415)], wantIndex: 1, wantUltrawide: true),
+    // Test 6: The 21:9 share alone, the laptop closed, is an ultrawide host.
+    HostCase(
+        name: "21:9 share alone", full: [F(0, 0, 3360, 1440)], usable: [F(0, 25, 3360, 1415)], wantIndex: 0,
+        wantUltrawide: true),
+    // Test 7: The 21:9 share shown at a scaled size keeps its shape and stays an ultrawide host.
+    HostCase(
+        name: "21:9 share scaled", full: [F(0, 0, 1512, 982), F(1512, 0, 1680, 720)],
+        usable: [F(0, 38, 1512, 944), F(1512, 25, 1680, 695)], wantIndex: 1, wantUltrawide: true),
+    // Test 8: The 11:9 share is not an ultrawide, so the laptop's wider neighbor rule applies.
+    HostCase(
+        name: "11:9 share beside laptop", full: [F(0, 0, 1512, 982), F(1512, 0, 1760, 1440)],
+        usable: [F(0, 38, 1512, 944), F(1512, 25, 1760, 1415)], wantIndex: 1, wantUltrawide: false),
 ]
 
 // testHost checks which display moorings anchors on.

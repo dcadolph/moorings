@@ -213,26 +213,38 @@ final class KeeperRig {
     #expect(rig.anchors.choices.workspaces["desk"]?.setup == Workspaces.signature(rig.screens.screens.full))
 }
 
-// SplitRig drives a keeper through the displays a monitor split into two halves shows one computer:
-// the whole panel, one 1920x1440 half of it shared with another computer (a 3840 wide panel split
-// evenly, wide enough for both sides to hold), and the laptop alone while the panel goes dark
-// between modes. A mail window waits for the anchor the edit adds.
+// SplitRig drives a keeper through the displays a monitor split between two computers shows one of
+// them: the whole panel, the share of it this computer keeps (by default one 1920x1440 half of an
+// evenly split panel, wide enough for both sides to hold), and the laptop alone while the panel goes
+// dark between modes. A mail window waits for the anchor the edit adds.
 final class SplitRig {
     // rig is the keeper on fakes, starting on the whole panel.
     let rig = KeeperRig()
     // mail is the window the full mode edit anchors on the right.
     let mail: WindowID
     // full is the whole panel.
-    let full = FakeScreens.ultrawide().screens
-    // share is the half of the panel this computer keeps in the split.
-    let share = Screens(
-        full: [Frame(x: 0, y: 0, w: 1920, h: 1440)], usable: [Frame(x: 0, y: 25, w: 1920, h: 1415)],
-        host: 0, isUltrawide: false)
+    let full: Screens
+    // share is the part of the panel this computer keeps in the split.
+    let share: Screens
     // laptop is the laptop display alone.
     let laptop = FakeScreens.laptop().screens
 
-    // init adds the mail window behind the pads.
-    init() {
+    // evenShare is the 1920x1440 half of an evenly split panel, not an ultrawide.
+    static let evenShare = Screens(
+        full: [Frame(x: 0, y: 0, w: 1920, h: 1440)], usable: [Frame(x: 0, y: 25, w: 1920, h: 1415)],
+        host: 0, isUltrawide: false)
+    // widePanel is a whole 5120x1440 panel, host found as the platform finds it.
+    static let widePanel = Screens(
+        full: [Frame(x: 0, y: 0, w: 5120, h: 1440)], usable: [Frame(x: 0, y: 25, w: 5120, h: 1415)])
+    // wideShare is the 3360x1440 share the 21:9 split of widePanel gives, host found the same way.
+    static let wideShare = Screens(
+        full: [Frame(x: 0, y: 0, w: 3360, h: 1440)], usable: [Frame(x: 0, y: 25, w: 3360, h: 1415)])
+
+    // init starts the rig on full and adds the mail window behind the pads.
+    init(full: Screens = FakeScreens.ultrawide().screens, share: Screens = SplitRig.evenShare) {
+        self.full = full
+        self.share = share
+        rig.screens.screens = full
         mail = rig.windows.add(
             bundle: "com.example.mail", frame: Frame(x: 600, y: 200, w: 600, h: 400), title: "inbox")
     }
@@ -318,4 +330,42 @@ final class SplitRig {
     #expect(s.rig.keeper.recall("full"))
     #expect(s.rig.anchors.choices.widths == Widths(left: 30, right: 25))
     #expect(s.rig.anchors.choices.slots == [.leftTop: "com.example.pad"])
+}
+
+// Test 12: The 21:9 share of a 5120 panel is an ultrawide of its own: after a switch to it the
+// anchors hold its strips at the chosen widths, and two toggles, one with the panel dark and only
+// the laptop showing, still leave the full mode edit alone.
+@Test func testKeeperWideShareKeepsEdits() {
+    let s = SplitRig(full: SplitRig.widePanel, share: SplitRig.wideShare)
+    #expect(s.share.isUltrawide && s.share.host == 0, "the 21:9 share is an ultrawide host")
+    s.setUp()
+    s.edit()
+    s.show(s.share)
+    #expect(s.rig.anchors.hostIsUltrawide, "the anchors see the share as an ultrawide")
+    let right = s.rig.frame(s.mail)
+    let left = s.rig.pads.map(s.rig.frame)
+    #expect(abs(right.w - 3360 * 0.30) < 1 && abs(right.x + right.w - 3360) < 1, "mail holds the right strip: \(right)")
+    #expect(left.contains { abs($0.w - 3360 * 0.35) < 1 && $0.x < 1 }, "a pad holds the left strip: \(left)")
+    s.show(s.full)
+    s.show(s.laptop)
+    s.show(s.share)
+    s.show(s.full)
+    s.expectEdits("toggles through the 21:9 share")
+    let back = s.rig.frame(s.mail)
+    #expect(abs(back.w - 5120 * 0.30) < 1 && abs(back.x + back.w - 5120) < 1, "mail holds the panel's strip: \(back)")
+}
+
+// Test 13: The 50:50 split of a 5120 panel gives a 2560x1440 share, which is not an ultrawide, so
+// the anchors use the normal display's fixed widths there and the full mode edit survives.
+@Test func testKeeperEvenShareOfWidePanel() {
+    let even = Screens(
+        full: [Frame(x: 0, y: 0, w: 2560, h: 1440)], usable: [Frame(x: 0, y: 25, w: 2560, h: 1415)])
+    let s = SplitRig(full: SplitRig.widePanel, share: even)
+    #expect(!s.share.isUltrawide, "the 16:9 share is a normal display")
+    s.setUp()
+    s.edit()
+    s.show(s.share)
+    #expect(!s.rig.anchors.hostIsUltrawide, "the anchors see the share as a normal display")
+    s.show(s.full)
+    s.expectEdits("a toggle through the 16:9 share")
 }
