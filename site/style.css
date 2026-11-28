@@ -43,7 +43,8 @@ p b { color: var(--text); font-weight: 600; }
 .small.palm { color: var(--palm); }
 .band { padding: clamp(72px, 8vw, 112px) 0; }
 .watch video {
-  display: block; width: min(980px, 100%); margin: clamp(32px, 4vw, 48px) auto 0;
+  display: block; width: min(980px, 100%); height: auto; aspect-ratio: 16 / 9;
+  margin: clamp(32px, 4vw, 48px) auto 0;
   border-radius: 18px; border: 1px solid var(--line); background: #000;
 }
 .lift { background: var(--lift); }
