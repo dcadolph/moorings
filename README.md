@@ -14,6 +14,8 @@
   <img src="https://img.shields.io/badge/platform-macOS_15+-lightgrey?logo=apple&logoColor=white" alt="Platform: macOS 15 or later">
 </p>
 
+https://github.com/user-attachments/assets/5a69b196-9603-4b6d-8648-e9b8d08324d9
+
 A free window manager for every Mac. Snap windows with a key or a drag, and on an ultrawide, pin
 your always-on apps to the edges. No ultrawide? Moorings anchors on your widest display instead.
 
